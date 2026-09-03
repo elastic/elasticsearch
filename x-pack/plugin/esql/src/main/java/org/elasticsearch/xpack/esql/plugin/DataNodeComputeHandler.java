@@ -846,7 +846,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String nodeReduceSessionId = nodeReduceSessionId(sessionId);
         if (request.plan() instanceof ExchangeSinkExec plan) {
             try {
-                validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion());
+                validateRemoteFetchRequest(plan, request.retainSearchContexts(), channel.getVersion(), computeService.createFlags());
                 if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
                     reductionPlan = ComputeService.reductionPlan(
                         computeService.plannerSettings().get(),
@@ -963,16 +963,21 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         return sessionId + "[n]";
     }
 
-    static void validateRemoteFetchRequest(PhysicalPlan plan, boolean retainSearchContexts, TransportVersion transportVersion) {
+    static void validateRemoteFetchRequest(
+        PhysicalPlan plan,
+        boolean retainSearchContexts,
+        TransportVersion transportVersion,
+        EsqlFlags flags
+    ) {
         if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance) == false) {
             return;
         }
         if (retainSearchContexts == false) {
             throw new IllegalStateException("remote-fetch boundary requires retained search contexts");
         }
-        if (EsqlCapabilities.Cap.REMOTE_FETCH_TOPN_FETCH_PHASE.isEnabled() == false) {
+        if (flags.remoteFetchTopN() == false) {
             throw new IllegalStateException(
-                "remote-fetch boundary requires feature flag [" + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG + "]"
+                "remote-fetch boundary requires cluster setting [" + EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey() + "]"
             );
         }
         if (transportVersion.supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {

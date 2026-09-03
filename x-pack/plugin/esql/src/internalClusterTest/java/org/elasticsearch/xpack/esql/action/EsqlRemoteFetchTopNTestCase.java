@@ -14,7 +14,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
@@ -39,8 +39,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
     private String indexName;
 
     @BeforeClass
-    public static void checkRemoteFetchTopNFeatureFlag() {
-        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
+    public static void checkRemoteFetchTopNSetting() {
+        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
     }
 
     @Before
@@ -259,11 +259,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         }
     }
 
-    public void testRemoteFetchTopNDisabledWithoutFeatureFlag() {
-        assumeFalse(
-            "test requires remote fetch topn feature flag to be disabled",
-            RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled()
-        );
+    public void testRemoteFetchTopNDisabledBySetting() {
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), false));
         try (
             EsqlQueryResponse response = runQuery(
                 "FROM " + indexName + " | SORT unique_sort + 1 DESC | LIMIT 5 | KEEP unique_sort, payload, category"
@@ -285,6 +282,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
             assertFieldLoadedBeforeFetch(response, "unique_sort");
             assertFieldLoadedBeforeFetch(response, "payload");
             assertFieldLoadedBeforeFetch(response, "category");
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey()));
         }
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -62,7 +63,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class PlanRemoteFetchTests extends ESTestCase {
 
     public void testPlansBoundaryAndCoordinatorFetchInFinalOptimizerBatch() {
-        assumeRemoteFetchTopNEnabled();
         Configuration configuration = configuration(true, MappedFieldType.FieldExtractPreference.NONE);
         PhysicalPlan optimized = distributedPlan(configuration, TransportVersion.current());
 
@@ -89,7 +89,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testRemoteFetchReestimatesCoordinatorTopN() {
-        assumeRemoteFetchTopNEnabled();
         PhysicalPlan original = distributedPlan(
             configuration(true, MappedFieldType.FieldExtractPreference.DOC_VALUES),
             TransportVersion.current()
@@ -105,21 +104,17 @@ public class PlanRemoteFetchTests extends ESTestCase {
         );
     }
 
-    public void testDisabledFeatureFlagDisablesRemoteFetch() {
-        assumeFalse(
-            "test requires remote fetch topn feature flag to be disabled",
-            RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled()
-        );
+    public void testDisabledSettingDisablesRemoteFetch() {
         PhysicalPlan optimized = distributedPlan(
             configuration(true, MappedFieldType.FieldExtractPreference.NONE),
-            TransportVersion.current()
+            TransportVersion.current(),
+            EsqlFlags.withRemoteFetchTopN(false)
         );
 
         assertThat(optimized.toString(), optimized.collect(RemoteFetchBoundaryExec.class), hasSize(0));
     }
 
     public void testDisabledNodeLevelReductionDisablesRemoteFetch() {
-        assumeRemoteFetchTopNEnabled();
         PhysicalPlan optimized = distributedPlan(
             configuration(false, MappedFieldType.FieldExtractPreference.NONE),
             TransportVersion.current()
@@ -130,7 +125,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testUnsupportedTransportVersionDisablesRemoteFetch() {
-        assumeRemoteFetchTopNEnabled();
         TransportVersion unsupported = TransportVersionUtils.getPreviousVersion(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION);
         PhysicalPlan optimized = distributedPlan(configuration(true, MappedFieldType.FieldExtractPreference.NONE), unsupported);
 
@@ -209,7 +203,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testPlansSortExpressionUsedByTopN() {
-        assumeRemoteFetchTopNEnabled();
         PhysicalPlan optimized = distributedPlan(
             configuration(true, MappedFieldType.FieldExtractPreference.NONE),
             TransportVersion.current(),
@@ -220,7 +213,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testDoesNotPlanWithFuseScoreEvalPipelineBreaker() {
-        assumeRemoteFetchTopNEnabled();
         TransportVersion unsupported = TransportVersionUtils.getPreviousVersion(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION);
         PhysicalPlan distributedTopN = distributedPlan(configuration(true, MappedFieldType.FieldExtractPreference.NONE), unsupported);
         PhysicalPlan withFuse = new FuseScoreEvalExec(
@@ -254,7 +246,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testRestoresOutputWithoutTopLevelProject() {
-        assumeRemoteFetchTopNEnabled();
         TransportVersion unsupported = TransportVersionUtils.getPreviousVersion(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION);
         PhysicalPlan original = distributedPlan(
             configuration(true, MappedFieldType.FieldExtractPreference.NONE),
@@ -280,7 +271,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     public void testPlansNormalMappedFieldImplementations() {
-        assumeRemoteFetchTopNEnabled();
         List<EsField> fields = List.of(
             new KeywordEsField("deferred", Map.of(), true, 32766, false, false, EsField.TimeSeriesFieldType.NONE),
             new TextEsField("deferred", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE),
@@ -318,14 +308,28 @@ public class PlanRemoteFetchTests extends ESTestCase {
     }
 
     private static PhysicalPlan distributedPlan(Configuration configuration, TransportVersion minimumVersion) {
+        return distributedPlan(configuration, minimumVersion, EsqlFlags.withRemoteFetchTopN(true));
+    }
+
+    private static PhysicalPlan distributedPlan(Configuration configuration, TransportVersion minimumVersion, EsqlFlags flags) {
         return distributedPlan(
             configuration,
             minimumVersion,
+            flags,
             "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no"
         );
     }
 
     private static PhysicalPlan distributedPlan(Configuration configuration, TransportVersion minimumVersion, String query) {
+        return distributedPlan(configuration, minimumVersion, EsqlFlags.withRemoteFetchTopN(true), query);
+    }
+
+    private static PhysicalPlan distributedPlan(
+        Configuration configuration,
+        TransportVersion minimumVersion,
+        EsqlFlags flags,
+        String query
+    ) {
         Map<String, EsField> mapping = Map.of(
             "hire_date",
             new EsField("hire_date", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
@@ -338,7 +342,7 @@ public class PlanRemoteFetchTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion)
             .buildAnalyzer();
-        return new TestPlannerOptimizer(configuration, analyzer).distributedPlan(query);
+        return new TestPlannerOptimizer(configuration, analyzer, flags).distributedPlan(query);
     }
 
     private static Configuration configuration(boolean nodeLevelReduction, MappedFieldType.FieldExtractPreference preference) {
@@ -350,10 +354,6 @@ public class PlanRemoteFetchTests extends ESTestCase {
                     .build()
             )
         );
-    }
-
-    private static void assumeRemoteFetchTopNEnabled() {
-        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
     }
 
     private static void assertDeferredAttributeIsRejected(Attribute deferredAttribute) {
@@ -393,7 +393,11 @@ public class PlanRemoteFetchTests extends ESTestCase {
     private static PhysicalPlan applyRemoteFetch(PhysicalPlan plan) {
         return new PlanRemoteFetch().apply(
             plan,
-            new PhysicalOptimizerContext(configuration(true, MappedFieldType.FieldExtractPreference.NONE), TransportVersion.current())
+            new PhysicalOptimizerContext(
+                configuration(true, MappedFieldType.FieldExtractPreference.NONE),
+                TransportVersion.current(),
+                EsqlFlags.withRemoteFetchTopN(true)
+            )
         );
     }
 

@@ -132,6 +132,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -218,6 +219,7 @@ public class EsqlSession {
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
     private final PlannerSettings plannerSettings;
+    private final EsqlFlags flags;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -341,6 +343,7 @@ public class EsqlSession {
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
         this.plannerSettings = plannerSettings;
+        this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -548,7 +551,9 @@ public class EsqlSession {
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
-                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
+                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(
+                        new PhysicalOptimizerContext(configuration, minimumVersion, flags)
+                    );
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))

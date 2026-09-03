@@ -33,19 +33,28 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
+        this(config, analyzer, new EsqlFlags(true));
+    }
+
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()))
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
+            flags
         );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
+        this(config, analyzer, logicalOptimizer, new EsqlFlags(true));
+    }
+
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer, EsqlFlags flags) {
         this.analyzer = analyzer;
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
         mapper = new Mapper();
 
     }

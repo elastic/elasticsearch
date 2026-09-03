@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 
@@ -139,7 +139,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteFetchTopNIsDisabledForCrossClusterSearch() throws Exception {
-        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
+        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
         setupTwoClusters();
         QueryPragmas pragmas = new QueryPragmas(
             Settings.builder()

@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -36,14 +35,6 @@ import java.util.Objects;
  * be consumed before execution.
  */
 public final class RemoteFetchBoundaryExec extends UnaryExec {
-    /**
-     * Gates coordinator-driven remote fetch for deferred TopN fields after node-level reduction.
-     * Enabled automatically in snapshot builds; override in release with
-     * {@code -Des.esql_remote_fetch_topn_feature_flag_enabled=true} or disable in snapshot with
-     * {@code -Des.esql_remote_fetch_topn_feature_flag_enabled=false}.
-     */
-    public static final FeatureFlag ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG = new FeatureFlag("esql_remote_fetch_topn");
-
     public static final TransportVersion ESQL_REMOTE_FETCH_TOPN_REDUCTION = TransportVersion.fromName("esql_remote_fetch_topn_reduction");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

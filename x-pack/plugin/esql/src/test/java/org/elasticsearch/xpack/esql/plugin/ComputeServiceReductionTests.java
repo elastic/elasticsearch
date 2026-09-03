@@ -112,9 +112,33 @@ public class ComputeServiceReductionTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> DataNodeComputeHandler.validateRemoteFetchRequest(dataPlan, false, TransportVersion.current())
+            () -> DataNodeComputeHandler.validateRemoteFetchRequest(
+                dataPlan,
+                false,
+                TransportVersion.current(),
+                EsqlFlags.withRemoteFetchTopN(true)
+            )
         );
         assertThat(e.getMessage(), containsString("requires retained search contexts"));
+    }
+
+    public void testRemoteFetchBoundaryRequiresEnabledSettingAtRequestHandling() {
+        Configuration configuration = remoteFetchConfiguration();
+        ExchangeSinkExec dataPlan = as(
+            PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(distributedQueryPlan(configuration), configuration).v2(),
+            ExchangeSinkExec.class
+        );
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DataNodeComputeHandler.validateRemoteFetchRequest(
+                dataPlan,
+                true,
+                TransportVersion.current(),
+                EsqlFlags.withRemoteFetchTopN(false)
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.query.remote_fetch_topn.enabled"));
     }
 
     public void testRemoteFetchBoundaryRequiresFeatureTransportVersionAtRequestHandling() {
@@ -129,7 +153,8 @@ public class ComputeServiceReductionTests extends ESTestCase {
             () -> DataNodeComputeHandler.validateRemoteFetchRequest(
                 dataPlan,
                 true,
-                TransportVersionUtils.getPreviousVersion(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION)
+                TransportVersionUtils.getPreviousVersion(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION),
+                EsqlFlags.withRemoteFetchTopN(true)
             )
         );
         assertThat(e.getMessage(), containsString("requires transport version"));
@@ -276,13 +301,12 @@ public class ComputeServiceReductionTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(TransportVersion.current())
             .buildAnalyzer();
-        return new TestPlannerOptimizer(configuration, analyzer).distributedPlan(
+        return new TestPlannerOptimizer(configuration, analyzer, EsqlFlags.withRemoteFetchTopN(true)).distributedPlan(
             "FROM employees | SORT hire_date | LIMIT 20 | KEEP hire_date, salary, emp_no"
         );
     }
 
     private static Configuration remoteFetchConfiguration() {
-        assumeTrue("test requires remote fetch topn feature flag", RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG.isEnabled());
         return EsqlTestUtils.configuration(QueryPragmas.EMPTY);
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.HashSet;
@@ -3845,8 +3844,9 @@ public class EsqlCapabilities {
 
         /**
          * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
+         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
          */
-        REMOTE_FETCH_TOPN_FETCH_PHASE(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_FEATURE_FLAG),
+        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.

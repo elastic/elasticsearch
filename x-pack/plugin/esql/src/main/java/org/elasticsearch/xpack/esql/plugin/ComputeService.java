@@ -30,7 +30,6 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -115,7 +114,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -173,7 +171,7 @@ public class ComputeService {
     public static final String REDUCE_DESCRIPTION = "node_reduce";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
-    private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+    static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
@@ -193,11 +191,12 @@ public class ComputeService {
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
-    private final ExchangeService exchangeService;
-    private final PlannerSettings.Holder plannerSettings;
+    // Package-private: also read by MergeLevelExecutor, which drives sub plan execution on this service's behalf.
+    final ExchangeService exchangeService;
+    final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
-    private final Executor searchExecutor;
+    final Executor searchExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
@@ -909,8 +908,6 @@ public class ComputeService {
             // external blob-store pool after ExternalSourceResolver dispatches resolution there.
             EsqlPlugin.externalBlobStorePool()
         );
-        // Check if the plan contains subqueries (UnionAll) vs fork branches before breaking it apart.
-        // Batching is only applied to subqueries, not fork branches.
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
@@ -954,7 +951,7 @@ public class ComputeService {
 
         ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), searchExecutor);
 
-        exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
+        exchangeService.addExchangeSourceHandler(sessionId, mainExchangeSource);
         var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         var computeContext = new ComputeContext(
             mainSessionId,
@@ -970,158 +967,71 @@ public class ComputeService {
         );
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+        int branchParallelDegree = queryPragmas.branchParallelDegree();
+        var subPlanTaskRunner = new SubPlanTaskRunner(branchParallelDegree, searchExecutor);
+        rootTask.addListener(() -> subPlanTaskRunner.fail(rootTask.getTaskCancelledException()));
+        var queryContext = new MergeLevelExecutor.QueryContext(
+            sessionId,
+            rootTask,
+            flags,
+            configuration,
+            foldContext,
+            execInfo,
+            queryPragmas,
+            initialClusterStatuses,
+            subPlanTaskRunner
+        );
 
         try (ComputeListener localListener = new ComputeListener(cancelQueryOnFailure, finalListener.map(profiles -> {
             execInfo.markEndQuery();
             return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo, null);
         }))) {
-            runCompute(
-                rootTask,
-                computeContext,
-                mainPlan,
-                plannerSettings.get(),
-                LocalPhysicalOptimization.ENABLED,
-                planTimeProfile,
-                localListener.acquireCompute()
-            );
-            int branchParallelDegree = queryPragmas.branchParallelDegree();
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug(
-                    "executing [{}] subplans in parallel degree of [{}] with initial cluster statuses [{}]",
-                    subplans.size(),
-                    branchParallelDegree,
-                    initialClusterStatuses
-                );
-            }
-            SubPlansExecutor subPlansExecutor = new SubPlansExecutor(
-                subplans,
-                localListener,
-                sessionId,
-                rootTask,
-                flags,
-                configuration,
-                foldContext,
-                execInfo,
-                queryPragmas,
-                mainExchangeSource,
-                initialClusterStatuses
-            );
-            subPlansExecutor.execute(branchParallelDegree);
-        }
-    }
-
-    /**
-     * Executes subplans in parallel. The parallel degree is controlled by the {@code BRANCH_PARALLEL_DEGREE} pragma.
-     * The {@code emptySinkRef} keeps the main exchange source alive across batches and is released
-     * when the last subplan is dispatched.
-     */
-    private class SubPlansExecutor {
-        final List<PhysicalPlan> subplans;
-        final List<ActionListener<DriverCompletionInfo>> subPlanListeners;
-        final String sessionId;
-        final CancellableTask rootTask;
-        final EsqlFlags flags;
-        final Configuration configuration;
-        final FoldContext foldContext;
-        final EsqlExecutionInfo execInfo;
-        final QueryPragmas queryPragmas;
-        final ExchangeSourceHandler mainExchangeSource;
-        final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
-        final AtomicInteger nextId = new AtomicInteger();
-        final AtomicInteger completedSubPlanCount = new AtomicInteger();
-        final Releasable emptySinkRef;
-
-        SubPlansExecutor(
-            List<PhysicalPlan> subplans,
-            ComputeListener computeListener,
-            String sessionId,
-            CancellableTask rootTask,
-            EsqlFlags flags,
-            Configuration configuration,
-            FoldContext foldContext,
-            EsqlExecutionInfo execInfo,
-            QueryPragmas queryPragmas,
-            ExchangeSourceHandler mainExchangeSource,
-            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
-        ) {
-            this.subplans = subplans;
-            // Pre-acquire all subplan listeners upfront so that the ComputeListener's ref count
-            // accounts for all subplans before any execution begins. This prevents the ComputeListener
-            // from closing prematurely if early subplans finish with errors before later ones are started.
-            this.subPlanListeners = new ArrayList<>(subplans.size());
-            for (int i = 0; i < subplans.size(); i++) {
-                subPlanListeners.add(computeListener.acquireCompute());
-            }
-            this.sessionId = sessionId;
-            this.rootTask = rootTask;
-            this.flags = flags;
-            this.configuration = configuration;
-            this.foldContext = foldContext;
-            this.execInfo = execInfo;
-            this.queryPragmas = queryPragmas;
-            this.mainExchangeSource = mainExchangeSource;
-            this.initialClusterStatuses = initialClusterStatuses;
-            this.emptySinkRef = Releasables.releaseOnce(mainExchangeSource.addEmptySink());
-        }
-
-        void execute(int branchParallelDegree) {
-            for (int i = 0; i < branchParallelDegree; i++) {
-                tryExecuteNextSubPlan();
-            }
-        }
-
-        void tryExecuteNextSubPlan() {
-            int subPlanIndex = nextId.getAndIncrement();
-            if (subPlanIndex >= subplans.size()) {
-                return;
-            }
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("executing subplan [{}]", subPlanIndex);
-            }
-            var subplan = subplans.get(subPlanIndex);
-            var childSessionId = newChildSession(sessionId);
-            ExchangeSinkHandler exchangeSink = exchangeService.createSinkHandler(childSessionId, queryPragmas.exchangeBufferSize());
-            mainExchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
-            var subPlanListener = subPlanListeners.get(subPlanIndex);
-            executePlan(
-                childSessionId,
-                rootTask,
-                flags,
-                subplan,
-                configuration,
-                foldContext,
-                execInfo,
-                "subplan-" + subPlanIndex,
-                ActionListener.wrap(result -> {
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("subplan [{}] finished successfully", subPlanIndex);
-                    }
-                    exchangeSink.addCompletionListener(
-                        ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
-                    );
-                    subPlanListener.onResponse(result.completionInfo());
-                    onSubPlanCompleted();
+            // Holds localListener open across the setup below, exactly as MergeLevelExecutor.executeSubPlanWithNestedSubPlans does
+            // for a nested level. Without it, a throw before the first acquireCompute() - the MergeLevelExecutor constructor calls
+            // mainExchangeSource.addEmptySink() before it acquires anything - closes localListener with no failure recorded, so
+            // finalListener takes its success branch and the query returns an empty Result while the exception propagates out of
+            // execute() to a caller that then resolves the same listener a second time.
+            ActionListener<Void> setupListener = localListener.acquireAvoid();
+            MergeLevelExecutor mergeLevelExecutor = null;
+            ActionListener<DriverCompletionInfo> mainPlanListener = null;
+            try {
+                mergeLevelExecutor = new MergeLevelExecutor(this, queryContext, subplans, localListener, mainExchangeSource, null);
+                var acquired = localListener.acquireCompute();
+                mainPlanListener = ActionListener.notifyOnce(ActionListener.wrap(completionInfo -> {
+                    subPlanTaskRunner.finish();
+                    acquired.onResponse(completionInfo);
                 }, e -> {
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("subplan [{}] finished with an error [{}]", subPlanIndex, e.getMessage());
-                    }
-                    exchangeService.finishSinkHandler(childSessionId, e);
-                    subPlanListener.onFailure(e);
-                    onSubPlanCompleted();
-                }),
-                () -> exchangeSink.createExchangeSink(() -> {}),
-                initialClusterStatuses,
-                configuration.profile() ? new PlanTimeProfile() : null
-            );
-        }
-
-        void onSubPlanCompleted() {
-            if (completedSubPlanCount.incrementAndGet() == subplans.size()) {
-                // All subplans have completed — release the empty sink so the exchange source
-                // can finish once all subplan sinks have been consumed by the coordinator.
-                emptySinkRef.close();
-            } else {
-                tryExecuteNextSubPlan();
+                    subPlanTaskRunner.fail(e);
+                    mainExchangeSource.finishEarly(true, ActionListener.noop());
+                    acquired.onFailure(e);
+                }));
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    mainPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    mainPlanListener
+                );
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                        "executing [{}] subplans in parallel degree of [{}] with initial cluster statuses [{}]",
+                        subplans.size(),
+                        branchParallelDegree,
+                        initialClusterStatuses
+                    );
+                }
+                mergeLevelExecutor.execute(branchParallelDegree);
+                setupListener.onResponse(null);
+            } catch (Exception e) {
+                if (mergeLevelExecutor != null) {
+                    mergeLevelExecutor.abortUndispatched(e);
+                }
+                if (mainPlanListener != null) {
+                    mainPlanListener.onFailure(e);
+                }
+                setupListener.onFailure(e);
             }
         }
     }

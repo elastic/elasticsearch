@@ -1478,6 +1478,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Support nested non-correlated subqueries in the FROM command, i.e. a subquery whose own FROM command contains further subqueries
+         * or multiple index patterns.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

@@ -498,3 +498,6 @@ tests:
 - class: org.elasticsearch.common.LocalTimeOffsetTests
   method: testOverlap
   issue: https://github.com/elastic/elasticsearch/issues/158343
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithRelocationOrObjectStoreFailures
+  issue: https://github.com/elastic/elasticsearch/issues/156569

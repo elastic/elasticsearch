@@ -66,7 +66,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -771,18 +771,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         private void cancelPendingRelocations(Predicate<PendingRelocation> predicate, Exception reason) {
-            final List<PendingRelocation> cancelled;
+            final Set<PendingRelocation> cancelled;
             synchronized (this) {
-                cancelled = new ArrayList<>();
-                final Iterator<PendingRelocation> it = pendingRelocations.iterator();
-                while (it.hasNext()) {
-                    final PendingRelocation pending = it.next();
+                cancelled = new HashSet<>();
+                for (PendingRelocation pending : pendingRelocations) {
                     if (predicate.test(pending)) {
                         cancelled.add(pending);
-                        it.remove();
                         pending.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
                     }
                 }
+                pendingRelocations.removeAll(cancelled);
             }
             for (PendingRelocation cancelledRelocation : cancelled) {
                 cancelledRelocation.listener().onFailure(reason);

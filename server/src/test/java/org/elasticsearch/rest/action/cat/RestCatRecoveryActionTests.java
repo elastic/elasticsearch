@@ -62,6 +62,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             when(state.getTimer()).thenReturn(timer);
             when(state.getRecoverySource()).thenReturn(TestShardRouting.buildRecoverySource());
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
+            when(state.getLocalRetries()).thenReturn(randomIntBetween(0, 10));
             when(state.getRecoveryPriority()).thenReturn(randomFrom(ShardRouting.RecoveryPriority.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
@@ -128,6 +129,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "time",
             "type",
             "stage",
+            "local_retries",
             "priority",
             "source_host",
             "source_node",
@@ -166,6 +168,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 new TimeValue(state.getTimer().time()),
                 state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
                 state.getStage().name().toLowerCase(Locale.ROOT),
+                state.getLocalRetries(),
                 state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),

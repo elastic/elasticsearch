@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
@@ -48,40 +47,14 @@ public final class FormatNameResolver {
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted via the {@code reader} dataset setting for the parquet-rs native reader. */
-    public static final String READER_PARQUET_RS = "parquet-rs";
     /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";
-    /** Format name registered by the parquet-rs native reader. */
-    public static final String FORMAT_PARQUET_RS = "parquet-rs";
 
-    /**
-     * Gates the prototype parquet-rs native reader and its public {@code reader=parquet-rs} selector.
-     * Snapshot-on, release-off; override in release with {@code -Des.esql_external_parquet_rs_feature_flag_enabled=true}.
-     * Lives here (and not in the parquet-rs plugin module) so this esql-core resolver can gate the alias while
-     * {@code ParquetRsPlugin} — which already depends on this class — reuses the same flag for format registration.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG = new FeatureFlag("esql_external_parquet_rs");
-
-    private static final Map<String, String> READER_ALIAS_TO_FORMAT = parquetRsEnabled()
-        ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
-        : Map.of(READER_JAVA, FORMAT_PARQUET);
-
-    /** Reader aliases that are known but disabled in this build (complement of {@link #READER_ALIAS_TO_FORMAT}). */
-    static final Set<String> DISABLED_READER_ALIASES = parquetRsEnabled() ? Set.of() : Set.of(READER_PARQUET_RS);
-
-    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
-    public static boolean parquetRsEnabled() {
-        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
-    }
+    private static final Map<String, String> READER_ALIAS_TO_FORMAT = Map.of(READER_JAVA, FORMAT_PARQUET);
 
     private FormatNameResolver() {}
-
-    private static IllegalArgumentException disabledReaderError(String alias) {
-        return new IllegalArgumentException("Reader [" + alias + "] is disabled; supported values: " + supportedReaderAliases());
-    }
 
     /**
      * Normalizes a raw {@code format} value to its canonical stored form — {@code trim()} then
@@ -125,7 +98,7 @@ public final class FormatNameResolver {
      * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
      * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
      *
-     * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
+     * @return the format name (e.g. "parquet", "orc"), or null if undetermined
      */
     public static String resolve(Map<String, Object> config, String sourcePath) {
         if (config != null) {
@@ -135,9 +108,6 @@ public final class FormatNameResolver {
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName != null) {
                     return formatName;
-                }
-                if (DISABLED_READER_ALIASES.contains(alias)) {
-                    throw disabledReaderError(alias);
                 }
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
@@ -192,9 +162,6 @@ public final class FormatNameResolver {
                 String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
-                    if (DISABLED_READER_ALIASES.contains(alias)) {
-                        throw disabledReaderError(alias);
-                    }
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
                 return registry.byNameForObject(formatName, objectName);

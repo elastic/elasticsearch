@@ -115,18 +115,28 @@ public final class SplitDiscoveryPhase {
      * split coalescing.
      *
      * @param plan          the split-enriched physical plan
-     * @param filesScanned  distinct files contributing splits (file-based sources only; {@code 0} otherwise)
-     * @param splitsScanned total number of discovered splits across all external sources
-     * @param bytesScanned  sum of {@link ExternalSplit#estimatedSizeInBytes()} over the discovered splits,
-     *                      ignoring splits that report an unknown ({@code < 0}) size
+     * @param filesScanned  distinct files contributing splits; a source that falls through to a whole-list read
+     *                      (empty splits, not an exhaustive prune) contributes every file in the resolved list
+     * @param splitsScanned total number of discovered splits across all external sources; a source that falls
+     *                      through to a whole-list read contributes one unit per file, matching how the runtime
+     *                      reads it
+     * @param bytesScanned  sum of {@link ExternalSplit#estimatedSizeInBytes()} over the discovered splits, or the
+     *                      listed file sizes for a whole-list fall-through; either way only positive sizes are
+     *                      summed
      */
-    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {}
+    public record Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned, long cpuNanos) {
+        /** Backwards-compatible constructor without cpuNanos (defaults to 0). */
+        public Result(PhysicalPlan plan, int filesScanned, int splitsScanned, long bytesScanned) {
+            this(plan, filesScanned, splitsScanned, bytesScanned, 0L);
+        }
+    }
 
     /** Mutable accumulator threaded through the recursive walk. */
     private static final class ScanStats {
         private int filesScanned;
         private int splitsScanned;
         private long bytesScanned;
+        private long cpuNanos;
     }
 
     public static PhysicalPlan resolveExternalSplits(PhysicalPlan plan, Map<String, ExternalSourceFactory> sourceFactories) {
@@ -193,7 +203,7 @@ public final class SplitDiscoveryPhase {
     ) {
         ScanStats stats = new ScanStats();
         PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
-        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
+        return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned, stats.cpuNanos);
     }
 
     private static PhysicalPlan resolveRecursive(
@@ -302,6 +312,13 @@ public final class SplitDiscoveryPhase {
                 e
             );
         } catch (Exception e) {
+            RuntimeException surfaced = ExternalFailures.surface(
+                e,
+                "failed to discover splits for external source [" + exec.sourcePath() + "] of type [" + exec.sourceType() + "]"
+            );
+            if (surfaced != e) {
+                throw surfaced;
+            }
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
                 e,
@@ -313,16 +330,32 @@ public final class SplitDiscoveryPhase {
         if (splits.isEmpty()) {
             // No splits because every file was eliminated by a row-count-preserving filter contradiction (see
             // SplitDiscoveryResult#exhaustivelyPruned). Swap in FileList.EMPTY so the read path scans nothing; a row
-            // filter still runs downstream, so the answer is unchanged (0 rows). An empty result that is NOT an
-            // exhaustive prune (unresolved glob, SINGLE source, or a row-count-unsafe no-overlap drop) falls through
-            // to the whole read. Return before the stats increments below to keep honest zero scanned counts.
+            // filter still runs downstream, so the answer is unchanged (0 rows) and the scanned counts stay an
+            // honest zero. An empty result that is NOT an exhaustive prune (unresolved glob, SINGLE source, empty
+            // file list, or a provider that could not certify its prune) falls through to the whole read.
             if (result.exhaustivelyPruned()) {
                 return exec.withFileList(FileList.EMPTY);
+            }
+            // The fall-through reads every file in the resolved list, each as one unit, so the accounting must say
+            // that: reporting zeros here would describe a full-dataset read as no work at all. An unresolved list
+            // reports zero because its listing has not happened yet (the counts do not exist at this layer), and a
+            // file-less SINGLE source reports zero by contract (SplitDiscoveryResult).
+            if (fileList != null && fileList.isResolved() && fileList.isEmpty() == false) {
+                int fileCount = fileList.fileCount();
+                stats.filesScanned += fileCount;
+                stats.splitsScanned += fileCount;
+                for (int i = 0; i < fileCount; i++) {
+                    long sizeInBytes = fileList.size(i);
+                    if (sizeInBytes > 0) {
+                        stats.bytesScanned += sizeInBytes;
+                    }
+                }
             }
             return exec;
         }
         stats.filesScanned += result.filesScanned();
         stats.splitsScanned += splits.size();
+        stats.cpuNanos += result.cpuNanos();
         for (ExternalSplit split : splits) {
             long sizeInBytes = split.estimatedSizeInBytes();
             if (sizeInBytes > 0) {

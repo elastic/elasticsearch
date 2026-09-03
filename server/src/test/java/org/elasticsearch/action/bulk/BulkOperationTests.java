@@ -62,6 +62,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -87,6 +88,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -622,6 +624,74 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
+     * {@link NodeClient#executeLocally} throws rather than notifying the listener when it cannot start a shard request at all, so the
+     * ref acquired for that request is never released. On the redirect round the throw escapes into a
+     * {@link org.elasticsearch.action.support.RefCountingRunnable} delegate, which logs and swallows it once assertions are disabled,
+     * leaving the bulk operation to hang and its task registered forever.
+     */
+    public void testShardRequestDispatchFailureDuringRedirectCompletesBulk() throws Exception {
+        // Requests that go to two separate shards, the second of which is redirected to the failure store
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        // The three failures NodeClient#executeLocally documents as escaping instead of reaching the listener
+        RuntimeException dispatchFailure = randomFrom(
+            new TaskCancelledException("parent task was cancelled [request timed out after [2m]]"),
+            new IllegalArgumentException("Request exceeded the maximum size of task headers [16kb]"),
+            new IllegalStateException("failed to find action [indices:data/write/bulk[s]] to execute")
+        );
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onBackingIndexWrite = thatFailsDocuments(
+            Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause"))
+        );
+        NodeClient client = new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportShardBulkAction.TYPE.equals(action) == false) {
+                    fail("Unexpected client call to " + action.name());
+                }
+                BulkShardRequest shardRequest = (BulkShardRequest) request;
+                if (shardRequest.shardId().getIndex().equals(ds2FailureStore1.getIndex())) {
+                    throw dispatchFailure;
+                }
+                onBackingIndexWrite.accept(shardRequest, ActionListener.notifyOnce((ActionListener<BulkShardResponse>) listener));
+                return null;
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                try {
+                    executeLocally(action, request, listener);
+                } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(sameInstance(dispatchFailure)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
@@ -1189,6 +1259,12 @@ public class BulkOperationTests extends ESTestCase {
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
                     }
+                } else if (TransportShardBulkAction.TYPE.equals(action)) {
+                    try {
+                        executeLocally(action, request, listener);
+                    } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                        listener.onFailure(e);
+                    }
                 } else {
                     fail("Unexpected client call to " + action.name());
                 }
@@ -1310,7 +1386,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            failureStoreNodeFeatureEnabled
+            failureStoreNodeFeatureEnabled,
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

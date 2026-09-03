@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -62,6 +63,9 @@ import static org.elasticsearch.xpack.esql.approximation.ApproximationPlan.isApp
  * along and asks it for its output: every {@code KEEP}/{@code DROP}/{@code RENAME} re-resolves itself, and {@code EVAL} columns trail
  * the discovered fields because the discovered fields take the relation slot the synthetic column occupied. Approximation extras
  * ({@code _approximation_*}) are added after analysis, so they are held out of that replay and pinned last.
+ * <p>
+ * The data node only puts keys into the column that hold a value, so no expanded column comes out null in every row -
+ * {@link #assertNoAllNullExpandedColumn} holds that end of the contract down.
  * <p>
  * TODO every row's {@code _source} ends up parsed three times: the data node parses it to filter the column, then the
  *  coordinator parses the column once to collect field names and once more to expand them. A columnar shape — one block of
@@ -136,7 +140,10 @@ public final class ExpandUnmappedFieldsPostProcessor {
     /**
      * Collect the unique field names (sorted) carried by {@code _unmapped_fields} across all pages.
      * <p>
-     * TODO cap this set. Every distinct field in any row's {@code _source} becomes an output column, so a wide, deep or
+     * Every key here earns an output column, which is why the data node drops the keys that carry no value - see
+     * {@code UnmappedFieldsBlockLoader} and {@link #assertNoAllNullExpandedColumn}.
+     * <p>
+     * TODO cap this set. Every distinct key in any row's {@code _source} becomes an output column, so a wide or
      *  heterogeneous index can blow the response up into thousands of columns.
      * <p>
      * TODO walk the JSON with a parser instead of materialising a whole {@code Map} only to flatten it to field names. That would
@@ -299,6 +306,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
                     rewritePage(unmappedIdx, keep, expandedFieldsNames, blockOrder, originalColumnCount, factory, p, reservationFactor)
                 );
             }
+            assert assertNoAllNullExpandedColumn(newPages, newSchema, fieldNames);
             success = true;
             return newPages;
         } finally {
@@ -306,6 +314,40 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 Releasables.closeExpectNoException(newPages);
             }
         }
+    }
+
+    /**
+     * Guard rail for what {@code UnmappedFieldsBlockLoader} promises this class: every key it writes into {@code _unmapped_fields}
+     * holds a value, and that value is what {@link #appendRow} writes back, so no expanded column can come out {@code null} in every
+     * row.
+     * <p>
+     * Only the expanded columns are checked: a retained column can legitimately be all null, e.g. {@code KEEP field_absent_everywhere}
+     * resolves to a {@code null} literal. They are found by name in {@code newSchema}, which {@link #buildSchema} keeps in step with
+     * the blocks {@link #rewritePage} lays out - a name is unambiguous because {@code buildSchema} rejects a field name that collides
+     * with a query column.
+     *
+     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     */
+    private static boolean assertNoAllNullExpandedColumn(List<Page> pages, List<Attribute> newSchema, List<String> fieldNames) {
+        Set<String> expandedNames = new HashSet<>(fieldNames);
+        for (int column = 0; column < newSchema.size(); column++) {
+            if (expandedNames.contains(newSchema.get(column).name()) == false) {
+                continue;
+            }
+            boolean allNull = true;
+            for (Page page : pages) {
+                if (page.getBlock(column).areAllValuesNull() == false) {
+                    allNull = false;
+                    break;
+                }
+            }
+            if (allNull) {
+                throw new AssertionError(
+                    Strings.format("Expanded unmapped field '%s' into a column that is null in every row", newSchema.get(column).name())
+                );
+            }
+        }
+        return true;
     }
 
     private static Page rewritePage(
@@ -409,6 +451,7 @@ public final class ExpandUnmappedFieldsPostProcessor {
             } else if (valueScratch.size() == 1) {
                 builders[i].appendBytesRef(valueScratch.get(0));
             } else {
+                assert assertPruned(fieldNames.get(i), value);
                 builders[i].beginPositionEntry();
                 for (BytesRef value : valueScratch) {
                     builders[i].appendBytesRef(value);
@@ -416,6 +459,44 @@ public final class ExpandUnmappedFieldsPostProcessor {
                 builders[i].endPositionEntry();
             }
         }
+    }
+
+    /**
+     * Guard rail for the other half of what {@code UnmappedFieldsBlockLoader} promises: whatever it wrote under a key is pruned, so it
+     * holds no {@code null} inside an array or object and no empty array or object at any depth. {@link #appendRow} renders the whole
+     * value, so a {@code null} that survived would reach the user as a literal {@code "null"} inside a stringified array - where a
+     * mapped field would have produced a multi-value, and multi-values never contain nulls.
+     *
+     * @return {@code true}, so this can be called from an {@code assert} and skipped entirely in production
+     */
+    private static boolean assertPruned(String fieldName, Object value) {
+        if (isPruned(value) == false) {
+            throw new AssertionError(
+                Strings.format("Unmapped field '%s' carries a null or an empty array or object: [%s]", fieldName, value)
+            );
+        }
+        return true;
+    }
+
+    /** Whether {@code value} is neither {@code null}, nor an empty container, nor a container hiding either of those at any depth. */
+    private static boolean isPruned(Object value) {
+        Collection<?> elements;
+        if (value instanceof List<?> values) {
+            elements = values;
+        } else if (value instanceof Map<?, ?> map) {
+            elements = map.values();
+        } else {
+            return value != null;
+        }
+        if (elements.isEmpty()) {
+            return false;
+        }
+        for (Object element : elements) {
+            if (isPruned(element) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Walks a parsed source object, invoking {@code sink} once per leaf with its dotted path and value (see {@link #collectValue}). */

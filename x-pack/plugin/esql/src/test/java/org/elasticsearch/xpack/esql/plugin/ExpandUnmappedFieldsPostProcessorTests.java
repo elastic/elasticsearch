@@ -223,6 +223,129 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The coordinator trusts the data node to only send keys that hold a value - {@code UnmappedFieldsBlockLoaderTests} pins down that
+     * end of the contract. This is the guard rail for the other end: were a value-less key to arrive anyway, it would expand into a
+     * column that is null in every row, which reads as "every document has this field, with no value" where the truth is "no document
+     * has this field". That must not pass silently.
+     */
+    public void testAllNullExpandedColumnTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}")), row(2, jsonObject("{'a':null,'b':'y'}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+
+        // No manual release here: the point is that expand must have released both the input pages and the half-built expansion.
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Approximation columns are copied after the expansion, so the expanded columns are neither first nor last in the schema. The
+     * guard rail has to find them wherever they landed, rather than at some fixed offset that only holds without approximation.
+     */
+    public void testAllNullExpandedColumnTripsGuardRailBehindApproximationColumns() {
+        BlockFactory bf = blockFactory();
+        String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
+        String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(), keywordAttr(ci), keywordAttr(certified)),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}"), "ci", "yes"), row(2, jsonObject("{'a':null,'b':'y'}"), "ci", "yes"))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** The column has to be null in every row of every page, so the guard rail only trips once all pages agree. */
+    public void testAllNullExpandedColumnAcrossPagesTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'a':null}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':null,'b':'y'}")))),
+                page(bf, List.of(row(3, jsonObject("{'b':'z'}"))))
+            )
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The flip side of {@link #testAllNullExpandedColumnAcrossPagesTripsGuardRail}: a single value in a single page is enough to
+     * justify the column, so the guard rail must stay quiet however many other pages are null throughout.
+     */
+    public void testValueInOnePageOnlyDoesNotTripGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'b':'y'}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':'x'}")), row(3, jsonObject("{'b':'z'}")))),
+                page(bf, List.of(row(4, jsonObject("{'b':'w'}"))))
+            )
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "b")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1).entry("b", "y"),
+                    matchesMap().entry(INT_ATTR, 2).entry("a", "x"),
+                    matchesMap().entry(INT_ATTR, 3).entry("b", "z"),
+                    matchesMap().entry(INT_ATTR, 4).entry("b", "w")
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    /**
+     * The data node strips nulls out of the arrays it keeps, because appendRow renders the whole value and a surviving null would
+     * reach the user as a literal "null" inside a stringified array. This is the guard rail for that half of the contract.
+     */
+    public void testNullInsideArrayTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':[null,'x']}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Same guard rail, for a null buried under an object rather than sitting in an array. */
+    public void testNullInsideObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':{'keep':'me','drop':[]}}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** An object that pruned away to nothing should never have been sent, let alone rendered as a literal "{}". */
+    public void testEmptyObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testNestedObjectFlattensToLeafAndScalarsStringify() {
         BlockFactory bf = blockFactory();
         Result result = singlePage(

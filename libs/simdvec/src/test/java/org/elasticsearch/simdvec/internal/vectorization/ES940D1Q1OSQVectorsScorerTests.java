@@ -22,7 +22,10 @@ import java.io.IOException;
 
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
-public class MSBitToBitES940OSQVectorsScorerTests extends BaseVectorizationTests {
+/**
+ * D1Q1 coverage for the OSQ scorer stack; {@link ES940OSQVectorsScorerTests} does not parameterize over it.
+ */
+public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
 
     public void testSymmetric1BitDotProductMatchesScalar() throws IOException {
         int dims = random().nextInt(1, 64) * 8;
@@ -53,11 +56,16 @@ public class MSBitToBitES940OSQVectorsScorerTests extends BaseVectorizationTests
                 assertEquals(expected, scalarScorer.quantizeScore(query));
             }
             try (IndexInput in2 = dir.openInput("v.bin", IOContext.DEFAULT)) {
-                var panamaScorer = new MSBitToBitES940OSQVectorsScorer(in2, dims, length, ES940OSQVectorsScorer.BULK_SIZE);
-                long panamaScore = panamaScorer.quantizeScore(query);
-                if (panamaScore != Long.MIN_VALUE) {
-                    assertEquals(expected, panamaScore);
-                }
+                var panamaScorer = MemorySegmentES940OSQVectorsScorer.usingPanama(
+                    in2,
+                    (byte) 1,
+                    (byte) 1,
+                    dims,
+                    length,
+                    ES940OSQVectorsScorer.BULK_SIZE,
+                    ES940OSQVectorsScorer.BitEncoding.STRIPED
+                );
+                assertEquals(expected, panamaScorer.quantizeScore(query));
             }
         }
     }

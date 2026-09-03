@@ -344,7 +344,7 @@ public class ReshardIndexService {
                             shardId.getId()
                         );
                         final var refreshRequest = new BasicReplicationRequest(shardId, splitShardCountSummary);
-                        client.executeLocally(
+                        client.execute(
                             TransportShardRefreshAction.TYPE,
                             refreshRequest,
                             refreshListener.delegateFailure((inner, response) -> {

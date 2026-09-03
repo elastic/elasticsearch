@@ -30,10 +30,15 @@ import java.util.Set;
  * Block loader for the synthetic {@code _unmapped_fields} column produced by
  * {@code SET unmapped_fields="LOAD_ALL"}.
  *
+ * group and not matching any exclude pattern) and hold a value, and re-serialises the surviving key/value
  * <p>For each document it reads {@code _source} and re-serialises the surviving top-level key/value pairs as a JSON object, which the
- * coordinator later flattens into per-leaf columns. A scalar key survives when it satisfies the full UnmappedFieldsPattern#matches;
- * an object or array key ships more leniently ({@link UnmappedFieldsPattern#objectSubfieldsCouldMatch}) because it flattens to descendant
- * leaves the coordinator filters per name. Documents where nothing survives get a null.
+ * coordinator later flattens into per-leaf columns. A scalar key survives when it satisfies the full UnmappedFieldsPattern#matches
+ * and hold a value; an object or array key ships more leniently ({@link UnmappedFieldsPattern#objectSubfieldsCouldMatch})
+ * because it flattens to descendant leaves the coordinator filters per name. Documents where nothing survives get a null.
+ *
+ * <p>Pruning the value-less parts here rather than on the coordinator keeps them off the wire entirely, and is what lets the
+ * coordinator turn every key it receives into an output column without producing one that is null in every row - see
+ * {@link UnmappedFields#prune} and {@code ExpandUnmappedFieldsPostProcessor}.
  *
  * <p>Field-level security needs no handling here: it strips denied fields from the {@code _source} this reads, so they never
  * reach the pattern. {@code EsqlSecurityIT#testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll} holds that down.
@@ -117,7 +122,7 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
                         Object value = entry.getValue();
                         boolean keep = value instanceof Map || value instanceof List
                             ? pattern.objectSubfieldsCouldMatch(entry.getKey())
-                            : pattern.matches(entry.getKey());
+                            : pattern.matches(entry.getKey()) && prune(entry.getValue());
                         if (keep) {
                             anyMatch = true;
                             json.field(entry.getKey(), value);
@@ -134,6 +139,25 @@ final class UnmappedFieldsBlockLoader implements BlockLoader {
             } finally {
                 breaker.addWithoutBreaking(-reservation);
             }
+        }
+
+        /**
+         * Strips nully values out of a {@code _source} value, consistently with how mapped fields do not track nulls in arrays, empty
+         * objects and the like - {@code null}, {@code []}, {@code {}}, {@code [null]}, {@code [{"foo":null},{"bar":[]}]},
+         * {@code {"baz":[null],"inga":{}}}.
+         */
+        private static boolean prune(Object value) {
+            if (value instanceof List<?> values) {
+                values.removeIf(element -> prune(element) == false);
+                return values.isEmpty() == false;
+            }
+            // Objects are not expanded into columns of their own, but a nully one still says nothing about the field it sits under, so
+            // it must neither keep that field's column alive nor show up in what the field renders as.
+            if (value instanceof Map<?, ?> map) {
+                map.values().removeIf(element -> prune(element) == false);
+                return map.isEmpty() == false;
+            }
+            return value != null;
         }
 
         @Override

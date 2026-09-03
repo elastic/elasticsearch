@@ -356,7 +356,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             instance.getPivotConfig(),
             instance.getLatestConfig(),
             instance.getDescription(),
-            instance.getSettings(),
+            instance.getSettings() == null ? null : SettingsConfigTests.mutateForVersion(instance.getSettings(), version),
             instance.getMetadata(),
             instance.getRetentionPolicyConfig(),
             instance.getCreateTime(),

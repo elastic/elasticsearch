@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -43,7 +44,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean() ? null : randomBoolean(),
             // don't set retries if unattended is set to true
             randomBoolean() ? null : Boolean.TRUE.equals(unattended) ? null : randomIntBetween(-1, 100),
-            unattended
+            unattended,
+            randomBoolean() ? null : randomBoolean()
         );
     }
 
@@ -57,7 +59,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean(),
             randomBoolean(),
             Boolean.TRUE.equals(unattended) ? -1 : randomIntBetween(-1, 100),
-            unattended
+            unattended,
+            randomBoolean()
         );
     }
 
@@ -84,6 +87,29 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     @Override
     protected SettingsConfig mutateInstance(SettingsConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected SettingsConfig mutateInstanceForVersion(SettingsConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static SettingsConfig mutateForVersion(SettingsConfig instance, TransportVersion version) {
+        if (version.supports(SettingsConfig.TRANSFORM_ALIGN_CHANGE_DETECTION)) {
+            return instance;
+        }
+        // older nodes do not (de)serialize align_change_detection, so it reads back as unset
+        return new SettingsConfig(
+            instance.getMaxPageSearchSize(),
+            instance.getDocsPerSecond(),
+            instance.getDatesAsEpochMillisForUpdate(),
+            instance.getAlignCheckpointsForUpdate(),
+            instance.getUsePitForUpdate(),
+            instance.getDeduceMappingsForUpdate(),
+            instance.getNumFailureRetriesForUpdate(),
+            instance.getUnattendedForUpdate(),
+            null
+        );
     }
 
     @Override
@@ -121,6 +147,9 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"unattended\" : null}").getUnattendedForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getUnattended());
         assertNull(fromString("{}").getUnattendedForUpdate());
+
+        assertThat(fromString("{\"align_change_detection\" : null}").getAlignChangeDetectionForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getAlignChangeDetectionForUpdate());
     }
 
     public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {
@@ -256,6 +285,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"align_change_detection\" : null}");
+        assertThat(config.getAlignChangeDetectionForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
     }
 
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
@@ -311,6 +346,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setUnattended(null).build();
         assertThat(config.getUnattendedForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setAlignChangeDetection(null).build();
+        assertThat(config.getAlignChangeDetectionForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -421,6 +462,21 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setUnattended(false).build();
         assertFalse(config.getUnattended());
+    }
+
+    public void testAlignChangeDetectionVariants() {
+        SettingsConfig config = new SettingsConfig.Builder().build();
+        assertNull(config.getAlignChangeDetection());
+
+        config = new SettingsConfig.Builder().setAlignChangeDetection(null).build();
+        // an explicit reset to default reads back as enabled (the default), but is not serialized
+        assertTrue(config.getAlignChangeDetection());
+
+        config = new SettingsConfig.Builder().setAlignChangeDetection(true).build();
+        assertTrue(config.getAlignChangeDetection());
+
+        config = new SettingsConfig.Builder().setAlignChangeDetection(false).build();
+        assertFalse(config.getAlignChangeDetection());
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

@@ -247,9 +247,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelAllReindexTasksByActionWithMixedRelocationState
-  issue: https://github.com/elastic/elasticsearch/issues/152291
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
@@ -265,9 +262,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
-- class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
-  method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
-  issue: https://github.com/elastic/elasticsearch/issues/152925
 - class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152928

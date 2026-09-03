@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 157523
+pr: 157862
+summary: Optimize query approximation of date histograms
+type: feature

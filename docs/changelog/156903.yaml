@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 151326
-pr: 156903
-summary: Fix synthetic id `seekCeil` skipper overshoot
-type: bug

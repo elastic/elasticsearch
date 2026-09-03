@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -432,6 +434,92 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             mapping(b -> b.startObject(FIELD).field("type", "byte").field("ignore_malformed", true).endObject()),
             columnarSettings(),
             batch("byte ignore_malformed out of range", 1L, doc("d1", 1L, "{\"f\":1}"), doc("d2", 2L, "{\"f\":300}"))
+        );
+    }
+
+    // ---- store=true (TIME_SERIES / TSDB mode) ------------------------------------------------
+    //
+    // strict-columnar index modes (COLUMNAR, LOGSDB_COLUMNAR) reject store=true at mapping
+    // validation time. TIME_SERIES is the only columnar-eligible mode that permits it.
+    // These tests use the coordinator-tsid path (index.dimensions) so that metadata fields
+    // are computed columnarally via pre-supplied tsid bytes. The keyword dimension field (dim)
+    // is declared in the mapping but absent from sources to keep it out of the ESCF schema.
+
+    private static final BytesRef ST_TSID = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+    private static final int ST_ROUTING_HASH = 42;
+    private static final String ST_ROUTING = TimeSeriesRoutingHashFieldMapper.encode(ST_ROUTING_HASH);
+    // epoch millis: 2024-01-15T12:00:00.000Z, 2024-06-01T00:00:00.000Z
+    private static final long ST_TS_A = 1705320000000L;
+    private static final long ST_TS_B = 1717200000000L;
+
+    private static Settings tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+    }
+
+    public void testLongField_stored() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "long stored",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":42}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + "}")
+            )
+        );
+    }
+
+    public void testIntegerField_stored() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "integer").field("store", true).endObject();
+        }), tsdbSettings(), batch("integer stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":7}")));
+    }
+
+    public void testFloatField_stored() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "float").field("store", true).endObject();
+        }), tsdbSettings(), batch("float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":3.14}")));
+    }
+
+    public void testDoubleField_stored() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "double").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("double stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":2.718281828}"))
+        );
+    }
+
+    public void testHalfFloatField_stored() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
         );
     }
 }

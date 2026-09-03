@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -25,11 +27,16 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class ParsedFooterCacheTests extends ESTestCase {
 
+    private static final TimeValue TTL = TimeValue.timeValueMinutes(5);
+
+    /** Weighs each String at 1 KiB so byte budgets translate to predictable entry counts. */
+    private static final long ENTRY_WEIGHT = 1024;
+
     private ParsedFooterCache<String> cache;
 
     @Before
     public void initCache() {
-        cache = new ParsedFooterCache<>(8);
+        cache = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, ignored -> ENTRY_WEIGHT);
     }
 
     public void testGetReturnsNullOnMiss() {
@@ -107,10 +114,10 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     public void testCapacityEvictionPreservesNewestEntries() throws ExecutionException {
-        // Verifies the cap-by-entry-count invariant: once the capacity is exceeded, the most
+        // Verifies the cap-by-weight invariant: once the byte budget is exceeded, the most
         // recent loads remain available. The exact eviction order is delegated to ES Cache and
         // is intentionally not asserted here beyond "the newest survives".
-        ParsedFooterCache<String> tiny = new ParsedFooterCache<>(2);
+        ParsedFooterCache<String> tiny = new ParsedFooterCache<>(2 * ENTRY_WEIGHT, TTL, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k1 = key("a.parquet", 1);
         FooterByteCache.Key k2 = key("b.parquet", 2);
         FooterByteCache.Key k3 = key("c.parquet", 3);
@@ -189,9 +196,65 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertNull("a failed load must not leave a phantom entry behind", cache.get(k));
     }
 
-    public void testConstructorRejectsNonPositiveMaxEntries() {
-        expectThrows(IllegalArgumentException.class, () -> new ParsedFooterCache<String>(0));
-        expectThrows(IllegalArgumentException.class, () -> new ParsedFooterCache<String>(-1));
+    public void testConstructorRejectsNonPositiveMaxWeight() {
+        expectThrows(IllegalArgumentException.class, () -> new ParsedFooterCache<String>(0, TTL, ignored -> ENTRY_WEIGHT));
+        expectThrows(IllegalArgumentException.class, () -> new ParsedFooterCache<String>(-1, TTL, ignored -> ENTRY_WEIGHT));
+    }
+
+    public void testWeigherDrivesEviction() throws ExecutionException {
+        // A single entry weighing more than half the budget forces the next insert to evict it:
+        // eviction tracks bytes reported by the weigher, not entry counts.
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key big = key("big.parquet", 1);
+        FooterByteCache.Key alsoBig = key("also-big.parquet", 2);
+        weighted.getOrLoad(big, ignore -> "sevenchr"); // 8 chars -> 800 bytes
+        weighted.getOrLoad(alsoBig, ignore -> "sixchar!"); // 8 chars -> 800 bytes, exceeds 1000 budget
+        assertNull("heavier-than-half entry evicted by the next big insert", weighted.get(big));
+        assertNotNull(weighted.get(alsoBig));
+    }
+
+    /**
+     * A value weighing more than the entire budget must never be inserted: the backing Cache would
+     * link it at the LRU head and then prune from the tail until the weight fits, discarding the
+     * whole working set and finally the new entry itself, leaving an empty cache.
+     */
+    public void testPutSkipsEntryHeavierThanBudget() {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key small = key("small.parquet", 1);
+        FooterByteCache.Key oversized = key("wide.parquet", 2);
+
+        weighted.put(small, "abc"); // 300 bytes
+        weighted.put(oversized, "eleven chrs"); // 11 chars -> 1100 bytes, over the 1000 budget
+
+        assertNull("an entry heavier than the budget must not be cached", weighted.get(oversized));
+        assertEquals("the existing working set must survive the refused insert", "abc", weighted.get(small));
+    }
+
+    public void testGetOrLoadSkipsEntryHeavierThanBudget() throws ExecutionException {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key small = key("small.parquet", 1);
+        FooterByteCache.Key oversized = key("wide.parquet", 2);
+
+        weighted.put(small, "abc");
+        assertEquals("eleven chrs", weighted.getOrLoad(oversized, ignored -> "eleven chrs"));
+
+        assertNull("an entry heavier than the budget must not be cached", weighted.get(oversized));
+        assertEquals("the existing working set must survive the refused load", "abc", weighted.get(small));
+    }
+
+    /** An entry weighing exactly the budget still fits: the Cache prunes only while weight > budget. */
+    public void testPutAdmitsEntryWeighingExactlyTheBudget() {
+        ParsedFooterCache<String> weighted = new ParsedFooterCache<>(1000, TTL, v -> v.length() * 100L);
+        FooterByteCache.Key exact = key("exact.parquet", 1);
+        weighted.put(exact, "ten chars!"); // 10 chars -> 1000 bytes
+        assertEquals("ten chars!", weighted.get(exact));
+    }
+
+    public void testFromSettingsBuildsWorkingCache() throws ExecutionException {
+        ParsedFooterCache<String> fromSettings = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        assertSame("v", fromSettings.getOrLoad(k, ignore -> "v"));
+        assertSame("v", fromSettings.get(k));
     }
 
     private static FooterByteCache.Key key(String path, long length) {

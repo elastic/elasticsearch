@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -146,6 +148,7 @@ public class Verifier {
 
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
+        checkHighlightSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan, context.analysisRegistry());
@@ -197,6 +200,23 @@ public class Verifier {
                 fail(
                     tsc,
                     "TS_COLLAPSE is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkHighlightSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(Highlight.ESQL_HIGHLIGHT)) {
+            return;
+        }
+        plan.forEachDown(
+            Highlight.class,
+            highlight -> failures.add(
+                fail(
+                    highlight,
+                    "HIGHLIGHT is not supported on every participating node; "
                         + "rolling upgrade in progress, or a remote cluster is on an older version"
                 )
             )
@@ -441,15 +461,7 @@ public class Verifier {
      */
     private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
         if (plan instanceof InlineStats is) {
-            Holder<LogicalPlan> inlineStatsDescendantLimit = new Holder<>();
-            is.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof Limit || p instanceof LimitBy) {
-                    inlineStatsDescendantLimit.set(p);
-                    breakEarly.set(true);
-                }
-            });
-
-            var firstLimit = inlineStatsDescendantLimit.get();
+            var firstLimit = findLimitSkippingSubqueryJoins(is);
             if (firstLimit != null) {
                 var isString = is.sourceText().length() > Node.TO_STRING_MAX_WIDTH
                     ? is.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
@@ -468,6 +480,25 @@ public class Verifier {
                 );
             }
         }
+    }
+
+    /**
+     * Pre-order search for the first {@link Limit}/{@link LimitBy} below {@code plan}, skipping the right branch of any
+     * {@link AbstractSubqueryJoin}: a LIMIT inside an IN subquery only bounds the independently executed subquery result, not the main
+     * stream feeding INLINE STATS. Returns {@code null} when no LIMIT is found.
+     */
+    private static LogicalPlan findLimitSkippingSubqueryJoins(LogicalPlan plan) {
+        if (plan instanceof Limit || plan instanceof LimitBy) {
+            return plan;
+        }
+        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            LogicalPlan limit = findLimitSkippingSubqueryJoins(child);
+            if (limit != null) {
+                return limit;
+            }
+        }
+        return null;
     }
 
     /**
@@ -539,7 +570,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, LOOKUP JOIN and ENRICH commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -551,6 +582,8 @@ public class Verifier {
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        // InlineStats is visited by forEachDown, so it must be allowed explicitly. Its child Aggregate is
+        // already covered by allowing Aggregate (STATS).
         return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
             || plan instanceof Project
             || plan instanceof Keep
@@ -561,6 +594,7 @@ public class Verifier {
             || plan instanceof OrderBy
             || plan instanceof Limit
             || plan instanceof Aggregate
+            || plan instanceof InlineStats
             // LookupJoin (not Join) because verification runs on the analyzed plan, before SurrogateLogicalPlan expansion,
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin

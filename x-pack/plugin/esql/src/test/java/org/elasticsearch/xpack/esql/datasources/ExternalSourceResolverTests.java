@@ -662,25 +662,25 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code my_schema.parquet, events/**}{@code /*.parquet} under FFW omitted knobs: the named file
+     * Dedicated schema file then a recursive events glob, under FFW omitted knobs: the named file
      * is {@code listing.path(0)} and its wide schema is pinned onto every glob file.
      */
     public void testFfwSchemaFileThenRecursiveGlobPinsSchemaOnEveryFile() throws Exception {
         assertFfwDedicatedSchemaFileAndRecursiveGlob(
-            "s3://bucket/my_schema.parquet,s3://bucket/events/**/*.parquet",
+            "s3://bucket/my_schema.parquet,s3://bucket/events/" + "**/*.parquet",
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
     }
 
     /**
-     * {@code events/**}{@code /*.parquet, my_schema.parquet} with {@code list}+{@code desc}: reverse
-     * concat so the last named file is the FFW donor, still pinned onto every glob file.
+     * Recursive events glob then a schema file, with {@code list}+{@code desc}: reverse concat so
+     * the last named file is the FFW donor, still pinned onto every glob file.
      */
     public void testFfwRecursiveGlobThenSchemaFileListDescPinsSchemaOnEveryFile() throws Exception {
         Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
         config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "list");
         config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
-        assertFfwDedicatedSchemaFileAndRecursiveGlob("s3://bucket/events/**/*.parquet,s3://bucket/my_schema.parquet", config);
+        assertFfwDedicatedSchemaFileAndRecursiveGlob("s3://bucket/events/" + "**/*.parquet,s3://bucket/my_schema.parquet", config);
     }
 
     public void testFileSortByOnUnionByNameIsRejectedAtResolve() {
@@ -3961,7 +3961,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         listingsByPrefix.put(
-            StoragePath.of("s3://bucket/events/**/*.parquet").patternPrefix().toString(),
+            StoragePath.of("s3://bucket/events/" + "**/*.parquet").patternPrefix().toString(),
             List.of(entry(a, 100), entry(z, 200))
         );
 

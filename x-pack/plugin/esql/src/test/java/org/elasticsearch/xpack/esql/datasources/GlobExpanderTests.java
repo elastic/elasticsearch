@@ -522,7 +522,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testFfwCommaSchemaFileThenRecursiveGlobKeepsDeclarationOrder() throws IOException {
         StubProvider provider = schemaFileAndEventsProvider();
         FileList result = GlobExpander.expandCommaSeparated(
-            "s3://bucket/my_schema.parquet,s3://bucket/events/**/*.parquet",
+            "s3://bucket/my_schema.parquet,s3://bucket/events/" + "**/*.parquet",
             provider,
             null,
             ffw()
@@ -540,7 +540,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testFfwCommaRecursiveGlobThenSchemaFileListDescPicksSchema() throws IOException {
         StubProvider provider = schemaFileAndEventsProvider();
         FileList result = GlobExpander.expandCommaSeparated(
-            "s3://bucket/events/**/*.parquet,s3://bucket/my_schema.parquet",
+            "s3://bucket/events/" + "**/*.parquet,s3://bucket/my_schema.parquet",
             provider,
             null,
             ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")

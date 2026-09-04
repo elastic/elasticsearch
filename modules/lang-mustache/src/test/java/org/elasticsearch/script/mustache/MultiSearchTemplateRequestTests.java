@@ -15,6 +15,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -22,11 +24,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MultiSearchTemplateRequestTests extends ESTestCase {
@@ -86,6 +90,21 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertEquals(ScriptType.INLINE, request.requests().get(0).getScriptType());
         assertEquals("{\"query\":{\"match_{{template}}\":{}}}", request.requests().get(0).getScript());
         assertEquals(1, request.requests().get(0).getScriptParams().size());
+    }
+
+    public void testCreateTaskReturnsCancellableTask() {
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        SearchTemplateRequest templateRequest = new SearchTemplateRequest();
+        templateRequest.setRequest(new SearchRequest("test"));
+        templateRequest.setScriptType(ScriptType.INLINE);
+        templateRequest.setScript("{\"query\":{\"match_all\":{}}}");
+        request.add(templateRequest);
+
+        org.elasticsearch.tasks.Task task = request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        assertThat(task, instanceOf(CancellableTask.class));
+        CancellableTask cancellableTask = (CancellableTask) task;
+        assertTrue(cancellableTask.shouldCancelChildrenOnCancellation());
+        assertThat(cancellableTask.getDescription(), equalTo("requests[1]"));
     }
 
     public void testMaxConcurrentSearchRequests() {

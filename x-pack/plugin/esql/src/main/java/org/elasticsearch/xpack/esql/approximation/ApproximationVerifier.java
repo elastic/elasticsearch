@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -141,6 +142,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(TopN.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(TopNBy.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(SourceFanInUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
@@ -286,7 +288,7 @@ public class ApproximationVerifier {
         });
 
         // Check whether there's a FORK.
-        List<Fork> forks = logicalPlan.collect(Fork.class);
+        List<Fork> forks = Fork.collectQueryBranchingForks(logicalPlan);
         if (forks.isEmpty()) {
             // When there's no FORK, verify this logical plan.
             return verifyBranchOrThrow(logicalPlan);
@@ -326,7 +328,10 @@ public class ApproximationVerifier {
                 VerificationException firstVerificationException = null;
                 for (int branchIndex = 0; branchIndex < fork.children().size(); branchIndex++) {
                     int branchIndexFinal = branchIndex;
-                    LogicalPlan branch = logicalPlan.transformDown(Fork.class, f -> f.children().get(branchIndexFinal));
+                    LogicalPlan branch = logicalPlan.transformDown(
+                        Fork.class,
+                        f -> Fork.isQueryBranchingFork(f) ? f.children().get(branchIndexFinal) : f
+                    );
                     try {
                         branchProperties.add(verifyBranchOrThrow(branch));
                     } catch (VerificationException e) {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -46,10 +47,14 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
     }
 
     private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch) {
+        return apply(plan, isForkBranch, plan.outputSet());
+    }
+
+    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch, AttributeSet requiredAttributes) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
-        AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
+        AttributeSet.Builder requiredAttrBuilder = requiredAttributes.asBuilder();
 
         return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
@@ -82,50 +87,59 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 return mergeExec;
             }
 
+            if (currentPlanNode instanceof SourceFanInExec fanIn) {
+                keepTraversing.set(FALSE);
+                List<PhysicalPlan> newProducers = fanIn.producers().stream().map(producer -> {
+                    AttributeSet.Builder producerRequired = AttributeSet.builder();
+                    for (Attribute producerAttribute : producer.output()) {
+                        for (Attribute commonAttribute : fanIn.output()) {
+                            if (requiredAttrBuilder.contains(commonAttribute)
+                                && producerAttribute.name().equals(commonAttribute.name())
+                                && producerAttribute.dataType() == commonAttribute.dataType()) {
+                                producerRequired.add(producerAttribute);
+                                break;
+                            }
+                        }
+                    }
+                    return apply(producer, false, producerRequired.build());
+                }).toList();
+                List<Attribute> newOutput = new ArrayList<>();
+                for (Attribute commonAttribute : fanIn.output()) {
+                    if (requiredAttrBuilder.contains(commonAttribute)) {
+                        newOutput.add(commonAttribute);
+                    }
+                }
+                if (newOutput.isEmpty()) {
+                    for (PhysicalPlan producer : newProducers) {
+                        List<Attribute> producerOutput = producer.output();
+                        if (producerOutput.isEmpty() == false && ALL_FIELDS_PROJECTED.equals(producerOutput.get(0).name())) {
+                            newOutput.add(producerOutput.get(0));
+                            break;
+                        }
+                    }
+                }
+                if (newProducers.equals(fanIn.producers()) && newOutput.equals(fanIn.output())) {
+                    return fanIn;
+                }
+                return fanIn.withProducers(newProducers, newOutput, fanIn.inBetweenAggs());
+            }
+
+            // A fragment with no ExchangeExec above it is a fan-in producer, reached by the recursive apply()
+            // on each SourceFanInExec producer above. Everywhere else Mapper puts the fragment under an
+            // exchange, which stops traversal in the branch below before its child reaches this one.
+            if (currentPlanNode instanceof FragmentExec fragmentExec) {
+                keepTraversing.set(FALSE);
+                return projectFragmentColumns(fragmentExec, requiredAttrBuilder, isForkBranch);
+            }
+
             if (currentPlanNode instanceof ExchangeExec exec) {
                 keepTraversing.set(FALSE);
                 var child = exec.child();
                 // otherwise expect a Fragment
                 if (child instanceof FragmentExec fragmentExec) {
-                    var logicalFragment = fragmentExec.fragment();
-
-                    // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
-                    // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
-                    // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
-                    if ((logicalFragment instanceof Aggregate == false
-                        && logicalFragment instanceof MetricsInfo == false
-                        && logicalFragment instanceof TsInfo == false)) {
-                        // we should respect the order of the attributes
-                        List<Attribute> output = new ArrayList<>();
-                        for (Attribute attribute : logicalFragment.output()) {
-                            if (requiredAttrBuilder.contains(attribute)) {
-                                output.add(attribute);
-                                requiredAttrBuilder.remove(attribute);
-                            }
-                        }
-                        // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
-                        // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
-                        // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
-                        output.addAll(requiredAttrBuilder.build());
-
-                        // if all the fields are filtered out, it's only the count that matters
-                        // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
-                        // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
-                        // to avoid the block from being trimmed
-                        if (output.isEmpty() && isForkBranch == false) {
-                            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
-                            List<Alias> fields = singletonList(alias);
-                            logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
-                            output = Expressions.asAttributes(fields);
-                        }
-                        // add a logical projection (let the local replanning remove it if needed)
-                        FragmentExec newChild = new FragmentExec(
-                            Source.EMPTY,
-                            new Project(logicalFragment.source(), logicalFragment, output),
-                            fragmentExec.esFilter(),
-                            fragmentExec.estimatedRowSize()
-                        );
-                        return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
+                    FragmentExec projected = projectFragmentColumns(fragmentExec, requiredAttrBuilder, isForkBranch);
+                    if (projected != fragmentExec) {
+                        return new ExchangeExec(exec.source(), projected.output(), exec.inBetweenAggs(), projected);
                     }
                 }
             } else {
@@ -136,5 +150,50 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             }
             return currentPlanNode;
         });
+    }
+
+    private static FragmentExec projectFragmentColumns(
+        FragmentExec fragmentExec,
+        AttributeSet.Builder requiredAttrBuilder,
+        boolean isForkBranch
+    ) {
+        var logicalFragment = fragmentExec.fragment();
+
+        // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
+        // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
+        // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
+        if (logicalFragment instanceof Aggregate || logicalFragment instanceof MetricsInfo || logicalFragment instanceof TsInfo) {
+            return fragmentExec;
+        }
+        // we should respect the order of the attributes
+        List<Attribute> output = new ArrayList<>();
+        for (Attribute attribute : logicalFragment.output()) {
+            if (requiredAttrBuilder.contains(attribute)) {
+                output.add(attribute);
+                requiredAttrBuilder.remove(attribute);
+            }
+        }
+        // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
+        // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
+        // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
+        output.addAll(requiredAttrBuilder.build());
+
+        // if all the fields are filtered out, it's only the count that matters
+        // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
+        // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
+        // to avoid the block from being trimmed
+        if (output.isEmpty() && isForkBranch == false) {
+            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
+            List<Alias> fields = singletonList(alias);
+            logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
+            output = Expressions.asAttributes(fields);
+        }
+        // add a logical projection (let the local replanning remove it if needed)
+        return new FragmentExec(
+            Source.EMPTY,
+            new Project(logicalFragment.source(), logicalFragment, output),
+            fragmentExec.esFilter(),
+            fragmentExec.estimatedRowSize()
+        );
     }
 }

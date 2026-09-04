@@ -45,6 +45,16 @@ public final class S3FixtureUtils {
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
 
+    /**
+     * Second S3 access key, for suites that stand up two S3 fixtures so two S3 data sources can carry
+     * distinct credentials. Deliberately unrelated to {@link #ACCESS_KEY} so a fixture configured with one
+     * rejects a request signed with the other.
+     */
+    public static final String SECOND_ACCESS_KEY = "second-access-key";
+
+    /** Second S3 secret key, paired with {@link #SECOND_ACCESS_KEY}. */
+    public static final String SECOND_SECRET_KEY = "second-secret-key";
+
     /** Default bucket name for test fixtures */
     public static final String BUCKET = "test-bucket";
 
@@ -269,17 +279,45 @@ public final class S3FixtureUtils {
 
         private S3HttpHandler handler;
         private FaultInjectingS3HttpHandler faultHandler;
+        private final String accessKey;
+        private final String secretKey;
 
         /**
          * Create a fixture with a random available port.
          */
         public DataSourcesS3HttpFixture() {
+            this(ACCESS_KEY, SECRET_KEY);
+        }
+
+        /**
+         * Create a fixture that authenticates a caller-chosen key pair rather than the shared
+         * {@link S3FixtureUtils#ACCESS_KEY}/{@link S3FixtureUtils#SECRET_KEY}, so a suite can run two S3
+         * fixtures whose data sources carry different credentials.
+         *
+         * <p>Only the access key is an oracle: the authorization predicate matches the key id carried in the
+         * SigV4 {@code Authorization} header and never recomputes the signature, so {@code secretKey} is
+         * registered for realism but is not checked. Two fixtures with different access keys therefore prove
+         * that a read reached its storage carrying its own data source's credentials and no other's.
+         */
+        public DataSourcesS3HttpFixture(String accessKey, String secretKey) {
             super(true, () -> S3ConsistencyModel.STRONG_MPUS);
+            this.accessKey = accessKey;
+            this.secretKey = secretKey;
+        }
+
+        /** The access key this fixture accepts; a request signed with any other key is answered with a 403. */
+        public String accessKey() {
+            return accessKey;
+        }
+
+        /** The secret key registered alongside {@link #accessKey()}. Not validated by the fixture. */
+        public String secretKey() {
+            return secretKey;
         }
 
         @Override
         protected HttpHandler createHandler() {
-            BiPredicate<String, String> authPredicate = fixedAccessKey(ACCESS_KEY, () -> "us-east-1", "s3");
+            BiPredicate<String, String> authPredicate = fixedAccessKey(accessKey, () -> "us-east-1", "s3");
             handler = new LoggingS3HttpHandler(BUCKET, WAREHOUSE, S3ConsistencyModel.STRONG_MPUS, authPredicate);
             faultHandler = new FaultInjectingS3HttpHandler(handler);
             return faultHandler;
@@ -315,8 +353,8 @@ public final class S3FixtureUtils {
 
             StringBuilder entries = new StringBuilder();
             entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            entries.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
-            entries.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
+            entries.append("\"access_key\": \"").append(accessKey).append("\", ");
+            entries.append("\"secret_key\": \"").append(secretKey).append("\"");
 
             return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }

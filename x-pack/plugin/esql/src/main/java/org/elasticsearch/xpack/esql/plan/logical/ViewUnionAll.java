@@ -52,6 +52,11 @@ public class ViewUnionAll extends UnionAll {
         return new ViewUnionAll(source(), asSubqueryMap(subPlans), output);
     }
 
+    @Override
+    public ViewUnionAll refreshOutput() {
+        return new ViewUnionAll(source(), namedSubqueries, refreshedOutput());
+    }
+
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
     public Map<String, LogicalPlan> namedSubqueries() {
         return namedSubqueries;

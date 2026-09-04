@@ -64,6 +64,17 @@ public class ViewUnionAllTests extends ESTestCase {
         assertThat(replaced.output(), contains(col1));
     }
 
+    public void testRefreshOutputPreservesTypeAndNamedSubqueries() {
+        LogicalPlan child1 = relation("index1");
+        LogicalPlan child2 = relation("index2");
+        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1, child2), List.of());
+
+        ViewUnionAll refreshed = original.refreshOutput();
+
+        assertThat(refreshed.namedSubqueries(), equalTo(original.namedSubqueries()));
+        assertThat(refreshed, instanceOf(ViewUnionAll.class));
+    }
+
     public void testEqualsAndHashCode() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");

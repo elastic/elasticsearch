@@ -25,6 +25,9 @@ import java.util.stream.Collectors;
 
 public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
 
+    /**
+     * Builds a relational union. A mixed dataset+index {@code FROM} uses {@link SourceFanInUnionAll}.
+     */
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
     }
@@ -145,6 +148,9 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                 if (unionAll == nested) {
                     return;
                 }
+                if (nested instanceof SourceFanInUnionAll && unionAll instanceof SourceFanInUnionAll) {
+                    return;
+                }
                 failures.add(nestedUnionAllFailure(nested));
             });
         }
@@ -160,10 +166,11 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      * to a union of multiple sources, so the generic "Nested subqueries are not supported" wording is misleading - the query the user
      * wrote contains no nested subquery. We describe the real cause instead and quote the offending {@code FROM} clause (from
      * {@link #sourceText()}, truncated to {@link Node#TO_STRING_MAX_WIDTH}) so the user can locate it. A plain {@link UnionAll} is a
-     * genuine user-written (or dataset-expanded) nested subquery, and a bare {@link Fork} is a {@code FORK} inside a subquery.
+     * genuine user-written nested subquery, and a bare {@link Fork} is a {@code FORK} inside a subquery.
+     * A {@link SourceFanInUnionAll} under a user {@link UnionAll} is dataset source expansion, not a subquery.
      */
     private static Failure nestedUnionAllFailure(LogicalPlan nested) {
-        if (nested instanceof ViewUnionAll) {
+        if (nested instanceof ViewUnionAll || nested instanceof SourceFanInUnionAll) {
             String sourceText = nested.sourceText();
             String source = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                 ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."

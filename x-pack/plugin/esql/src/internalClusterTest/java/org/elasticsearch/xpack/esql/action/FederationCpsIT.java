@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
@@ -30,18 +31,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end regression coverage for querying a view whose body applies pipeline stages to a
- * dataset while cross-project search (CPS) is enabled and no linked project has a namesake index.
+ * End-to-end coverage for dataset queries under cross-project search (CPS) when no linked
+ * project has a namesake index.
  * <p>
  * Under CPS, view resolution and the dataset rewrite each speculatively add a shadow relation for a
  * possible remote namesake, and the lenient linked-index lookup for a name that matches nothing
- * returns a valid-but-empty {@code IndexResolution}. Both shadows must be treated as unmatched and
- * stripped so both speculative unions collapse; resolving them into empty {@code EsRelation}s
- * instead keeps the inner union alive underneath the view body's pipeline stage, where view
- * compaction cannot flatten it, and the whole query fails post-optimization with
- * "Nested subqueries are not supported".
+ * returns a valid-but-empty {@code IndexResolution}. Those shadows must be treated as unmatched and
+ * stripped so speculative unions collapse. A surviving union under a view pipeline fails
+ * post-optimization with "Nested subqueries are not supported". A surviving union under {@code FORK}
+ * is source expansion, not a user subquery, and must still run. Every level of a view chain
+ * contributes its own shadow, so nesting has to collapse at each level rather than only at the top.
  * <p>
  * CPS is a serverless deployment mode, so {@code serverless.cross_project.enabled} is not a
  * registered node setting in this distribution; {@link CpsSettingPlugin} registers it for the test
@@ -49,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
  * from node settings. With no linked projects configured, the lenient shadow lookups run against
  * names that match no index, reproducing the exact no-namesake scenario.
  */
-public class ViewOverDatasetCpsIT extends AbstractExternalDataSourceIT {
+public class FederationCpsIT extends AbstractExternalDataSourceIT {
 
     private static final String DATASET = "employees_cps";
     private static final String VIEW = "employees_cps_view";
@@ -87,7 +89,7 @@ public class ViewOverDatasetCpsIT extends AbstractExternalDataSourceIT {
 
     @Before
     public void writeFixture() throws IOException {
-        csvFixture = createTempFile("cps-view-dataset-", ".csv");
+        csvFixture = createTempFile("cps-federation-dataset-", ".csv");
         Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
     }
 
@@ -121,6 +123,48 @@ public class ViewOverDatasetCpsIT extends AbstractExternalDataSourceIT {
                 )
             );
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice", 1), List.of(2, "Bob", 1), List.of(3, "Carol", 1))));
+        }
+    }
+
+    /**
+     * The dataset queried directly (no view) under CPS: only the dataset shadow is in play, and the
+     * single-survivor union must still collapse to the external relation and return the file's rows.
+     */
+    public void testDatasetDirectlyUnderCpsWithNoRemoteNamesakes() throws Exception {
+        registerDataset(DATASET, csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + DATASET + " | SORT emp_no | KEEP emp_no, first_name"), TIMEOUT)) {
+            assertThat(
+                response.columns(),
+                equalTo(List.of(new ColumnInfoImpl("emp_no", "integer", null), new ColumnInfoImpl("first_name", "keyword", null)))
+            );
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
+        }
+    }
+
+    /**
+     * A single-dataset {@code FROM} under CPS is a two-child union until the empty shadow is
+     * stripped. {@code FORK} above that union must still run.
+     */
+    public void testForkOverDatasetWithNoRemoteNamesakes() throws Exception {
+        registerDataset(DATASET, csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        String query = "FROM " + DATASET + """
+            | FORK
+                (WHERE emp_no < 3 | STATS count = COUNT(*))
+                (WHERE emp_no == 3 | STATS count = COUNT(*))
+            | KEEP _fork, count
+            | SORT _fork
+            """;
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build()));
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(1L));
         }
     }
 
@@ -159,21 +203,9 @@ public class ViewOverDatasetCpsIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The dataset queried directly (no view) under CPS: only the dataset shadow is in play, and the
-     * single-survivor union must still collapse to the external relation and return the file's rows.
+     * A three-deep view chain over {@code source}, so each level adds its own speculative shadow and the
+     * unions have to collapse repeatedly rather than only once.
      */
-    public void testDatasetDirectlyUnderCpsWithNoRemoteNamesakes() throws Exception {
-        registerDataset(DATASET, csvFixture.toUri().toString(), Map.of("format", "csv"));
-
-        try (var response = run(syncEsqlQueryRequest("FROM " + DATASET + " | SORT emp_no | KEEP emp_no, first_name"), TIMEOUT)) {
-            assertThat(
-                response.columns(),
-                equalTo(List.of(new ColumnInfoImpl("emp_no", "integer", null), new ColumnInfoImpl("first_name", "keyword", null)))
-            );
-            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
-        }
-    }
-
     private void putNestedViews(String source) {
         putView(NESTED_VIEW_1, "FROM " + source);
         putView(NESTED_VIEW_2, "FROM " + NESTED_VIEW_1);

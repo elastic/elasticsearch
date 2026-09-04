@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
@@ -50,7 +51,8 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         // Allow TopN pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
         // Subquery-shape UnionAll branches are left alone: shouldPushDownPipelineBreakerIntoForkBranch
         // returns false for them so the loop below would be a no-op anyway.
-        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+        // Source fan-in is not a user FORK or UnionAll; Mapper pushes producer TopN instead.
+        if (fork instanceof SourceFanInUnionAll || fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 

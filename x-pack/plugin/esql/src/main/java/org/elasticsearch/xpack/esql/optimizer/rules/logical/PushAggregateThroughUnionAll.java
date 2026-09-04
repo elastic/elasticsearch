@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -40,9 +41,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decomposes an {@link Aggregate} whose child is a direct-leaf {@link UnionAll}
- * (heterogeneous FROM) into per-branch partial aggregates combined by a final
- * merge aggregate.
+ * Decomposes an {@link Aggregate} whose child is a direct-leaf {@link UnionAll} into per-branch partial
+ * aggregates combined by a final merge aggregate.
+ *
+ * <p>The branches this applies to are those whose plans are independent of one another: a {@code FROM} listing
+ * explicit subqueries, and the vector set operations PromQL translates into a union. A
+ * {@link SourceFanInUnionAll} is excluded, and {@link #rule} returns such an aggregate untouched: its branches
+ * are producers over one external source, and the physical planner already splits an aggregate above them into
+ * a per-producer stage and a single coordinator merge. Decomposing it here as well would build a second,
+ * redundant merge on top of that one.
  *
  * <p>Two kinds of aggregate are decomposed, via two combine strategies:
  * <ul>
@@ -98,6 +105,10 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         if (!(aggregate.child() instanceof UnionAll unionAll)) {
+            return aggregate;
+        }
+        // Producers over a single external source: the physical planner splits the aggregate across the fan-in itself.
+        if (unionAll instanceof SourceFanInUnionAll) {
             return aggregate;
         }
         if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
@@ -225,7 +236,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        UnionAll newUnionAll = new UnionAll(unionAll.source(), newBranches, unionOutput);
+        UnionAll newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.

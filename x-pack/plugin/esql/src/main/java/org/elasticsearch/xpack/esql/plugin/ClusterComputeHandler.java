@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,12 +44,25 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
  * This handler delegates the execution of computes on data nodes within each remote cluster to {@link DataNodeComputeHandler}.
  */
 final class ClusterComputeHandler implements TransportRequestHandler<ClusterComputeRequest> {
+    /**
+     * Remote success or tolerated failure, handed back to the caller so a source fan-in can merge
+     * several producers before touching {@link EsqlExecutionInfo}.
+     */
+    sealed interface RemoteClusterOutcome {
+        record Success(ComputeResponse response) implements RemoteClusterOutcome {}
+
+        record ToleratedFailure(EsqlExecutionInfo.Cluster.Status status, Exception failure, ComputeResponse response)
+            implements
+                RemoteClusterOutcome {}
+    }
+
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final TransportService transportService;
@@ -79,6 +93,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
+        Consumer<RemoteClusterOutcome> outcomeConsumer,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -91,11 +106,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                    executionInfo,
-                    clusterAlias,
-                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                    e
+                outcomeConsumer.accept(
+                    new RemoteClusterOutcome.ToleratedFailure(
+                        receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                        e,
+                        finalResponse.get()
+                    )
                 );
                 l.onResponse(DriverCompletionInfo.EMPTY);
             } else {
@@ -108,7 +124,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             childSessionId,
             queryPragmas.exchangeBufferSize(),
             searchExecutor,
-            listener.delegateFailure((l, unused) -> {
+            listener.delegateFailureAndWrap((l, unused) -> {
                 final CancellableTask groupTask;
                 final Runnable onGroupFailure;
                 boolean failFast = executionInfo.shouldSkipOnFailure(clusterAlias) == false && configuration.allowPartialResults() == false;
@@ -126,7 +142,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
                 try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
+                    outcomeConsumer.accept(new RemoteClusterOutcome.Success(finalResponse.get()));
                     return completionInfo;
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
@@ -155,6 +171,30 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 }
             })
         );
+    }
+
+    void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, RemoteClusterOutcome outcome) {
+        switch (outcome) {
+            case RemoteClusterOutcome.Success success -> updateExecutionInfo(executionInfo, clusterAlias, success.response());
+            case RemoteClusterOutcome.ToleratedFailure toleratedFailure -> {
+                if (toleratedFailure.response() == null) {
+                    EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                        executionInfo,
+                        clusterAlias,
+                        toleratedFailure.status(),
+                        toleratedFailure.failure()
+                    );
+                } else {
+                    updateExecutionInfo(executionInfo, clusterAlias, toleratedFailure.response());
+                    executionInfo.swapCluster(
+                        clusterAlias,
+                        (key, cluster) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setStatus(toleratedFailure.status())
+                            .addFailures(List.of(new ShardSearchFailure(toleratedFailure.failure())))
+                            .build()
+                    );
+                }
+            }
+        }
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
@@ -337,6 +377,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
+                    () -> false,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

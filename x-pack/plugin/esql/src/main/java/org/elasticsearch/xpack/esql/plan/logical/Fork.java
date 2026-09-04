@@ -43,6 +43,35 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
+
+    /**
+     * A {@link Fork} that branches the query: a user {@code FORK}, a subquery {@link UnionAll}, or a
+     * {@link ViewUnionAll}. Excludes {@link SourceFanInUnionAll}, which is a {@link Fork} subclass only because it
+     * reuses the n-ary shape: it is one resolved {@code FROM} expanded into its sources, not a branch of the query.
+     * <p>
+     * A {@link ViewUnionAll} is not user-written, but it does branch the query, so it counts here. Callers that want
+     * only what the user typed as {@code FORK}, such as {@code FeatureMetric.FORK}, exclude it separately.
+     */
+    public static boolean isQueryBranchingFork(LogicalPlan plan) {
+        return plan instanceof Fork && plan instanceof SourceFanInUnionAll == false;
+    }
+
+    /**
+     * Every {@link Fork} in {@code plan} that branches the query, per {@link #isQueryBranchingFork}. Callers that
+     * count or reject forks want this rather than {@code plan.collect(Fork.class)}: a multi-source {@code FROM}
+     * expands to a {@link SourceFanInUnionAll}, which is a {@link Fork} subclass but is one resolved source, so
+     * counting it would charge a user a FORK they never asked for.
+     */
+    public static List<Fork> collectQueryBranchingForks(LogicalPlan plan) {
+        List<Fork> forks = new ArrayList<>();
+        for (Fork fork : plan.collect(Fork.class)) {
+            if (isQueryBranchingFork(fork)) {
+                forks.add(fork);
+            }
+        }
+        return forks;
+    }
+
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
@@ -248,14 +277,23 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
      * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
      * this check to surface the bad state with a clear message rather than letting an empty
      * {@code Fork}/{@code UnionAll} propagate silently.
+     * <p>
+     * A {@link SourceFanInUnionAll} is one resolved {@code FROM} (many dataset and index
+     * producers, the same shape as one {@code EsRelation} with many concrete indices). It
+     * counts as a single FORK branch, so its children are bounded by
+     * {@link SourceFanInUnionAll#MAX_PRODUCERS} rather than by the user-FORK cap.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof Fork fork) {
             int size = fork.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
+            if (size == 0) {
                 failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));
+            } else if (fork instanceof SourceFanInUnionAll) {
+                if (SourceFanInUnionAll.exceedsMaxProducers(size)) {
+                    failures.add(Failure.fail(fork, "FROM supports up to {} sources, got: {}", SourceFanInUnionAll.MAX_PRODUCERS, size));
+                }
+            } else if (exceedsMaxBranches(size)) {
+                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
             }
         }
     }
@@ -269,6 +307,9 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
         forEachForkSkippingSubqueries(fork, otherFork -> {
             if (otherFork == fork) {
+                return;
+            }
+            if (otherFork instanceof SourceFanInUnionAll) {
                 return;
             }
 

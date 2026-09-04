@@ -133,6 +133,35 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testForkSourceFanInProfilesEachProducer() throws Exception {
+        Path first = writeParquetFile(50, 50);
+        Path second = writeParquetFile(50, 50);
+        try {
+            registerDataset("profile_fork_a", StoragePath.fileUri(first), Map.of());
+            registerDataset("profile_fork_b", StoragePath.fileUri(second), Map.of());
+            String query = """
+                FROM profile_fork_a, profile_fork_b
+                | FORK
+                    (WHERE id >= 0 | STATS count = COUNT(*))
+                    (WHERE id >= 10 | STATS count = COUNT(*))
+                | KEEP _fork, count
+                | SORT _fork
+                """;
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 100L), List.of("fork2", 80L))));
+                assertThat(externalScanStatuses(response), hasSize(4));
+                EsqlQueryProfile profile = response.getExecutionInfo().queryProfile();
+                assertEquals(4, profile.filesScanned());
+                assertEquals(4, profile.splitsScanned());
+                assertThat(profile.bytesScanned(), greaterThan(0L));
+            }
+        } finally {
+            Files.deleteIfExists(first);
+            Files.deleteIfExists(second);
+        }
+    }
+
     /**
      * A {@code COUNT(*)} that can be answered from the source's row-count metadata must not scan any
      * files: split discovery is skipped (see {@code ComputeService.canSkipSplitDiscovery}), so the

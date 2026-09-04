@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SourceFanInExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -161,6 +162,43 @@ public class PlannerUtils {
         });
 
         return new Tuple<>(subplans.get(), mainPlan);
+    }
+
+    /**
+     * Holds the common coordinator fragment and the independent producers that feed its exchange.
+     */
+    public record SourceFanInPlan(PhysicalPlan coordinatorPlan, List<ExchangeSinkExec> producers) {}
+
+    /**
+     * Replaces a source fan-in boundary with its coordinator exchange source and returns the independently prepared
+     * source producers that feed that exchange.
+     */
+    public static SourceFanInPlan breakPlanIntoSourceProducers(PhysicalPlan plan) {
+        var producers = new Holder<List<ExchangeSinkExec>>();
+        PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof SourceFanInExec fanIn) {
+                if (producers.get() != null) {
+                    throw new EsqlIllegalArgumentException("expected a single source fan-in when splitting source producer plans");
+                }
+                producers.set(
+                    fanIn.producers()
+                        .stream()
+                        .map(
+                            producer -> new ExchangeSinkExec(
+                                fanIn.source(),
+                                fanIn.inBetweenAggs() ? fanIn.output() : producer.output(),
+                                fanIn.inBetweenAggs(),
+                                producer
+                            )
+                        )
+                        .toList()
+                );
+                skipBranch.set(true);
+                return new ExchangeSourceExec(fanIn.source(), fanIn.output(), fanIn.inBetweenAggs());
+            }
+            return p;
+        });
+        return new SourceFanInPlan(coordinatorPlan, producers.getOrDefault(List::of));
     }
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {

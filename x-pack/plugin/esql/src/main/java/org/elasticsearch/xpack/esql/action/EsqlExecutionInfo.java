@@ -403,10 +403,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
      * The hook should return {@code true} only on the transition from running to finishing — see
-     * {@link #stopHooks} for the rationale.
+     * {@link #stopHooks} for the rationale. A hook registered after STOP is fired immediately so a driver
+     * prepared concurrently with STOP cannot escape the request.
      */
     public void addStopHook(BooleanSupplier hook) {
         stopHooks.add(hook);
+        if (isStopped && hook.getAsBoolean()) {
+            markPartial();
+        }
     }
 
     /**

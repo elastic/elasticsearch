@@ -497,19 +497,53 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * extension maps to no registered format. Handles compound extensions (e.g. {@code data.csv.gz})
      * by stripping a known compression suffix and resolving the inner extension, mirroring the
      * runtime resolution in {@code FormatReaderRegistry}.
+     *
+     * <p>Uses {@link StoragePath} for URI parsing to avoid diverging from the read path's own URI
+     * model. A bare authority with no path component (e.g. {@code s3://my.bucket}) returns an empty
+     * object name and resolves to {@code null}, consistent with {@link StoragePath#objectName()}.
+     *
+     * <p>HTTP(S): {@code ?} and {@code #} are stripped from the object name before the extension
+     * lookup. Presigned URLs carry query strings like {@code ?sig=…} or {@code ?v=1.2} that must be
+     * removed first; a dot inside the query (e.g. {@code ?sig=a.b}) would otherwise be mistaken for
+     * an extension delimiter. Extension extraction delegates to
+     * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolver#extractCleanExtension},
+     * which additionally strips {@code ?}/{@code #} from within the extracted extension substring
+     * (e.g. {@code file.csv?versionId=abc}) and is a no-op for glob patterns like {@code day?.csv}
+     * where {@code ?} precedes the dot.
      */
     @Nullable
     private String formatFromExtension(String resource) {
-        String objectName = extractObjectName(resource);
-        if (objectName == null) {
+        StoragePath sp;
+        try {
+            sp = StoragePath.of(resource);
+        } catch (IllegalArgumentException e) {
             return null;
+        }
+        String objectName = sp.objectName();
+        if (objectName.isEmpty()) {
+            return null;
+        }
+        // HTTP(S): strip query string and fragment from the object name before the extension lookup.
+        if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+            int q = objectName.indexOf('?');
+            if (q >= 0) {
+                objectName = objectName.substring(0, q);
+            }
+            int h = objectName.indexOf('#');
+            if (h >= 0) {
+                objectName = objectName.substring(0, h);
+            }
+            if (objectName.isEmpty()) {
+                return null;
+            }
         }
 
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+        String rawExt = FormatNameResolver.extractCleanExtension(objectName);
+        if (rawExt == null) {
             return null;
         }
-        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String ext = "." + rawExt;
+
         String format = formatConfigKeyResolver.formatForExtension(ext);
         if (format != null) {
             return format;
@@ -519,40 +553,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // is a known compression suffix (e.g. .gz, .zst). This mirrors the read-path
         // behavior in DecompressionCodecRegistry/FormatReaderRegistry.
         if (compressionExtensions.contains(ext)) {
-            String inner = objectName.substring(0, lastDot);
-            int innerDot = inner.lastIndexOf('.');
-            if (innerDot >= 0 && innerDot < inner.length() - 1) {
-                String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
-                return formatConfigKeyResolver.formatForExtension(innerExt);
+            String inner = objectName.substring(0, objectName.lastIndexOf('.'));
+            String innerRawExt = FormatNameResolver.extractCleanExtension(inner);
+            if (innerRawExt != null) {
+                return formatConfigKeyResolver.formatForExtension("." + innerRawExt);
             }
         }
         return null;
-    }
-
-    /** Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query or fragment. */
-    @Nullable
-    private static String extractObjectName(String resource) {
-        int schemeEnd = resource.indexOf("://");
-        if (schemeEnd < 0) {
-            return null;
-        }
-        String afterScheme = resource.substring(schemeEnd + 3);
-        int firstSlash = afterScheme.indexOf('/');
-        String path;
-        if (firstSlash < 0) {
-            path = afterScheme;
-        } else {
-            path = afterScheme.substring(firstSlash + 1);
-        }
-        int qMark = path.indexOf('?');
-        if (qMark >= 0) {
-            path = path.substring(0, qMark);
-        }
-        int hash = path.indexOf('#');
-        if (hash >= 0) {
-            path = path.substring(0, hash);
-        }
-        return path;
     }
 
     private void validateResource(String resource, ValidationException errors) {

@@ -586,7 +586,47 @@ public class SchemaAdaptingIteratorTests extends ESTestCase {
         }
     }
 
-    // --- Absent-column warning tests ---
+    // --- Warning sink tests ---
+
+    /**
+     * Reconciliation casts can run on a producer thread, so their warnings must use the supplied relay rather than
+     * the invoking thread's response headers. The pair is the one production actually widens into DATE_NANOS: a
+     * DATETIME instant past 2262 has no nanosecond representation, so the cell nulls and a warning names the column.
+     */
+    public void testCastWarningsUseProvidedSink() {
+        List<Attribute> schema = List.of(attr("value", DataType.DATE_NANOS));
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long year3000Millis = 32_503_680_000_000L; // 3000-01-01T00:00:00Z, beyond the date_nanos range (~2262)
+        Block valueBlock = blockFactory.newConstantLongBlockWith(year3000Millis, 1);
+        List<String> warnings = new ArrayList<>();
+
+        try (
+            SchemaAdaptingIterator iter = new SchemaAdaptingIterator(
+                singlePageIterator(new Page(valueBlock)),
+                schema,
+                mapping,
+                blockFactory,
+                -1,
+                new DataType[] { DataType.DATETIME },
+                warnings::add
+            )
+        ) {
+            Page result = iter.next();
+            try {
+                assertTrue(result.getBlock(0).isNull(0));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+
+        assertThat(warnings.size(), equalTo(2));
+        assertThat(
+            warnings.get(0),
+            equalTo("Cross-file schema unification could not convert some values to the unified column type; they are returned as null")
+        );
+        assertThat(warnings.get(1), containsString("Column [value]"));
+        assertThat(warnings.get(1), containsString("date_nanos"));
+    }
 
     /**
      * When a mapping has -1 slots and an informationalWarningSink is provided, the iterator

@@ -789,7 +789,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * {@code A^T @ B} share this method; the transposed form only swaps them.
      *
      * @param aRowStride   distance in {@code a} between consecutive rows of the left operand
-     * @param aInnerStride distance in {@code a} between consecutive contraction steps
+     * @param aInnerStride distance in {@code a} between consecutive steps
      * @param cRows        rows of C, and of the left operand
      * @param inner        inner dimension of the multiplication
      * @param n            columns of C, and of B

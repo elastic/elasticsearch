@@ -3432,11 +3432,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         size += index.ramBytesUsed();
         size += RamUsageEstimator.sizeOfObject(transportVersion);
         size += RamUsageEstimator.sizeOf(primaryTerms);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(aliases);
+        size += aliases.ramBytesUsed();
         size += settings.estimatedRamBytesUsed();
         size += RamUsageEstimator.sizeOfObject(mapping);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(inferenceFields);
-        size += RamUsageEstimator.sizeOfMap(customData);
+        size += inferenceFields.ramBytesUsed();
+        size += customData.ramBytesUsed();
         size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
         size += RamUsageEstimator.sizeOfObject(requireFilters);
         size += RamUsageEstimator.sizeOfObject(includeFilters);
@@ -3446,7 +3446,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         size += mappingsUpdatedVersion.ramBytesUsed();
         size += indexCompatibilityVersion.ramBytesUsed();
         size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(rolloverInfos);
+        size += rolloverInfos.ramBytesUsed();
         size += RamUsageEstimator.sizeOfObject(timestampRange);
         size += RamUsageEstimator.sizeOfObject(eventIngestedRange);
         size += RamUsageEstimator.sizeOfCollection(tierPreference);

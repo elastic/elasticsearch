@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -25,11 +26,14 @@ final class MetadataRamEstimators {
     private MetadataRamEstimators() {}
 
     /**
-     * Sizes a map whose values are {@link Accountable}, summing the map's shallow size, each entry's shallow size and key string, and each
-     * value's recursive {@link Accountable#ramBytesUsed()}. Use this when you want compile-time enforcement that the map's values are
-     * {@link Accountable}.
+     * Sizes a map whose values are {@link Accountable}. {@link ImmutableOpenMap} instances are sized via their own
+     * {@link ImmutableOpenMap#ramBytesUsed()} (open-hash keys/values arrays). Other map implementations fall back to
+     * summing each entry's shallow size, key string, and value {@link Accountable#ramBytesUsed()}.
      */
     static <T extends Accountable> long ramBytesUsedByAccountableMap(Map<String, T> map) {
+        if (map instanceof ImmutableOpenMap<String, T> immutableOpenMap) {
+            return immutableOpenMap.ramBytesUsed();
+        }
         long size = RamUsageEstimator.shallowSizeOf(map);
         long entryShallowSize = -1L;
         for (Map.Entry<String, T> entry : map.entrySet()) {
@@ -42,23 +46,18 @@ final class MetadataRamEstimators {
     }
 
     /**
-     * Sizes a project or cluster index map like {@link #ramBytesUsedByAccountableMap}, but counts each shared
-     * {@link MappingMetadata} instance only once across indices.
+     * Sizes a project index map like {@link ImmutableOpenMap#ramBytesUsed(java.util.function.ToLongFunction)}, but counts
+     * each shared {@link MappingMetadata} instance only once across indices.
      */
-    static long ramBytesUsedByIndexMetadataMap(Map<String, IndexMetadata> indices) {
-        long size = RamUsageEstimator.shallowSizeOf(indices);
-        long entryShallowSize = -1L;
+    static long ramBytesUsedByIndexMetadataMap(ImmutableOpenMap<String, IndexMetadata> indices) {
         Set<MappingMetadata> countedMappings = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Map.Entry<String, IndexMetadata> entry : indices.entrySet()) {
-            if (entryShallowSize == -1L) {
-                entryShallowSize = RamUsageEstimator.shallowSizeOf(entry);
-            }
-            size += entryShallowSize + RamUsageEstimator.sizeOf(entry.getKey()) + entry.getValue().ramBytesUsed();
-            MappingMetadata mapping = entry.getValue().mapping();
+        return indices.ramBytesUsed(indexMetadata -> {
+            long bytes = indexMetadata.ramBytesUsed();
+            MappingMetadata mapping = indexMetadata.mapping();
             if (mapping != null && countedMappings.add(mapping) == false) {
-                size -= mapping.ramBytesUsed();
+                bytes -= mapping.ramBytesUsed();
             }
-        }
-        return RamUsageEstimator.alignObjectSize(size);
+            return bytes;
+        });
     }
 }

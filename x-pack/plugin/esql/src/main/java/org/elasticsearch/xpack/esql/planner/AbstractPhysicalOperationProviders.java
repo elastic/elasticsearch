@@ -96,6 +96,7 @@ public abstract class AbstractPhysicalOperationProviders {
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
+        HashAggregationOperator.ParallelConfig parallelConfig,
         LocalExecutionPlannerContext context
     ) {
         // The layout this operation will produce.
@@ -226,6 +227,7 @@ public abstract class AbstractPhysicalOperationProviders {
                     )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
+                    .parallelConfig(parallelConfig)
                     .analysisRegistry(analysisRegistry);
                 HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
                 if (topAggregation != null) {

@@ -98,6 +98,10 @@ public final class HighlightQueryBuilders {
         }
     }
 
+    /**
+     * Verifies that a HIGHLIGHT query uses supported full-text forms, references its {@code fields} (only when
+     * {@code enforceOnFields} is true), and translates with the {@code analyzer} that execution will use.
+     */
     public static void verify(Expression queryExpr, List<String> fields, Analyzer analyzer, boolean enforceOnFields) {
         String literal = queryTextIfLiteral(queryExpr);
         // Pushdown accepts more expressions than the runtime context, so check the query shape first.

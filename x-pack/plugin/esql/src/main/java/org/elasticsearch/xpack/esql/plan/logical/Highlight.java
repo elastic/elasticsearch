@@ -228,6 +228,11 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
+    /**
+     * Keeps {@link #derivedFields} while replacing the rest: verification reads it to skip ON-membership enforcement
+     * for a field list the user never wrote. Pass {@code newGeneratedFields} through unchanged unless
+     * {@code newFields} changed, since {@code generatedAttributesFor} mints fresh {@link NameId}s on every call.
+     */
     public Highlight withResolved(
         Expression newQuery,
         boolean newImplicitQuery,

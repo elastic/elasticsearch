@@ -16,6 +16,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedDocValues;
@@ -201,9 +202,9 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        CodecUtil.checksumEntireFile(data);
-        CodecUtil.checksumEntireFile(skipIndex);
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        CodecUtil.checksumEntireFile(data, merge);
+        CodecUtil.checksumEntireFile(skipIndex, merge);
     }
 
     @Override

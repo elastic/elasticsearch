@@ -21,7 +21,6 @@ public enum Platform {
     DARWIN_AARCH64,
     WINDOWS_X64;
 
-
     /**
      * Returns the {@code Platform} for the current JVM, derived from
      * {@code os.name} and {@code os.arch} system properties.

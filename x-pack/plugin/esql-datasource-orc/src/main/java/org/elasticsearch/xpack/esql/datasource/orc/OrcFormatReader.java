@@ -950,6 +950,28 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return counters.snapshot();
     }
 
+    /**
+     * Returns a copy identical in configuration (and sharing footer caches) but with reset counters.
+     * Called by {@code readerForFile} so each split gets its own counter instance. Without this,
+     * successive splits of the same file would accumulate into the same {@link OrcReaderCounters},
+     * making the split-start delta baseline non-zero and double-counting earlier splits' I/O time.
+     * Footer caches ({@link #parsedFooters}, {@link #footerBytes}) are shared to avoid redundant
+     * I/O across splits of the same file.
+     */
+    @Override
+    public OrcFormatReader freshCounters() {
+        return new OrcFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
+        );
+    }
+
     @Override
     public List<String> fileExtensions() {
         return List.of(".orc");

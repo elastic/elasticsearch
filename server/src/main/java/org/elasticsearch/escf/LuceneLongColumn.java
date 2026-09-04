@@ -9,7 +9,14 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.FloatField;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
@@ -21,16 +28,161 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link LongColumn} backed by an {@link EscfLongColumn} (single-value) or {@link EscfArrayColumn}
  * (multi-value). Multi-value columns always use {@link Density#SPARSE}.
  */
 public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
+
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
+        .fieldType();
+    private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE_STORED = storedVariant(SORTED_NUMERIC_DV_FIELD_TYPE);
+    private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE_STORED = storedVariant(
+        SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE
+    );
+
+    // BKD + DV combined field types, one per NumericKind. Used by Builder to select the indexed field type.
+    private static final IndexableFieldType LONG_INDEXED_FIELD_TYPE = new LongField("_sentinel", 0L, Field.Store.NO).fieldType();
+    private static final IndexableFieldType INT_INDEXED_FIELD_TYPE = new IntField("_sentinel", 0, Field.Store.NO).fieldType();
+    private static final IndexableFieldType FLOAT_INDEXED_FIELD_TYPE = new FloatField("_sentinel", 0f, Field.Store.NO).fieldType();
+    private static final IndexableFieldType DOUBLE_INDEXED_FIELD_TYPE = new DoubleField("_sentinel", 0.0, Field.Store.NO).fieldType();
+
+    // Stored-only field types (no doc values, no BKD), one per NumericKind.
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
+    private static final IndexableFieldType INT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0).fieldType();
+    private static final IndexableFieldType FLOAT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0f).fieldType();
+    private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
+
+    private static IndexableFieldType storedVariant(IndexableFieldType base) {
+        FieldType ft = new FieldType(base);
+        ft.setStored(true);
+        ft.freeze();
+        return ft;
+    }
+
+    /**
+     * Returns a new {@link Builder} for constructing a {@link Spec}: a pre-computed column factory
+     * that captures all static configuration ({@code name}, field type, {@link LongColumn.NumericKind})
+     * at mapper construction time. Only the batch data is needed at {@link Spec#build} time.
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A pre-computed column factory produced by {@link Builder#build()}. Holds the static column
+     * configuration ({@code name}, {@link IndexableFieldType}, {@link LongColumn.NumericKind})
+     * so that {@link #build(EscfColumnData)} only needs the per-batch data.
+     */
+    public static final class Spec {
+        private final String name;
+        private final IndexableFieldType fieldType;
+        private final LongColumn.NumericKind numericKind;
+
+        private Spec(String name, IndexableFieldType fieldType, LongColumn.NumericKind numericKind) {
+            this.name = name;
+            this.fieldType = fieldType;
+            this.numericKind = numericKind;
+        }
+
+        /** Creates a {@link LuceneLongColumn} from the pre-computed configuration and the given batch data. */
+        public LuceneLongColumn build(EscfColumnData data) {
+            return LuceneLongColumn.of(data, name, fieldType, numericKind);
+        }
+    }
+
+    /**
+     * Builder for {@link Spec}. Captures all static column configuration at mapper construction
+     * time and selects the appropriate {@link IndexableFieldType} from the combination of
+     * {@link IndexType}, {@code indexed}, {@code stored}, and {@link LongColumn.NumericKind}.
+     *
+     * <p>The field-type selection follows the same logic as the row-major path:
+     * <ul>
+     *   <li>If {@link IndexType#hasDocValuesSkipper()}: a {@code SortedNumericDocValuesField} with
+     *       a doc-values-skipper index, optionally with {@code stored}.</li>
+     *   <li>Else if {@code indexed}: a combined BKD + DV field ({@code LongField}, {@code IntField},
+     *       etc., derived from {@link LongColumn.NumericKind}), optionally with {@code stored}.</li>
+     *   <li>Otherwise: a plain {@code SortedNumericDocValuesField}, optionally with {@code stored}.</li>
+     * </ul>
+     */
+    public static final class Builder {
+        private String name;
+        private IndexType indexType;
+        private boolean indexed;
+        private boolean stored;
+        private LongColumn.NumericKind numericKind = LongColumn.NumericKind.LONG;
+
+        private Builder() {}
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder indexType(IndexType indexType) {
+            this.indexType = indexType;
+            return this;
+        }
+
+        public Builder indexed(boolean indexed) {
+            this.indexed = indexed;
+            return this;
+        }
+
+        public Builder stored(boolean stored) {
+            this.stored = stored;
+            return this;
+        }
+
+        public Builder numericKind(LongColumn.NumericKind numericKind) {
+            this.numericKind = numericKind;
+            return this;
+        }
+
+        /**
+         * Selects the field type and returns the immutable {@link Spec}.
+         *
+         * <p>When {@link #indexType} is set, the field type is chosen from the combination of
+         * {@link IndexType#hasDocValuesSkipper()}, {@code indexed}, and {@code stored}, covering
+         * the full DV (and optionally BKD) range. When {@link #indexType} is absent, a
+         * stored-only field type (no doc values, no BKD) is selected from {@link LongColumn.NumericKind},
+         * and {@code stored} must be {@code true}.
+         */
+        public Spec build() {
+            Objects.requireNonNull(name, "name");
+            final IndexableFieldType fieldType;
+            if (indexType == null) {
+                assert stored : "builder without indexType must have stored(true)";
+                fieldType = switch (numericKind) {
+                    case LONG -> LONG_STORED_ONLY_FIELD_TYPE;
+                    case INT -> INT_STORED_ONLY_FIELD_TYPE;
+                    case FLOAT -> FLOAT_STORED_ONLY_FIELD_TYPE;
+                    case DOUBLE -> DOUBLE_STORED_ONLY_FIELD_TYPE;
+                };
+            } else if (indexType.hasDocValuesSkipper()) {
+                fieldType = stored ? SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE_STORED : SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
+            } else if (indexed) {
+                IndexableFieldType base = switch (numericKind) {
+                    case LONG -> LONG_INDEXED_FIELD_TYPE;
+                    case INT -> INT_INDEXED_FIELD_TYPE;
+                    case FLOAT -> FLOAT_INDEXED_FIELD_TYPE;
+                    case DOUBLE -> DOUBLE_INDEXED_FIELD_TYPE;
+                };
+                fieldType = stored ? storedVariant(base) : base;
+            } else {
+                fieldType = stored ? SORTED_NUMERIC_DV_FIELD_TYPE_STORED : SORTED_NUMERIC_DV_FIELD_TYPE;
+            }
+            return new Spec(name, fieldType, numericKind);
+        }
+    }
 
     private final EscfColumn data;
 

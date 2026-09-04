@@ -109,7 +109,7 @@ The quick brown <b>fox</b> jumps over the lazy dog.
 ;
 
 
-# A prefix containing whitespace 
+# A prefix containing whitespace produces a quoted column name (`hl content`).
 highlightWhitespacePrefix
 required_capability: highlight_v6
 
@@ -2001,3 +2001,36 @@ FROM books
 highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
 John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
 ;
+
+
+# MATCH without ON highlights only the named field. The result shape is the proof: body is present
+# unhighlighted and there is no highlight_body column. ON * would still emit highlight_body as null.
+highlightMatchOmitsOn
+required_capability: highlight_v6
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king")
+;
+
+title:keyword      | body:keyword             | highlight_title:keyword
+Return of the King | An ordinary description. | Return of the <em>King</em>
+;
+
+
+# ON * still generates a column for every text field, so a MATCH that names only title leaves highlight_body null.
+highlightMatchOnStarKeepsUnmatchedFields
+required_capability: highlight_v6
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king") ON *
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | null
+;
+

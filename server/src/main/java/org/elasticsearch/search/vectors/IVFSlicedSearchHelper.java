@@ -104,9 +104,12 @@ final class IVFSlicedSearchHelper {
         if (skipper == null) {
             throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a DocValuesSkipper field");
         }
-        if (skipper.docCount() != maxDoc) {
+        final SortField sliceSort = sort.getSort()[0];
+        // Internal soft-deleted documents such as tombstones may not carry the slice field. With an ascending,
+        // missing-last index sort, documents that have a slice remain a contiguous prefix ending at docCount().
+        if (skipper.docCount() != maxDoc && (sliceSort.getReverse() || sliceSort.getMissingValue() != SortField.STRING_LAST)) {
             throw new IllegalArgumentException(
-                "DocValuesSkipper for sliceField [" + sliceField + "] must have a doc count equal to maxDoc"
+                "sparse sliceField [" + sliceField + "] requires ascending index sort with missing values last"
             );
         }
 

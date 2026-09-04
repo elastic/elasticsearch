@@ -10,6 +10,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
@@ -30,6 +32,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
@@ -127,6 +130,49 @@ public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTest
 
     private void doTestSlicesDense(boolean applyFilter) throws IOException {
         doTestSlices(() -> true, applyFilter);
+    }
+
+    public void testTrailingMissingSliceDocValues() throws IOException {
+        final int dimensions = 12;
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        final SortField sliceSort = new SortField(SLICE_FIELD, SortField.Type.STRING);
+        sliceSort.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSort));
+        iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, iwc)) {
+            final Document tombstone = new Document();
+            tombstone.add(new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1L));
+            writer.addDocument(tombstone);
+
+            for (int slice = 0; slice < 2; slice++) {
+                for (int i = 0; i < 2; i++) {
+                    final Document document = new Document();
+                    document.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef(Integer.toString(slice))));
+                    document.add(new StoredField(SLICE_FIELD, new BytesRef(Integer.toString(slice))));
+                    document.add(createVectorField("vector", dimensions));
+                    writer.addDocument(document);
+                }
+            }
+            writer.commit();
+
+            try (DirectoryReader reader = new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(writer), Lucene.SOFT_DELETES_FIELD)) {
+                assertEquals(4, reader.numDocs());
+                assertEquals(1, reader.leaves().size());
+                final var leaf = reader.leaves().getFirst().reader();
+                assertSame(SortField.STRING_LAST, leaf.getMetaData().sort().getSort()[0].getMissingValue());
+                assertNotNull(leaf.getDocValuesSkipper(SLICE_FIELD));
+                assertEquals(4, leaf.getDocValuesSkipper(SLICE_FIELD).docCount());
+                assertEquals(5, leaf.maxDoc());
+
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                final Query oneSlice = createSlicedQuery("vector", dimensions, 2, 2, null, 1.0f, new BytesRef("1"));
+                assertEquals(2, searcher.search(oneSlice, 2).scoreDocs.length);
+                final Query allSlices = createSlicedQuery("vector", dimensions, 4, 4, null, 1.0f);
+                assertEquals(4, searcher.search(allSlices, 4).scoreDocs.length);
+            }
+        }
     }
 
     /**

@@ -224,7 +224,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         size += RamUsageEstimator.sizeOfObject(id);
         size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
         size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
-        size += MetadataRamEstimators.ramBytesUsedByAccountableMap(templates);
+        size += templates.ramBytesUsed();
         return RamUsageEstimator.alignObjectSize(size);
     }
 

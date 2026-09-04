@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -205,20 +204,23 @@ public class ExternalSourceResolver {
 
     /**
      * Notices raised during one {@link #resolve} call that the user should see: Hive-partition shadowing, reconciliation
-     * widening, {@code file_exclusions} drops, reserved partition-name renames. They are buffered here and written to
-     * the response headers by {@link #flushBufferedWarnings} when resolution completes, on the request thread, because
-     * the resolution chain runs on {@link #metadataReadExecutor} whose threads have no path to the response. Cleared at
-     * the start of each {@link #resolve} call; append-only in between, so concurrent per-file callbacks (see
-     * {@link #metadataReadConcurrency}) are safe.
+     * widening, {@code file_exclusions} drops, reserved partition-name renames. The resolution chain runs on
+     * {@link #metadataReadExecutor}, whose threads have no path to the response, so a direct
+     * {@code HeaderWarning.addWarning} from inside it would land on the wrong {@link ThreadContext} and never reach the
+     * client. They are buffered here and attached, together with {@link #pendingMetadataWarnings}, to the
+     * {@link ExternalSourceResolution} completed by {@link #resolveNextPath} (see {@link #bufferedWarnings}), so
+     * {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for {@code TransportEsqlQueryAction#toResponse}
+     * to emit on the thread that builds the client response. Cleared at the start of each {@link #resolve} call;
+     * append-only in between, so concurrent per-file callbacks (see {@link #metadataReadConcurrency}) are safe.
      */
     private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 
     /**
-     * A resolved source's {@link SourceMetadata#warnings()}, buffered for the completion-time flush alongside
+     * A resolved source's {@link SourceMetadata#warnings()}, buffered for the completion-time attach alongside
      * {@link #pendingShadowWarnings} but counted separately: a wide glob resolves one metadata per file, and a per-file
      * notice must not multiply into hundreds of headers, nor spend the shadow channel's room. Deduplicated by exact
      * text and capped at {@link SkipWarnings#MAX_ADDED_WARNINGS}; when the cap is hit a single overflow marker is
-     * appended after everything else at flush time. Filled on both the cold and the cache-hit path so the same query
+     * appended after everything else in {@link #bufferedWarnings}. Filled on both the cold and the cache-hit path so the same query
      * warns identically on every run. Guarded by its own monitor because per-file callbacks run concurrently.
      */
     private final Set<String> pendingMetadataWarnings = new LinkedHashSet<>();
@@ -239,15 +241,21 @@ public class ExternalSourceResolver {
         }
     }
 
-    /** Replays every buffered notice onto the caller's (now restored) thread context. */
-    private void flushBufferedWarnings() {
-        pendingShadowWarnings.forEach(HeaderWarning::addWarning);
+    /**
+     * Every notice buffered during the current {@link #resolve} call, in emission order, for the
+     * {@link ExternalSourceResolution} completed by {@link #resolveNextPath}. Not written to {@code HeaderWarning}
+     * here: a resolve-time write is discarded when {@code ContextPreservingActionListener} closes
+     * (elastic/elasticsearch#153780).
+     */
+    private List<String> bufferedWarnings() {
+        List<String> warnings = new ArrayList<>(pendingShadowWarnings);
         synchronized (pendingMetadataWarnings) {
-            pendingMetadataWarnings.forEach(HeaderWarning::addWarning);
+            warnings.addAll(pendingMetadataWarnings);
             if (metadataWarningsOverflowed) {
-                HeaderWarning.addWarning(SkipWarnings.overflowMessage());
+                warnings.add(SkipWarnings.overflowMessage());
             }
         }
+        return warnings;
     }
 
     /**
@@ -464,7 +472,7 @@ public class ExternalSourceResolver {
         }
 
         // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
-        // clearing here (rather than after the previous call's flush) also covers a resolver instance reused
+        // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
         synchronized (pendingMetadataWarnings) {
@@ -484,18 +492,18 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Flush every notice buffered during resolution (see pendingShadowWarnings and pendingMetadataWarnings) before
-        // delegating to the caller's listener, so HeaderWarning.addWarning is called from here rather than from
-        // whatever executor thread actually ran the schema reconciliation.
-        ActionListener<ExternalSourceResolution> withShadowWarnings = ActionListener.runBefore(listener, this::flushBufferedWarnings);
+        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingShadowWarnings)
+        // rather than being flushed to HeaderWarning here: ContextPreservingActionListener restores a copy of the
+        // request context that close() then discards, so a resolve-time HeaderWarning write is racy
+        // (elastic/elasticsearch#153780).
+        //
         // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
         // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
         // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
-        // EsqlSession and into the compute transport send, and (per above) the shadow-warning flush itself. See the
-        // field javadoc on restorableContext for details.
+        // EsqlSession and into the compute transport send. See the field javadoc on restorableContext for details.
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
-            ? withShadowWarnings
-            : new ContextPreservingActionListener<>(restorableContext, withShadowWarnings);
+            ? listener
+            : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
             () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
@@ -517,7 +525,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved));
+            listener.onResponse(new ExternalSourceResolution(resolved, bufferedWarnings()));
             return;
         }
         String path = paths.get(index);
@@ -2447,7 +2455,7 @@ public class ExternalSourceResolver {
 
     /**
      * Like {@link #enrichSchemaWithPartitionColumns(ExternalSourceMetadata, PartitionMetadata)}, but routes any
-     * shadowed-column warning through {@code warningSink} instead of writing to {@link HeaderWarning} directly —
+     * shadowed-column warning through {@code warningSink} instead of writing to {@code HeaderWarning} directly —
      * see {@link #warnOnShadowedColumns} for why that matters for callers running inside the async resolution chain.
      */
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(
@@ -2516,13 +2524,14 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered and
-     * replayed via {@link org.elasticsearch.common.logging.HeaderWarning} once back on a thread whose
-     * {@code ThreadContext} response headers actually feed the client response (see
-     * {@link #pendingShadowWarnings} and the flush in {@link #resolve}). A direct-to-{@code HeaderWarning}
-     * write (passing {@code null}) is only safe for callers that are themselves already on such a
-     * thread, e.g. tests exercising this method directly on the test thread. A no-op when nothing is
-     * shadowed.
+     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
+     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
+     * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
+     * resolve-time {@code HeaderWarning} flush: that write is discarded when
+     * {@code ContextPreservingActionListener} closes (elastic/elasticsearch#153780). A
+     * direct-to-{@code HeaderWarning} write (passing {@code null}) is only safe for callers that
+     * are themselves already on a thread whose response headers feed the client, e.g. tests
+     * exercising this method directly on the test thread. A no-op when nothing is shadowed.
      */
     private static void warnOnShadowedColumns(List<String> shadowedColumns, @Nullable Consumer<String> warningSink) {
         if (shadowedColumns.isEmpty()) {

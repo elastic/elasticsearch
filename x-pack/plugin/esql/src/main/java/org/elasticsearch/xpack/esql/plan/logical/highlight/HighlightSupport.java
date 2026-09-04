@@ -66,12 +66,13 @@ public final class HighlightSupport {
      * the result empty, which HIGHLIGHT's post-analysis verification reports as a request for an explicit ON clause.
      */
     public static List<NamedExpression> deriveFields(Expression query, List<Attribute> childrenOutput) {
+        List<NamedExpression> highlightable = allHighlightableFields(childrenOutput);
         Set<String> names = new LinkedHashSet<>();
         if (collectQueryFieldNames(query, names) == false) {
-            return allHighlightableFields(childrenOutput);
+            return highlightable;
         }
         Map<String, NamedExpression> byName = new HashMap<>();
-        for (NamedExpression field : allHighlightableFields(childrenOutput)) {
+        for (NamedExpression field : highlightable) {
             byName.put(field.name(), field);
         }
         List<NamedExpression> result = new ArrayList<>(names.size());
@@ -105,6 +106,8 @@ public final class HighlightSupport {
             case Kql kql -> false;
             case Literal literal -> false;
             case BinaryLogic binary -> collectQueryFieldNames(binary.left(), names) && collectQueryFieldNames(binary.right(), names);
+            // A negative clause says which docs to exclude, not which fields to highlight: contribute no names, but
+            // yield true so it does not force the all-fields fallback the way an unrecognised expression does.
             case Not not -> true;
             default -> false;
         };

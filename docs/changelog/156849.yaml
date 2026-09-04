@@ -1,0 +1,6 @@
+area: SLM
+issues:
+  - 141887
+pr: 156849
+summary: Make SnapshotHistoryStore retry indexing history data on EsRejectedExecutionException
+type: bug

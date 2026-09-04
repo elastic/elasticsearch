@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
  * and {@code EsqlQueryProfile.dataset_resolution} are populated when {@code FROM <dataset>}
  * queries execute against a local Parquet fixture.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
 
     @Override

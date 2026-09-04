@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -417,6 +418,72 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);
     }
 
+    /**
+     * {@link RestoreSnapshotRequest#restoreOverExisting()} is a superset of the ordinary restore-over-closed behavior: a closed destination
+     * is never an open-index target (only OPEN destinations are), so it falls through to the ordinary closed-index restore path. Setting
+     * the flag over a closed index must therefore still succeed, exactly as an ordinary restore would.
+     */
+    public void testRestoreOverExistingCanTargetClosedIndex() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final int docCount = createRepositoryAndSnapshottedIndex();
+
+        assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted();
+
+        assertThat("restoring over the reopened index must assign a history UUID", historyUuid(), notNullValue());
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);
+    }
+
+    /**
+     * {@link RestoreSnapshotRequest#restoreOverExisting()} combined with a rename applies to the renamed destination: open-index targets
+     * are resolved by renamed name, so if the renamed destination already exists and is open, the restore is applied over it in place
+     * rather than rejected.
+     */
+    public void testRestoreOverExistingWithRenameTargetsRenamedOpenIndex() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        final int docCount = createRepositoryAndSnapshottedIndex();
+
+        // a separate, already-open index that the rename resolves to as the destination, seeded with different content so the restore is
+        // observably replacing it rather than adopting it
+        final String renamedIndex = INDEX_NAME + "-restored";
+        createIndex(renamedIndex, indexSettings(1, 0).build());
+        prepareIndex(renamedIndex).setId("pre").setSource("field", "pre-existing").get();
+        indicesAdmin().prepareFlush(renamedIndex).get();
+        ensureGreen(renamedIndex);
+        assertThat("the rename destination starts without a restore history UUID", historyUuid(renamedIndex), nullValue());
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME)
+                .renamePattern("(.+)")
+                .renameReplacement("$1-restored")
+                .restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        awaitRestoreCompleted(renamedIndex);
+
+        // the open renamed destination was restored over in place: it gains a restore history UUID and holds the snapshot's contents
+        // (docCount docs), not the single pre-existing document
+        assertThat(historyUuid(renamedIndex), notNullValue());
+        assertHitCount(prepareSearch(renamedIndex).setSize(0), docCount);
+        // the original source index is untouched by a renamed restore
+        assertThat("the un-renamed source index must not be restored over", historyUuid(INDEX_NAME), nullValue());
+    }
+
     private int createRepositoryAndSnapshottedIndex() throws Exception {
         return createRepositoryAndSnapshottedIndex(0);
     }
@@ -592,13 +659,17 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void awaitRestoreCompleted() throws Exception {
+        awaitRestoreCompleted(INDEX_NAME);
+    }
+
+    private void awaitRestoreCompleted(String indexName) throws Exception {
         assertBusy(
             () -> assertThat(
                 RestoreInProgress.get(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()).isEmpty(),
                 equalTo(true)
             )
         );
-        ensureGreen(INDEX_NAME);
+        ensureGreen(indexName);
     }
 
     private ShardRouting primaryShardRouting() {

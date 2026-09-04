@@ -33,6 +33,7 @@ public class BlobCacheMetrics {
     public static final String ES_EXECUTOR_ATTRIBUTE_KEY = "executor";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
     public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
+    public static final String BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_used_regions.total";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
@@ -138,8 +139,9 @@ public class BlobCacheMetrics {
                 "count"
             ),
             meterRegistry.registerLongCounter(
-                "es.blob_cache.count_of_evicted_used_regions.total",
-                "The number of times a cache entry was evicted where the frequency was not zero",
+                BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL,
+                "The number of cache entries with non-zero frequency evicted under LFU pressure to make room for another region; "
+                    + "excludes forced evictions",
                 "entries"
             ),
             meterRegistry.registerLongCounter(

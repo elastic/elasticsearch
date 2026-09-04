@@ -1,5 +1,0 @@
-area: Infra/Metrics
-issues: []
-pr: 157161
-summary: Fix `NullPointerException` from async telemetry instruments at shutdown
-type: bug

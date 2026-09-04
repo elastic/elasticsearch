@@ -201,7 +201,7 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         List<LongWithAttributes> observations = new ArrayList<>(AuthType.values().length);
         for (AuthType authType : AuthType.values()) {
             observations.add(
-                new LongWithAttributes(cpsCounts.countForAuthType(authType), attributesWith("auth_type", authType.attributeValue()))
+                new LongWithAttributes(cpsCounts.countForAuthType(authType), attributesWith("es_auth_type", authType.attributeValue()))
             );
         }
         return observations;
@@ -211,7 +211,10 @@ public final class MlConfigMetrics extends AbstractLifecycleComponent implements
         List<LongWithAttributes> observations = new ArrayList<>(ProjectRoutingBucket.values().length);
         for (ProjectRoutingBucket bucket : ProjectRoutingBucket.values()) {
             observations.add(
-                new LongWithAttributes(cpsCounts.countForRoutingBucket(bucket), attributesWith("routing_bucket", bucket.attributeValue()))
+                new LongWithAttributes(
+                    cpsCounts.countForRoutingBucket(bucket),
+                    attributesWith("es_routing_bucket", bucket.attributeValue())
+                )
             );
         }
         return observations;

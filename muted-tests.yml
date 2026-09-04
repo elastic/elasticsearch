@@ -289,9 +289,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/153406
-- class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
-  method: testSumIntOverArrowBufferMasked
-  issue: https://github.com/elastic/elasticsearch/issues/153586
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
   method: testEvaluate {TestCase=<big negative double>, <big positive double>}
   issue: https://github.com/elastic/elasticsearch/issues/153598
@@ -370,12 +367,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:ip.conditional}
   issue: https://github.com/elastic/elasticsearch/issues/155566
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsSampleIT
-  method: test {csv-spec:stats_sample.sample cartesian_point}
-  issue: https://github.com/elastic/elasticsearch/issues/155625
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecStatsSampleIT
-  method: test {csv-spec:stats_sample.sample geo_point}
-  issue: https://github.com/elastic/elasticsearch/issues/155626
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/155532

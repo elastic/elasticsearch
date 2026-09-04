@@ -72,6 +72,15 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
     }
 
     /**
+     * Non-tautology check: a longer {@link ProjectId} string must increase the project estimate.
+     */
+    public void testRamBytesUsedGrowsWithProjectIdLength() {
+        ProjectMetadata shortId = ProjectMetadata.builder(ProjectId.fromId("a")).build();
+        ProjectMetadata longId = ProjectMetadata.builder(ProjectId.fromId(randomAlphaOfLengthBetween(32, 64))).build();
+        assertThat(longId.ramBytesUsed(), greaterThan(shortId.ramBytesUsed()));
+    }
+
+    /**
      * Non-tautology check: when two indices share one {@link MappingMetadata} instance, the project total must be exactly one mapping
      * smaller than a naive sum that omits dedup. Uses a test-only variant ({@link #projectRamBytesUsedWithoutMappingDedup}) that
      * deliberately skips the subtract step — not a mirror of {@link ProjectMetadata#ramBytesUsed()}.
@@ -107,7 +116,7 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
      */
     private static long projectRamBytesUsedWithoutMappingDedup(ProjectMetadata project) {
         long size = RamUsageEstimator.shallowSizeOfInstance(ProjectMetadata.class);
-        size += RamUsageEstimator.shallowSizeOf(project.id());
+        size += project.id().ramBytesUsed();
         size += RamUsageEstimator.shallowSizeOf(project.oldestIndexVersion());
         size += MetadataRamEstimators.ramBytesUsedByAccountableMap(project.indices());
         size += MetadataRamEstimators.ramBytesUsedByAccountableMap(project.templates());

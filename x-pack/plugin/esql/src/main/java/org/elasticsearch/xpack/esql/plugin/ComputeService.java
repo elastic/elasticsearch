@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -1084,7 +1085,6 @@ public class ComputeService {
                 rootTask,
                 flags,
                 configuration,
-                foldContext,
                 execInfo,
                 queryPragmas,
                 mainExchangeSource,
@@ -1127,7 +1127,6 @@ public class ComputeService {
         final CancellableTask rootTask;
         final EsqlFlags flags;
         final Configuration configuration;
-        final FoldContext foldContext;
         final EsqlExecutionInfo execInfo;
         final QueryPragmas queryPragmas;
         final ExchangeSourceHandler mainExchangeSource;
@@ -1146,7 +1145,6 @@ public class ComputeService {
             CancellableTask rootTask,
             EsqlFlags flags,
             Configuration configuration,
-            FoldContext foldContext,
             EsqlExecutionInfo execInfo,
             QueryPragmas queryPragmas,
             ExchangeSourceHandler mainExchangeSource,
@@ -1167,7 +1165,6 @@ public class ComputeService {
             this.rootTask = rootTask;
             this.flags = flags;
             this.configuration = configuration;
-            this.foldContext = foldContext;
             this.execInfo = execInfo;
             this.queryPragmas = queryPragmas;
             this.mainExchangeSource = mainExchangeSource;
@@ -1204,7 +1201,10 @@ public class ComputeService {
                 flags,
                 subplan,
                 configuration,
-                foldContext,
+                // execute() starts branchParallelDegree subplans at once and each folds while the main plan
+                // is still folding, so they cannot share a FoldContext: it is a mutable byte budget with no
+                // synchronization.
+                configuration.newFoldContext(),
                 execInfo,
                 "subplan-" + executingSubPlanIndex,
                 ActionListener.wrap(result -> {
@@ -1249,45 +1249,6 @@ public class ComputeService {
             }
             return false;
         }
-    }
-
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            new ThrottledTaskRunner(
-                "esql_source_producers[" + sessionId + "]",
-                configuration.pragmas().branchParallelDegree(),
-                searchExecutor
-            ),
-            new SourceOutcomeAccumulator(),
-            true
-        );
     }
 
     private void executePlan(
@@ -1742,6 +1703,18 @@ public class ComputeService {
         }
     }
 
+    /**
+     * Runs the coordinator plan of a source fan-in and every producer feeding it. Each producer is a child
+     * compute session holding a real exchange sink on every data node it dispatches to, so dispatch scales
+     * with the product of producers and assigned nodes: each producer runs its own per-node loop rather than
+     * batching into one request per node the way a multi-index {@code EsRelation} does. That per-producer
+     * cost is what {@link SourceFanInUnionAll#MAX_PRODUCERS} bounds.
+     * <p>
+     * On the coordinator a producer costs only a refcount lease on the query's single exchange source. Every
+     * lease is taken before any producer runs, because the source must not observe zero outstanding sinks
+     * while producers are still queued behind {@code sourceProducerRunner}: it would finish and drop the rows
+     * the queued producers have yet to write.
+     */
     private void executeSourceFanIn(
         String sessionId,
         CancellableTask rootTask,
@@ -1836,7 +1809,10 @@ public class ComputeService {
                                 flags,
                                 producer,
                                 configuration,
-                                foldContext,
+                                // A FoldContext is a mutable byte budget and is not thread safe, so a producer
+                                // cannot share the one the coordinator plan above is folding against. Each gets
+                                // its own, as every data-node and remote-cluster request already does.
+                                configuration.newFoldContext(),
                                 execInfo,
                                 profileQualifier,
                                 initialClusterStatuses,
@@ -2456,178 +2432,170 @@ public class ComputeService {
         );
 
         try {
-            synchronized (context.foldCtx()) {
-                var workerThreadPool = transportService.getThreadPool();
-                var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
-                int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
+            var workerThreadPool = transportService.getThreadPool();
+            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
+            int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
-                LocalExecutionPlanner planner = new LocalExecutionPlanner(
-                    context.sessionId(),
-                    context.clusterAlias(),
-                    task,
-                    bigArrays,
-                    blockFactory,
-                    clusterService.getSettings(),
-                    context.configuration(),
-                    context.exchangeSourceSupplier(),
-                    context.exchangeSinkSupplier(),
-                    enrichLookupService,
-                    lookupFromIndexService,
-                    inferenceService,
-                    userAgentParserRegistry,
-                    ipLocationService,
-                    projectResolver,
-                    physicalOperationProviders,
-                    operatorFactoryRegistry,
-                    parallelWorkerExecutor,
-                    esqlWorkerPoolSize,
-                    grokMatcherWatchdog.get()
-                );
+            LocalExecutionPlanner planner = new LocalExecutionPlanner(
+                context.sessionId(),
+                context.clusterAlias(),
+                task,
+                bigArrays,
+                blockFactory,
+                clusterService.getSettings(),
+                context.configuration(),
+                context.exchangeSourceSupplier(),
+                context.exchangeSinkSupplier(),
+                enrichLookupService,
+                lookupFromIndexService,
+                inferenceService,
+                userAgentParserRegistry,
+                ipLocationService,
+                projectResolver,
+                physicalOperationProviders,
+                operatorFactoryRegistry,
+                parallelWorkerExecutor,
+                esqlWorkerPoolSize,
+                grokMatcherWatchdog.get()
+            );
 
-                LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
-                boolean hasExternalSource = plan.anyMatch(
-                    p -> p instanceof ExternalSourceExec
-                        || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
-                );
-                PhysicalPlan localPlan;
-                final String logicalPlanString;
-                final boolean approximationApplied;
-                if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
-                    List<SearchExecutionContext> localContexts = new ArrayList<>();
-                    context.searchExecutionContexts().iterable().forEach(localContexts::add);
-                    if (hasExternalSource) {
-                        localPlan = PlannerUtils.localPlan(
-                            plannerSettings,
-                            context.flags(),
-                            context.configuration(),
-                            context.foldCtx(),
-                            plan,
-                            SearchContextStats.from(localContexts),
-                            formatReaderRegistry,
-                            coordinatorExternalSplits,
-                            planTimeProfile
-                        );
-                        logicalPlanString = null;
-                        approximationApplied = false;
-                    } else {
-                        var localPlanResult = PlannerUtils.localPlanWithLogical(
-                            plannerSettings,
-                            context.flags(),
-                            localContexts,
-                            context.configuration(),
-                            context.foldCtx(),
-                            plan,
-                            planTimeProfile
-                        );
-                        localPlan = localPlanResult.physicalPlan();
-                        logicalPlanString = localPlanResult.logicalPlanString();
-                        approximationApplied = localPlanResult.approximationApplied();
-                    }
-                } else {
-                    localPlan = plan;
+            LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
+            boolean hasExternalSource = plan.anyMatch(
+                p -> p instanceof ExternalSourceExec
+                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+            );
+            PhysicalPlan localPlan;
+            final String logicalPlanString;
+            final boolean approximationApplied;
+            if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                List<SearchExecutionContext> localContexts = new ArrayList<>();
+                context.searchExecutionContexts().iterable().forEach(localContexts::add);
+                if (hasExternalSource) {
+                    localPlan = PlannerUtils.localPlan(
+                        plannerSettings,
+                        context.flags(),
+                        context.configuration(),
+                        context.foldCtx(),
+                        plan,
+                        SearchContextStats.from(localContexts),
+                        formatReaderRegistry,
+                        coordinatorExternalSplits,
+                        planTimeProfile
+                    );
                     logicalPlanString = null;
                     approximationApplied = false;
-                }
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
-                }
-
-                // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
-                // The original localPlan is immutable and preserved for profiling.
-                PhysicalPlan planToExecute = localPlan;
-                if (context.configuration().explainOnly()) {
-                    planToExecute = ExplainPlanTransformer.replaceDataSourcesWithEmpty(localPlan);
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug("EXPLAIN mode: transformed plan for {}:\n{}", context.description(), planToExecute);
-                    }
-                }
-
-                // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
-                // it's doing this in the planning of EsQueryExec (the source of the data)
-                // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-                var localExecutionPlan = planner.plan(
-                    context.description(),
-                    context.foldCtx(),
-                    plannerSettings,
-                    planToExecute,
-                    shardContexts
-                );
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
-                }
-                String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
-                var drivers = localExecutionPlan.createDrivers(driverSessionId);
-                // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and
-                // therefore
-                // incremented) by the source operators, and the DocVectors. Since The contexts are pre-created with a count of 1, and then
-                // incremented by the relevant source operators, after creating the *data* drivers (and therefore, the source operators), we
-                // can
-                // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
-                // Note that only the data drivers will increment the reference count when created, hence the if below.
-                if (context.description().equals(DATA_DESCRIPTION)) {
-                    shardContexts.iterable().forEach(RefCounted::decRef);
-                }
-                if (drivers.isEmpty()) {
-                    throw new IllegalStateException("no drivers created");
-                }
-                LOGGER.debug("using {} drivers", drivers.size());
-                // Bridge per-driver stop hooks to the async task's execution info. Source operators register
-                // non-destructive hooks on their {@link DriverContext} (today: {@code AsyncExternalSourceOperator}
-                // closes its buffer's input side, which lets the driver drain already-buffered pages while the
-                // producer thread exits). {@code TransportEsqlAsyncStopAction} fires the resulting list when the
-                // user requests STOP, so coordinator-only plans with no exchange-sink path back to the
-                // coordinator still wind down cleanly. Distributed plans get their pipeline cut by the
-                // exchange-close cascade — these hooks are idempotent overlays that never re-cut a driver.
-                //
-                // Only async ES|QL tasks carry an {@link EsqlExecutionInfo} we own here — sync tasks have no STOP
-                // semantics, and data-node tasks are not {@link EsqlQueryTask} instances, so no hooks register
-                // there and STOP on the coordinator never reaches across nodes through this path.
-                //
-                // {@code runCompute} fires multiple times per coordinator task (subplans, reductions, cluster
-                // fan-outs). Without cleanup, {@code execInfo.stopHooks} would keep references to every
-                // already-completed phase's drivers for the whole task lifetime. We register per-phase hooks
-                // here and remove them when {@code driverListener} fires (i.e. when this phase's drivers
-                // have all completed), so the list stays scoped to live drivers only.
-                final EsqlExecutionInfo hookExecInfo;
-                final List<BooleanSupplier> registeredStopHooks;
-                if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
-                    hookExecInfo = asyncTask.executionInfo();
-                    registeredStopHooks = new ArrayList<>(drivers.size());
-                    for (Driver d : drivers) {
-                        BooleanSupplier hook = d::runStopHooks;
-                        hookExecInfo.addStopHook(hook);
-                        registeredStopHooks.add(hook);
-                    }
                 } else {
-                    hookExecInfo = null;
-                    registeredStopHooks = null;
+                    var localPlanResult = PlannerUtils.localPlanWithLogical(
+                        plannerSettings,
+                        context.flags(),
+                        localContexts,
+                        context.configuration(),
+                        context.foldCtx(),
+                        plan,
+                        planTimeProfile
+                    );
+                    localPlan = localPlanResult.physicalPlan();
+                    logicalPlanString = localPlanResult.logicalPlanString();
+                    approximationApplied = localPlanResult.approximationApplied();
                 }
-                long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
-                // Pass the ORIGINAL plan (immutable, not transformed) for profiling
-                ActionListener<Void> driverListener = addCompletionInfo(
-                    listener,
-                    drivers,
-                    context,
-                    localPlan,
-                    logicalPlanString,
-                    planTimeProfile,
-                    planningBytesRead,
-                    approximationApplied
-                );
-                driverRunner.executeDrivers(
-                    task,
-                    drivers,
-                    transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                    ActionListener.releaseAfter(driverListener, () -> {
-                        if (hookExecInfo != null) {
-                            for (BooleanSupplier hook : registeredStopHooks) {
-                                hookExecInfo.removeStopHook(hook);
-                            }
-                        }
-                        Releasables.close(drivers);
-                    })
-                );
+            } else {
+                localPlan = plan;
+                logicalPlanString = null;
+                approximationApplied = false;
             }
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
+            }
+
+            // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
+            // The original localPlan is immutable and preserved for profiling.
+            PhysicalPlan planToExecute = localPlan;
+            if (context.configuration().explainOnly()) {
+                planToExecute = ExplainPlanTransformer.replaceDataSourcesWithEmpty(localPlan);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("EXPLAIN mode: transformed plan for {}:\n{}", context.description(), planToExecute);
+                }
+            }
+
+            // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
+            // it's doing this in the planning of EsQueryExec (the source of the data)
+            // see also EsPhysicalOperationProviders.sourcePhysicalOperation
+            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
+            }
+            String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+            var drivers = localExecutionPlan.createDrivers(driverSessionId);
+            // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and
+            // therefore
+            // incremented) by the source operators, and the DocVectors. Since The contexts are pre-created with a count of 1, and then
+            // incremented by the relevant source operators, after creating the *data* drivers (and therefore, the source operators), we
+            // can
+            // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
+            // Note that only the data drivers will increment the reference count when created, hence the if below.
+            if (context.description().equals(DATA_DESCRIPTION)) {
+                shardContexts.iterable().forEach(RefCounted::decRef);
+            }
+            if (drivers.isEmpty()) {
+                throw new IllegalStateException("no drivers created");
+            }
+            LOGGER.debug("using {} drivers", drivers.size());
+            // Bridge per-driver stop hooks to the async task's execution info. Source operators register
+            // non-destructive hooks on their {@link DriverContext} (today: {@code AsyncExternalSourceOperator}
+            // closes its buffer's input side, which lets the driver drain already-buffered pages while the
+            // producer thread exits). {@code TransportEsqlAsyncStopAction} fires the resulting list when the
+            // user requests STOP, so coordinator-only plans with no exchange-sink path back to the
+            // coordinator still wind down cleanly. Distributed plans get their pipeline cut by the
+            // exchange-close cascade — these hooks are idempotent overlays that never re-cut a driver.
+            //
+            // Only async ES|QL tasks carry an {@link EsqlExecutionInfo} we own here — sync tasks have no STOP
+            // semantics, and data-node tasks are not {@link EsqlQueryTask} instances, so no hooks register
+            // there and STOP on the coordinator never reaches across nodes through this path.
+            //
+            // {@code runCompute} fires multiple times per coordinator task (subplans, reductions, cluster
+            // fan-outs). Without cleanup, {@code execInfo.stopHooks} would keep references to every
+            // already-completed phase's drivers for the whole task lifetime. We register per-phase hooks
+            // here and remove them when {@code driverListener} fires (i.e. when this phase's drivers
+            // have all completed), so the list stays scoped to live drivers only.
+            final EsqlExecutionInfo hookExecInfo;
+            final List<BooleanSupplier> registeredStopHooks;
+            if (task instanceof EsqlQueryTask asyncTask && asyncTask.executionInfo() != null) {
+                hookExecInfo = asyncTask.executionInfo();
+                registeredStopHooks = new ArrayList<>(drivers.size());
+                for (Driver d : drivers) {
+                    BooleanSupplier hook = d::runStopHooks;
+                    hookExecInfo.addStopHook(hook);
+                    registeredStopHooks.add(hook);
+                }
+            } else {
+                hookExecInfo = null;
+                registeredStopHooks = null;
+            }
+            long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
+            // Pass the ORIGINAL plan (immutable, not transformed) for profiling
+            ActionListener<Void> driverListener = addCompletionInfo(
+                listener,
+                drivers,
+                context,
+                localPlan,
+                logicalPlanString,
+                planTimeProfile,
+                planningBytesRead,
+                approximationApplied
+            );
+            driverRunner.executeDrivers(
+                task,
+                drivers,
+                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
+                ActionListener.releaseAfter(driverListener, () -> {
+                    if (hookExecInfo != null) {
+                        for (BooleanSupplier hook : registeredStopHooks) {
+                            hookExecInfo.removeStopHook(hook);
+                        }
+                    }
+                    Releasables.close(drivers);
+                })
+            );
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());

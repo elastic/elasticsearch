@@ -261,40 +261,6 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         assertNull(cluster.getSuccessfulShards());
     }
 
-    public void testSkippedSuccessfulRemoteOutcomeDoesNotInventShards() {
-        EsqlExecutionInfo executionInfo = executionInfo("remote");
-        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
-        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
-
-        outcomes.recordRemoteOutcome(
-            source,
-            new ClusterComputeHandler.RemoteClusterOutcome.Skipped(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-        );
-        outcomes.applyTo(executionInfo);
-
-        EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster("remote");
-        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-        assertNull(cluster.getTotalShards());
-        assertNull(cluster.getSuccessfulShards());
-    }
-
-    public void testSkippedRemoteOutcomeMarksClusterSkipped() {
-        EsqlExecutionInfo executionInfo = executionInfo("remote");
-        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
-        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
-
-        outcomes.recordRemoteOutcome(
-            source,
-            new ClusterComputeHandler.RemoteClusterOutcome.Skipped(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-        );
-        outcomes.applyTo(executionInfo);
-
-        EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster("remote");
-        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-        assertThat(cluster.getTotalShards(), equalTo(0));
-        assertThat(cluster.getSuccessfulShards(), equalTo(0));
-    }
-
     public void testExternalSuccessIsRecordedWithoutClusterMetadata() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
         SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();

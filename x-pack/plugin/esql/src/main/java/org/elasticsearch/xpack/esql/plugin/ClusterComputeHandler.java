@@ -52,8 +52,8 @@ import java.util.function.Consumer;
  */
 final class ClusterComputeHandler implements TransportRequestHandler<ClusterComputeRequest> {
     /**
-     * Remote success, tolerated failure, or a skip handed back to the caller so a source fan-in
-     * can merge several producers before touching {@link EsqlExecutionInfo}.
+     * Remote success or tolerated failure, handed back to the caller so a source fan-in can merge
+     * several producers before touching {@link EsqlExecutionInfo}.
      */
     sealed interface RemoteClusterOutcome {
         record Success(ComputeResponse response) implements RemoteClusterOutcome {}
@@ -61,12 +61,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         record ToleratedFailure(EsqlExecutionInfo.Cluster.Status status, Exception failure, ComputeResponse response)
             implements
                 RemoteClusterOutcome {}
-
-        /**
-         * The remote was not started because the query already stopped. STOP records
-         * {@code PARTIAL}. skip-unavailable uses {@code SKIPPED}. Not a failure.
-         */
-        record Skipped(EsqlExecutionInfo.Cluster.Status status) implements RemoteClusterOutcome {}
     }
 
     private final ComputeService computeService;
@@ -200,12 +194,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     );
                 }
             }
-            case RemoteClusterOutcome.Skipped skipped -> EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                executionInfo,
-                clusterAlias,
-                skipped.status(),
-                null
-            );
         }
     }
 

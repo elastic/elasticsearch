@@ -158,6 +158,29 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(flattened.children(), hasSize(3));
     }
 
+    /**
+     * Companion to {@link #testViewUnionAllWithNestedSourceFanInFlattens}. Both views are a plain multi-source
+     * {@code FROM} composed with an index, and the only difference is how many sources the view body names, yet
+     * the single-source body keeps the {@link ViewUnionAll} that {@code FORK} rejects as a nested subquery.
+     */
+    public void testViewUnionAllOverSingleDatasetDoesNotFlatten() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        ProjectMetadata project = projectWithIndices(Map.of("s3_parent", parent), Map.of("ds1", ds1), Set.of("some_idx"));
+
+        LogicalPlan inner = rewrite(relationOf("ds1"), project);
+        assertThat(inner, instanceOf(UnresolvedExternalRelation.class));
+        LogicalPlan sibling = rewrite(relationOf("some_idx"), project);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", sibling);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan flattened = DatasetRewriter.flattenViewUnionAllWithSourceFanIn(composed);
+        assertSame(composed, flattened);
+        assertThat(flattened, instanceOf(ViewUnionAll.class));
+    }
+
     public void testViewUnionAllWithPipelineSiblingDoesNotFlatten() {
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());

@@ -334,7 +334,7 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof MvExpand == false)
-                    && (Fork.isUserWrittenFork(lp) == false)
+                    && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)

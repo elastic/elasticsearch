@@ -202,8 +202,10 @@ public final class Federation {
      * deliberately omits the property and setting names so it reads as a plain "feature not present" error
      * rather than a configuration hint.
      */
+    private static final String NOT_AVAILABLE_MESSAGE = "external data sources are not available";
+
     public static ElasticsearchStatusException notAvailableException() {
-        return new ElasticsearchStatusException("external data sources are not available", RestStatus.BAD_REQUEST);
+        return new ElasticsearchStatusException(NOT_AVAILABLE_MESSAGE, RestStatus.BAD_REQUEST);
     }
 
     /**
@@ -214,6 +216,6 @@ public final class Federation {
     public static boolean isNotAvailableException(Throwable throwable) {
         return throwable instanceof ElasticsearchStatusException statusException
             && statusException.status() == RestStatus.BAD_REQUEST
-            && "external data sources are not available".equals(statusException.getMessage());
+            && NOT_AVAILABLE_MESSAGE.equals(statusException.getMessage());
     }
 }

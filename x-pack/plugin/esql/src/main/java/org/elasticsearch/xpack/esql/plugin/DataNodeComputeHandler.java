@@ -87,6 +87,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = TransportVersion.fromName(
         "esql_retry_on_shard_level_failure"
     );
+    /**
+     * Completes a node slot that produced nothing but must not fail the query: everything is zero or empty
+     * and only {@code partial} is set. See {@link DriverCompletionInfo} for the positional meaning.
+     */
     private static final DriverCompletionInfo PARTIAL_COMPLETION_INFO = new DriverCompletionInfo(
         0,
         0,
@@ -98,8 +102,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         List.of(),
         List.of(),
         Map.of(),
-        true,
-        false,
+        true, // partial
+        false, // approximationApplied
         Set.of()
     );
 
@@ -495,6 +499,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }, e -> {
                         if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                            // The slot completes with an empty, partial-flagged info, so the exception reaches neither
+                            // the response nor EsqlExecutionInfo. Without this the user sees is_partial with no reason.
+                            LOGGER.warn(
+                                "external source execution failed on node [{}] ({}) with {} splits; skipping (partial results)",
+                                nodeId,
+                                node.getName(),
+                                nodeSplits.size(),
+                                e
+                            );
                             try {
                                 profileSlot.onResponse(PARTIAL_COMPLETION_INFO);
                             } finally {
@@ -557,6 +570,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                 }, e -> {
                     if (allowPartial && EsqlCCSUtils.canAllowPartial(e)) {
+                        LOGGER.warn(
+                            "failed to open the exchange on node [{}] ({}) for external source execution with {} splits; "
+                                + "skipping (partial results)",
+                            nodeId,
+                            node.getName(),
+                            nodeSplits.size(),
+                            e
+                        );
                         openExchangeSlot.onResponse(null);
                         finishNode.run();
                     } else {

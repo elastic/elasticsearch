@@ -7,13 +7,26 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -32,15 +45,21 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1207,5 +1226,144 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                    field = CASE(ip IS NOT NULL, "a", "b")
             | STATS count = COUNT(*) BY field
             """));
+    }
+
+    private static final String FAN_IN_RESOURCE_A = "s3://bucket/fanin_a.parquet";
+    private static final String FAN_IN_RESOURCE_B = "s3://bucket/fanin_b.parquet";
+    private static final List<Attribute> VECTOR_SCHEMA = List.of(
+        referenceAttribute("id", DataType.LONG),
+        referenceAttribute("vector", DENSE_VECTOR)
+    );
+
+    /**
+     * {@code KNN} needs a real indexed vector field. Unlike {@code MATCH} and {@code MATCH_PHRASE} it has no
+     * runtime-search fallback, so a federated source cannot answer it and the query must be rejected. A
+     * single-source {@code FROM} is rejected during analysis; this pins the multi-source shape to the same
+     * rejection. That shape is the one worth pinning because its fan-in is a {@link SourceFanInUnionAll}, and a
+     * {@code UnionAll} under the filter suppresses the analysis-time federated-source check, leaving the rejection
+     * to post-optimization verification.
+     */
+    public void testKnnRejectedOverMultiSourceDataset() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        String err = error(analyzeFanIn(fanInAnalyzer(VECTOR_SCHEMA), "FROM fanin_a, fanin_b | WHERE KNN(vector, [3, 100, 0])"));
+        assertThat(
+            err,
+            containsString(
+                "cannot operate on [vector], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            )
+        );
+    }
+
+    /**
+     * The single-source counterpart of {@link #testKnnRejectedOverMultiSourceDataset}, which fails during analysis
+     * rather than post-optimization. Holding both shapes in one file is the point: they must agree.
+     */
+    public void testKnnRejectedOverSingleSourceDataset() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyzeFanIn(fanInAnalyzer(VECTOR_SCHEMA), "FROM fanin_a | WHERE KNN(vector, [3, 100, 0])")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot operate on [vector], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            )
+        );
+    }
+
+    /**
+     * {@code MATCH} has a runtime-search fallback, so it reads a federated source, and a multi-source {@code FROM}
+     * is one source rather than a user-written {@code FORK}. The query must therefore be accepted.
+     */
+    public void testMatchAcceptedOverMultiSourceDataset() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        optimize(
+            analyzeFanIn(
+                fanInAnalyzer(List.of(referenceAttribute("first_name", KEYWORD))),
+                "FROM fanin_a, fanin_b | WHERE MATCH(first_name, \"foo\")"
+            )
+        );
+    }
+
+    /**
+     * A full-text function in a {@code LOOKUP JOIN ON} condition cannot be evaluated when its input is a union of
+     * sources, because the condition is not visible inside the branches. {@code FROM test, (FROM ...)} is rejected
+     * for this reason; a multi-source {@code FROM} is the same union shape and must be rejected too.
+     */
+    public void testFullTextInLookupJoinOnRejectedOverMultiSourceDataset() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        var testAnalyzer = fanInAnalyzer(List.of(referenceAttribute("languages", DataType.INTEGER))).addLanguagesLookup()
+            .minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzeFanIn(testAnalyzer, """
+            FROM fanin_a, fanin_b
+            | LOOKUP JOIN languages_lookup ON languages == language_code AND MATCH(language_name,"English")
+            """));
+        assertThat(e.getMessage(), containsString("[MATCH] function cannot be used after"));
+    }
+
+    /**
+     * Two external datasets, {@code fanin_a} and {@code fanin_b}, sharing {@code schema}. Identical schemas keep the
+     * union alignment from inserting {@code Eval} null-fill nodes, which would change the branch shape.
+     */
+    private static TestAnalyzer fanInAnalyzer(List<Attribute> schema) {
+        var resolution = new ExternalSourceResolution(
+            Map.of(
+                FAN_IN_RESOURCE_A,
+                new ExternalSourceResolution.ResolvedSource(schemaAt(FAN_IN_RESOURCE_A, schema), FileList.UNRESOLVED, Map.of()),
+                FAN_IN_RESOURCE_B,
+                new ExternalSourceResolution.ResolvedSource(schemaAt(FAN_IN_RESOURCE_B, schema), FileList.UNRESOLVED, Map.of())
+            )
+        );
+        return analyzer().externalSourceResolution(resolution);
+    }
+
+    /**
+     * Parses and analyzes {@code query} against the two datasets of {@link #fanInAnalyzer}. Rewriting through
+     * {@code DatasetRewriter} is what turns a multi-source {@code FROM} into a {@link SourceFanInUnionAll}.
+     */
+    private static LogicalPlan analyzeFanIn(TestAnalyzer testAnalyzer, String query) {
+        DataSource dataSource = new DataSource("fanin_ds", "test", null, Map.of());
+        Dataset a = new Dataset("fanin_a", new DataSourceReference("fanin_ds"), FAN_IN_RESOURCE_A, null, Map.of());
+        Dataset b = new Dataset("fanin_b", new DataSourceReference("fanin_ds"), FAN_IN_RESOURCE_B, null, Map.of());
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("fanin_ds", dataSource)))
+            .datasets(Map.of("fanin_a", a, "fanin_b", b))
+            .build();
+        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+            TEST_PARSER.parseQuery(query),
+            project,
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        return testAnalyzer.buildAnalyzer().analyze(rewritten);
+    }
+
+    private static ExternalSourceMetadata schemaAt(String resource, List<Attribute> schema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return resource;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
     }
 }

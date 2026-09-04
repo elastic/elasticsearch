@@ -124,6 +124,9 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 return fanIn.withProducers(newProducers, newOutput, fanIn.inBetweenAggs());
             }
 
+            // A fragment with no ExchangeExec above it is a fan-in producer, reached by the recursive apply()
+            // on each SourceFanInExec producer above. Everywhere else Mapper puts the fragment under an
+            // exchange, which stops traversal in the branch below before its child reaches this one.
             if (currentPlanNode instanceof FragmentExec fragmentExec) {
                 keepTraversing.set(FALSE);
                 return projectFragmentColumns(fragmentExec, requiredAttrBuilder, isForkBranch);

@@ -70,19 +70,6 @@ final class SourceOutcomeAccumulator {
                 );
                 recordRemoteTook(key, toleratedFailure.response());
             }
-            case ClusterComputeHandler.RemoteClusterOutcome.Skipped skipped -> record(
-                key,
-                new IndexProducerOutcome(
-                    false,
-                    0,
-                    0,
-                    0,
-                    0,
-                    List.of(),
-                    skipped.status() == EsqlExecutionInfo.Cluster.Status.PARTIAL,
-                    skipped.status() == EsqlExecutionInfo.Cluster.Status.SKIPPED
-                )
-            );
         }
     }
 
@@ -211,6 +198,12 @@ final class SourceOutcomeAccumulator {
      * Identifies one index producer by the cluster it reads and the indices it was asked for. A cluster alias alone
      * is not enough: a fan-in can hold several producers against the same cluster, and their outcomes have to stay
      * apart until {@link #applyTo} merges them per cluster.
+     * <p>
+     * Keying on the requested pattern rather than the resolved indices means two producers whose patterns overlap
+     * ({@code logs*} and {@code logs-2024}, say) get separate keys, so {@link #applyTo} adds their shard counts and
+     * the shared shards are counted once per producer. The {@code _clusters} shard totals are therefore an upper
+     * bound when one {@code FROM} names overlapping patterns against the same cluster. Producers that share a key
+     * avoid this: {@link IndexProducerOutcome#merge} picks one producer's counts rather than adding them.
      */
     record SourceClusterKey(String clusterAlias, List<String> originalIndices) {
         static SourceClusterKey of(String clusterAlias, OriginalIndices originalIndices) {

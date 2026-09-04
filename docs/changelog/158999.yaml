@@ -1,0 +1,5 @@
+pr: 158999
+summary: Reduce entitlement instrumentation overhead by injecting `@CallerSensitive`
+area: Infra/Core
+type: enhancement
+issues: []

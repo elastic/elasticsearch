@@ -891,6 +891,26 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    public void testUnsupportedTypeFieldIsMultiValued() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "b": { "type": "boolean" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("k", "a", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("b")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);

@@ -509,6 +509,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
             org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
             org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec,
+            org.elasticsearch.index.codec.Elasticsearch96Codec,
             org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
             org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 

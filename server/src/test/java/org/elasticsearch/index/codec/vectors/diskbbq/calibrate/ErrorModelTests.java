@@ -398,11 +398,7 @@ public class ErrorModelTests extends ESTestCase {
     /**
      * Regression guard for the preconditioning fix. For spherically symmetric (isotropic) data the
      * expected quantization error is the same whether or not a random orthogonal preconditioner is
-     * applied, because the distribution is already rotation-invariant. Before the fix the error model
-     * preconditioned queries but left docs in original space, causing a large space mismatch that
-     * inflated the preconditioned error estimate by ~40% even for isotropic data. With the fix applied
-     * both docs and queries are in the same (preconditioned) space, so the ratio of preconditioned to
-     * non-preconditioned error std must stay close to 1.0.
+     * applied, because the distribution is already rotation-invariant.
      */
     public void testPreconditioningDoesNotInflateErrorStdForIsotropicData() throws IOException {
         int dim = 64;
@@ -456,7 +452,6 @@ public class ErrorModelTests extends ESTestCase {
         );
 
         // For isotropic data the two error stds must be within 30% of each other.
-        // Before the fix the preconditioned error was inflated by ~40% due to the space mismatch.
         double ratio = withPrecondition.std() / withoutPrecondition.std();
         assertThat(
             "preconditioning must not inflate error std for isotropic data "
@@ -474,14 +469,10 @@ public class ErrorModelTests extends ESTestCase {
 
     /**
      * Regression guard for the preconditioning fix in {@link ErrorModel#quantizedRepErrorStd}.
-     * Before the fix the error model preconditioned queries but left doc vectors in original space,
-     * causing a space mismatch that inflated the preconditioned error estimate; as a result
-     * calibration incorrectly ranked preconditioned configurations as worse than unpreconditioned ones.
-     * <p>
      * For data whose within-cluster residuals have non-uniform component distribution (high variance
      * concentrated in the first quarter of dimensions, tiny elsewhere), preconditioning via a random
-     * orthogonal rotation spreads the variance uniformly, reducing OSQ quantization error. With the
-     * fix applied, the preconditioned error std must be strictly lower than the non-preconditioned one.
+     * orthogonal rotation spreads the variance uniformly, reducing OSQ quantization error.
+     * The preconditioned error std must be strictly lower than the non-preconditioned one.
      */
     public void testPreconditioningLowersErrorStdForSkewedResiduals() throws IOException {
         int dim = 64;

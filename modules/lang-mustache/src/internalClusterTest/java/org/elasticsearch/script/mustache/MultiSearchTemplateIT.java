@@ -235,7 +235,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // `used >= 1 GB >> 1 b`, the first render (≥ 512 B RENDER_BASE_OVERHEAD) is guaranteed
         // to trip regardless of prior cluster state.
         final long preCharge = 1_000_000_000L;
-        Collection<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
+        Iterable<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
         for (CircuitBreakerService bs : breakerServices) {
             bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(preCharge);
         }

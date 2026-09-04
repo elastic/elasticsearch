@@ -17,6 +17,7 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.BBQEncoding;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -40,38 +41,34 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     private static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     private static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    public static boolean supports(IndexInput in, int docBits, int queryBits, int planeBytes) {
+    public static boolean supports(IndexInput in, int planeBytes) {
         return PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 128
             && planeBytes >= MIN_PLANE_BYTES
-            && (queryBits == 1 || queryBits == 4)
-            && docBits >= 1
-            && docBits <= MAX_BITS
             && IndexInputUtils.canUseSegmentSlices(in);
     }
 
     /**
      * Factory method for a Panama dot-product implementation where possible.
      *
-     * @param in         input positioned at the first data vector to score
-     * @param nDims      number of dimensions
-     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
+     * @param in          input positioned at the first data vector to score
+     * @param nDims       number of dimensions
+     * @param bbqEncoding BBQ encoding sizes
      */
-    public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
+    public static BBQDotProduct create(IndexInput in, int nDims, BBQEncoding bbqEncoding) {
         int planeBytes = planeBytes(nDims);
-        if (!supports(in, docBits, queryBits, planeBytes)) {
-            return BBQDotProduct.create(in, nDims, docBits, queryBits);
+        if (!supports(in, planeBytes)) {
+            return BBQDotProduct.create(in, nDims, bbqEncoding);
         }
-        return switch (queryBits) {
-            case 1 -> new DxQ1Impl(in, docBits, planeBytes);
-            case 4 -> new DxQ4Impl(in, docBits, planeBytes);
-            default -> throw new AssertionError("unreachable, supports() restricts queryBits to 1 or 4: " + queryBits);
+        return switch (bbqEncoding) {
+            case BBQEncoding(byte d, byte q) when q == 1 && d == 1 -> new D1Q1Impl(in, planeBytes);
+            case BBQEncoding(byte d, byte q) when q == 4 -> new DxQ4Impl(in, d, planeBytes);
+            default -> BBQDotProduct.create(in, nDims, bbqEncoding);
         };
     }
 
-    private PanamaBBQDotProduct(IndexInput in, int docBits, int queryBits, int planeBytes) {
-        super(in, docBits, queryBits, planeBytes);
+    private PanamaBBQDotProduct(IndexInput in, BBQEncoding encoding, int planeBytes) {
+        super(in, encoding, planeBytes);
     }
 
     /*
@@ -88,10 +85,10 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     @Override
     public abstract void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
 
-    private static final class DxQ1Impl extends PanamaBBQDotProduct {
+    private static final class D1Q1Impl extends PanamaBBQDotProduct {
 
-        DxQ1Impl(IndexInput in, int docBits, int planeBytes) {
-            super(in, docBits, 1, planeBytes);
+        D1Q1Impl(IndexInput in, int planeBytes) {
+            super(in, new BBQEncoding(1, 1), planeBytes);
         }
 
         @Override
@@ -100,11 +97,11 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
             return IndexInputUtils.withSlice(in, docBytes, scratch, segment -> {
                 long dot = 0;
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                    for (int dp = 0; dp < docBits; dp++) {
+                    for (int dp = 0; dp < encoding.dataBits(); dp++) {
                         dot += dotProduct256(query, segment, (long) dp * planeBytes, planeBytes) << dp;
                     }
                 } else {
-                    for (int dp = 0; dp < docBits; dp++) {
+                    for (int dp = 0; dp < encoding.dataBits(); dp++) {
                         dot += dotProduct128(query, segment, (long) dp * planeBytes, planeBytes) << dp;
                     }
                 }
@@ -120,7 +117,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                     for (int i = 0; i < count; i++) {
                         long offset = (long) i * docBytes;
                         long dot = 0;
-                        for (int dp = 0; dp < docBits; dp++) {
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
                             dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
                         scores[i] = dot;
@@ -131,7 +128,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                     for (int i = 0; i < count; i++) {
                         long offset = (long) i * docBytes;
                         long dot = 0;
-                        for (int dp = 0; dp < docBits; dp++) {
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
                             dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
                         scores[i] = dot;
@@ -153,7 +150,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
 
                             long offset = (long) i * docBytes;
                             long dot = 0;
-                            for (int dp = 0; dp < docBits; dp++) {
+                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
                                 dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                             }
                             scores[i] = dot;
@@ -169,7 +166,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
 
                             long offset = (long) i * docBytes;
                             long dot = 0;
-                            for (int dp = 0; dp < docBits; dp++) {
+                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
                                 dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                             }
                             scores[i] = dot;
@@ -251,7 +248,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     private static final class DxQ4Impl extends PanamaBBQDotProduct {
 
         DxQ4Impl(IndexInput in, int docBits, int planeBytes) {
-            super(in, docBits, 4, planeBytes);
+            super(in, new BBQEncoding(docBits, 4), planeBytes);
         }
 
         @Override
@@ -260,11 +257,11 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
             return IndexInputUtils.withSlice(in, docBytes, scratch, segment -> {
                 long dot = 0;
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                    for (int dp = 0; dp < docBits; dp++) {
+                    for (int dp = 0; dp < encoding.dataBits(); dp++) {
                         dot += dotProduct256(query, segment, (long) dp * planeBytes, planeBytes) << dp;
                     }
                 } else {
-                    for (int dp = 0; dp < docBits; dp++) {
+                    for (int dp = 0; dp < encoding.dataBits(); dp++) {
                         dot += dotProduct128(query, segment, (long) dp * planeBytes, planeBytes) << dp;
                     }
                 }
@@ -280,7 +277,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                     for (int i = 0; i < count; i++) {
                         long offset = (long) i * docBytes;
                         long dot = 0;
-                        for (int dp = 0; dp < docBits; dp++) {
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
                             dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
                         scores[i] = dot;
@@ -291,7 +288,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                     for (int i = 0; i < count; i++) {
                         long offset = (long) i * docBytes;
                         long dot = 0;
-                        for (int dp = 0; dp < docBits; dp++) {
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
                             dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
                         scores[i] = dot;
@@ -313,7 +310,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
 
                             long offset = (long) i * docBytes;
                             long dot = 0;
-                            for (int dp = 0; dp < docBits; dp++) {
+                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
                                 dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                             }
                             scores[i] = dot;
@@ -329,7 +326,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
 
                             long offset = (long) i * docBytes;
                             long dot = 0;
-                            for (int dp = 0; dp < docBits; dp++) {
+                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
                                 dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                             }
                             scores[i] = dot;

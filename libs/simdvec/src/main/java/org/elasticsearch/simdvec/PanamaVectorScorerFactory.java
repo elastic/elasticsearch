@@ -115,10 +115,12 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return new ESNextAshBBQVectorsScorer(PanamaBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
+                return new ESNextAshBBQVectorsScorer(
+                    PanamaBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+                );
             }
         }
-        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, bitsPerDim, queryBitsPerDim));
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim)));
     }
 
     @Override

@@ -43,10 +43,9 @@ public class ES940OSQVectorsScorer {
         D2Q4_PACKED((byte) 2, (byte) 4, BitEncoding.PACKED),
         D4Q4_STRIPED((byte) 4, (byte) 4),
         D4Q4_PACKED((byte) 4, (byte) 4, BitEncoding.PACKED),
-        D7Q7((byte) 7, (byte) 7);
+        D7Q7((byte) 7, (byte) 7, BitEncoding.PACKED);
 
-        private final byte indexBits;
-        private final byte queryBits;
+        private final BBQEncoding bbqEncoding;
         private final BitEncoding bitEncoding;
 
         QuantEncoding(byte indexBits, byte queryBits) {
@@ -54,8 +53,7 @@ public class ES940OSQVectorsScorer {
         }
 
         QuantEncoding(byte indexBits, byte queryBits, BitEncoding bitEncoding) {
-            this.indexBits = indexBits;
-            this.queryBits = queryBits;
+            this.bbqEncoding = new BBQEncoding(indexBits, queryBits);
             this.bitEncoding = bitEncoding;
         }
 
@@ -70,12 +68,8 @@ public class ES940OSQVectorsScorer {
             };
         }
 
-        public byte indexBits() {
-            return indexBits;
-        }
-
-        public byte queryBits() {
-            return queryBits;
+        public BBQEncoding bbqEncoding() {
+            return bbqEncoding;
         }
 
         public BitEncoding bitEncoding() {
@@ -92,6 +86,11 @@ public class ES940OSQVectorsScorer {
         1f / ((1 << 6) - 1),
         1f / ((1 << 7) - 1),
         1f / ((1 << 8) - 1), };
+
+    /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
+    protected static float bitScale(int bits) {
+        return BIT_SCALES[bits - 1];
+    }
 
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
@@ -120,10 +119,10 @@ public class ES940OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
-        this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
+        this.scratch = encoding.bbqEncoding().dataBits() == 7 ? new byte[dimensions] : null;
         this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
         this.dotProduct = switch (encoding) {
-            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.indexBits(), encoding.queryBits());
+            case D1Q1, D1Q4, D2Q4_STRIPED, D4Q4_STRIPED -> BBQDotProduct.create(in, dimensions, encoding.bbqEncoding());
             case D2Q4_PACKED, D4Q4_PACKED, D7Q7 -> null;
         };
     }
@@ -243,9 +242,9 @@ public class ES940OSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * BIT_SCALES[encoding.indexBits() - 1];
+        float lx = (upperInterval - ax) * bitScale(encoding.bbqEncoding().dataBits());
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * BIT_SCALES[encoding.queryBits() - 1];
+        float ly = (queryUpperInterval - ay) * bitScale(encoding.bbqEncoding().queryBits());
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

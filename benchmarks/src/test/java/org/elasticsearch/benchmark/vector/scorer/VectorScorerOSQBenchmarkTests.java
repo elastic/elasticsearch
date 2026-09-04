@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -26,13 +27,13 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
 
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final VectorScorerOSQBenchmark.QuantConfig quantConfig;
+    private final QuantEncoding quantConfig;
     private final DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        VectorScorerOSQBenchmark.QuantConfig quantConfig,
+        QuantEncoding quantConfig,
         DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {

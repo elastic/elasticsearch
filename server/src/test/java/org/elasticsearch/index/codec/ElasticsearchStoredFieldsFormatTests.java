@@ -18,13 +18,19 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode;
+import org.elasticsearch.index.codec.bwc.ES94TSDBBestCompressionLucene104Codec;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
 
@@ -53,6 +59,24 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         }
     }
 
+    /**
+     * Segments written before the mode was recorded carry none, and which implementation wrote them depends on the codec name
+     * they carry. Reading one with the wrong implementation would fail, so each codec has to answer for its own name.
+     */
+    public void testCodecsAnswerForSegmentsThatRecordNoMode() throws Exception {
+        try (Directory dir = newDirectory()) {
+            SegmentInfo noMode = segmentInfo(dir, Map.of());
+
+            var elasticsearch96 = (ElasticsearchStoredFieldsFormat) ((TSDBStoredFieldsFormat) new Elasticsearch96Codec()
+                .storedFieldsFormat()).delegate();
+            assertEquals("Elasticsearch96 only ever wrote Lucene stored fields", Mode.LUCENE, elasticsearch96.modeOf(noMode));
+
+            var es94 = (ElasticsearchStoredFieldsFormat) ((TSDBStoredFieldsFormat) new ES94TSDBBestCompressionLucene104Codec()
+                .storedFieldsFormat()).delegate();
+            assertEquals("ES94TSDBBestCompressionLucene104Codec wrote Zstd", Mode.ZSTD_BEST_COMPRESSION, es94.modeOf(noMode));
+        }
+    }
+
     public void testEveryModeRoundTripsThroughTheAttribute() throws Exception {
         try (Directory dir = newDirectory()) {
             for (Mode mode : Mode.values()) {
@@ -66,7 +90,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, "NOT_A_MODE"));
             var e = expectThrows(IllegalStateException.class, () -> ElasticsearchStoredFieldsFormat.modeOf(si, Mode.LUCENE));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("unknown stored fields mode [NOT_A_MODE]"));
+            assertThat(e.getMessage(), containsString("unknown stored fields mode [NOT_A_MODE]"));
         }
     }
 
@@ -74,8 +98,8 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, Mode.ZSTD_BEST_COMPRESSION.name()));
             var format = new ElasticsearchStoredFieldsFormat(Mode.LUCENE, Mode.LUCENE, new Lucene104Codec().storedFieldsFormat());
-            var e = expectThrows(IllegalStateException.class, () -> format.fieldsWriter(dir, si, org.apache.lucene.store.IOContext.DEFAULT));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("cannot also write it as [LUCENE]"));
+            var e = expectThrows(IllegalStateException.class, () -> format.fieldsWriter(dir, si, IOContext.DEFAULT));
+            assertThat(e.getMessage(), containsString("cannot also write it as [LUCENE]"));
         }
     }
 
@@ -88,7 +112,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
                 w.addDocument(doc);
             }
             SegmentInfos sis = SegmentInfos.readLatestCommit(dir);
-            assertThat(sis.size(), org.hamcrest.Matchers.greaterThan(0));
+            assertThat(sis.size(), greaterThan(0));
             for (SegmentCommitInfo sci : sis) {
                 assertEquals(
                     "segment [" + sci.info.name + "] must record the mode it was written with",

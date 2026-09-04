@@ -72,6 +72,11 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
         return formatFor(modeOf(si, modeBeforeTheAttribute)).fieldsReader(directory, si, fn, context);
     }
 
+    /** The mode {@code si} was written with, taking this instance's answer for a segment that records none. */
+    Mode modeOf(SegmentInfo si) {
+        return modeOf(si, modeBeforeTheAttribute);
+    }
+
     /** The mode {@code si} was written with, or {@code modeBeforeTheAttribute} when the segment records none. */
     static Mode modeOf(SegmentInfo si, Mode modeBeforeTheAttribute) {
         final String value = si.getAttribute(MODE_KEY);

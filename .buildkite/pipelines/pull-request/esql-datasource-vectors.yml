@@ -1,0 +1,73 @@
+# The pointed half of the external-dataset vector matrix, on every pull request.
+#
+# What it runs: the CI tier of the declared crossing -- the value combinations this project's filed
+# correctness defects actually cluster in, at pairwise strength, against the routed spec corpus.
+# 346 vectors, versus 8,622 in the nightly. The selection lives in fixture-dimensions.properties
+# under `dimension.<n>.tier.<value>`, each line citing the defect that earned it, so what runs here
+# is an argument anyone can check rather than a list someone curated.
+#
+# Why this is free. Nothing under .buildkite/pipelines/pull-request/ declares depends_on -- measured
+# across all 57 step files -- so every PR step runs concurrently and the build's wall clock is the
+# MAX over steps, not the sum. The three latest passed builds put the critical path at 40-56 minutes
+# (part-5 55.7, bwc-snapshots Part 3 54.1, part-2 40.3). A step finishing well inside that adds
+# nothing to how long a PR takes. Three more steps against ~57 is about 5% more machine time.
+#
+# Why three steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
+# shared @ClassRule per suite. maxParallelForks is pinned to 1 because every vector suite's cluster
+# is declared shared(true), which the test framework rejects alongside parallel forks -- so slicing
+# across steps is the only parallelism available, and it is what keeps the slowest step under the
+# window. Not a matrix: the third step runs two tasks, so the entries are not the same shape.
+#
+# Why not on `check`. `check` is reached by checkPart1..6, which IS the critical path. Putting the
+# crossing there would add it to the longest step instead of running beside it.
+#
+# timeout_in_minutes is 45, deliberately below the 300 the other PR files carry. The premise of
+# putting this on the PR path is that it hides inside the existing wall clock; a step that would
+# extend the build has stopped being free, so it fails instead of running long and the number gets
+# revisited rather than silently absorbed.
+#
+# No allow-labels and no included-regions. This runs on every pull request, which is the point --
+# the defects it targets are reached by reader paths that a diff touching anything can move. The
+# knobs exist (docs-check.yml, example-plugins.yml) if that ever needs to change.
+#
+# NO -Dbuild.snapshot=false. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
+# release build silently disables them and the step goes green having executed nothing -- the one
+# outcome worse than red.
+steps:
+  - group: esql-datasource-vectors
+    steps:
+      # csv and tsv share a module: there is no :esql-datasource-tsv project, so one JVM carries both
+      # formats. The largest of the three, and the one carrying the text-dialect clusters -- escaped
+      # mode against a semicolon that appears inside data, plain, brackets, gzip.
+      - label: "text / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-csv:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # Parquet alone: the highest per-case cost of the columnar formats, and the pushdown paths that
+      # a glob disables are reached here and nowhere cheaper.
+      - label: "parquet / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # Two tasks, two JVMs, one agent. Neither format's selection fills a step on its own, and a
+      # fourth agent for ORC's 46 vectors buys less than the two sharing one costs.
+      - label: "ndjson + orc / vector selection"
+        command: |
+          .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecCiTests
+          .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-orc:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk

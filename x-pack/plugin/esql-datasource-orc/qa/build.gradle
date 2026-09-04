@@ -223,21 +223,11 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 // ORC needs no fixture variants: every fixture-bound dimension is scoped away from it, so the vectors
 // vary only format-agnostic axes and generateOrcFixtures serves all of them. That is why this arrives as
 // a task and a suite class rather than as a generator.
-def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
-  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
-  // Raising the ceiling lets it finish; it does not make it faster.
-  systemProperty 'tests.timeoutSuite', '14400000!'
-  dependsOn generateOrcFixtures
-  dependsOn generateEsqlSpecTests
-  usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
-  enabled = buildParams.snapshotBuild
-  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-  classpath = sourceSets.csvSpecTest.runtimeClasspath
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
-  filter { includeTestsMatching '*VectorSpecIT' }
-}
+// The two vector batteries, both defined in one place so they cannot drift apart.
+// See fixture-vector-tasks.gradle for why neither task is on `check`.
+ext.vectorFixtureDependency = generateOrcFixtures
+ext.vectorCiMaxCases = '6000'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-vector-tasks.gradle')
 
 tasks.named('check').configure { dependsOn csvSpecTests }
 

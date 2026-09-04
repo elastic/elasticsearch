@@ -3,51 +3,113 @@
 # should not get without a decision. Nothing here schedules itself: Buildkite schedules live in the
 # UI, so this file is the definition and someone has to choose to run it.
 #
+# It IS now a registered pipeline. It was not: the file existed and no Buildkite pipeline pointed at
+# it, so every "nightly" step here had no executing surface at all and the whole crossing had only
+# ever run on a developer's laptop. The Backstage entry in catalog-info.yaml
+# (buildkite-pipeline-elasticsearch-esql-datasource-vectors-manual) is what makes it runnable, and it
+# carries trigger_mode: none, so registering it did not schedule it.
+#
 # It is also NOT a licence to season cells out of the PR path. Seasoning removes a cell from CI on
 # the grounds that the nightly still covers it; until this actually runs on a cadence, that premise
-# is false and seasoning would remove coverage with nothing behind it.
+# is false and seasoning would remove coverage with nothing behind it. Note what the PR path now
+# carries is a SELECTION, not a seasoned remainder: pull-request/esql-datasource-vectors.yml runs the
+# `ci` tier, whose every value cites the defect that earned it, and it was added by argument from the
+# bug history rather than by subtracting whatever this pipeline happened to cover.
 #
 # The full vector crossing: every routed spec case against every vector the contract makes
-# expressible, per format. This is where COMPLETENESS lives -- the PR path carries a declared
-# subset, and a subset is only honest if the whole set demonstrably runs somewhere.
+# expressible, per format, at three-way strength. This is where COMPLETENESS lives -- the PR path
+# carries a declared subset, and a subset is only honest if the whole set demonstrably runs somewhere.
 #
-# One step per module rather than one step for all: Buildkite steps get separate agents, and
-# maxParallelForks is pinned to 1 inside each module because the csv-spec ITs share a cluster.
-# So cross-module parallelism is the only parallelism available, and it is per-step.
+# WHY SHARDED. maxParallelForks is pinned to 1 in each module because every vector suite's cluster is
+# declared shared(true) (see the Clusters class of each qa module), which the test framework rejects
+# alongside parallel forks. So parallelism cannot come from inside a JVM; it comes from slicing the
+# registered cases across steps with -Dtests.vector.shard=i/S, which round-robins case rows and
+# therefore balances every shard to within one case. Widths below are sized so a shard runs about 45
+# minutes, which puts the pipeline's wall clock near one shard rather than near the sum. The counts
+# behind them were measured by running each suite against a deliberately impossible bound and reading
+# the refusal: 518,778 cases across the five suites. The per-case rates are measured for csv and tsv
+# and carried over for the rest, so those three widths are the ones to revisit after a real run.
 #
-# NO -Dbuild.snapshot=false here. csvSpecTests is `enabled = buildParams.snapshotBuild`, so a
-# release build silently disables it -- the pipeline would go green having executed nothing,
+# The shard is a slice of the SAME crossing: vector names are unchanged by sharding, so a failure
+# reproduces locally with no shard flag at all.
+#
+# NO -Dbuild.snapshot=false here. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
+# release build silently disables them -- the pipeline would go green having executed nothing,
 # which is the one outcome worse than red.
 #
-# The task is vectorSpecTests, NOT csvSpecTests: the vector suites were split off the `check`
-# path so a 75-minute crossing does not land on every PR. csvSpecTests keeps the legacy suites.
-# csv carries both the csv and tsv vector suites (there is no :esql-datasource-tsv project) and
-# is by far the largest: measured 19,531 cases at ~95ms, about 31 minutes. The 300-minute ceiling
-# is headroom for the seams still to land -- schema_mode alone roughly triples the vector count.
+# The task is vectorSpecTests, NOT csvSpecTests: the vector suites were split off the `check` path so
+# a multi-hour crossing does not land on every PR. csvSpecTests keeps the legacy suites.
 steps:
   - group: esql-datasource-vectors
     steps:
-      - label: "{{matrix.module}} / vector crossing"
-        command: .ci/scripts/run-gradle.sh :x-pack:plugin:{{matrix.module}}:qa:vectorSpecTests
+      # csv carries both the csv and tsv vector suites -- there is no :esql-datasource-tsv project --
+      # so one step is two crossings: 132,061 and 99,294 cases, at 111ms and 106ms measured on this
+      # tree. 231,355 cases is about six hours in one JVM, which is why eight.
+      - label: "esql-datasource-csv / vector crossing {{matrix.shard}}/8"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/8 :x-pack:plugin:esql-datasource-csv:qa:vectorSpecTests
         timeout_in_minutes: 300
         matrix:
           setup:
-            module:
-              - esql-datasource-csv
-              - esql-datasource-ndjson
-              - esql-datasource-parquet
-              - esql-datasource-orc
+            shard: ["1", "2", "3", "4", "5", "6", "7", "8"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
 
-      # The multi-node external crossing. Outside the matrix above because it lives in a different module
-      # and runs a SECOND CLUSTER per case -- the most expensive shape we have, and the only one that
-      # exercises distribution modes against something to actually distribute to. It was on the PR path
-      # until now, inside javaRestTest; it crosses every routed case with every declared distribution
-      # mode and grows whenever a value is added to dimension.distribution, so it belongs here.
+      # 112,850 cases. The per-case rate is the one carried over from an earlier run (~148ms) rather
+      # than measured here, so this width is the least evidenced of the four.
+      - label: "esql-datasource-parquet / vector crossing {{matrix.shard}}/6"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/6 :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4", "5", "6"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # 49,851 cases. Sharded as heavily as csv despite being a fifth of the size because ORC's
+      # per-case cost is believed to be several times the text formats' -- a figure from a run that
+      # also hit three 60s socket timeouts, so it is a guess with a wide error bar. If the first
+      # sharded run comes in fast, this drops.
+      - label: "esql-datasource-orc / vector crossing {{matrix.shard}}/8"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/8 :x-pack:plugin:esql-datasource-orc:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4", "5", "6", "7", "8"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # 124,722 cases, which settles a figure that was in doubt: a run had reported 4,375, about four
+      # per vector, as though only one spec were routed. Measured, it is twenty-eight times that, so
+      # the small number was the anomaly and ndjson is the second-largest crossing we have.
+      - label: "esql-datasource-ndjson / vector crossing {{matrix.shard}}/6"
+        command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/6 :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecTests
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            shard: ["1", "2", "3", "4", "5", "6"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      # The multi-node external crossing. Outside the group's shape above because it lives in a
+      # different module and runs a SECOND CLUSTER per case -- the most expensive shape we have, and
+      # the only one that exercises distribution modes against something to actually distribute to. It
+      # was on the PR path until now, inside javaRestTest; it crosses every routed case with every
+      # declared distribution mode and grows whenever a value is added to dimension.distribution.
+      #
+      # Unsharded, because its size has never been measured. It shards the same way the moment there
+      # is a number to size a width from.
       - label: "multi-node / external distributed crossing"
         command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:server:multi-node:distributedSpecTests
         timeout_in_minutes: 300

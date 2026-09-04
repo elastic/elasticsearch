@@ -397,30 +397,11 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 
-// The full vector crossing. Deliberately NOT wired into `check` -- it is invoked by the
-// esql-datasource-vectors-manual pipeline, where a 75-minute run belongs. Adding it to `check`
-// would put that on every PR, which is what this separation exists to prevent.
-def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
-  dependsOn csvFixtureTasks
-  dependsOn generateEsqlSpecTests
-  usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
-  enabled = buildParams.snapshotBuild
-  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
-  classpath = sourceSets.csvSpecTest.runtimeClasspath
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
-  // The vector suites cross the corpus with every expressible vector, so this task carries thousands of
-  // cases rather than hundreds, and the count grows with every dimension declared. That is far past
-  // randomizedtesting's 600s default. Raising the ceiling lets the suite FINISH; it does not make it
-  // faster, and the wall clock is why the full crossing belongs in a nightly pipeline, not the PR path.
-  //
-  // 240 minutes, sized to sit INSIDE the pipeline step's 300. It was 60, which the crossing outgrew: the
-  // ndjson and parquet suites were killed mid-run at exactly 3600000ms having executed ~16,500 cases
-  // each, and reported it as two failures -- a timeout reads as a red suite, not as "needs longer".
-  systemProperty 'tests.timeoutSuite', '14400000!'
-  filter { includeTestsMatching '*VectorSpecIT' }
-}
+// The two vector batteries, both defined in one place so they cannot drift apart.
+// The csv module hosts both the Csv and Tsv suites, so one JVM carries both formats.
+ext.vectorFixtureDependency = csvFixtureTasks
+ext.vectorCiMaxCases = '12000'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-vector-tasks.gradle')
 
 tasks.named('check').configure { dependsOn csvSpecTests }
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

@@ -1,0 +1,101 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * The two vector batteries for one qa module: the exhaustive nightly crossing, and the pointed
+ * selection that gates every pull request.
+ *
+ * One script rather than a copy per module. The two tasks must differ ONLY in which battery they ask
+ * for, how many cases one JVM may register, and how long a suite may take. Any other divergence means
+ * the pull-request battery and the nightly are running different suites while claiming to be the same
+ * crossing at two strengths -- and that difference would be invisible, because both report green. Four
+ * hand-copied task blocks drift; one shared definition cannot. The four this replaces had already
+ * drifted in statement order, which was harmless and is exactly how the harmful kind starts.
+ *
+ * NEITHER task is on `check`. `check` is reached by checkPart1..6, which IS the pull-request critical
+ * path, so putting either one there would add a whole crossing to every build -- the outcome this
+ * separation exists to prevent. Both are invoked by name from a pipeline step instead.
+ *
+ * Required ext properties, read at SCRIPT level (inside a task closure `ext` resolves to the task's own
+ * property bag, not the project's, which is how the first version of a sibling script crashed):
+ *   vectorFixtureDependency  the fixture-generation task this module's vectors read their bytes from.
+ *                            The one thing that genuinely varies between the modules.
+ *   vectorCiMaxCases         the most cases one CI JVM of this module may register. A ceiling sized to
+ *                            the step, not a target: it exists so a crossing that outgrows its shard
+ *                            fails at registration naming the width to raise, rather than running out
+ *                            of heap partway through and reporting a red suite.
+ */
+
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+def vectorFixtureDependency = project.ext.vectorFixtureDependency
+def vectorCiMaxCases = project.ext.vectorCiMaxCases
+
+def configureVectorBattery = { StandaloneRestIntegTestTask task ->
+  task.dependsOn vectorFixtureDependency
+  task.dependsOn 'generateEsqlSpecTests'
+  task.usesDefaultDistribution("to be triaged")
+  // Forks are not available here, and the reason is the cluster rather than the fixture: every vector
+  // suite's cluster is declared `shared(true)`, which the test framework rejects alongside parallel
+  // forks. Parallelism for this crossing therefore comes from slicing it across pipeline steps --
+  // `tests.vector.shard` -- and not from forking inside one JVM.
+  task.maxParallelForks = 1
+  // csvSpecTests-family tasks are snapshot-only. Without this a release build would run the task,
+  // execute nothing, and report green -- a pipeline passing having tested no configuration at all.
+  task.enabled = buildParams.snapshotBuild
+  task.testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  task.classpath = sourceSets.csvSpecTest.runtimeClasspath
+  task.systemProperty 'tests.rest.client_timeout', '60'
+  task.systemProperty 'tests.rest.socket_timeout', '60'
+  task.filter { includeTestsMatching '*VectorSpecIT' }
+}
+
+// The exhaustive crossing: every expressible vector, three-way completion, several hours.
+tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
+  configureVectorBattery(it)
+  systemProperty 'tests.vector.tier', 'nightly'
+  // 40,000 cases in one JVM. A bound on ONE JVM, not on the battery -- the pipeline slices the nightly
+  // with `tests.vector.shard`, so no step ever registers the whole thing.
+  //
+  // The battery is far past it. Measured by running each suite against a deliberately impossible bound
+  // and reading the count back: csv-vector 132,061, tsv-vector 99,294, ndjson-vector 124,722,
+  // parquet-vector 112,850, orc-vector 49,851 -- 518,778 cases. The csv module hosts two suites, so an
+  // unsharded run there is 231,355 cases and, at the 111ms and 106ms per case measured on this tree,
+  // about six hours in one JVM.
+  //
+  // A consequence worth stating: an unsharded local run of any module now REFUSES, naming the flag to
+  // pass. That is intended, not a regression. The last unsharded attempt was abandoned at the 4-hour
+  // suite timeout having recorded 1,677 failures nobody could act on, and a full crossing has never
+  // completed. Refusing in the first second beats dying in the fifth hour.
+  //
+  // Read through a provider so a command-line -Dtests.vector.max_cases WINS. A bare
+  // `systemProperty` here silently overrides the command line -- measured: a run with
+  // -Dtests.vector.max_cases=1 reported "bound of 40000" -- which would make this task's own error
+  // message a lie, since it tells the reader to raise exactly this property.
+  systemProperty 'tests.vector.max_cases', providers.systemProperty('tests.vector.max_cases').getOrElse('40000')
+  // The vector suites cross the corpus with every expressible vector, so this task carries thousands of
+  // cases rather than hundreds, and the count grows with every dimension declared. That is far past
+  // randomizedtesting's 600s default. Raising the ceiling lets the suite FINISH; it does not make it
+  // faster, and the wall clock is why the full crossing belongs in a nightly pipeline.
+  //
+  // 240 minutes, sized to sit INSIDE the pipeline step's 300. It was 60, which the crossing outgrew: the
+  // ndjson and parquet suites were killed mid-run at exactly 3600000ms having executed ~16,500 cases
+  // each, and reported it as two failures -- a timeout reads as a red suite, not as "needs longer".
+  systemProperty 'tests.timeoutSuite', '14400000!'
+}
+
+// The pointed selection: the value combinations this project's filed defects actually cluster in,
+// pairwise, sized to finish inside the window a pull-request build already occupies.
+tasks.register('vectorSpecCiTests', StandaloneRestIntegTestTask) {
+  configureVectorBattery(it)
+  systemProperty 'tests.vector.tier', 'ci'
+  systemProperty 'tests.vector.max_cases', vectorCiMaxCases
+  // 40 minutes, against a measured pull-request critical path of 40-56. A step that would extend the
+  // build has stopped being free, so this fails rather than runs long -- the whole premise of putting
+  // the selection on the PR path is that it hides inside the existing wall clock.
+  systemProperty 'tests.timeoutSuite', '2400000!'
+}

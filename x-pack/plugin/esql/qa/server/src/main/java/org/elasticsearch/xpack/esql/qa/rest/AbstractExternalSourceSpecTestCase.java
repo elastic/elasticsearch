@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.fixtures.CaseShard;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasources.fixtures.DeclaredSchemas;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions.Tier;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.junit.After;
@@ -79,6 +80,12 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
 public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCase {
 
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
+
+    /**
+     * Which battery this JVM runs. Absent means the nightly -- the whole universe -- so a bare local
+     * {@code vectorSpecTests} is unchanged by the tier axis existing.
+     */
+    private static final String TIER_PROPERTY = "tests.vector.tier";
 
     /**
      * This JVM's slice of the crossing, spelled {@code index/count}, one-based. Absent means every case,
@@ -282,10 +289,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     protected static List<Object[]> readExternalSpecTestsWithVectorsForSuite(String format, String suiteToken) throws Exception {
         FixtureDimensions dimensions = FixtureDimensions.get();
-        List<Map<String, String>> vectors = dimensions.expressibleVectors(format, MATRIX.seams(suiteToken));
+        String requestedTier = System.getProperty(TIER_PROPERTY);
+        Tier tier = requestedTier == null ? Tier.NIGHTLY : Tier.parse(requestedTier);
+        List<Map<String, String>> vectors = dimensions.expressibleVectors(format, MATRIX.seams(suiteToken), tier);
         if (vectors.isEmpty()) {
             throw new IllegalStateException(
-                "no vectors for format [" + format + "] under the seams suite [" + suiteToken + "] declares; it would register nothing"
+                "no vectors for format ["
+                    + format
+                    + "] in the ["
+                    + tier
+                    + "] battery under the seams suite ["
+                    + suiteToken
+                    + "] declares; it would register nothing"
             );
         }
         Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
@@ -293,7 +308,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> kept = excluded.isEmpty()
             ? loaded
             : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
-        return shardAndBound(kept, format, suiteToken);
+        return shardAndBound(kept, format, suiteToken, tier);
     }
 
     /**
@@ -309,7 +324,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * a nightly, which is how one of these runs was lost; with it, the shard that outgrew its slice says
      * so in the first second and names the width to raise.
      */
-    private static List<Object[]> shardAndBound(List<Object[]> cases, String format, String suiteToken) {
+    private static List<Object[]> shardAndBound(List<Object[]> cases, String format, String suiteToken, Tier tier) {
         String requested = System.getProperty(SHARD_PROPERTY);
         CaseShard shard = requested == null ? CaseShard.ALL : CaseShard.parse(requested);
         List<Object[]> selected = shard.select(cases);
@@ -334,9 +349,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             );
         }
         logger.info(
-            "vector crossing: suite [{}] format [{}] shard [{}] registered {} of {} cases",
+            "vector crossing: suite [{}] format [{}] tier [{}] shard [{}] registered {} of {} cases",
             suiteToken,
             format,
+            tier,
             shard,
             selected.size(),
             cases.size()

@@ -70,8 +70,10 @@ public final class FixtureDimensions {
      *
      * <p>The strength is the covering-array strength the tier completes to. Every defect the CI selection
      * is drawn from is reachable by a PAIR of values, so pairwise is what it needs; the nightly keeps
-     * three-way. Neither tier is a subset of the other by construction and neither needs to be: vector
-     * names are derived from the values they carry, so a name means the same configuration in both.
+     * three-way. Vector names are derived from the values they carry, so a name means the same
+     * configuration in both tiers, and {@code CI} is a strict subset of {@code NIGHTLY} -- see
+     * {@code generatedVectors} for why that takes an explicit union rather than following from the
+     * strengths.
      */
     public enum Tier {
         CI(2),
@@ -1496,13 +1498,35 @@ public final class FixtureDimensions {
         synchronized (generatedByTier) {
             return generatedByTier.computeIfAbsent(tier, requested -> {
                 List<Map<String, String>> built = new ArrayList<>();
+                Set<Map<String, String>> seen = new LinkedHashSet<>();
                 // Frozen per vector, not just the list. List.copyOf makes the LIST immutable while every
                 // element stays the mutable LinkedHashMap the generator built, and this memo is handed to
                 // every caller in the JVM for the rest of the run -- one stray put would silently
                 // reconfigure every later suite. Insertion order is preserved rather than using Map.copyOf:
                 // render() walks the declared name list so it does not care, but the settings accessors walk
                 // entrySet and their order reaches the injected directive JSON.
-                generateVectors(requested, vector -> built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector))));
+                Consumer<Map<String, String>> collect = vector -> {
+                    if (seen.add(new LinkedHashMap<>(vector))) {
+                        built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector)));
+                    }
+                };
+                generateVectors(requested, collect);
+                if (requested == Tier.NIGHTLY) {
+                    // The nightly must CONTAIN the pull-request battery, and this is what makes that true
+                    // rather than usually true. Both tiers are covering sets, not enumerations: each is its
+                    // cliques plus the vectors a t-way completion had to add. Restricting the universe to
+                    // the CI values changes which tuples are still uncovered, so t=2 completion over the
+                    // restricted universe can emit a vector the unrestricted t=3 pass never needed.
+                    //
+                    // Such a vector is expressible by construction, so it belongs in the universe anyway.
+                    // Leaving it out breaks the thing a developer does after a red build: a reproduce line
+                    // names a vector, a bare local run is the nightly tier, and a CI-only vector would
+                    // resolve to no test at all -- the failure would be unreproducible by the exact command
+                    // the failure printed. Adding them here is cheaper and more honest than teaching the
+                    // reproduce line about tiers, which would put an ES|QL fixture concept into the shared
+                    // test framework for every project in the repo to carry.
+                    generateVectors(Tier.CI, collect);
+                }
                 return List.copyOf(built);
             });
         }

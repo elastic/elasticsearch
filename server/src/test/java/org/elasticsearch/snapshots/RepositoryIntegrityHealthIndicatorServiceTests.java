@@ -40,9 +40,11 @@ import org.mockito.Mockito;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -69,20 +71,21 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode node2;
     private HealthInfo healthInfo;
     private FeatureService featureService;
-    private List<ProjectId> projectIds;
+    private boolean multiProject;
+    private Set<ProjectId> projectIds;
     private ProjectResolver projectResolver;
 
     @Before
     public void initNodes() {
         node1 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         node2 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
-        if (randomBoolean()) {
-            projectIds = List.of(randomProjectIdOrDefault());
-            projectResolver = TestProjectResolvers.singleProjectOnly(projectIds.getFirst());
-        } else {
-            projectIds = randomUniqueProjectIds(randomIntBetween(1, 5));
-            projectResolver = TestProjectResolvers.allProjects();
-        }
+        multiProject = randomBoolean();
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(Collectors.toSet())
+            : Set.of(randomProjectIdOrDefault());
+        projectResolver = multiProject
+            ? TestProjectResolvers.allProjects()
+            : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next());
         healthInfo = new HealthInfo(
             Map.of(),
             null,
@@ -113,7 +116,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.ALL_REPOS_HEALTHY,
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", totalRepositories(repos.size()))),
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size() * projectIds.size())),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -294,7 +297,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                         ? new SimpleHealthIndicatorDetails(
                             Map.of(
                                 "total_repositories",
-                                totalRepositories(repos.size()),
+                                repos.size() * projectIds.size(),
                                 "corrupted_repositories",
                                 0,
                                 "corrupted",
@@ -329,7 +332,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     YELLOW,
                     expectedSymptom(corruptedNames.size(), 0, 0),
                     verbose
-                        ? createDetails(totalRepositories(repos.size()), corruptedNames.size(), corruptedNames, 0, 0)
+                        ? createDetails(repos.size() * projectIds.size(), corruptedNames.size(), corruptedNames, 0, 0)
                         : HealthIndicatorDetails.EMPTY,
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     verbose
@@ -373,8 +376,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
         List<String> expectedCorruptedDetails = limitSize(displayNames(repos), 10);
         var expectedDetails = createDetails(
-            totalRepositories(repos.size()),
-            totalRepositories(repos.size()),
+            repos.size() * projectIds.size(),
+            repos.size() * projectIds.size(),
             expectedCorruptedDetails,
             unknownRepos.size(),
             invalidRepos.size()
@@ -465,9 +468,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
      * only name the bad repos.
      */
     public void testIsYellowWhenOneProjectIsHealthyAndAnotherIsUnhealthy() {
-        var projects = randomUniqueProjectIds(2);
-        var healthyProject = projects.get(0);
-        var unhealthyProject = projects.get(1);
+        var healthyProject = randomUniqueProjectId();
+        var unhealthyProject = randomUniqueProjectId();
         var healthyRepos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
         int problemType = randomIntBetween(0, 2);
         boolean corrupted = problemType == 0;
@@ -519,9 +521,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
      * An empty project should not make the cluster look like it has no repositories when another project still has some.
      */
     public void testEmptyAndNonEmptyProjects() {
-        var projects = randomUniqueProjectIds(2);
-        var emptyProject = projects.get(0);
-        var populatedProject = projects.get(1);
+        var emptyProject = randomUniqueProjectId();
+        var populatedProject = randomUniqueProjectId();
         boolean unhealthy = randomBoolean();
         var populatedRepos = unhealthy
             ? createNamedRepositories("corrupted-repo-", true)
@@ -567,10 +568,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
      * Problems of different kinds in different projects are added together even when those projects use the same repository names.
      */
     public void testYellowProjectsAreAggregated() {
-        var projects = randomUniqueProjectIds(3);
-        var corruptedProject = projects.get(0);
-        var unknownProject = projects.get(1);
-        var invalidProject = projects.get(2);
+        var corruptedProject = randomUniqueProjectId();
+        var unknownProject = randomUniqueProjectId();
+        var invalidProject = randomUniqueProjectId();
         var repos = createNamedRepositories("repo-", false);
         var corruptedRepos = repos.stream().map(repository -> createRepositoryMetadata(repository.name(), true)).toList();
         var clusterState = createClusterStateWith(Map.of(corruptedProject, corruptedRepos, unknownProject, repos, invalidProject, repos));
@@ -691,39 +691,28 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         return IntStream.range(0, randomIntBetween(1, 10)).mapToObj(i -> createRepositoryMetadata(namePrefix + i, corrupted)).toList();
     }
 
-    private static List<ProjectId> randomUniqueProjectIds(int count) {
-        var ids = new HashSet<ProjectId>();
-        while (ids.size() < count) {
-            ids.add(randomUniqueProjectId());
-        }
-        return List.copyOf(ids);
-    }
-
-    private int totalRepositories(int repositoriesPerProject) {
-        return repositoriesPerProject * projectIds.size();
-    }
-
-    private String displayName(ProjectId projectId, String repositoryName) {
-        return displayName(projectId, repositoryName, projectResolver.supportsMultipleProjects());
-    }
-
-    private static String displayName(ProjectId projectId, String repositoryName, boolean supportsMultipleProjects) {
-        return HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repositoryName, supportsMultipleProjects);
-    }
-
     private List<String> displayNames(String repositoryName) {
-        return projectIds.stream().map(projectId -> displayName(projectId, repositoryName)).sorted().toList();
+        return projectIds.stream()
+            .map(projectId -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repositoryName, multiProject))
+            .sorted()
+            .toList();
     }
 
     private List<String> displayNames(List<RepositoryMetadata> repos) {
         return projectIds.stream()
-            .flatMap(projectId -> repos.stream().map(repository -> displayName(projectId, repository.name())))
+            .flatMap(
+                projectId -> repos.stream()
+                    .map(repository -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repository.name(), multiProject))
+            )
             .sorted()
             .toList();
     }
 
     private static List<String> displayNames(ProjectId projectId, List<RepositoryMetadata> repos) {
-        return repos.stream().map(repository -> displayName(projectId, repository.name(), true)).sorted().toList();
+        return repos.stream()
+            .map(repository -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repository.name(), true))
+            .sorted()
+            .toList();
     }
 
     private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {

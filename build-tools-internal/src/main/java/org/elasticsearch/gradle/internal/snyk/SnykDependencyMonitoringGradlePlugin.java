@@ -52,7 +52,9 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
                 generateSnykDependencyGraph.getTargetReference()
                     .set(providerFactory.gradleProperty("snykTargetReference").orElse(projectVersion));
                 generateSnykDependencyGraph.getRemoteUrl()
-                    .convention(providerFactory.provider(() -> GitInfo.gitInfo(project.getRootDir()).urlFromOrigin()));
+                    .convention(
+                        providerFactory.provider(() -> GitInfo.gitInfo(projectLayout.getSettingsDirectory().getAsFile()).urlFromOrigin())
+                    );
                 generateSnykDependencyGraph.getOutputFile().set(projectLayout.getBuildDirectory().file("snyk/dependencies.json"));
             });
 

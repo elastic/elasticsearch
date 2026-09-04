@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.vectortile.rest;
 
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
@@ -48,7 +47,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
 /**
  * Transforms a rest request in a vector tile request
  */
-class VectorTileRequest implements IndicesRequest.CrossProjectCandidate {
+class VectorTileRequest {
 
     protected static final String INDEX_PARAM = "index";
     protected static final String FIELD_PARAM = "field";
@@ -329,7 +328,6 @@ class VectorTileRequest implements IndicesRequest.CrossProjectCandidate {
         return gridPrecision;
     }
 
-    @Override
     public boolean allowsCrossProject() {
         return true;
     }

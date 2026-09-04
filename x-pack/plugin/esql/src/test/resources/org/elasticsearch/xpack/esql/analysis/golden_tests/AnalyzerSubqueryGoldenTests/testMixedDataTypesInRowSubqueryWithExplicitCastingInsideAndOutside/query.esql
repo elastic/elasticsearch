@@ -1,0 +1,3 @@
+FROM employees, (ROW emp_no = "1" | EVAL emp_no = emp_no::integer)
+| EVAL emp_no_long = emp_no::long
+| WHERE emp_no_long > 0

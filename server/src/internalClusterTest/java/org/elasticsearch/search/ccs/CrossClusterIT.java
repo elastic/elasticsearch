@@ -47,7 +47,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -83,25 +82,15 @@ import static org.hamcrest.Matchers.nullValue;
 // formerly called CrossClusterSearchIT, but since this one mostly does
 // actions besides searching, it was renamed so a new CrossClusterSearchIT
 // can focus on several cross cluster search scenarios.
-public class CrossClusterIT extends AbstractMultiClustersTestCase {
+public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
 
     @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of("cluster_a");
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of();
     }
 
-    @Override
-    protected boolean reuseClusters() {
-        return false;
-    }
-
-    private int indexDocs(Client client, String index) {
-        int numDocs = between(1, 10);
-        for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex(index).setSource("f", "v").get();
-        }
-        client.admin().indices().prepareRefresh(index).get();
-        return numDocs;
+    protected int indexDocs(Client client, String index) {
+        return indexDocs(client, "f", index);
     }
 
     public void testRemoteClusterClientRole() throws Exception {
@@ -613,7 +602,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomFrom("cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(numShards));
+            assertEquals(resp.getNumSkippedShards(), numShards);
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }
@@ -630,7 +619,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomFrom("cluster_a", "cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertThat(resp.getGroups(), hasSize(numShards));
+            assertEquals(resp.getNumSkippedShards(), numShards);
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }

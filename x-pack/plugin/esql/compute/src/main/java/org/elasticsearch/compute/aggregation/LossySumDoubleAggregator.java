@@ -204,7 +204,6 @@ class LossySumDoubleAggregator {
             trackGroupId(groupId);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             LossySumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }

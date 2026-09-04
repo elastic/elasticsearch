@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -25,6 +24,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -128,9 +128,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         @Override
         public void infer(
             Model model,
-            @Nullable String query,
-            @Nullable Boolean returnDocuments,
-            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -138,9 +135,14 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
-                default -> listener.onFailure(
+            if (Objects.equals(((TestTaskSettings) model.getTaskSettings()).shouldFailValidation(), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+            if (model.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                listener.onResponse(makeResults(input));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
@@ -175,18 +177,28 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
-            @Nullable String query,
             List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING) {
+                listener.onResponse(makeChunkedResults(input));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
@@ -280,6 +292,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {
 
         static final String NAME = "test_service_settings";
+        public static final String HIDDEN_FIELD_KEY = "hidden_field";
+        public static final String SHOULD_RETURN_HIDDEN_FIELD_KEY = "should_return_hidden_field";
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
@@ -293,16 +307,14 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 }
             }
 
-            String hiddenField = (String) map.remove("hidden_field");
-            Boolean shouldReturnHiddenField = (Boolean) map.remove("should_return_hidden_field");
+            String hiddenField = (String) map.remove(HIDDEN_FIELD_KEY);
+            Boolean shouldReturnHiddenField = (Boolean) map.remove(SHOULD_RETURN_HIDDEN_FIELD_KEY);
 
             if (shouldReturnHiddenField == null) {
                 shouldReturnHiddenField = false;
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, hiddenField, shouldReturnHiddenField);
         }

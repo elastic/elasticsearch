@@ -22,9 +22,9 @@ public class SimpleModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<ModelValidationResult> listener) {
         serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
-            delegate.onResponse(model);
+            delegate.onResponse(new ModelValidationResult(model, false));
         }));
     }
 }

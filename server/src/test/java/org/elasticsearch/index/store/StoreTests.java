@@ -619,10 +619,12 @@ public class StoreTests extends ESTestCase {
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
             assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
         }
+        // segments_N, fnm, dvd, dvm, dvs for the updated segment
+        int missingSize = 5;
 
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - 4 - delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - missingSize - delFileCount));
         assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(4)); // segments_N, fnm, dvd, dvm for the updated segment
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(missingSize));
 
         deleteContent(store.directory());
         IOUtils.close(store);

@@ -1,0 +1,5 @@
+SET unmapped_fields="nullify"; FROM employees
+| WHERE does_not_exist1 IS NULL
+| FORK (STATS c = COUNT(*))
+       (STATS d = AVG(salary) BY does_not_exist2)
+| SORT does_not_exist2

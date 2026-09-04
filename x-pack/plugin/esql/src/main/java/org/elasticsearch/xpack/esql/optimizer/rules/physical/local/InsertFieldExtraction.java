@@ -11,9 +11,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
@@ -37,7 +39,10 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        return InsertFieldExtraction.rule(plan, context.configuration().pragmas().fieldExtractPreference());
+        var preference = context.configuration() != null
+            ? context.configuration().pragmas().fieldExtractPreference()
+            : MappedFieldType.FieldExtractPreference.NONE;
+        return InsertFieldExtraction.rule(plan, preference);
     }
 
     static PhysicalPlan rule(PhysicalPlan plan, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
@@ -87,7 +92,10 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         // This is also correct for LookupJoinExec, where we only need field extraction on the left fields used to match, since the right
         // side is always materialized.
         p.references().forEach(f -> {
-            if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {
+            if ((f instanceof FieldAttribute
+                || f instanceof MetadataAttribute
+                || f instanceof TemporalityAttribute
+                || f instanceof UnmappedFieldsAttribute) && EsQueryExec.isDocAttribute(f) == false) {
                 if (input.contains(f) == false) {
                     missing.add(f);
                 }

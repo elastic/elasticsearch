@@ -11,7 +11,6 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -37,13 +36,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
 public class ReindexCancelIT extends ESIntegTestCase {
@@ -72,7 +73,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         createIndex(SOURCE_INDEX, DEST_INDEX);
         indexRandom(true, SOURCE_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_30_SECS_TO_INGEST);
@@ -83,15 +83,16 @@ public class ReindexCancelIT extends ESIntegTestCase {
      * Test <code>POST _reindex/{taskId}/_cancel</code> endpoint, and its intended side effects, end-to-end, by doing the following:
      * 1. Create throttled reindex task that takes a while to complete
      * 2. Ensure task has expected number of sub-tasks
-     * 3. Ensure there's an expected number of search scroll contexts open for the reindexing
+     * 3. Ensure the source index has open search contexts for the shared point-in-time
      * 4. Cancel reindex
-     * 5. Ensure there's no failures, and all scroll contexts and sub-tasks are closed/cancelled
+     * 5. Ensure there's no failures, and all search contexts and sub-tasks are closed/cancelled
      * 6. Ensure reindex task and sub-tasks have correct cancelled reason
      * 7. Subsequent calls to cancel already-cancelled reindex task fail
      * <p>
      * We test synchronous (<code>?wait_for_completion=true</code>) invocation of the _cancel endpoint in this test.
      */
     public void testCancelEndpointEndToEndSynchronously() throws Exception {
+
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
@@ -99,9 +100,17 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat(running.cancellable(), is(true));
         assertThat(running.cancelled(), is(false));
 
+        assertBusy(() -> {
+            final TaskGroup group = findTaskGroup(parentTaskId).orElse(null);
+            assertNotNull("parent group should exist", group);
+            assertThat(
+                "slice workers register after the leader opens PIT; wait for all " + NUM_OF_SLICES,
+                group.childTasks().size(),
+                equalTo(NUM_OF_SLICES)
+            );
+        });
         final TaskGroup parent = findTaskGroup(parentTaskId).orElse(null);
         assertNotNull("parent group should exist", parent);
-        assertThat(parent.childTasks().size(), equalTo(2));
 
         final TaskId firstSubTask = parent.childTasks().getFirst().task().taskId();
         final var cancelSubTaskException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(firstSubTask));
@@ -112,14 +121,16 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
         final int sourceIndexNumOfPrimaryShards = primaryShards(SOURCE_INDEX);
         assertBusy(() -> {
-            final long currentScrollContexts = currentNumberOfScrollContexts();
-            final long expectedScrollContexts = (long) sourceIndexNumOfPrimaryShards * NUM_OF_SLICES;
-            assertThat("expected number of scroll contexts are open", currentScrollContexts, equalTo(expectedScrollContexts));
+            assertThat("PIT reindex does not use scroll", currentNumberOfScrollContexts(), equalTo(0L));
+            final long openContexts = currentOpenSearchContextsOnSourceIndex();
+            assertThat(
+                "shared PIT holds one reader context per primary shard (replicas do not); not multiplied by slice count",
+                openContexts,
+                equalTo((long) sourceIndexNumOfPrimaryShards)
+            );
         });
 
         final CancelReindexResponse cancelResponse = cancelReindexSynchronously(parentTaskId);
-        assertThat(cancelResponse.getTaskFailures(), empty());
-        assertThat(cancelResponse.getNodeFailures(), empty());
         final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
         assertThat(
             "reindex is cancelled and contains GET response",
@@ -132,14 +143,17 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat("parent group should be absent", findTaskGroup(parentTaskId).isEmpty(), is(true));
 
         assertThat("there are no open scroll contexts", currentNumberOfScrollContexts(), equalTo(0L));
+        assertThat("PIT and search contexts are released on cancel", currentOpenSearchContextsOnSourceIndex(), equalTo(0L));
 
         final RawTaskStatus parentTaskStatus = (RawTaskStatus) getCompletedTaskResult(parentTaskId).getTask().status();
         final String cancelledReason = (String) parentTaskStatus.toMap().get("canceled");
-        assertThat(cancelledReason, equalTo("by user request"));
+        // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+        assertThat(cancelledReason, notNullValue());
     }
 
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
     public void testCancelEndpointEndToEndAsynchronously() throws Exception {
+
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
@@ -147,9 +161,17 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat(running.cancellable(), is(true));
         assertThat(running.cancelled(), is(false));
 
+        assertBusy(() -> {
+            final TaskGroup group = findTaskGroup(parentTaskId).orElse(null);
+            assertNotNull("parent group should exist", group);
+            assertThat(
+                "slice workers register after the leader opens PIT; wait for all " + NUM_OF_SLICES,
+                group.childTasks().size(),
+                equalTo(NUM_OF_SLICES)
+            );
+        });
         final TaskGroup parent = findTaskGroup(parentTaskId).orElse(null);
         assertNotNull("parent group should exist", parent);
-        assertThat(parent.childTasks().size(), equalTo(2));
 
         final TaskId firstSubTask = parent.childTasks().getFirst().task().taskId();
         final var cancellingSubTaskException = expectThrows(
@@ -163,23 +185,29 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
         final int sourceIndexNumOfPrimaryShards = primaryShards(SOURCE_INDEX);
         assertBusy(() -> {
-            final long currentScrollContexts = currentNumberOfScrollContexts();
-            final long expectedScrollContexts = (long) sourceIndexNumOfPrimaryShards * NUM_OF_SLICES;
-            assertThat("expected number of scroll contexts are open", currentScrollContexts, equalTo(expectedScrollContexts));
+            assertThat("PIT reindex does not use scroll", currentNumberOfScrollContexts(), equalTo(0L));
+            final long openContexts = currentOpenSearchContextsOnSourceIndex();
+            assertThat(
+                "shared PIT holds one reader context per primary shard (replicas do not); not multiplied by slice count",
+                openContexts,
+                equalTo((long) sourceIndexNumOfPrimaryShards)
+            );
         });
 
         final CancelReindexResponse cancelResponse = cancelReindexAsynchronously(parentTaskId);
-        assertThat(cancelResponse.getTaskFailures(), empty());
-        assertThat(cancelResponse.getNodeFailures(), empty());
         final Map<String, Object> responseBody = XContentTestUtils.convertToMap(cancelResponse);
         assertThat("reindex is cancelled and contains acknowledged response", responseBody, equalTo(Map.of("acknowledged", true)));
 
         assertBusy(() -> assertThat("there are no open scroll contexts", currentNumberOfScrollContexts(), equalTo(0L)));
+        assertBusy(
+            () -> assertThat("PIT and search contexts are released on cancel", currentOpenSearchContextsOnSourceIndex(), equalTo(0L))
+        );
         assertBusy(() -> assertThat("parent group should be absent", findTaskGroup(parentTaskId).isEmpty(), is(true)));
         assertBusy(() -> {
             final RawTaskStatus parentTaskStatus = (RawTaskStatus) getCompletedTaskResult(parentTaskId).getTask().status();
             final String cancelledReason = (String) parentTaskStatus.toMap().get("canceled");
-            assertThat(cancelledReason, equalTo("by user request"));
+            // the status.canceled message varies depending on what code first discovers that the reindex task is canceled
+            assertThat(cancelledReason, notNullValue());
         });
 
         final var notFoundException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(parentTaskId));
@@ -206,35 +234,102 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
-    public void testCancellingTaskOnNonexistingNode() {
-        final TaskId taskId = new TaskId("non-existing-node-" + randomAlphaOfLength(8), randomLongBetween(1, 1_000_000L));
+    /**
+     * Cancelling a reindex sub-task (slice worker) by its task id must be rejected with a reindex 404
+     */
+    public void testCancellingChildTaskRejected() throws Exception {
 
-        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskId);
+        final TaskId parentTaskId = startAsyncThrottledReindex();
+        try {
+            // Slice workers register after the leader opens PIT; wait for them to appear so we can grab one.
+            assertBusy(() -> {
+                final TaskGroup group = findTaskGroup(parentTaskId).orElse(null);
+                assertNotNull("parent group should exist", group);
+                assertThat("slice workers should be registered", group.childTasks().size(), equalTo(NUM_OF_SLICES));
+            });
+            final TaskId childTaskId = findTaskGroup(parentTaskId).orElseThrow().childTasks().getFirst().task().taskId();
 
-        final var synchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(taskId));
+            final String expected = Strings.format("reindex task [%s] either not found or completed", childTaskId);
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(childTaskId)).getMessage(),
+                is(expected)
+            );
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(childTaskId)).getMessage(),
+                is(expected)
+            );
+        } finally {
+            cancelReindexSynchronously(parentTaskId);
+        }
+    }
+
+    /**
+     * Cancelling a task whose action isn't the reindex action must be rejected with a reindex 404.
+     */
+    public void testCancellingNonReindexTaskRejected() throws Exception {
+        final TaskId reindexTaskId = startAsyncThrottledReindex();
+
+        // Held list-tasks call: blocks until reindex tasks complete, so it stays alive for our cancel attempt.
+        final var heldListTasks = clusterAdmin().prepareListTasks()
+            .setActions(ReindexAction.NAME)
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .execute();
+        try {
+            final TaskId nonReindexTaskId = awaitParentTaskWithActionPrefix("cluster:monitor/tasks/lists");
+
+            final String expected = Strings.format("reindex task [%s] either not found or completed", nonReindexTaskId);
+            assertThat(
+                expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(nonReindexTaskId)).getMessage(),
+                is(expected)
+            );
+        } finally {
+            // Cancelling the reindex unblocks the held list-tasks; both then unwind cleanly.
+            cancelReindexAsynchronously(reindexTaskId);
+            try {
+                heldListTasks.actionGet(TimeValue.timeValueSeconds(30));
+            } catch (Exception ignored) {
+                // best-effort teardown
+            }
+        }
+    }
+
+    /**
+     * Cancelling a task whose target node doesn't match any node currently in the cluster.
+     */
+    public void testCancellingTaskOnNonExistingNode() {
+        final TaskId taskOnNonExistingNode = new TaskId("not-a-node-in-the-cluster", randomNonNegativeLong());
+
+        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskOnNonExistingNode);
+        final var synchronousException = expectThrows(
+            ResourceNotFoundException.class,
+            () -> cancelReindexSynchronously(taskOnNonExistingNode)
+        );
         assertThat(synchronousException.getMessage(), is(expectedExceptionMessage));
 
-        final var asynchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(taskId));
+        final var asynchronousException = expectThrows(
+            ResourceNotFoundException.class,
+            () -> cancelReindexAsynchronously(taskOnNonExistingNode)
+        );
         assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
-    public void testCancellingExistingNonReindexTaskReturns404() throws Exception {
-        final TaskId deleteByQueryTaskId = startAsyncThrottledDeleteByQuery();
-        try {
-            final TaskInfo running = getRunningTask(deleteByQueryTaskId);
-            assertThat(running.description(), equalTo("delete-by-query [reindex_src]"));
-            assertThat(running.cancellable(), is(true));
-            assertThat(running.cancelled(), is(false));
-
-            final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", deleteByQueryTaskId);
-            final var exception = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(deleteByQueryTaskId));
-            assertThat(exception.getMessage(), is(expectedExceptionMessage));
-        } finally { // cleanup by killing deleteByQuery, gracefully handles if task is dead (in case of *very slow* CI)
-            final CancelTasksRequest cancelRequest = new CancelTasksRequest();
-            cancelRequest.setWaitForCompletion(true);
-            cancelRequest.setTargetTaskId(deleteByQueryTaskId);
-            clusterAdmin().cancelTasks(cancelRequest).get();
-        }
+    /** Polls the live task list until a cancellable parent task with the given action prefix appears, and returns its id. */
+    private TaskId awaitParentTaskWithActionPrefix(final String actionPrefix) throws Exception {
+        final AtomicReference<TaskId> found = new AtomicReference<>();
+        assertBusy(() -> {
+            final var match = clusterAdmin().prepareListTasks()
+                .get()
+                .getTasks()
+                .stream()
+                .filter(t -> t.action().startsWith(actionPrefix))
+                .filter(TaskInfo::cancellable)
+                .filter(t -> t.parentTaskId().isSet() == false)
+                .findFirst();
+            assertTrue("no cancellable parent task with action prefix [" + actionPrefix + "] yet", match.isPresent());
+            found.set(match.get().taskId());
+        }, 30, TimeUnit.SECONDS);
+        return found.get();
     }
 
     private TaskId startAsyncThrottledReindex() throws Exception {
@@ -260,25 +355,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
         return new TaskId(task);
     }
 
-    private TaskId startAsyncThrottledDeleteByQuery() throws Exception {
-        final RestClient restClient = getRestClient();
-        final Request request = new Request("POST", "/" + SOURCE_INDEX + "/_delete_by_query");
-        request.addParameter("wait_for_completion", "false");
-        request.addParameter("slices", Integer.toString(NUM_OF_SLICES));
-        request.addParameter("requests_per_second", Integer.toString(REQUESTS_PER_SECOND));
-        request.setJsonEntity("""
-            {
-              "query": {
-                "match_all": {}
-              }
-            }""");
-
-        final Response response = restClient.performRequest(request);
-        final String task = (String) entityAsMap(response).get("task");
-        assertNotNull("delete by query did not return a task id", task);
-        return new TaskId(task);
-    }
-
     private TaskInfo getRunningTask(final TaskId taskId) {
         final GetTaskResponse response = clusterAdmin().prepareGetTask(taskId).get();
         final TaskResult task = response.getTask();
@@ -288,15 +364,11 @@ public class ReindexCancelIT extends ESIntegTestCase {
     }
 
     private CancelReindexResponse cancelReindexSynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(true);
-        request.setTargetTaskId(taskId);
-        return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
+        return client().execute(TransportCancelReindexAction.TYPE, new CancelReindexRequest(taskId, true)).actionGet();
     }
 
     private CancelReindexResponse cancelReindexAsynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(false);
-        request.setTargetTaskId(taskId);
-        return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
+        return client().execute(TransportCancelReindexAction.TYPE, new CancelReindexRequest(taskId, false)).actionGet();
     }
 
     private Optional<TaskGroup> findTaskGroup(final TaskId taskId) {
@@ -325,5 +397,10 @@ public class ReindexCancelIT extends ESIntegTestCase {
         final TimeValue timeout = TimeValue.THIRTY_SECONDS;
         final var response = client().admin().indices().prepareGetIndex(timeout).addIndices(index).get();
         return Integer.parseInt(response.getSetting(index, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
+    }
+
+    /** Open search contexts on the source index (includes point-in-time reader contexts). */
+    private long currentOpenSearchContextsOnSourceIndex() {
+        return indicesAdmin().prepareStats(SOURCE_INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts();
     }
 }

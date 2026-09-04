@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -80,6 +81,29 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("internal:foo/bar"));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
+    }
+
+    public void testShouldSwitchToSystemUserForProxyNonInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        String nonInternalAction = randomFrom("indices:foo", "cluster:bar");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction(nonInternalAction));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
+    }
+
+    public void testShouldNotSwitchToSystemUserForProxyInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 

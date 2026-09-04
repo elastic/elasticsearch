@@ -15,31 +15,31 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Contains}.
+ * {@link ExpressionEvaluator} implementation for {@link Contains}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ContainsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ContainsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ContainsEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator substr;
+  private final ExpressionEvaluator substr;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ContainsEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator substr, DriverContext driverContext) {
+  public ContainsEvaluator(Source source, ExpressionEvaluator str, ExpressionEvaluator substr,
+      DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.substr = substr;
@@ -76,10 +76,11 @@ public final class ContainsEvaluator implements EvalOperator.ExpressionEvaluator
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -87,10 +88,11 @@ public final class ContainsEvaluator implements EvalOperator.ExpressionEvaluator
               result.appendNull();
               continue position;
         }
+        if (substrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (substrBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -132,25 +134,20 @@ public final class ContainsEvaluator implements EvalOperator.ExpressionEvaluator
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory substr;
+    private final ExpressionEvaluator.Factory substr;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory substr) {
+    public Factory(Source source, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory substr) {
       this.source = source;
       this.str = str;
       this.substr = substr;

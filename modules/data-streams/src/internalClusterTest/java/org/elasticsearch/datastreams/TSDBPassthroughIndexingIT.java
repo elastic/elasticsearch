@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -147,6 +149,10 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
     public void testIndexingGettingAndSearching() throws Exception {
         var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
+        templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        if (randomBoolean()) {
+            templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -185,6 +191,12 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
             time = time.plusMillis(1);
         }
 
+        // maybe force merge
+        if (randomBoolean()) {
+            var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
+            assertEquals(0, forceMergeResponse.getShardFailures().length);
+        }
+
         // validate index:
         var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet();
         assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
@@ -221,6 +233,10 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
         var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
+        templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        if (randomBoolean()) {
+            templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(

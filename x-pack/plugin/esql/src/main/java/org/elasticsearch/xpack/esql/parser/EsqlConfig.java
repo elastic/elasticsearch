@@ -8,21 +8,28 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 public class EsqlConfig {
 
     // versioning information
     private final boolean isDevVersion;
+    private final EsqlFunctionRegistry functionRegistry;
 
-    public EsqlConfig(boolean isDevVersion) {
+    public EsqlConfig(boolean isDevVersion, EsqlFunctionRegistry functionRegistry) {
         this.isDevVersion = isDevVersion;
+        this.functionRegistry = functionRegistry;
     }
 
-    public EsqlConfig() {
-        this(Build.current().isSnapshot());
+    public EsqlConfig(EsqlFunctionRegistry functionRegistry) {
+        this(Build.current().isSnapshot(), functionRegistry);
     }
 
     public boolean isDevVersion() {
         return isDevVersion;
+    }
+
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
     }
 }

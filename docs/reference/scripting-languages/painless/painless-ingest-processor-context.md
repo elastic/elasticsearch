@@ -10,12 +10,14 @@ products:
 
 # Ingest processor context [painless-ingest-processor-context]
 
-Use a Painless script in an [ingest processor](/reference/enrich-processor/script-processor.md) to modify documents upon insertion.
+Use a Painless script in an [ingest processor](/reference/ingest-processor/script-processor.md) to modify documents upon insertion.
 
 The ingest processor context enables document transformation during the indexing process, allowing you to enrich, modify, or restructure data before it’s stored in {{es}}.  
 Painless scripts run as script processors within ingest pipelines that support script execution.
 
 Ingest pipelines consist of multiple processors that can transform documents sequentially. The script processor allows Painless scripts to access and modify document fields using the `ctx` variable during this transformation process.
+
+For help debugging errors in this context, refer to [Debug ingest pipeline failures in Painless](docs-content://explore-analyze/scripting/painless-ingest-pipeline-failures.md).
 
 ## Processing workflow
 

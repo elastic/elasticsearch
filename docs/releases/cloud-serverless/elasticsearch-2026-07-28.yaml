@@ -1,0 +1,576 @@
+products:
+- product: cloud-serverless
+  target: 2026-07-28
+  repo: elasticsearch
+  owner: elastic
+release-date: 2026-07-28
+entries:
+- file:
+    name: 154498.yaml
+    checksum: 59af5a942f42e25dda8b26baefde468205005057
+  type: enhancement
+  title: Grant `write_fleet_secrets` to the `elastic/fleet-server` service account
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Authorization
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154498
+- file:
+    name: 153577.yaml
+    checksum: 95e84679b5b9ac4be5bf8cd589b571d43a7bae6e
+  type: enhancement
+  title: Improve vector search calibration performance
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153577
+- file:
+    name: 154508.yaml
+    checksum: 0833433c04fa63f6083b7d7896a9c53610db1ec5
+  type: bug-fix
+  title: Fix incorrect field types when queries mix date and flattened mappings
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154508
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154011
+  - https://github.com/elastic/elasticsearch/issues/154484
+  - https://github.com/elastic/elasticsearch/issues/154743
+- file:
+    name: 153886.yaml
+    checksum: 9afa4e5796049a2703f465851aeac441ceafae91
+  type: bug-fix
+  title: Fix text embedding validation before models are deployed
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153886
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/144871
+- file:
+    name: 154569.yaml
+    checksum: 400df8e66f665af77ec44e2360e929141c4ff394
+  type: other
+  title: Upgrade Jackson to 2.18.9
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Security
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154569
+- file:
+    name: 154969.yaml
+    checksum: b951f1b800f5c5f7719c957813eefa53eac3b52f
+  type: bug-fix
+  title: Fix `CATEGORIZE` with TopN pushdown failures
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154969
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154534
+- file:
+    name: 153804.yaml
+    checksum: 5594c175ffdf6de7f6b7d4fb77fb6d0b956c10a8
+  type: enhancement
+  title: Add coordinator LOOKUP JOIN for remote clusters
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153804
+- file:
+    name: 153805.yaml
+    checksum: 2b54518f247454b08a2b69bc7fccc13fdbef1e87
+  type: bug-fix
+  title: Fix default average resolution for `AggregateMetricDouble` fields
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153805
+- file:
+    name: 154694.yaml
+    checksum: 50942fcd6410dafbcf2c2bdec2a950b283d2ccb3
+  type: bug-fix
+  title: Fix view and alias data deduplication in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154694
+- file:
+    name: 154765.yaml
+    checksum: f7b53e0c8c40c1066b8c95887f2fd44621878895
+  type: enhancement
+  title: Enable `match_phrase` on runtime expressions in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154765
+- file:
+    name: 153366.yaml
+    checksum: 0dd1e616b0206a74c3158ddceaeef6326a3e5862
+  type: bug-fix
+  title: Fix planning failures when mixing TS indexes with STANDARD indexes and views
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153366
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/149619
+  - https://github.com/elastic/elasticsearch/issues/153030
+  - https://github.com/elastic/elasticsearch/issues/145445
+- file:
+    name: 153433.yaml
+    checksum: b4ebc5e81b0b133d2aeefa9d816eadbeb04d4143
+  type: enhancement
+  title: Expand per-fetch directory metrics to all pluggable metrics
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153433
+- file:
+    name: 144884.yaml
+    checksum: dbb29906b610f7fb1f862756f057c8d4d2af2bcf
+  type: other
+  title: Update Tika to 3.3.2
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Ingest node
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/144884
+- file:
+    name: 154742.yaml
+    checksum: 52c800892a83982506e56808a6d5d0fbe263db1d
+  type: enhancement
+  title: Improve aggregation hash insert throughput
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Aggregations
+  - Performance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154742
+- file:
+    name: 152383.yaml
+    checksum: a92dfcdb6b144d1d1b0a12f163dea4104d9457a8
+  type: bug-fix
+  title: Fix ES|QL crashes and incorrect results for narrow time windows
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/152383
+- file:
+    name: 153117.yaml
+    checksum: 6eee3a7d040cf326a77b5b4874b72663452e1ac8
+  type: enhancement
+  title: Add cross-project search datafeed field-conflict audit messages
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153117
+- file:
+    name: 154735.yaml
+    checksum: 5fb4b91127ce29d8a5a1945568ca60d3258760a8
+  type: bug-fix
+  title: Fix default inference endpoint deletion to use master-node actions only
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154735
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154710
+- file:
+    name: 154667.yaml
+    checksum: 45a16613dfe5336e8559007d40f6dae9a14857c5
+  type: enhancement
+  title: Support identifier parameters in PromQL label lists
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154667
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/152500
+- file:
+    name: 154519.yaml
+    checksum: d63fb9ee0fa046305e7897d30dd3f58f4fe70b34
+  type: bug-fix
+  title: Fix excessive memory use during NDJSON lenient decode
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154519
+- file:
+    name: 154446.yaml
+    checksum: e4e797c205d1f2e22e71685f966c54d1772af0b0
+  type: enhancement
+  title: Track Painless lambda and method-reference allocations
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Infra/Scripting
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154446
+- file:
+    name: 153213.yaml
+    checksum: 81c33b82e487b23159a4e8494f8404e984765d80
+  type: bug-fix
+  title: Fix spurious HTTP 409 conflicts when waiting for model allocation
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153213
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/146835
+- file:
+    name: 154795.yaml
+    checksum: 9fe3617d277466beca7e6b9d04a20d53ef63a09c
+  type: bug-fix
+  title: Fix cryptic ingest errors for empty inference processor `target_field`
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Machine learning
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154795
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/88059
+- file:
+    name: 154412.yaml
+    checksum: 248b5c3ca5d3db0079b119878a722a98efdcfd1e
+  type: enhancement
+  title: Harden concurrent additions of relocated point-in-time contexts
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154412
+- file:
+    name: 154594.yaml
+    checksum: 77b2f2afd05431951d457a0f7cc53b79d52a526a
+  type: feature
+  title: Add AI Index component templates
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154594
+- file:
+    name: 154652.yaml
+    checksum: 28dbf23c635211c277907e515d4add9df2d2dd6b
+  type: bug-fix
+  title: Fix incorrect snapshot diffs after resharding
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154652
+- file:
+    name: 154717.yaml
+    checksum: af8426c4112a846a3bf81d56dc4c484d25b8ccf8
+  type: bug-fix
+  title: Fix PromQL `topk()` over already-aggregated vectors
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154717
+- file:
+    name: 154632.yaml
+    checksum: 6cb6b1da974d2242ee5c844713da2fe0939336f6
+  type: bug-fix
+  title: Fix SSE parser issues in the Inference API
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154632
+- file:
+    name: 150893.yaml
+    checksum: de0aee0d0983f873d71fb1545cc982e1c32dee95
+  type: enhancement
+  title: Enable post-filtering for kNN search
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/150893
+- file:
+    name: 154716.yaml
+    checksum: 0f43e2323866f66c226efe8797c2f4a20c772ceb
+  type: bug-fix
+  title: Fix slow wildcard `DROP` performance in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154716
+- file:
+    name: 152990.yaml
+    checksum: ea5ce839587c86632f9de75f5288361646d5cdc0
+  type: feature
+  title: Add chunking for final time-series aggregation output
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/152990
+- file:
+    name: 154956.yaml
+    checksum: 34bbffc2e242c26d4c73e5ff7859417844ea3f96
+  type: bug-fix
+  title: Fix node crashes when full-text functions in WHERE cannot be pushed down
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154956
+- file:
+    name: 153298.yaml
+    checksum: c81b26b7d420c87f7dd9d9387b4cbd0d57ec0ebb
+  type: bug-fix
+  title: Fix transform restart failures caused by transient errors
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Transform
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/153298
+- file:
+    name: 154526.yaml
+    checksum: 0bd22322eb0fcb2ec56aa2d557ccdde07258dcea
+  type: bug-fix
+  title: Fix incorrect schema and split position on external text reads
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154526
+- file:
+    name: 154422.yaml
+    checksum: e7454f0b2dd300f98900e6d4c22184622ee789dc
+  type: enhancement
+  title: Add a setting to disable ES|QL federation
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154422
+  issues:
+  - '# PRIVATE: https://github.com/elastic/esql-planning/issues/1419'
+- file:
+    name: 154567.yaml
+    checksum: 74d225901265d9c8f1746ae01d6bb1feedeca43b
+  type: enhancement
+  title: Add conditional loading of templates based on node features
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154567
+- file:
+    name: 154475.yaml
+    checksum: 9ee18471c548f2747bfebe6c763b27c63f6c0450
+  type: feature
+  title: Add `MV_LIKE` and `MV_RLIKE` for pattern matching over multivalued fields
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154475
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154427
+- file:
+    name: 154547.yaml
+    checksum: a503ef2d1d43ad20fb26136da1d957676474c536
+  type: bug-fix
+  title: Fix `date_nanos` time-series aggregations
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154547
+- file:
+    name: 154951.yaml
+    checksum: bdf38744ad165c288a56997a0f23e7d0688e6a93
+  type: enhancement
+  title: Add OTel and Prometheus plugin enabled settings
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - TSDB
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154951
+- file:
+    name: 154793.yaml
+    checksum: ddb81395be67c9528947cefb0ff0cb28e6e20adf
+  type: bug-fix
+  title: Fix analyzer crashes when token filters reference themselves
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - Analysis
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154793
+- file:
+    name: 154950.yaml
+    checksum: eac1258bac13a8b92ec715d8de15d17ffe2468c2
+  type: bug-fix
+  title: Fix logical operator folding on multivalued constants in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154950
+- file:
+    name: 152666.yaml
+    checksum: aac3a81dba5fa3cea9195b542a3dd952499cdcff
+  type: enhancement
+  title: Route field-sorted ES|QL TopN to DOC partitioning
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/152666
+- file:
+    name: 154931.yaml
+    checksum: 582e4eef12a359779a92186fb86511c37a5bb6ce
+  type: bug-fix
+  title: Fix temporality template loading on nodes without support
+  products:
+  - product: cloud-serverless
+    target: 2026-07-28
+  - product: elasticsearch
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/154931
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/153331

@@ -1,5 +1,6 @@
 config:
-  skip-target-branches: "main"
+  auto-retry: false
 steps:
   - label: validate-transport-version-backport
+    if: build.pull_request.base_branch =~ /^(\d+\.\d+|\d+\.x)$$/
     command: .buildkite/scripts/validate-transport-version-backport.sh

@@ -77,6 +77,16 @@ public abstract class AggregationScript extends DocBasedScript implements Scorer
         params = null;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     /**
      * Return the parameters for this script.
      */

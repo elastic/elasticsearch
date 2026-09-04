@@ -55,7 +55,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
             .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
             .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
-            .setting("reindex.remote.whitelist", "127.0.0.1:*")
+            .setting("reindex.remote.whitelist", "127.0.0.1:*,[::1]:*")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
@@ -70,6 +70,10 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             .user("powerful_user", "x-pack-test-password", "superuser", false)
             .user("minimal_user", "x-pack-test-password", "minimal", false)
             .user("minimal_with_task_user", "x-pack-test-password", "minimal_with_task", false)
+            .user("reindex_get_only_user", "x-pack-test-password", "reindex_get_only", false)
+            .user("reindex_list_only_user", "x-pack-test-password", "reindex_list_only", false)
+            .user("reindex_rethrottle_only_user", "x-pack-test-password", "reindex_rethrottle_only", false)
+            .user("reindex_cancel_only_user", "x-pack-test-password", "reindex_cancel_only", false)
             .user("readonly_user", "x-pack-test-password", "readonly", false)
             .user("dest_only_user", "x-pack-test-password", "dest_only", false)
             .user("can_not_see_hidden_docs_user", "x-pack-test-password", "can_not_see_hidden_docs", false)
@@ -104,7 +108,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * All tests run as a an administrative user but use <code>es-security-runas-user</code> to become a less privileged user.
+     * All tests run as an administrative user.
      */
     @Override
     protected Settings restClientSettings() {

@@ -16,7 +16,9 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -40,9 +42,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestMultiSearchTemplateAction(Settings settings) {
+    public RestMultiSearchTemplateAction(Settings settings, CrossProjectModeDecider crossProjectModeDecider) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -61,9 +63,23 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(
+                MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION,
+                multiRequest,
+                RestActions.wrapWithSearchMetricsHeader(
+                    client.threadPool().getThreadContext(),
+                    MultiSearchTemplateResponse::mergeDirectoryMetrics,
+                    new RestRefCountedChunkedToXContentListener<>(channel)
+                )
+            );
+        };
     }
 
     /**
@@ -73,7 +89,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
-        if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
+        if (crossProjectEnabled) {
             multiRequest.setProjectRouting(restRequest.param("project_routing"));
             multiRequest.indicesOptions(
                 IndicesOptions.builder(multiRequest.indicesOptions())

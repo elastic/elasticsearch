@@ -11,37 +11,50 @@ In case of value exclusions, fields with `null` values will be excluded from sea
 In this context a `null` means either there is an explicit `null` value in the document or
 there is no value at all. For example: `WHERE field != "value"` will be interpreted as
 `WHERE field != "value" AND field IS NOT NULL`.
+
+For more information, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 WHERE expression
 ```
 
-**Parameters**
+## Parameters
 
 `expression`
 :   A boolean expression.
 
-**Examples**
+## Examples
 
-:::{include} ../examples/docs.csv-spec/where.md
+The following examples show common ways to filter rows with `WHERE`.
+
+### Filter rows by field value
+
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/where.md
 :::
+
 Which, if `still_hired` is a boolean field, can be simplified to:
 
-:::{include} ../examples/docs.csv-spec/whereBoolean.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/whereBoolean.md
 :::
+
+### Filter by time range
+
 Use date math to retrieve data from a specific time range. For example, to
 retrieve the last hour of logs:
 
-:::{include} ../examples/date.csv-spec/docsNowWhere.md
+:::{include} ../../generated/x-pack-esql/commands/examples/date.csv-spec/docsNowWhere.md
 :::
-`WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
-For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-length) function:
 
-:::{include} ../examples/docs.csv-spec/whereFunction.md
+### Use WHERE with a function
+
+`WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
+For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions/length.md) function:
+
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/whereFunction.md
 :::
 
 For a complete list of all functions, refer to [Functions overview](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
@@ -49,23 +62,21 @@ For a complete list of all functions, refer to [Functions overview](/reference/q
 ### NULL Predicates
 
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
+To learn how `NULL` affects `WHERE`, comparisons, and boolean logic, refer to [Working with NULL values in {{esql}}](/reference/query-languages/esql/esql-null-values.md).
 
-:::{include} ../../operators/examples/is_null.md
+:::{include} ../../generated/x-pack-esql/operators/examples/is_null.md
 :::
 
-:::{include} ../../operators/examples/is_not_null.md
+:::{include} ../../generated/x-pack-esql/operators/examples/is_not_null.md
 :::
 
 ### Matching text
 
-For matching text, you can use [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) like `MATCH`.
-
-Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) to perform a
+Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) to perform a
 [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
+`MATCH` works on text fields as well as boolean, date, and numeric types.
 
-Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
-
-:::{include} ../../functions/examples/match.md
+:::{include} ../../generated/x-pack-esql/functions/examples/match.md
 :::
 
 ::::{tip}
@@ -82,24 +93,24 @@ The following wildcard characters are supported:
 * `*` matches zero or more characters.
 * `?` matches one character.
 
-:::{include} ../../operators/types/like.md
+:::{include} ../../generated/x-pack-esql/operators/types/like.md
 :::
 
-:::{include} ../../operators/examples/like.md
+:::{include} ../../generated/x-pack-esql/operators/examples/like.md
 :::
 
-:::{include} ../../operators/detailedDescription/like.md
+:::{include} ../../generated/x-pack-esql/operators/detailedDescription/like.md
 :::
 
 Use `RLIKE` to filter data based on string patterns using using [regular expressions](/reference/query-languages/query-dsl/regexp-syntax.md). `RLIKE` usually acts on a field placed on the left-hand side of the operator, but it can also act on a constant (literal) expression. The right-hand side of the operator represents the pattern.
 
-:::{include} ../../operators/types/rlike.md
+:::{include} ../../generated/x-pack-esql/operators/types/rlike.md
 :::
 
-:::{include} ../../operators/examples/rlike.md
+:::{include} ../../generated/x-pack-esql/operators/examples/rlike.md
 :::
 
-:::{include} ../../operators/detailedDescription/rlike.md
+:::{include} ../../generated/x-pack-esql/operators/detailedDescription/rlike.md
 :::
 
 ### IN
@@ -107,7 +118,9 @@ Use `RLIKE` to filter data based on string patterns using using [regular express
 The `IN` operator allows testing whether a field or expression equals an element
 in a list of literals, fields or expressions:
 
-:::{include} ../../operators/examples/in.md
+:::{include} ../../generated/x-pack-esql/operators/examples/in.md
 :::
+
+You can also use a subquery on the right-hand side of `IN` or `NOT IN` to filter rows against the results of another query. To learn more, refer to [Filter rows with IN subqueries](/reference/query-languages/esql/esql-in-subquery.md).
 
 For a complete list of all operators, refer to [Operators](/reference/query-languages/esql/esql-functions-operators.md#esql-operators-overview).

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.List;
 
 public class InlineStatsGenerator extends StatsGenerator {
-    public static final String INLINE_STATS = "inline stats";
+    public static final String INLINE_STATS = "inline_stats";
     public static final CommandGenerator INSTANCE = new InlineStatsGenerator();
 
     @Override

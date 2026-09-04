@@ -82,6 +82,11 @@ public class ExchangeSourceOperator extends SourceOperator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return false;
+    }
+
+    @Override
     public void close() {
         finish();
     }

@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
     public WildcardFieldBlockLoaderTests(Params params) {
@@ -41,12 +43,17 @@ public class WildcardFieldBlockLoaderTests extends BlockLoaderTestCase {
             return convert(s, nullValue, ignoreAbove);
         }
 
-        var resultList = ((List<String>) value).stream()
-            .map(s -> convert(s, nullValue, ignoreAbove))
-            .filter(Objects::nonNull)
-            .distinct()
-            .sorted()
-            .toList();
+        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
+            .filter(Objects::nonNull);
+
+        // Strictly columnar index modes store values in document order, keeping duplicates, instead of sorting and deduplicating them.
+        boolean preserveOrder = params.indexMode().isColumnar();
+        var resultList = preserveOrder
+            ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
+            : convertValues.andThen(Stream::distinct)
+                .andThen(Stream::sorted)
+                .andThen(Stream::toList)
+                .apply(((List<String>) value).stream());
         return maybeFoldList(resultList);
     }
 

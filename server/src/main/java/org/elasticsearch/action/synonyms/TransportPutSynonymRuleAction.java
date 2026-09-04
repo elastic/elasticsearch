@@ -13,7 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
@@ -24,7 +26,13 @@ public class TransportPutSynonymRuleAction extends HandledTransportAction<PutSyn
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Inject
-    public TransportPutSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportPutSynonymRuleAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
         super(
             PutSynonymRuleAction.NAME,
             transportService,
@@ -33,7 +41,7 @@ public class TransportPutSynonymRuleAction extends HandledTransportAction<PutSyn
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
+        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService, featureService);
     }
 
     @Override

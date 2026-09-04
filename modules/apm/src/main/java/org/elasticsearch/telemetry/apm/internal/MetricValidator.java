@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.telemetry.apm.metrics.MetricAttributes;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +23,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_DEPLOYMENT_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_COUNT_TOTAL;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_REQUEST_DURATION;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
 
 public class MetricValidator {
     static final int MAX_LENGTH = 255;
@@ -67,7 +74,16 @@ public class MetricValidator {
         "es.thread_pool.searchable_snapshots_cache_fetch_async.*",
         "es.thread_pool.searchable_snapshots_cache_prewarming.*",
         "es.thread_pool.security-crypto.*",
-        "es.thread_pool.security-token-key.*"
+        "es.thread_pool.security-token-key.*",
+        // APM Java agent-compatible metric names (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+        "system.cpu.*",
+        "system.memory.*",
+        "system.process.*",
+        "jvm.fd.*",
+        "jvm.file_descriptor.*",
+        "jvm.gc.*",
+        "jvm.memory.*",
+        "jvm.thread.*"
     );
 
     /**
@@ -91,6 +107,13 @@ public class MetricValidator {
          */
         static final Set<String> OTEL_ATTRIBUTES = Set.of(MetricAttributes.ERROR_TYPE);
 
+        /**
+         * Routing attribute consumed by apm-server to direct a datapoint to a specific data stream
+         * (see apm-data {@code input/otlp}). It is stripped during ingestion and never stored as a
+         * label, so it is permitted on any metric regardless of the attribute naming pattern.
+         */
+        static final String DATA_STREAM_DATASET_ATTRIBUTE = "data_stream.dataset";
+
         static final Set<String> SEARCH_ATTRIBUTES = Set.of(
             "knn",
             "pit_scroll",
@@ -105,11 +128,8 @@ public class MetricValidator {
 
         static final Set<String> REPO_ATTRIBUTES = Set.of("operation", "purpose", "repo_name", "repo_type");
         static final Set<String> REPO_SNAPSHOT_ATTRIBUTES = Set.of("repo_name", "repo_type", "state", "stage");
-        static final Set<String> REPO_S3_ATTRIBUTES = Sets.addToCopy(REPO_ATTRIBUTES, "action");
 
         static final Set<String> REINDEX_ATTRIBUTES = Set.of("reindex_source");
-
-        static final Set<String> RECOVERY_ATTRIBUTES = Set.of("primary", "recovery_type");
 
         static final Set<String> ESQL_ATTRIBUTES = Set.of("feature_name", "success");
 
@@ -119,7 +139,12 @@ public class MetricValidator {
 
         static final Set<String> BLOB_CACHE_ATTRIBUTES = Set.of("executor", "file_extension", "reason", "source");
 
-        static final Set<String> INFERENCE_ATTRIBUTES = Set.of("inference_source", "service", "status_code", "task_type");
+        static final Set<String> INFERENCE_ATTRIBUTES = Set.of(
+            INFERENCE_SOURCE_ATTRIBUTE,
+            SERVICE_ATTRIBUTE,
+            STATUS_CODE_ATTRIBUTE,
+            TASK_TYPE_ATTRIBUTE
+        );
 
         static final Set<String> ML_ATTRIBUTES = Set.of("deployment_id", "scales_to_zero");
 
@@ -178,25 +203,20 @@ public class MetricValidator {
             Map.entry("es.esql.commands.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.functions.queries.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.functions.usages.total", ESQL_ATTRIBUTES),
-            Map.entry("es.inference.requests.count.total", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.requests.time", INFERENCE_ATTRIBUTES),
-            Map.entry("es.inference.trained_model.deployment.time", INFERENCE_ATTRIBUTES),
+            Map.entry("es.esql.settings.queries.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.settings.usages.total", ESQL_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_COUNT_TOTAL, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_REQUEST_DURATION, INFERENCE_ATTRIBUTES),
+            Map.entry(INFERENCE_DEPLOYMENT_DURATION, INFERENCE_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.actual_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.ml.trained_models.adaptive_allocations.needed_number_of_allocations.current", ML_ATTRIBUTES),
             Map.entry("es.projects.linked.connections.error.total", LINKED_PROJECT_ATTRIBUTES),
-            Map.entry("es.recovery.shard.count.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.index.time", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.indexing_node.bytes_read.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.indexing_node.bytes_warmed.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.object_store.bytes_read.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.object_store.bytes_warmed.total", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.total.time", RECOVERY_ATTRIBUTES),
-            Map.entry("es.recovery.shard.translog.time", RECOVERY_ATTRIBUTES),
             Map.entry("es.recovery.translog.files.size", TRANSLOG_ATTRIBUTES),
             Map.entry("es.recovery.translog.files.total", TRANSLOG_ATTRIBUTES),
             Map.entry("es.recovery.translog.operations.total", TRANSLOG_ATTRIBUTES),
             Map.entry("es.reindex.completion.total", REINDEX_ATTRIBUTES),
             Map.entry("es.reindex.duration.histogram", REINDEX_ATTRIBUTES),
+            Map.entry("es.reindex.relocation.total", REINDEX_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.request_range_not_satisfied.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.total", REPO_ATTRIBUTES),
@@ -204,9 +224,9 @@ public class MetricValidator {
             Map.entry("es.repositories.operations.unsuccessful.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.requests.http_request_time.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.requests.total", REPO_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.attempts.histogram", REPO_S3_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.event.total", REPO_S3_ATTRIBUTES),
-            Map.entry("es.repositories.s3.input_stream.retry.success.total", REPO_S3_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.attempts.histogram", REPO_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.event.total", REPO_ATTRIBUTES),
+            Map.entry("es.repositories.input_stream.retry.success.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.blobs.uploaded.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.by_state.current", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.completed.total", REPO_SNAPSHOT_ATTRIBUTES),
@@ -217,13 +237,40 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.shards.completed.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.current", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.duration.histogram", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.queue_time.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.started.total", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.histogram", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.unsuccessful.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.bytes.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.read_time.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.upload_time.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.throttles.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.throttles.total", REPO_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.can_match.result.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs.result.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.dfs_query.result.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.fetch.result.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.query.result.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.request.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.request.bytes.total", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.result.bytes.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search.coord.rank_feature.result.bytes.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search.query.aggregations.total", Set.of("aggregation_name", "values_source")),
             Map.entry("es.search_response.response_count.total", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.can_match.histogram", SEARCH_ATTRIBUTES),
@@ -233,6 +280,7 @@ public class MetricValidator {
             Map.entry("es.search_response.took_durations.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.open_pit.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.query.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search_response.store_bytes_read.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search.shards.phases.can_match.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.dfs.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.fetch.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
@@ -240,7 +288,16 @@ public class MetricValidator {
             Map.entry("es.tsdb.downsample.actions.shard.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.actions.total", DOWNSAMPLE_ATTRIBUTES),
             Map.entry("es.tsdb.downsample.latency.shard.histogram", DOWNSAMPLE_ATTRIBUTES),
-            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES)
+            Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES),
+            // APM Java agent-compatible metrics (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+            Map.entry("jvm.gc.count", Set.of("name")),
+            Map.entry("jvm.gc.time", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.max", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.max", Set.of("name"))
         );
 
         // forbidden attributes known to cause issues due to mapping conflicts or high cardinality
@@ -315,7 +372,13 @@ public class MetricValidator {
                 );
 
             assert Attributes.OTEL_ATTRIBUTES.contains(attribute)
+                || Attributes.DATA_STREAM_DATASET_ATTRIBUTE.equals(attribute)
                 || Attributes.SKIP_VALIDATION.getOrDefault(metricName, emptySet()).contains(attribute)
+                // allow percentile for all thread pools
+                // https://github.com/elastic/dev/issues/3436 remove the usage of percentile as attribute and move to metric name.
+                || (metricName.startsWith("es.thread_pool.") && attribute.equals("percentile"))
+                // ML metrics use dot-separated attribute key
+                || (metricName.startsWith("es.ml.") && attribute.equals("es.ml.is_master"))
                 || Attributes.ATTRIBUTE_PATTERN.matcher(attribute).matches()
                 : Strings.format(
                     "Attribute [%s] of [%s] does not match the required naming pattern [%s], see the naming guidelines.",

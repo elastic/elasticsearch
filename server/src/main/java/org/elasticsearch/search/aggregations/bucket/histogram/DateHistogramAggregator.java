@@ -91,7 +91,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Rounding.Prepared preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
+        // Under a `global` agg the top-level query is ignored, so the rounding must not narrow by it
+        Rounding.Prepared preparedRounding = (BucketsAggregator.descendsFromGlobalAggregator(parent)
+            ? valuesSourceConfig.roundingPreparerForGlobal(context)
+            : valuesSourceConfig.roundingPreparer(context)).apply(rounding);
         Aggregator asRange = adaptIntoRangeOrNull(
             name,
             factories,
@@ -176,6 +179,13 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return null;
         }
         RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
+        if (ranges.length == 0) {
+            // hard_bounds excludes every fixed rounding point; fall back to the regular aggregator
+            // rather than adapting into a RangeAggregator with zero ranges, preserving the
+            // expected date_histogram behavior of producing an empty histogram.
+            logger.trace("couldn't adapt [{}], hard_bounds excludes all fixed rounding points", name);
+            return null;
+        }
         return new DateHistogramAggregator.FromDateRange(
             parent,
             factories,

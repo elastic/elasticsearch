@@ -50,7 +50,9 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         GetDesiredNodesAction.NAME,
         UpdateDesiredNodesAction.NAME,
         TransportGetDesiredBalanceAction.TYPE.name(),
-        TransportDeleteDesiredBalanceAction.TYPE.name()
+        TransportDeleteDesiredBalanceAction.TYPE.name(),
+        // Encryption reset
+        "cluster:admin/encryption/reset"
     );
 
     private final ClusterSettings clusterSettings;

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
@@ -20,6 +21,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -53,12 +57,52 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return oldClusterHasFeature(feature.id());
     }
 
+    private static boolean randomizeColumnarIndexMode;
+
+    /**
+     * Opt in to randomly running with the {@code logsdb_columnar} index mode in addition to plain
+     * {@code logsdb}. Call from a static initializer in the concrete subclass:
+     * <pre>{@code
+     * static {
+     *     enableColumnarIndexModeRandomization();
+     * }
+     * }</pre>
+     * The columnar mode is only applied when the old cluster version already supports it (≥ 9.5.0).
+     */
+    protected static void enableColumnarIndexModeRandomization() {
+        randomizeColumnarIndexMode = true;
+    }
+
+    // Set in columnarRandomizer.before() and exposed so that opt-in subclasses can branch their
+    // assertions on which mode was actually selected for the run.
+    protected static boolean columnarEnabled;
+
+    private static final ExternalResource columnarRandomizer = new ExternalResource() {
+        @Override
+        protected void before() {
+            String oldVersionProp = System.getProperty("tests.old_cluster_version");
+            columnarEnabled = randomizeColumnarIndexMode
+                && oldVersionProp != null
+                && Version.fromString(oldVersionProp).onOrAfter(Version.fromString("9.5.0"))
+                && randomBoolean();
+        }
+
+        @Override
+        protected void after() {
+            // Reset so the flag from an opt-in class does not bleed into subsequent classes in the
+            // same JVM. The subclass static initializer re-sets it before the next class's before().
+            randomizeColumnarIndexMode = false;
+        }
+    };
+
+    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS, () -> columnarEnabled);
+
     @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
+    public static final TestRule ruleChain = RuleChain.outerRule(columnarRandomizer).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getCluster().getHttpAddresses();
     }
 
     protected Settings restClientSettings() {
@@ -66,7 +110,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void upgradeNode(int n) throws IOException {
+    protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
         closeClients();
 
         var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
@@ -74,10 +118,22 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         var newClusterVersion = System.getProperty("tests.new_cluster_version");
         logger.info("serverlessBwcStackVersion={}, bwcTag={}, newClusterVersion={}", serverlessBwcStackVersion, bwcTag, newClusterVersion);
 
+        int[] count = new int[1];
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
-        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        cluster.upgradeNodeToVersion(n, upgradeVersion);
+        getCluster().upgradeToVersion(upgradeVersion, () -> {
+            try {
+                initClient();
+                onNodeUpgradeComplete.accept(count[0]++);
+                closeClients();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         initClient();
+    }
+
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
     }
 
     static String formatInstant(Instant instant) {
@@ -128,5 +184,11 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
         putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));
+    }
+
+    @Override
+    protected final boolean resetFeatureStates() {
+        // /_features/_reset can fail on recently-upgraded clusters
+        return false;
     }
 }

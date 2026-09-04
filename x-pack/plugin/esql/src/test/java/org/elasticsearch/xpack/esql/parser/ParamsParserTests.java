@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -823,6 +824,22 @@ public class ParamsParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testNullDoubleParamsValue() {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        String error = "Query parameter [??f1] is null";
+        List<String> commandWithDoubleParams = List.of(
+            "eval x = ??f1",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "keep ??f1",
+            "drop ??f1",
+            "mv_expand ??f1"
+        );
+        for (String command : commandWithDoubleParams) {
+            expectError("from test | " + command, List.of(paramAsConstant("f1", null)), error);
+        }
+    }
+
     public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             LogicalPlan anonymous = query(
@@ -843,6 +860,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 "row a = \"abc\" | where a like ?",
                 List.of(paramAsConstant(null, List.of("a*", "b*"))),
                 "Invalid pattern parameter type for like [?]: expected string, found list"
+            );
+            expectError(
+                "row a = \"abc\" | where a like ?",
+                List.of(paramAsConstant(null, null)),
+                "Invalid pattern parameter type for like [?]: expected string, found null"
             );
         }
     }
@@ -868,6 +890,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant(null, "a*"), paramAsConstant(null, 1)),
                 "No parameter is defined for position 3, did you mean any position between 1 and 2?"
             );
+            expectError(
+                "row a = \"abc\" | where a like ( ?1, ?2 )",
+                List.of(paramAsConstant(null, "a*"), paramAsConstant(null, null)),
+                "Invalid pattern parameter type for like [?2]: expected string, found null"
+            );
         }
     }
 
@@ -890,6 +917,11 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 "row a = \"abc\" | where a rlike ?pattern1",
                 List.of(paramAsConstant("pattern", 1)),
                 "Unknown query parameter [pattern1], did you mean [pattern]?"
+            );
+            expectError(
+                "row a = \"abc\" | where a rlike ?pattern",
+                List.of(paramAsConstant("pattern", null)),
+                "Invalid pattern parameter type for rlike [?pattern]: expected string, found null"
             );
         }
     }
@@ -915,6 +947,42 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", 1)),
                 "Unknown query parameter [p3], did you mean any of [p1, p2]?"
             );
+            expectError(
+                "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
+                List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", null)),
+                "Invalid pattern parameter type for rlike [?p2]: expected string, found null"
+            );
         }
+    }
+
+    public void testLikeConstantExpressionParam() {
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        // A bare `?param` of the wrong type is still rejected at parse time (fast path).
+        expectError(
+            "row a = \"abc\" | where a like ?p",
+            List.of(paramAsConstant("p", 12)),
+            "Invalid pattern parameter type for like [?p]: expected string, found integer"
+        );
+        // A null param is also rejected at parse time (DataType.NULL is not a string).
+        expectError(
+            "row a = \"abc\" | where a like ?p",
+            List.of(paramAsConstant("p", null)),
+            "Invalid pattern parameter type for like [?p]: expected string, found null"
+        );
+
+        // A parenthesized `(?param)` is a primaryExpression, so it bypasses the parse-time parameter-type check
+        // and is deferred to the optimizer as an DeferredRegexExpression (the type error, if any, surfaces later).
+        LogicalPlan parenParam = query("row a = \"abc\" | where a like (?p)", new QueryParams(List.of(paramAsConstant("p", 12))));
+        Filter parenFilter = as(parenParam, Filter.class);
+        DeferredRegexExpression parenRegex = as(parenFilter.condition(), DeferredRegexExpression.class);
+        assertEquals(DeferredRegexExpression.Variant.LIKE, parenRegex.variant());
+
+        // A parameter nested inside a constant expression is likewise deferred.
+        LogicalPlan concatParam = query(
+            "row a = \"abc\" | where a like concat(?p, \"*\")",
+            new QueryParams(List.of(paramAsConstant("p", "Eber")))
+        );
+        Filter concatFilter = as(concatParam, Filter.class);
+        assertEquals(DeferredRegexExpression.class, concatFilter.condition().getClass());
     }
 }

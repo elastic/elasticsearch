@@ -172,33 +172,12 @@ public interface NativeAccess {
 
     void tryPreallocate(Path file, long size);
 
-    /*
-     * Returns the vector similarity functions, or an empty optional.
-     */
-    Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
-
     /**
-     * Creates a new {@link CloseableByteBuffer} using a shared arena. The buffer can be used
-     * across multiple threads.
-     * @param len the number of bytes the buffer should allocate
-     * @return the buffer
-     */
-    CloseableByteBuffer newSharedBuffer(int len);
-
-    /**
-     * Creates a new {@link CloseableByteBuffer} using a confined arena. The buffer must be
-     * used within the same thread that it is created.
-     * @param len the number of bytes the buffer should allocate
-     * @return the buffer
-     */
-    CloseableByteBuffer newConfinedBuffer(int len);
-
-    /**
-     * Creates a new {@link CloseableMappedByteBuffer} using a shared arena. The buffer can be used
+     * Creates a new {@link MappedSegment} using a shared arena. The segment can be used
      * across multiple threads, and should be closed.
-     * @return the buffer
+     * @return the mapped segment
      */
-    CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
+    MappedSegment map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
 
     /**
      * Possible stats for execution filtering.

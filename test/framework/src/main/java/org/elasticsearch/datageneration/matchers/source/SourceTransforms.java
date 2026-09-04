@@ -39,6 +39,19 @@ public class SourceTransforms {
         return flattened;
     }
 
+    public static Map<String, List<Object>> normalize(
+        List<Map<String, Object>> documentMapList,
+        Map<String, Map<String, Object>> mappingLookup
+    ) {
+        var flattened = new TreeMap<String, List<Object>>();
+
+        for (var documentMap : documentMapList) {
+            descend(null, documentMap, flattened, mappingLookup);
+        }
+
+        return flattened;
+    }
+
     public static <T> List<T> normalizeValues(List<T> values) {
         if (values == null) {
             return Collections.emptyList();

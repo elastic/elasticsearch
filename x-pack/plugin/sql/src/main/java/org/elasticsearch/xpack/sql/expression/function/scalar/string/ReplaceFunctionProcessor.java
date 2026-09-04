@@ -67,6 +67,9 @@ public class ReplaceFunctionProcessor implements Processor {
 
     private static void checkResultLength(String input, String pattern, String replacement) {
         int patternLen = pattern.length();
+        if (patternLen == 0) {
+            return;
+        }
         long matches = 0;
         for (int i = input.indexOf(pattern); i >= 0; i = input.indexOf(pattern, i + patternLen)) {
             matches++;

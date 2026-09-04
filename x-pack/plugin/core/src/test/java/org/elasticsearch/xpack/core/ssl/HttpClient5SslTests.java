@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -341,7 +342,8 @@ public class HttpClient5SslTests extends ESTestCase {
         assertThat(requireClientCert, equalTo(tlsConfig.needClientAuth()));
 
         server = new MockWebServer(context, tlsConfig);
-        server.start();
+        // Use IPv4 explicitly because the test certificates only have SANs for 127.0.0.1 and localhost
+        server.start(InetAddress.getByName("127.0.0.1"));
         logger.info("Server is listening at: {}", server.getUri("/"));
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
@@ -61,22 +62,23 @@ public class EnterpriseSearchBaseRestHandlerTests extends ESTestCase {
         };
 
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), isLicensed ? 0 : 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean());
 
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             assertFalse(consumerCalled.get());
             verifyNoMoreInteractions(licenseState);
-            handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
             if (isLicensed) {
+                handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
                 assertTrue(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());
                 assertEquals(0, fakeRestChannel.errors().get());
             } else {
+                expectThrows(ElasticsearchSecurityException.class, () -> handler.handleRequest(fakeRestRequest, fakeRestChannel, client));
                 assertFalse(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());
-                assertEquals(1, fakeRestChannel.errors().get());
+                assertEquals(0, fakeRestChannel.errors().get());
             }
         }
     }

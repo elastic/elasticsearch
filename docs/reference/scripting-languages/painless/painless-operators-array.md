@@ -14,7 +14,7 @@ products:
 
 Use the `array initialization operator '[] {}'` to allocate a single-dimensional [array type](/reference/scripting-languages/painless/painless-types.md#array-type) instance to the heap with a set of pre-defined elements. Each value used to initialize an element in the array type instance is cast to the specified element type value upon insertion. The order of specified values is maintained.
 
-% For help with troubleshooting, refer to [Array/List manipulation errors](docs-content://troubleshoot/elasticsearch/painless-array-list-manipulation-errors.md).
+For help with any required debugging, refer to [Debug array manipulation errors in Painless](docs-content://explore-analyze/scripting/painless-array-list-manipulation-errors.md).
 
 **Errors**
 

@@ -41,8 +41,7 @@ public class RestClusterInfoActionTests extends ESTestCase {
     private RestClusterInfoAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAction() throws Exception {
         action = new RestClusterInfoAction(() -> ProjectId.DEFAULT);
     }
 

@@ -12,6 +12,7 @@ package org.elasticsearch.inference;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -29,7 +30,8 @@ public interface InferenceServiceExtension {
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
-        InferenceStats inferenceStats
+        InferenceStats inferenceStats,
+        FeatureService featureService
     ) {}
 
     interface Factory {

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,17 +32,17 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
     public static final Setting<TimeValue> FORECAST_WINDOW = Setting.timeSetting("forecast_window", TimeValue.timeValueMinutes(30));
 
     private final DiskThresholdSettings diskThresholdSettings;
-    private final AllocationDeciders allocationDeciders;
+    private final AllocationService allocationService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     public ProactiveStorageDeciderService(
         Settings settings,
         ClusterSettings clusterSettings,
-        AllocationDeciders allocationDeciders,
+        AllocationService allocationService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.allocationDeciders = allocationDeciders;
+        this.allocationService = allocationService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
     }
 
@@ -69,7 +69,7 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             context,
             diskThresholdSettings,
-            allocationDeciders,
+            allocationService,
             shardRoutingRoleStrategy
 
         );

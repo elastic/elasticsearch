@@ -263,6 +263,15 @@ public final class SourceDestValidator {
     public static final SourceDestValidation REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION = new RemoteSourceNotSupportedValidation();
     public static final SourceDestValidation DESTINATION_PIPELINE_MISSING_VALIDATION = new DestinationPipelineMissingValidation();
 
+    public SourceDestValidator(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        String nodeName,
+        String license
+    ) {
+        this(indexNameExpressionResolver, remoteClusterService, null, null, nodeName, license);
+    }
+
     /**
      * Create a new Source Dest Validator
      *
@@ -286,6 +295,16 @@ public final class SourceDestValidator {
         this.ingestService = ingestService;
         this.nodeName = nodeName;
         this.license = license;
+    }
+
+    public void validate(
+        final ClusterState clusterState,
+        final String[] source,
+        final String destIndex,
+        final List<SourceDestValidation> validations,
+        final ActionListener<Boolean> listener
+    ) {
+        validate(clusterState, source, destIndex, null, validations, listener);
     }
 
     /**
@@ -555,7 +574,9 @@ public final class SourceDestValidator {
 
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
-            if (context.resolveRemoteSource().isEmpty() == false) {
+            // _origin: is the CPS local-project qualifier — it must not be treated as a remote cluster reference
+            boolean hasNonOriginRemoteSource = context.resolveRemoteSource().stream().anyMatch(idx -> idx.startsWith("_origin:") == false);
+            if (hasNonOriginRemoteSource) {
                 context.addValidationError(REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED);
             }
             listener.onResponse(context);

@@ -23,7 +23,9 @@ public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
-    private int linkedProjectsCount = 0;
+    private final Map<String, Integer> settings = new HashMap<>();
+    private Integer linkedProjectsCount = null;
+    private boolean externalSource = false;
 
     public PlanTelemetry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
@@ -33,12 +35,30 @@ public class PlanTelemetry {
         map.compute(key.toUpperCase(Locale.ROOT), (k, count) -> count == null ? 1 : count + 1);
     }
 
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
+    }
+
     public void linkedProjectsCount(int linkedProjectsCount) {
         this.linkedProjectsCount = linkedProjectsCount;
     }
 
-    public int linkedProjectsCount() {
+    public Integer linkedProjectsCount() {
         return linkedProjectsCount;
+    }
+
+    /**
+     * Marks that the query touched an ES|QL external data source (an {@code ExternalRelation} was present in the
+     * analyzed plan). Read at query completion so the coordinator emits external-source-scoped operational metrics
+     * only for queries that actually scanned an external source.
+     */
+    public void externalSource(boolean externalSource) {
+        this.externalSource = externalSource;
+    }
+
+    /** Whether the analyzed plan touched an ES|QL external data source; gates the external-source query metrics at completion. */
+    public boolean externalSource() {
+        return externalSource;
     }
 
     public void command(TelemetryAware command) {
@@ -58,11 +78,19 @@ public class PlanTelemetry {
         add(functions, functionRegistry.snapshotRegistry().functionName(clazz));
     }
 
+    public void setting(String name) {
+        add(settings, name);
+    }
+
     public Map<String, Integer> commands() {
         return commands;
     }
 
     public Map<String, Integer> functions() {
         return functions;
+    }
+
+    public Map<String, Integer> settings() {
+        return settings;
     }
 }

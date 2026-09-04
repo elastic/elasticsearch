@@ -20,8 +20,10 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.reindex.management.ReindexManagementPlugin.CAPABILITY_REINDEX_MANAGEMENT_API;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /** REST handler for cancelling an ongoing reindex task. */
@@ -56,9 +58,13 @@ public class RestCancelReindexAction extends BaseRestHandler {
         }
 
         final boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
-        final CancelReindexRequest cancelRequest = new CancelReindexRequest(waitForCompletion);
-        cancelRequest.setTargetTaskId(taskId);
+        final CancelReindexRequest cancelRequest = new CancelReindexRequest(taskId, waitForCompletion);
 
         return channel -> client.execute(TransportCancelReindexAction.TYPE, cancelRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
     }
 }

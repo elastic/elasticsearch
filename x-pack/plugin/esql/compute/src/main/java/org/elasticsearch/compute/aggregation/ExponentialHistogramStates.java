@@ -16,18 +16,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogramHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
-import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 public final class ExponentialHistogramStates {
 
-    // We currently use a hardcoded limit for the number of buckets, we might make this configurable / an aggregation parameter later
-    // The current default is what's also used by the OpenTelemetry SDKs
-    public static final int MAX_BUCKET_COUNT = 320;
-
-    private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
+    public record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
         public void adjustBreaker(long bytesAllocated) {
             if (bytesAllocated < 0) {
@@ -50,18 +46,14 @@ public final class ExponentialHistogramStates {
             this.breaker = breaker;
         }
 
-        public void add(ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
             if (merger == null) {
-                merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, new HistoBreaker(breaker));
+                merger = ExponentialHistogramMerger.create(new HistoBreaker(breaker));
             }
-            if (allowUpscale) {
-                merger.add(histogram);
-            } else {
-                merger.addWithoutUpscaling(histogram);
-            }
+            merger.add(histogram);
         }
 
         @Override
@@ -96,12 +88,27 @@ public final class ExponentialHistogramStates {
 
     static final class GroupingState implements GroupingAggregatorState {
 
+        private final ExponentialHistogramMerger.Factory mergerFactory;
         private ObjectArray<ExponentialHistogramMerger> states;
         private final HistoBreaker breaker;
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.states = bigArrays.newObjectArray(1);
+            ObjectArray<ExponentialHistogramMerger> states = null;
+            ExponentialHistogramMerger.Factory mergerFactory = null;
+
+            boolean success = false;
+            try {
+                states = bigArrays.newObjectArray(1);
+                mergerFactory = ExponentialHistogramMerger.createFactory(new HistoBreaker(breaker));
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(states, mergerFactory);
+                }
+            }
+            this.states = states;
+            this.mergerFactory = mergerFactory;
             this.bigArrays = bigArrays;
             this.breaker = new HistoBreaker(breaker);
         }
@@ -114,28 +121,23 @@ public final class ExponentialHistogramStates {
             }
         }
 
-        public void add(int groupId, ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(int groupId, ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, breaker);
+                state = mergerFactory.createMerger();
                 states.set(groupId, state);
             }
-            if (allowUpscale) {
-                state.add(histogram);
-            } else {
-                state.addWithoutUpscaling(histogram);
-            }
+            state.add(histogram);
         }
 
         private void ensureCapacity(int groupId) {
             states = bigArrays.grow(states, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             try (
@@ -178,7 +180,7 @@ public final class ExponentialHistogramStates {
             for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
-            Releasables.close(states);
+            Releasables.close(states, mergerFactory);
             states = null;
         }
 
@@ -194,12 +196,12 @@ public final class ExponentialHistogramStates {
      */
     public static final class WithLongSingleState implements AggregatorState {
 
-        private final CircuitBreaker breaker;
+        private final ExponentialHistogramCircuitBreaker breaker;
         private long longValue;
-        private ReleasableExponentialHistogram histogramValue;
+        private CompressedExponentialHistogramHolder histogramValue;
 
         public WithLongSingleState(CircuitBreaker breaker) {
-            this.breaker = breaker;
+            this.breaker = new HistoBreaker(breaker);
         }
 
         public boolean isSeen() {
@@ -211,20 +213,13 @@ public final class ExponentialHistogramStates {
             return longValue;
         }
 
-        public ReleasableExponentialHistogram histogramValue() {
-            assert isSeen();
-            return histogramValue;
-        }
-
         public void set(long longValue, ExponentialHistogram histogram) {
             assert histogram != null;
             this.longValue = longValue;
-            ReleasableExponentialHistogram newValue;
-            try (var copyBuilder = ExponentialHistogram.builder(histogram, new HistoBreaker(breaker))) {
-                newValue = copyBuilder.build();
+            if (histogramValue == null) {
+                histogramValue = CompressedExponentialHistogramHolder.create(breaker);
             }
-            Releasables.close(histogramValue);
-            this.histogramValue = newValue;
+            histogramValue.set(histogram);
         }
 
         @Override
@@ -238,7 +233,7 @@ public final class ExponentialHistogramStates {
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
                 blocks[offset] = blockFactory.newConstantLongBlockWith(longValue, 1);
-                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(histogramValue, 1);
+                blocks[offset + 1] = blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
                 blocks[offset + 2] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
@@ -248,7 +243,7 @@ public final class ExponentialHistogramStates {
             if (histogramValue == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                return blockFactory.newConstantExponentialHistogramBlock(histogramValue, 1);
+                return blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
             }
         }
 
@@ -266,13 +261,13 @@ public final class ExponentialHistogramStates {
     public static final class WithLongGroupingState implements GroupingAggregatorState {
 
         private LongArray longValues;
-        private ObjectArray<ReleasableExponentialHistogram> histogramValues;
-        private final HistoBreaker breaker;
+        private ObjectArray<CompressedExponentialHistogramHolder> histogramValues;
+        private final ExponentialHistogramCircuitBreaker breaker;
         private final BigArrays bigArrays;
 
         WithLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             LongArray longValues = null;
-            ObjectArray<ReleasableExponentialHistogram> histogramValues = null;
+            ObjectArray<CompressedExponentialHistogramHolder> histogramValues = null;
             boolean success = false;
             try {
                 longValues = bigArrays.newLongArray(1);
@@ -292,10 +287,12 @@ public final class ExponentialHistogramStates {
         public void set(int groupId, long longValue, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            try (var copyBuilder = ExponentialHistogram.builder(histogramValue, breaker)) {
-                ReleasableExponentialHistogram old = histogramValues.getAndSet(groupId, copyBuilder.build());
-                Releasables.close(old);
+            CompressedExponentialHistogramHolder holder = histogramValues.get(groupId);
+            if (holder == null) {
+                holder = CompressedExponentialHistogramHolder.create(breaker);
+                histogramValues.set(groupId, holder);
             }
+            holder.set(histogramValue);
             longValues.set(groupId, longValue);
         }
 
@@ -304,7 +301,6 @@ public final class ExponentialHistogramStates {
             longValues = bigArrays.grow(longValues, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 3;
             try (
@@ -317,7 +313,7 @@ public final class ExponentialHistogramStates {
                     if (seen(groupId)) {
                         seenBuilder.appendBoolean(true);
                         longBuilder.appendLong(longValues.get(groupId));
-                        histoBuilder.append(histogramValues.get(groupId));
+                        histoBuilder.append(histogramValues.get(groupId).accessor());
                     } else {
                         seenBuilder.appendBoolean(false);
                         longBuilder.appendLong(0L);
@@ -354,7 +350,151 @@ public final class ExponentialHistogramStates {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     if (seen(groupId)) {
-                        builder.append(histogramValues.get(groupId));
+                        builder.append(histogramValues.get(groupId).accessor());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // noop
+        }
+
+    }
+
+    /**
+     * A state holding a single {@link ExponentialHistogram} without a sort key.
+     * The intermediate state contains two values in order: the histogram, and
+     * a boolean specifying if a value was set or not.
+     */
+    public static final class SeenSingleState implements AggregatorState {
+
+        private final CircuitBreaker breaker;
+        private CompressedExponentialHistogramHolder histogramValue;
+
+        public SeenSingleState(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public boolean isSeen() {
+            return histogramValue != null;
+        }
+
+        public void set(ExponentialHistogram histogram) {
+            assert histogram != null;
+            if (histogramValue == null) {
+                histogramValue = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
+            }
+            histogramValue.set(histogram);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            // in case of error, the blocks are closed by the caller
+            if (histogramValue == null) {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(ExponentialHistogram.empty(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
+            } else {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            }
+        }
+
+        public Block evaluateFinalHistogram(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (histogramValue == null) {
+                return blockFactory.newConstantNullBlock(1);
+            } else {
+                return blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(histogramValue);
+            histogramValue = null;
+        }
+    }
+
+    /**
+     * A grouping state consisting of a single {@link ExponentialHistogram} per group,
+     * without a sort key.
+     * The intermediate state contains two values in order: the histogram, and a boolean
+     * specifying if a value was set or not.
+     */
+    public static final class SeenGroupingState implements GroupingAggregatorState {
+
+        private ObjectArray<CompressedExponentialHistogramHolder> histogramValues;
+        private final CircuitBreaker breaker;
+        private final BigArrays bigArrays;
+
+        SeenGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            this.histogramValues = bigArrays.newObjectArray(1);
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+        }
+
+        public void set(int groupId, ExponentialHistogram histogramValue) {
+            assert histogramValue != null;
+            ensureCapacity(groupId);
+            CompressedExponentialHistogramHolder holder = histogramValues.get(groupId);
+            if (holder == null) {
+                holder = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
+                histogramValues.set(groupId, holder);
+            }
+            holder.set(histogramValue);
+        }
+
+        private void ensureCapacity(int groupId) {
+            histogramValues = bigArrays.grow(histogramValues, groupId + 1);
+        }
+
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            try (
+                var histoBuilder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        seenBuilder.appendBoolean(true);
+                        histoBuilder.append(histogramValues.get(groupId).accessor());
+                    } else {
+                        seenBuilder.appendBoolean(false);
+                        histoBuilder.append(ExponentialHistogram.empty());
+                    }
+                }
+                blocks[offset] = histoBuilder.build();
+                blocks[offset + 1] = seenBuilder.build().asBlock();
+            }
+        }
+
+        public boolean seen(int groupId) {
+            return groupId < histogramValues.size() && histogramValues.get(groupId) != null;
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < histogramValues.size(); i++) {
+                Releasables.close(histogramValues.get(i));
+            }
+            Releasables.close(histogramValues);
+            histogramValues = null;
+        }
+
+        public Block evaluateFinalHistograms(IntVector selected, DriverContext driverContext) {
+            try (var builder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        builder.append(histogramValues.get(groupId).accessor());
                     } else {
                         builder.appendNull();
                     }

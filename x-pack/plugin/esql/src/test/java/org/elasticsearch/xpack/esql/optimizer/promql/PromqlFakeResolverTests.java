@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import java.util.List;
 
 import static java.util.function.Predicate.not;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItems;
 
 public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -42,10 +44,26 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(labels(attributes), contains("job"));
     }
 
+    public void testHistogramQuantileCollectsBucketMetricAndGroupingLabels() {
+        var attributes = extractAttributes(
+            "PROMQL step=1m histogram_quantile(0.9, sum(rate(envoy_http_downstream_rq_time_bucket[1m])) by (le, service))"
+        );
+        assertThat(counters(attributes), contains("envoy_http_downstream_rq_time_bucket"));
+        assertThat(labels(attributes), hasItems("le", "service"));
+    }
+
+    public void testHistogramQuantileCollectsSelectorLabels() {
+        var attributes = extractAttributes(
+            "PROMQL step=1m histogram_quantile(0.5, sum by (le, reporter) (irate(istio_request_bytes_bucket{reporter=\"source\"}[1m])))"
+        );
+        assertThat(counters(attributes), contains("istio_request_bytes_bucket"));
+        assertThat(labels(attributes), hasItems("le", "reporter"));
+    }
+
     private List<Attribute> extractAttributes(String query) {
-        var plan = parser.parseQuery(query);
+        var plan = TEST_PARSER.parseQuery(query);
         plan = resolver.apply(plan);
-        plan = analyzer.analyze(plan);
+        plan = defaultAnalyzer().buildAnalyzer().analyze(plan);
         plan = logicalOptimizer.optimize(plan);
         return plan.collect(LeafPlan.class).getFirst().output();
     }

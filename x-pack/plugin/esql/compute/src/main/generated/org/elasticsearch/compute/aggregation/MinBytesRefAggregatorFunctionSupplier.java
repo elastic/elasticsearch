@@ -31,13 +31,13 @@ public final class MinBytesRefAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public MinBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinBytesRefAggregatorFunction.create(driverContext, channels);
+    return new MinBytesRefAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MinBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinBytesRefGroupingAggregatorFunction.create(channels, driverContext);
+    return new MinBytesRefGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

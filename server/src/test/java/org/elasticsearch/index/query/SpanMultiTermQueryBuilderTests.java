@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -118,6 +119,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public Query toQuery(SearchExecutionContext context) throws IOException {
             return new TermQuery(new Term("foo", "bar"));
+        }
+
+        @Override
+        public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+            return toQuery(context);
         }
 
         @Override

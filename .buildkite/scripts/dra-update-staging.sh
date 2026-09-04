@@ -6,7 +6,7 @@ source .buildkite/scripts/branches.sh
 
 for BRANCH in "${BRANCHES[@]}"; do
   # Don't publish main branch to staging
-  if [[ "$BRANCH" == "main" || "$BRANCH" == "7.17" ]]; then
+  if [[ "$BRANCH" == "main" ]]; then
     continue
   fi
 

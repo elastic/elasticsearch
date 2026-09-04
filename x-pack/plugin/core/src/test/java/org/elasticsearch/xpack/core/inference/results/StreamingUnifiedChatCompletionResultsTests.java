@@ -9,11 +9,21 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponseTests;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -23,32 +33,70 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSerializingTestCase<
+public class StreamingUnifiedChatCompletionResultsTests extends AbstractBWCWireSerializationTestCase<
     StreamingUnifiedChatCompletionResults.Results> {
 
-    public void testResults_toXContentChunked() throws IOException {
-        testResults_toXContentChunkedWithCachedTokens(true);
+    public void testResults_toXContentChunked_WithCachedTokens() throws IOException {
+        testResults_toXContentChunked(true, false);
     }
 
-    public void testResults_toXContentChunked_withoutCachedTokens() throws IOException {
-        testResults_toXContentChunkedWithCachedTokens(false);
+    public void testResults_toXContentChunked_NoCachedTokens_NoReasoning() throws IOException {
+        testResults_toXContentChunked(false, false);
     }
 
-    private void testResults_toXContentChunkedWithCachedTokens(boolean includeCachedTokens) throws IOException {
+    public void testResults_toXContentChunked_NoCachedTokens_WithReasoning() throws IOException {
+        testResults_toXContentChunked(false, true);
+    }
+
+    private void testResults_toXContentChunked(boolean includeCachedTokens, boolean includeReasoning) throws IOException {
+        String reasoningPart = includeReasoning ? """
+            "reasoning": "some_reasoning",
+            """ : "";
+        String reasoningDetailsPart = includeReasoning ? """
+            ,
+            "reasoning_details": [
+              {
+                "type": "reasoning.encrypted",
+                "format": "some_encrypted_reasoning_detail_format",
+                "id": "some_id_0",
+                "index": 0,
+                "data": "some_encrypted_data"
+              },
+              {
+                "type": "reasoning.summary",
+                "format": "some_summary_reasoning_detail_format",
+                "id": "some_id_1",
+                "index": 1,
+                "summary": "some_summary"
+              },
+              {
+                "type": "reasoning.text",
+                "format": "some_text_reasoning_detail_format",
+                "id": "some_id_2",
+                "index": 2,
+                "text": "some_text",
+                "signature": "some_signature"
+              }
+            ]""" : "";
         String cachedTokensPart = includeCachedTokens ? """
             ,
             "prompt_tokens_details": {
-              "cached_tokens": 20
+              "cached_tokens": 20,
+              "cache_write_tokens": 25
+            }""" : "";
+        String reasoningUsagePart = includeReasoning ? """
+            ,
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
             }""" : "";
 
-        String expected = """
+        String expected = Strings.format("""
             {
               "id": "chunk1",
               "choices": [
@@ -57,6 +105,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                     "content": "example_content",
                     "refusal": "example_refusal",
                     "role": "assistant",
+                    %s
                     "tool_calls": [
                       {
                         "index": 1,
@@ -68,6 +117,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                         "type": "function"
                       }
                     ]
+                    %s
                   },
                   "finish_reason": "example_reason",
                   "index": 0
@@ -78,30 +128,53 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
               "usage": {
                 "completion_tokens": 10,
                 "prompt_tokens": 5,
-                "total_tokens": 15""" + cachedTokensPart + """
-                          }
-                        }
-            """;
+                "total_tokens": 15
+                %s
+                %s
+              }
+            }
+            """, reasoningPart, reasoningDetailsPart, cachedTokensPart, reasoningUsagePart);
 
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+        var chunk = new ChatCompletionChunkResponse(
             "chunk1",
             List.of(
-                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                new ChatCompletionChoiceResponse(
+                    new ChatCompletionMessageResponse(
                         "example_content",
                         "example_refusal",
                         "assistant",
                         List.of(
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+                            new ChatCompletionToolCallResponse(
                                 1,
                                 "tool1",
-                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                                    "example_arguments",
-                                    "example_function"
-                                ),
+                                new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
                                 "function"
                             )
-                        )
+                        ),
+                        includeReasoning ? "some_reasoning" : null,
+                        includeReasoning
+                            ? List.of(
+                                new ReasoningDetail.EncryptedReasoningDetail(
+                                    "some_encrypted_reasoning_detail_format",
+                                    "some_id_0",
+                                    0L,
+                                    "some_encrypted_data"
+                                ),
+                                new ReasoningDetail.SummaryReasoningDetail(
+                                    "some_summary_reasoning_detail_format",
+                                    "some_id_1",
+                                    1L,
+                                    "some_summary"
+                                ),
+                                new ReasoningDetail.TextReasoningDetail(
+                                    "some_text_reasoning_detail_format",
+                                    "some_id_2",
+                                    2L,
+                                    "some_text",
+                                    "some_signature"
+                                )
+                            )
+                            : null
                     ),
                     "example_reason",
                     0
@@ -109,12 +182,18 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
             ),
             "example_model",
             "example_object",
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(10, 5, 15, includeCachedTokens ? 20 : null)
+            new ChatCompletionUsageResponse(
+                10,
+                5,
+                15,
+                includeCachedTokens ? new ChatCompletionUsageResponse.PromptTokensDetails(20, 25) : null,
+                includeReasoning ? new ChatCompletionUsageResponse.CompletionTokenDetails(25) : null
+            )
         );
 
-        Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> deque = new ArrayDeque<>();
+        Deque<ChatCompletionChunkResponse> deque = new ArrayDeque<>();
         deque.add(chunk);
-        StreamingUnifiedChatCompletionResults.Results results = new StreamingUnifiedChatCompletionResults.Results(deque);
+        var results = new StreamingUnifiedChatCompletionResults.Results(deque);
         XContentBuilder builder = JsonXContent.contentBuilder();
         results.toXContentChunked(null).forEachRemaining(xContent -> {
             try {
@@ -134,6 +213,7 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                 "content": "example_content",
                 "refusal": "example_refusal",
                 "role": "assistant",
+                "reasoning": "some_reasoning",
                 "tool_calls": [
                   {
                     "index": 1,
@@ -144,6 +224,30 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
                     },
                     "type": "function"
                   }
+                ],
+                "reasoning_details": [
+                  {
+                    "type": "reasoning.encrypted",
+                      "format": "some_encrypted_reasoning_detail_format",
+                      "id": "some_id_0",
+                      "index": 0,
+                      "data": "some_encrypted_data"
+                  },
+                  {
+                    "type": "reasoning.summary",
+                    "format": "some_summary_reasoning_detail_format",
+                    "id": "some_id_1",
+                    "index": 1,
+                    "summary": "some_summary"
+                  },
+                  {
+                    "type": "reasoning.text",
+                    "format": "some_text_reasoning_detail_format",
+                    "id": "some_id_2",
+                    "index": 2,
+                    "text": "some_text",
+                    "signature": "some_signature"
+                  }
                 ]
               },
               "finish_reason": "example_reason",
@@ -151,30 +255,44 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
             }
             """;
 
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice =
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    "example_content",
-                    "example_refusal",
-                    "assistant",
-                    List.of(
-                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                            1,
-                            "tool1",
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                                "example_arguments",
-                                "example_function"
-                            ),
-                            "function"
-                        )
+        var choice = new ChatCompletionChoiceResponse(
+            new ChatCompletionMessageResponse(
+                "example_content",
+                "example_refusal",
+                "assistant",
+                List.of(
+                    new ChatCompletionToolCallResponse(
+                        1,
+                        "tool1",
+                        new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
+                        "function"
                     )
                 ),
-                "example_reason",
-                0
-            );
+                "some_reasoning",
+                List.of(
+                    new ReasoningDetail.EncryptedReasoningDetail(
+                        "some_encrypted_reasoning_detail_format",
+                        "some_id_0",
+                        0L,
+                        "some_encrypted_data"
+                    ),
+                    new ReasoningDetail.SummaryReasoningDetail("some_summary_reasoning_detail_format", "some_id_1", 1L, "some_summary"),
+                    new ReasoningDetail.TextReasoningDetail(
+                        "some_text_reasoning_detail_format",
+                        "some_id_2",
+                        2L,
+                        "some_text",
+                        "some_signature"
+                    )
+                )
+            ),
+            "example_reason",
+            0
+        );
 
+        // streaming SSE form uses "delta" — delegate to Choice#toXContentChunked with the DELTA_FIELD constant
         XContentBuilder builder = JsonXContent.contentBuilder();
-        choice.toXContentChunked(null).forEachRemaining(xContent -> {
+        choice.toXContentChunked(null, "delta").forEachRemaining(xContent -> {
             try {
                 xContent.toXContent(builder, null);
             } catch (IOException e) {
@@ -198,16 +316,12 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
             }
             """;
 
-        StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall =
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                1,
-                "tool1",
-                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                    "example_arguments",
-                    "example_function"
-                ),
-                "function"
-            );
+        var toolCall = new ChatCompletionToolCallResponse(
+            1,
+            "tool1",
+            new ChatCompletionToolCallResponse.Function("example_arguments", "example_function"),
+            "function"
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         toolCall.toXContentChunked(null).forEachRemaining(xContent -> {
@@ -222,9 +336,9 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
     }
 
     public void testBufferedPublishing() {
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>();
-        results.offer(randomChatCompletionChunk());
-        results.offer(randomChatCompletionChunk());
+        var results = new ArrayDeque<ChatCompletionChunkResponse>();
+        results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
+        results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         var completed = new AtomicBoolean();
         var streamingResults = new StreamingUnifiedChatCompletionResults(downstream -> {
             downstream.onSubscribe(new Flow.Subscription() {
@@ -288,52 +402,11 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
 
     @Override
     protected StreamingUnifiedChatCompletionResults.Results createTestInstance() {
-        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>();
+        var results = new ArrayDeque<ChatCompletionChunkResponse>();
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
-            results.offer(randomChatCompletionChunk());
+            results.offer(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         }
         return new StreamingUnifiedChatCompletionResults.Results(results);
-    }
-
-    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk randomChatCompletionChunk() {
-        Supplier<String> randomOptionalString = () -> randomBoolean() ? null : randomAlphanumericOfLength(5);
-        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
-            randomAlphanumericOfLength(5),
-            randomBoolean() ? null : randomList(randomInt(5), () -> {
-                return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                        randomOptionalString.get(),
-                        randomOptionalString.get(),
-                        randomOptionalString.get(),
-                        randomBoolean() ? null : randomList(randomInt(5), () -> {
-                            return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                                randomInt(5),
-                                randomOptionalString.get(),
-                                randomBoolean()
-                                    ? null
-                                    : new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                                        randomOptionalString.get(),
-                                        randomOptionalString.get()
-                                    ),
-                                randomOptionalString.get()
-                            );
-                        })
-                    ),
-                    randomOptionalString.get(),
-                    randomInt(5)
-                );
-            }),
-            randomAlphanumericOfLength(5),
-            randomAlphanumericOfLength(5),
-            randomBoolean()
-                ? null
-                : new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(
-                    randomInt(5),
-                    randomInt(5),
-                    randomInt(5),
-                    randomInt(5)
-                )
-        );
     }
 
     @Override
@@ -343,8 +416,25 @@ public class StreamingUnifiedChatCompletionResultsTests extends AbstractWireSeri
         if (randomBoolean()) {
             results.pop();
         } else {
-            results.add(randomChatCompletionChunk());
+            results.add(ChatCompletionChunkResponseTests.randomChatCompletionChunkResponse());
         }
-        return new StreamingUnifiedChatCompletionResults.Results(results); // immutable
+        return new StreamingUnifiedChatCompletionResults.Results(results);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+    }
+
+    @Override
+    protected StreamingUnifiedChatCompletionResults.Results mutateInstanceForVersion(
+        StreamingUnifiedChatCompletionResults.Results instance,
+        TransportVersion version
+    ) {
+        var mutatedChunks = new ArrayDeque<ChatCompletionChunkResponse>();
+        for (var chunk : instance.chunks()) {
+            mutatedChunks.add(ChatCompletionChunkResponseTests.downgrade(chunk, version));
+        }
+        return new StreamingUnifiedChatCompletionResults.Results(mutatedChunks);
     }
 }

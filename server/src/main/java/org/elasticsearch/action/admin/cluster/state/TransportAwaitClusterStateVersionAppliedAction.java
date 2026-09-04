@@ -11,20 +11,21 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
@@ -39,8 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 /**
  * An action that waits for a given cluster state version to be applied on provided set of nodes in the cluster.
@@ -99,74 +99,92 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         /// We are using [#nodeOperationAsync].
+        logger.error("expected nodeOperationAsync");
+        assert false : "nodeOperationAsync";
         throw new UnsupportedOperationException();
+    }
+
+    private class VersionAppliedListener implements TimeoutClusterStateListener {
+
+        private final long clusterStateVersion;
+        private final Consumer<Runnable> cancelSubscriber;
+        private final ActionListener<Void> listener;
+
+        VersionAppliedListener(long clusterStateVersion, Consumer<Runnable> cancelSubscriber, ActionListener<Void> listener) {
+            this.clusterStateVersion = clusterStateVersion;
+            this.cancelSubscriber = cancelSubscriber;
+            this.listener = listener;
+        }
+
+        @Override
+        public void postAdded() {
+            if (clusterService.state().version() >= clusterStateVersion) {
+                removeListener();
+                listener.onResponse(null);
+            } else {
+                cancelSubscriber.accept(VersionAppliedListener.this::removeListener);
+            }
+        }
+
+        private void removeListener() {
+            clusterService.getClusterApplierService().removeTimeoutListener(VersionAppliedListener.this);
+        }
+
+        @Override
+        public void onClose() {
+            removeListener();
+            listener.onFailure(new NodeClosedException(clusterService.localNode()));
+        }
+
+        @Override
+        public void onTimeout(TimeValue timeout) {
+            logger.error("no timeout configured");
+            assert false : "no timeout configured";
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (event.state().version() >= clusterStateVersion) {
+                removeListener();
+                listener.onResponse(null);
+            }
+        }
     }
 
     @Override
     protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
-        var completed = new AtomicBoolean(false);
+        final var onceListener = new SubscribableListener<Void>();
+        onceListener.addListener(listener.map(ignored -> new NodeResponse(clusterService.localNode())));
 
-        var cancellableTask = (CancellableTask) task;
-        cancellableTask.addListener(() -> {
-            if (completed.compareAndSet(false, true)) {
-                listener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled()));
-            }
-        });
+        if (request.timeout != TimeValue.MINUS_ONE) {
+            onceListener.addTimeout(request.timeout, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
 
-        Predicate<ClusterState> predicate = (ClusterState state) -> cancellableTask.isCancelled()
-            || state.version() >= request.clusterStateVersion;
+        final var cancellableTask = (CancellableTask) task;
+        cancellableTask.addListener(() -> onceListener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled())));
 
-        var clusterStateListener = new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                // The listener is notified directly from the task in case of cancellation.
-                if (completed.compareAndSet(false, true)) {
-                    listener.onResponse(new NodeResponse(clusterService.localNode()));
-                }
-            }
-
-            @Override
-            public void onClusterServiceClose() {
-                // The listener is notified directly from the task in case of cancellation.
-                if (completed.compareAndSet(false, true)) {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                }
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                // The listener is notified directly from the task in case of cancellation.
-                if (completed.compareAndSet(false, true)) {
-                    listener.onFailure(
-                        new ElasticsearchTimeoutException(
-                            "timed out waiting for cluster state version [" + request.clusterStateVersion + "] to be applied"
-                        )
-                    );
-                }
-            }
-        };
-
-        ClusterStateObserver.waitForState(
-            clusterService,
-            threadPool.getThreadContext(),
-            clusterStateListener,
-            predicate,
-            request.timeout == TimeValue.MINUS_ONE ? null : request.timeout,
-            logger
-        );
+        clusterService.getClusterApplierService()
+            .addTimeoutListener(
+                null,
+                new VersionAppliedListener(
+                    request.clusterStateVersion,
+                    r -> onceListener.addListener(ActionListener.running(r)),
+                    onceListener
+                )
+            );
     }
 
     public static class NodeRequest extends AbstractTransportRequest {
         private final long clusterStateVersion;
         private final TimeValue timeout;
 
-        public NodeRequest(StreamInput in) throws IOException {
+        NodeRequest(StreamInput in) throws IOException {
             super(in);
             this.clusterStateVersion = in.readLong();
             this.timeout = in.readTimeValue();
         }
 
-        public NodeRequest(long clusterStateVersion, TimeValue timeout) {
+        NodeRequest(long clusterStateVersion, TimeValue timeout) {
             this.clusterStateVersion = clusterStateVersion;
             this.timeout = timeout;
         }
@@ -190,15 +208,11 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-        public NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
         }
 
-        public NodeResponse(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public NodeResponse(DiscoveryNode node) {
+        NodeResponse(DiscoveryNode node) {
             super(node);
         }
     }

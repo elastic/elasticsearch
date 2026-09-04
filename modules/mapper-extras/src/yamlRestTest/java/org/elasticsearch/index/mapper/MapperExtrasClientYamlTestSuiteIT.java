@@ -30,7 +30,11 @@ public class MapperExtrasClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("mapper-extras")
+        .module("analysis-common")
+        .module("reindex")
+        .build();
 
     @Override
     protected String getTestRestCluster() {

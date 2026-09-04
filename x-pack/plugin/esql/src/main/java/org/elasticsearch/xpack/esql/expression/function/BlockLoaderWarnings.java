@@ -18,24 +18,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * cheap to create.
  */
 public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.blockloader.Warnings {
-    private final DriverContext.WarningsMode warningsMode;
+    private final DriverContext driverContext;
     private final Source source;
     private Warnings delegate;
 
-    public BlockLoaderWarnings(DriverContext.WarningsMode warningsMode, Source source) {
-        this.warningsMode = warningsMode;
+    public BlockLoaderWarnings(DriverContext driverContext, Source source) {
+        this.driverContext = driverContext;
         this.source = source;
     }
 
     @Override
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (delegate == null) {
-            delegate = Warnings.createOnlyWarnings(
-                warningsMode,
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            );
+            delegate = driverContext.createOnlyWarnings(source);
         }
         delegate.registerException(exceptionClass, message);
     }

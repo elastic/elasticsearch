@@ -95,11 +95,13 @@ public class SizeMappingTests extends MetadataMapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(
+            "enabled",
             topMapping(SizeMappingTests::disabled),
             topMapping(SizeMappingTests::enabled),
             dm -> assertTrue(dm.metadataMapper(SizeFieldMapper.class).enabled())
         );
         checker.registerUpdateCheck(
+            "enabled",
             topMapping(SizeMappingTests::enabled),
             topMapping(SizeMappingTests::disabled),
             dm -> assertFalse(dm.metadataMapper(SizeFieldMapper.class).enabled())

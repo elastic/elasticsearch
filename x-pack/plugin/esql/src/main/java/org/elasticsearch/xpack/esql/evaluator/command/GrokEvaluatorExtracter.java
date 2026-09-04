@@ -17,10 +17,12 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.grok.FloatConsumer;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokCaptureConfig;
 import org.elasticsearch.grok.GrokCaptureExtracter;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.joni.Region;
 
 import java.util.ArrayList;
@@ -45,7 +47,7 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
     private final ElementType[] positionToType;
     private Block.Builder[] blocks;
 
-    public GrokEvaluatorExtracter(
+    private GrokEvaluatorExtracter(
         final Grok parser,
         final String pattern,
         final Map<String, Integer> keyToBlock,
@@ -171,6 +173,21 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
 
     }
 
+    public record Factory(Grok parser, String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types)
+        implements
+            ColumnExtractOperator.Evaluator.Factory {
+
+        @Override
+        public GrokEvaluatorExtracter create(DriverContext driverContext) {
+            return new GrokEvaluatorExtracter(parser, pattern, keyToBlock, types);
+        }
+
+        @Override
+        public String describe() {
+            return "GrokEvaluatorExtracter[pattern=" + pattern + "]";
+        }
+    }
+
     private static void append(Object value, Block.Builder block, ElementType type) {
         if (value instanceof Float f) {
             // Grok patterns can produce float values (Eg. %{WORD:x:float})
@@ -195,7 +212,11 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         Arrays.fill(firstValues, null);
         for (int c = 0; c < valueCount; c++) {
             BytesRef input = inputBlock.getBytesRef(position + c, spare);
-            parser.match(input.bytes, input.offset, input.length, this);
+            try {
+                parser.match(input.bytes, input.offset, input.length, this);
+            } catch (RuntimeException e) {
+                throw new EsqlClientException(e.getMessage(), e);
+            }
         }
         for (int i = 0; i < firstValues.length; i++) {
             if (firstValues[i] == null) {

@@ -29,7 +29,7 @@ public class RestBuilderListenerTests extends ESTestCase {
     public void testXContentBuilderClosedInBuildResponse() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
         RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<>(
-            new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
+            new FakeRestChannel(new FakeRestRequest(), randomBoolean())
         ) {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) {
@@ -47,7 +47,7 @@ public class RestBuilderListenerTests extends ESTestCase {
     public void testXContentBuilderNotClosedInBuildResponseAssertionsDisabled() throws Exception {
         AtomicReference<XContentBuilder> builderAtomicReference = new AtomicReference<>();
         RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<>(
-            new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
+            new FakeRestChannel(new FakeRestRequest(), randomBoolean())
         ) {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) {
@@ -71,7 +71,7 @@ public class RestBuilderListenerTests extends ESTestCase {
         assumeTrue("tests are not being run with assertions", RestBuilderListener.class.desiredAssertionStatus());
 
         RestBuilderListener<ActionResponse.Empty> builderListener = new RestBuilderListener<>(
-            new FakeRestChannel(new FakeRestRequest(), randomBoolean(), 1)
+            new FakeRestChannel(new FakeRestRequest(), randomBoolean())
         ) {
             @Override
             public RestResponse buildResponse(Empty empty, XContentBuilder builder) {

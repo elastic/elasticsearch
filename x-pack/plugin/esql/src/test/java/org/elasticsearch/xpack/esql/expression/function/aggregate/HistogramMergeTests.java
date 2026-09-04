@@ -32,8 +32,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
-
 public class HistogramMergeTests extends AbstractAggregationTestCase {
     public HistogramMergeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -81,7 +79,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
         });
     }
 
-    private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
+    static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
         List<TDigestHolder> inputValues = fieldValues.stream().map(v -> (TDigestHolder) v).toList();
         return new BaseMatcher<TDigestHolder>() {
             @Override
@@ -98,8 +96,8 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
         };
     }
 
-    private static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
-        ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, ExponentialHistogramCircuitBreaker.noop());
+    static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
+        ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
 
         boolean anyValuesNonNull = false;
 

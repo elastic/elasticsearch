@@ -25,7 +25,6 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.builder.impl.DefaultConfigurationBuilder;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
@@ -151,10 +150,10 @@ public class LogConfigurator {
     }
 
     /**
-     * Load logging plugins so we can have {@code node_name} in the pattern.
+     * Sets the cluster name. This is called before logging is configured.
      */
-    public static void loadLog4jPlugins() {
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
+    public static void setClusterName(String clusterName) {
+        ClusterNamePatternConverter.setClusterName(clusterName);
     }
 
     /**
@@ -193,8 +192,6 @@ public class LogConfigurator {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
-
-        loadLog4jPlugins();
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
@@ -255,6 +252,15 @@ public class LogConfigurator {
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 if (file.getFileName().toString().equals("log4j2.properties")) {
                     configurations.add((PropertiesConfiguration) factory.getConfiguration(context, file.toString(), file.toUri()));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(final Path file, final IOException exc) throws IOException {
+                // ignore failures unrelated to log4j config files
+                if (file.getFileName().toString().equals("log4j2.properties")) {
+                    throw exc;
                 }
                 return FileVisitResult.CONTINUE;
             }

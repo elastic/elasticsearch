@@ -22,7 +22,6 @@
 package org.elasticsearch.exponentialhistogram;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX_BITS;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
@@ -35,99 +34,14 @@ public class ExponentialScaleUtils {
     private static final double LN_2 = Math.log(2);
 
     /**
-     * This table is visible for testing to ensure it is up-to-date.
-     * <br>
-     * For each scale from {@link ExponentialHistogram#MIN_SCALE} to {@link ExponentialHistogram#MAX_SCALE},
-     * the table contains a pre-computed constant for up-scaling bucket indices.
-     * The constant is computed using the following formula:
-     * {@code 2^63 * (1 + 2^scale * (1 - log2(1 + 2^(2^-scale))))}
-     */
-    static final long[] SCALE_UP_CONSTANT_TABLE = new long[] {
-        4503599627370495L,
-        9007199254740991L,
-        18014398509481983L,
-        36028797018963967L,
-        72057594037927935L,
-        144115188075855871L,
-        288230376054894118L,
-        576448062320457790L,
-        1146436840887505800L,
-        2104167428150631728L,
-        3127054724296373505L,
-        3828045265094622256L,
-        4214097751025163417L,
-        4412149414858430624L,
-        4511824212543271281L,
-        4561743405547877994L,
-        4586713247558758689L,
-        4599199449917992829L,
-        4605442711287634239L,
-        4608564361996858084L,
-        4610125189854540715L,
-        4610905604096266504L,
-        4611295811256239977L,
-        4611490914841115537L,
-        4611588466634164420L,
-        4611637242530765249L,
-        4611661630479075212L,
-        4611673824453231387L,
-        4611679921440309624L,
-        4611682969933848761L,
-        4611684494180618332L,
-        4611685256304003118L,
-        4611685637365695511L,
-        4611685827896541707L,
-        4611685923161964805L,
-        4611685970794676354L,
-        4611685994611032129L,
-        4611686006519210016L,
-        4611686012473298960L,
-        4611686015450343432L,
-        4611686016938865668L,
-        4611686017683126786L,
-        4611686018055257345L,
-        4611686018241322624L,
-        4611686018334355264L,
-        4611686018380871584L,
-        4611686018404129744L,
-        4611686018415758824L,
-        4611686018421573364L,
-        4611686018424480634L };
-
-    /**
-     * Computes the new index for a bucket when adjusting the scale of the histogram.
-     * This method supports both down-scaling (reducing the scale) and up-scaling.
-     * When up-scaling, it returns the bucket containing the point of least error of the original bucket.
+     * Computes the new index for a bucket when reducing the scale of the histogram.
      *
      * @param index           the current bucket index to be adjusted
-     * @param currentScale    the current scale
-     * @param scaleAdjustment the adjustment to make; the new scale will be {@code currentScale + scaleAdjustment}
-     * @return the index of the bucket in the new scale
+     * @param scaleReduction  the amount by which the scale is reduced (must be non-negative)
      */
-    static long adjustScale(long index, int currentScale, int scaleAdjustment) {
-        checkIndexAndScaleBounds(index, currentScale);
-
-        int newScale = currentScale + scaleAdjustment;
-        assert newScale >= MIN_SCALE && newScale <= MAX_SCALE
-            : "adjusted scale must be in the range [" + MIN_SCALE + ", " + MAX_SCALE + "]";
-
-        if (scaleAdjustment <= 0) {
-            return index >> -scaleAdjustment;
-        } else {
-            assert scaleAdjustment <= MAX_INDEX_BITS : "Scaling up more than " + MAX_INDEX_BITS + " does not make sense";
-            // When scaling up, we want to return the bucket containing the point of least relative error.
-            // This bucket index can be computed as (index << adjustment) + offset.
-            // The offset is a constant that depends only on the scale and adjustment, not the index.
-            // The mathematically correct formula for the offset is:
-            // 2^adjustment * (1 + 2^currentScale * (1 - log2(1 + 2^(2^-currentScale))))
-            // This is hard to compute with double-precision floating-point numbers due to rounding errors and is also expensive.
-            // Therefore, we precompute 2^63 * (1 + 2^currentScale * (1 - log2(1 + 2^(2^-currentScale)))) and store it
-            // in SCALE_UP_CONSTANT_TABLE for each scale.
-            // This can then be converted to the correct offset by dividing with (2^(63-adjustment)),
-            // which is equivalent to a right shift with (63-adjustment)
-            long offset = SCALE_UP_CONSTANT_TABLE[currentScale - MIN_SCALE] >> (63 - scaleAdjustment);
-            return (index << scaleAdjustment) + offset;
-        }
+    static long reduceScale(long index, int scaleReduction) {
+        assert scaleReduction >= 0;
+        return index >> scaleReduction;
     }
 
     /**
@@ -163,26 +77,6 @@ public class ExponentialScaleUtils {
             }
         }
         return result;
-    }
-
-    /**
-     * Returns the maximum permissible scale increase that does not cause the index to grow out
-     * of the [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MIN_INDEX}] range.
-     *
-     * @param index the index to check
-     * @return the maximum permissible scale increase
-     */
-    public static int getMaximumScaleIncrease(long index) {
-        checkIndexBounds(index);
-        // Scale increase by one corresponds to a left shift, which in turn is the same as multiplying by two.
-        // Because we know that MIN_INDEX = -MAX_INDEX, we can just compute the maximum increase of the absolute index.
-        // This allows us to reason only about non-negative indices further below.
-        index = Math.abs(index);
-        // the maximum scale increase is defined by how many left-shifts we can do without growing beyond MAX_INDEX
-        // MAX_INDEX is defined as a number where the left MAX_INDEX_BITS are all ones.
-        // So in other words, we must ensure that the leftmost (64 - MAX_INDEX_BITS) remain zero,
-        // which is exactly what the formula below does.
-        return Long.numberOfLeadingZeros(index) - (64 - MAX_INDEX_BITS);
     }
 
     /**

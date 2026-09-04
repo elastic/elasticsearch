@@ -40,14 +40,16 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
@@ -57,15 +59,19 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
@@ -77,9 +83,56 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
+    /**
+     * The priority values reserved for Fleet-managed index templates.
+     * Fleet uses priority 200 for standard packages, and priority 150 for packages where {@code dataset_is_prefix=true}.
+     * Index templates for {@link #FLEET_MANAGED_INDEX_PATTERNS} via the template registry must not use these
+     * priorities as it would conflict with Fleet-managed templates when index patterns overlap,
+     * preventing Fleet packages from being installed.
+     *
+     * @see <a href="https://github.com/elastic/kibana/blob/946f799ef524289259079fae6e9503464a4c9331/x-pack/platform/plugins/shared/fleet/server/services/epm/elasticsearch/template/template.ts#L861-L878">Fleet template priority logic</a>
+     */
+    private static final Set<Long> FLEET_MANAGED_INDEX_TEMPLATE_PRIORITIES = Set.of(150L, 200L);
+
+    /**
+     * Index patterns for data stream types that are managed by Fleet.
+     * When registering templates for these index patterns via the template registry,
+     * the priority must be different from the ones in {@link #FLEET_MANAGED_INDEX_TEMPLATE_PRIORITIES}
+     * to avoid conflicts with Fleet-managed templates, which would prevent Fleet packages from being installed.
+     *
+     * @see <a href="https://github.com/elastic/package-spec/blob/c50462123feb966fe82873124d3f65945ea4d743/spec/integration/data_stream/manifest.spec.yml#L546-L554">Package spec</a>
+     */
+    private static final Set<String> FLEET_MANAGED_INDEX_PATTERNS = Set.of(
+        "logs-*",
+        "metrics-*",
+        "traces-*",
+        "synthetics-*",
+        "profiling-*"
+    );
+
+    /**
+     * Index patterns that are managed by streams (which is currently happening in Kibana).
+     * Registries should not attempt to register templates for these patterns at all.
+     */
+    private static final Set<String> STREAMS_MANAGED_INDEX_PATTERNS = Set.of("logs", "logs.*");
+
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
     private static final TimeValue REGISTRY_ACTION_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO should this be longer?
+    /**
+     * This map matches node features with predicates to detect when a template requires that feature.
+     * This allows the registry to install the template only after the cluster fully supports a feature.
+     */
+    protected static final Map<NodeFeature, Predicate<Template>> NODE_FEATURE_FILTERS = Map.of(
+        MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT,
+        template -> template != null
+            && template.settings() != null
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey())
+    );
+    private final Map<NodeFeature, Predicate<Template>> nodeFeatureFilters;
+    // This flag short-circuits the node feature check, if all node features are supported.
+    private volatile boolean allFeaturesSupported = false;
+    private final FeatureService featureService;
 
     protected final Settings settings;
     protected final Client client;
@@ -94,13 +147,26 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         new ConcurrentHashMap<>();
     protected final List<LifecyclePolicy> lifecyclePolicies;
 
+    public IndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
+    ) {
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, NODE_FEATURE_FILTERS);
+    }
+
     @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService,
+        Map<NodeFeature, Predicate<Template>> nodeFeatureFilters
     ) {
         this.settings = nodeSettings;
         this.client = client;
@@ -114,6 +180,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         } else {
             this.lifecyclePolicies = List.of();
         }
+        this.featureService = featureService;
+        this.nodeFeatureFilters = nodeFeatureFilters;
     }
 
     /**
@@ -136,6 +204,71 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     public void initialize() {
         clusterService.addListener(this);
+        validateNoConflictsWithManagedTemplates();
+    }
+
+    /**
+     * Validates that none of the composable index templates registered by this registry would conflict with
+     * Streams or Fleet-managed templates.
+     * Fleet installs templates for managed data stream types at reserved priorities, and any registry template using the same
+     * priority with overlapping index patterns would prevent Fleet packages from being installed.
+     * <p>
+     * Registries must also not attempt to register templates for index patterns that are managed by Streams,
+     * as that would cause conflicts and break the Streams functionality in Kibana.
+     *
+     * @throws IllegalArgumentException if a conflict is detected
+     */
+    private void validateNoConflictsWithManagedTemplates() {
+        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
+
+        final Map<String, ComposableIndexTemplate> fleetManagedTemplates = new HashMap<>();
+        for (String managedIndexPattern : FLEET_MANAGED_INDEX_PATTERNS) {
+            for (Long fleetTemplatePriority : FLEET_MANAGED_INDEX_TEMPLATE_PRIORITIES) {
+                fleetManagedTemplates.put(
+                    managedIndexPattern + "-" + fleetTemplatePriority,
+                    ComposableIndexTemplate.builder().indexPatterns(List.of(managedIndexPattern)).priority(fleetTemplatePriority).build()
+                );
+            }
+        }
+
+        for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
+            final String templateName = newTemplate.getKey();
+            final ComposableIndexTemplate template = newTemplate.getValue();
+            final long priority = template.priorityOrZero();
+            final Map<String, List<String>> conflicts = new HashMap<>(
+                MetadataIndexTemplateService.v2TemplateOverlaps(fleetManagedTemplates, templateName, template, false)
+            );
+
+            // Streams-managed patterns must be rejected regardless of priority, so match them at the candidate template's priority.
+            conflicts.putAll(
+                MetadataIndexTemplateService.v2TemplateOverlaps(streamManagedTemplatesForPriority(priority), templateName, template, false)
+            );
+            if (conflicts.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Composable index template [%s] with index patterns %s and priority [%d] "
+                            + "would conflict with the managed index pattern %s. "
+                            + "Please change the template to use a non-managed index pattern or a different priority.",
+                        templateName,
+                        template.indexPatterns(),
+                        priority,
+                        conflicts.values().stream().flatMap(Collection::stream).collect(Collectors.toSet())
+                    )
+                );
+            }
+        }
+    }
+
+    private static Map<String, ComposableIndexTemplate> streamManagedTemplatesForPriority(long priority) {
+        final Map<String, ComposableIndexTemplate> streamManagedTemplates = new HashMap<>();
+        for (String indexPattern : STREAMS_MANAGED_INDEX_PATTERNS) {
+            streamManagedTemplates.put(
+                "stream-managed-" + indexPattern + "-" + priority,
+                ComposableIndexTemplate.builder().indexPatterns(List.of(indexPattern)).priority(priority).build()
+            );
+        }
+        return streamManagedTemplates;
     }
 
     /**
@@ -165,6 +298,74 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return Map.of();
+    }
+
+    /**
+     * Retrieves return a list of {@link IndexTemplateConfig} that represents
+     * the component templates that are supported by all nodes of the cluster.
+     * Component templates are always installed prior composable templates, so they may
+     * be referenced by a composable template.
+     * @return The configurations for the templates that CAN be installed right now.
+     */
+    protected Map<String, ComponentTemplate> getComponentTemplatesReadyToInstall(ClusterState clusterState) {
+        return filterBasedOnFeatures(clusterState, getComponentTemplateConfigs(), ComponentTemplate::template);
+    }
+
+    /**
+     * Retrieves return a list of {@link IndexTemplateConfig} that represents
+     * the composable templates that are supported by all nodes of the cluster.
+     * Every template returned by this method is guaranteed to have {@code managed: true} set,
+     * regardless of whether the underlying JSON/YAML resource declares it. This ensures that
+     * {@code IndexSettingProvider} implementations can reliably distinguish registry-owned templates.
+     *
+     * @return The configurations for the templates that CAN be installed right now.
+     */
+    protected Map<String, ComposableIndexTemplate> getComposableTemplatesReadyToInstall(ClusterState clusterState) {
+        Map<String, ComposableIndexTemplate> filtered = filterBasedOnFeatures(
+            clusterState,
+            getComposableTemplateConfigs(),
+            ComposableIndexTemplate::template
+        );
+        if (filtered.isEmpty()) {
+            return filtered;
+        }
+        return filtered.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> markRegistryInstalled(e.getValue())));
+    }
+
+    private static ComposableIndexTemplate markRegistryInstalled(ComposableIndexTemplate template) {
+        if (template.isRegistryInstalled()) {
+            return template;
+        }
+        return template.toBuilder().registryInstalled(true).build();
+    }
+
+    /**
+     * Returns only templates that are supported by all nodes. This is useful during rolling upgrades
+     * to protect the cluster from installing templates that have features that are not supported by
+     * the nodes that haven't been upgraded yet.
+     * Visible for testing
+     */
+    <T> Map<String, T> filterBasedOnFeatures(ClusterState clusterState, Map<String, T> templates, Function<T, Template> templateExtractor) {
+        // Considering that allFeaturesSupported will be true eventually, we use this flag to
+        // short-circuit the check when the end state is reached.
+        if (allFeaturesSupported || templates.isEmpty()) {
+            return templates;
+        }
+        List<Predicate<Template>> unsupportedFeatures = nodeFeatureFilters.entrySet()
+            .stream()
+            .filter(entry -> featureService.clusterHasFeature(clusterState, entry.getKey()) == false)
+            .map(Map.Entry::getValue)
+            .toList();
+        if (unsupportedFeatures.isEmpty()) {
+            allFeaturesSupported = true;
+            return templates;
+        }
+        return templates.entrySet().stream().filter(entry -> {
+            Template template = templateExtractor.apply(entry.getValue());
+            return unsupportedFeatures.stream().noneMatch(p -> p.test(template));
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
@@ -244,7 +445,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
         for (ProjectMetadata project : event.state().metadata().projects().values()) {
             addIngestPipelinesIfMissing(project);
-            addTemplatesIfMissing(project);
+            addTemplatesIfMissing(event.state(), project);
             addIndexLifecyclePoliciesIfMissing(project);
         }
     }
@@ -266,10 +467,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         return false;
     }
 
-    private void addTemplatesIfMissing(ProjectMetadata project) {
+    private void addTemplatesIfMissing(ClusterState state, ProjectMetadata project) {
         addLegacyTemplatesIfMissing(project);
-        addComponentTemplatesIfMissing(project);
-        addComposableTemplatesIfMissing(project);
+        addComponentTemplatesIfMissing(state, project);
+        addComposableTemplatesIfMissing(state, project);
     }
 
     private void addLegacyTemplatesIfMissing(ProjectMetadata project) {
@@ -317,8 +518,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private void addComponentTemplatesIfMissing(ProjectMetadata project) {
-        final Map<String, ComponentTemplate> indexTemplates = getComponentTemplateConfigs();
+    private void addComponentTemplatesIfMissing(ClusterState state, ProjectMetadata project) {
+        final Map<String, ComponentTemplate> indexTemplates = getComponentTemplatesReadyToInstall(state);
         for (Map.Entry<String, ComponentTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
@@ -391,8 +592,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         return true;
     }
 
-    private void addComposableTemplatesIfMissing(ProjectMetadata project) {
-        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
+    private void addComposableTemplatesIfMissing(ClusterState state, ProjectMetadata project) {
+        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplatesReadyToInstall(state);
         for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
             final String templateName = newTemplate.getKey();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(project.id(), key -> new ConcurrentHashMap<>())
@@ -661,14 +862,34 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+    private static <T> Map<String, T> parseTemplates(TemplateUtils.TemplateParser<T> templateParser, IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())) {
-                return ComposableIndexTemplate.parse(parser);
+            try {
+                return indexTemplateConfig.load(templateParser);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         }));
+    }
+
+    /**
+     * Parses the provided index templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComposableIndexTemplate::parse, config);
+    }
+
+    /**
+     * Parses the provided component templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComponentTemplate> parseComponentTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComponentTemplate::parse, config);
     }
 
     private void addIngestPipelinesIfMissing(ProjectMetadata project) {
@@ -906,5 +1127,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             })
             .map(DataStream::getName)
             .collect(Collectors.toList());
+    }
+
+    // Visible for testing
+    protected boolean allFeaturesSupported() {
+        return allFeaturesSupported;
     }
 }

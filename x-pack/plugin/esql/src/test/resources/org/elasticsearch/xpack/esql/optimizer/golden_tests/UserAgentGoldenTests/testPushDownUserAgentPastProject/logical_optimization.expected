@@ -1,0 +1,4 @@
+Project[[first_name{f}#0 AS x#1, ua.name{r}#2, ua.version{r}#3, ua.os.name{r}#4, ua.os.version{r}#5, ua.os.full{r}#6, ua.device.name{r}#7, ua.device.type{r}#8]]
+\_UserAgent[first_name{f}#0,[name, version, os.name, os.version, os.full, device.name, device.type],[ua.name{r}#2, ua.version{r}#3, ua.os.name{r}#4, ua.os.version{r}#5, ua.os.full{r}#6, ua.device.name{r}#7, ua.device.type{r}#8],true,_default_]
+  \_Limit[1000[INTEGER],false,false]
+    \_EsRelation[employees][avg_worked_seconds{f}#9, birth_date{f}#10, emp_no{f}#11, first_name{f}#0, gender{f}#12, height{f}#13, height.float{f}#14, height.half_float{f}#15, height.scaled_float{f}#16, hire_date{f}#17, is_rehired{f}#18, job_positions{f}#19, languages{f}#20, languages.byte{f}#21, languages.long{f}#22, languages.short{f}#23, last_name{f}#24, salary{f}#25, salary_change{f}#26, salary_change.int{f}#27, salary_change.keyword{f}#28, salary_change.long{f}#29, still_hired{f}#30]

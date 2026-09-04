@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +35,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPreviewTransformAction extends BaseRestHandler {
+
+    private final TransformParsingContext transformParsingContext;
+
+    public RestPreviewTransformAction(TransformParsingContext transformParsingContext) {
+        this.transformParsingContext = transformParsingContext;
+    }
 
     @Override
     public List<Route> routes() {
@@ -75,7 +82,12 @@ public class RestPreviewTransformAction extends BaseRestHandler {
 
         if (Strings.isNullOrEmpty(transformId)) {
             previewRequestHolder.set(
-                PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout, previewAsIndexRequest)
+                PreviewTransformAction.Request.fromXContent(
+                    restRequest.contentOrSourceParamParser(),
+                    timeout,
+                    previewAsIndexRequest,
+                    transformParsingContext
+                )
             );
         }
 

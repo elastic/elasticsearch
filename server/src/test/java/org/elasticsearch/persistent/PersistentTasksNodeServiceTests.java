@@ -65,19 +65,15 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private PersistentTasksExecutor.Scope scope;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startThreadPool() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         scope = randomFrom(PersistentTasksExecutor.Scope.values());
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
-        super.tearDown();
     }
 
     private ClusterState createInitialClusterState(int nonLocalNodesCount, Settings settings) {
@@ -382,7 +378,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(action.getExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(action.getTaskName()).thenReturn("test");
         when(action.createTask(anyLong(), anyString(), anyString(), any(), any(), any())).thenReturn(
-            new TestPersistentTasksPlugin.TestTask(1, "persistent", "test", "", new TaskId("cluster", 1), Collections.emptyMap())
+            new TestPersistentTasksPlugin.TestTask(1, "persistent", "test[c]", "", new TaskId("cluster", 1), Collections.emptyMap())
         );
         when(action.scope()).thenReturn(scope);
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Collections.singletonList(action));
@@ -431,7 +427,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 IllegalStateException e0 = expectThrows(IllegalStateException.class, runningTask::markAsCompleted);
                 assertThat(
                     e0.getMessage(),
-                    equalTo("attempt to complete task [test] with id [" + persistentId + "] which has been locally aborted")
+                    equalTo("attempt to complete task [test[c]] with id [" + persistentId + "] which has been locally aborted")
                 );
             }
             case 1 -> {
@@ -441,7 +437,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 );
                 assertThat(
                     e1.getMessage(),
-                    equalTo("attempt to fail task [test] with id [" + persistentId + "] which has been locally aborted")
+                    equalTo("attempt to fail task [test[c]] with id [" + persistentId + "] which has been locally aborted")
                 );
             }
             case 2 -> {
@@ -451,7 +447,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 );
                 assertThat(
                     e2.getMessage(),
-                    equalTo("attempt to locally abort task [test] with id [" + persistentId + "] which has already been locally aborted")
+                    equalTo("attempt to locally abort task [test[c]] with id [" + persistentId + "] which has already been locally aborted")
                 );
             }
         }

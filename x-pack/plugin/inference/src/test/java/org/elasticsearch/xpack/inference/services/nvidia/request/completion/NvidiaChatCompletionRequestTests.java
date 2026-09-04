@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_Streaming() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequest(URL_VALUE, input, true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -62,7 +63,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_NonStreaming() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequest(URL_VALUE, input, false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -80,7 +81,7 @@ public class NvidiaChatCompletionRequestTests extends ESTestCase {
     public void testCreateRequest_NoUrlProvided_DefaultUrlSet() throws IOException {
         String input = randomAlphaOfLength(15);
         var request = createRequest(null, input, false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

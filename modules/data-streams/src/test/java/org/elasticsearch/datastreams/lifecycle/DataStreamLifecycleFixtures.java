@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -40,8 +42,13 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomByteSizeValue;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -197,5 +204,31 @@ public class DataStreamLifecycleFixtures {
         } else {
             return randomFrom(DownsampleConfig.SamplingMethod.values());
         }
+    }
+
+    public static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 }

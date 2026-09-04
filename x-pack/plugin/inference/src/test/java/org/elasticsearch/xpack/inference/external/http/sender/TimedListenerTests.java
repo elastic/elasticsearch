@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,7 +38,14 @@ import static org.mockito.Mockito.when;
 
 public class TimedListenerTests extends ESTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "test-inference-id";
+    private static final TimeValue ONE_MILLISECOND = TimeValue.timeValueMillis(1);
+    private static final String REQUEST_TIMED_OUT_MESSAGE = format(
+        "Request timed out after [%s] for inference id [%s]",
+        ONE_MILLISECOND,
+        INFERENCE_ID
+    );
+
     private ThreadPool threadPool;
 
     @Before
@@ -56,7 +64,7 @@ public class TimedListenerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
-        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, mockThreadPool);
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
 
         timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
         verify(listener, times(1)).onFailure(any());
@@ -68,12 +76,12 @@ public class TimedListenerTests extends ESTestCase {
 
     public void testRequest_ReturnsTimeoutException() {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, threadPool, INFERENCE_ID);
 
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(timedListener.hasCompleted());
-        assertThat(thrownException.status().getStatus(), is(408));
+        assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {
@@ -85,13 +93,13 @@ public class TimedListenerTests extends ESTestCase {
             return Void.TYPE;
         }).when(listener).onFailure(any());
 
-        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, threadPool, INFERENCE_ID);
 
-        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(timedListener.hasCompleted());
 
         timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
@@ -107,13 +115,13 @@ public class TimedListenerTests extends ESTestCase {
             return Void.TYPE;
         }).when(listener).onFailure(any());
 
-        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, threadPool, INFERENCE_ID);
 
-        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(timedListener.hasCompleted());
 
         timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
@@ -126,7 +134,7 @@ public class TimedListenerTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
-        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, mockThreadPool);
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
 
         timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
         verify(listener, times(1)).onResponse(any());

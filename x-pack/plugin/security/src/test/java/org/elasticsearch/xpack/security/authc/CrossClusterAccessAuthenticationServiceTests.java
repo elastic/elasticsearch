@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -200,8 +201,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         );
         var action = "action";
         var request = mock(TransportRequest.class);
-        when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyService.ApiKeyCredentials.class)))
-            .thenReturn(authContext);
+        when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyCredentials.class))).thenReturn(
+            authContext
+        );
 
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
@@ -253,8 +255,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         );
         var action = "action";
         var request = mock(TransportRequest.class);
-        when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyService.ApiKeyCredentials.class)))
-            .thenReturn(authContext);
+        when(authenticationService.newContext(anyString(), any(TransportRequest.class), any(ApiKeyCredentials.class))).thenReturn(
+            authContext
+        );
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         crossClusterAccessAuthenticationService.authenticate(action, request, future);
@@ -307,12 +310,11 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     public void testTerminateExceptionBubblesUpWithAuthenticateHeaders() {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(apiKeyService)
-            .tryAuthenticate(any(), any(ApiKeyService.ApiKeyCredentials.class), listenerCaptor.capture());
+        doAnswer(i -> null).when(apiKeyService).tryAuthenticate(any(), any(ApiKeyCredentials.class), listenerCaptor.capture());
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         crossClusterAccessAuthenticationService.tryAuthenticate(
-            new ApiKeyService.ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
+            new ApiKeyCredentials(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUIDSecureString(), ApiKey.Type.CROSS_CLUSTER),
             future
         );
         Exception ex = new IllegalArgumentException("terminator");

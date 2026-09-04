@@ -24,12 +24,15 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.provider.ValueSource;
 import org.gradle.api.provider.ValueSourceParameters;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +45,7 @@ public class BwcSetupExtension {
 
     private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
+    public static final String BWC_THROTTLE_MAX_PARALLEL_USAGES = "bwc.throttle.maxParallelUsages";
     private final Project project;
     private final ObjectFactory objectFactory;
     private final ProviderFactory providerFactory;
@@ -103,7 +107,6 @@ public class BwcSetupExtension {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
-
             loggedExec.doFirst(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -171,16 +174,93 @@ public class BwcSetupExtension {
             for (File initScript : project.getGradle().getStartParameter().getInitScripts()) {
                 loggedExec.args("-I", initScript.getAbsolutePath());
             }
+            // Dynamically resolve all provisioned JDK installations from the Gradle user home jdks directory.
+            // Each provisioned JDK is stored two levels deep: jdks/<vendor-version-arch-os>/<jdk-bundle>/
+            // We collect every second-level directory and pass them as a comma-separated list so that the
+            // nested BWC Gradle build can discover all available toolchains without a hardcoded list.
+            String jdksDir = project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "/jdks";
+            Provider<List<Object>> jdkInstallationsArg = providerFactory.of(
+                JdkToolchainInstallationsValueSource.class,
+                spec -> spec.getParameters().getJdksDir().set(jdksDir)
+            ).map(paths -> paths.isEmpty() ? List.of() : List.of("-Dorg.gradle.java.installations.paths=" + paths));
+            loggedExec.getArgs().addAll(jdkInstallationsArg);
+
             loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
+
+            // We wanna have the option to throttle the parallel execution of the bwc tasks themselves
+            // e.g. for CI environments with limited resources or when running ci caching scripts
+            configureBwcThrottle(project, loggedExec);
             configAction.execute(loggedExec);
         });
+    }
+
+    private static void configureBwcThrottle(Project project, LoggedExec loggedExec) {
+        Provider<String> throttleProperty = project.getProviders().systemProperty(BWC_THROTTLE_MAX_PARALLEL_USAGES);
+        if (throttleProperty.isPresent()) {
+            try {
+                int maxParallelUsages = Integer.parseInt(throttleProperty.get());
+                if (maxParallelUsages < 1) {
+                    throw new GradleException("System property 'bwc.throttle.maxParallelUsages' must be >= 1");
+                }
+                Provider<BwcThrottle> throttle = project.getGradle()
+                    .getSharedServices()
+                    .registerIfAbsent("bwcThrottle", BwcThrottle.class, spec -> spec.getMaxParallelUsages().set(maxParallelUsages));
+
+                loggedExec.usesService(throttle);
+            } catch (NumberFormatException e) {
+                throw new GradleException("System property 'bwc.throttle.maxParallelUsages' must be an integer value", e);
+            }
+        }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     private static Provider<String> getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        return toolChainService.launcherFor(javaToolchainSpec -> { javaToolchainSpec.getLanguageVersion().value(value); })
+        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
+    }
+
+    /**
+     * A {@link ValueSource} that lists all JDK installations provisioned by the Gradle toolchain resolver
+     * under the {@code jdks/} subdirectory of the Gradle user home directory.
+     *
+     * <p>The resolver stores each JDK two levels deep:
+     * {@code jdks/<vendor-version-arch-os>/<jdk-bundle>/}.  This source collects every
+     * second-level directory (the actual JDK bundles) and returns them as a comma-separated
+     * string suitable for {@code -Dorg.gradle.java.installations.paths}.
+     *
+     * <p>Using a {@link ValueSource} keeps the file-system read outside the configuration-cache
+     * snapshot so the list is re-evaluated on every build.
+     */
+    public abstract static class JdkToolchainInstallationsValueSource
+        implements
+            ValueSource<String, JdkToolchainInstallationsValueSource.Params> {
+
+        @Override
+        public String obtain() {
+            File jdksDir = new File(getParameters().getJdksDir().get());
+            if (jdksDir.exists() == false || jdksDir.isDirectory() == false) {
+                return "";
+            }
+            File[] topLevelDirs = jdksDir.listFiles(File::isDirectory);
+            if (topLevelDirs == null || topLevelDirs.length == 0) {
+                return "";
+            }
+            List<String> installationPaths = new ArrayList<>();
+            for (File topLevelDir : topLevelDirs) {
+                File[] jdkBundles = topLevelDir.listFiles(File::isDirectory);
+                if (jdkBundles != null) {
+                    for (File jdkBundle : jdkBundles) {
+                        installationPaths.add(jdkBundle.getAbsolutePath());
+                    }
+                }
+            }
+            return String.join(",", installationPaths);
+        }
+
+        public interface Params extends ValueSourceParameters {
+            Property<String> getJdksDir();
+        }
     }
 
     public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
@@ -212,4 +292,6 @@ public class BwcSetupExtension {
             Property<File> getCheckoutDir();
         }
     }
+
+    public abstract class BwcThrottle implements BuildService<BuildServiceParameters.None> {}
 }

@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC

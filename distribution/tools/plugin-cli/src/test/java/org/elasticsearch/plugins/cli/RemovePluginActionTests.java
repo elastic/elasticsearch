@@ -45,10 +45,8 @@ public class RemovePluginActionTests extends ESTestCase {
     private Path home;
     private Environment env;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTestEnvironment() throws Exception {
         home = createTempDir();
         Files.createDirectories(home.resolve("bin"));
         Files.createFile(home.resolve("bin").resolve("elasticsearch"));
@@ -225,8 +223,11 @@ public class RemovePluginActionTests extends ESTestCase {
 
         MockTerminal terminal = MockTerminal.create();
 
-        new MockRemovePluginCommand(env) {
-        }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+        new MockRemovePluginCommand(env) {}.main(
+            new String[] { "-Epath.home=" + home, "fake" },
+            terminal,
+            new ProcessInfo(Map.of(), Map.of(), createTempDir())
+        );
         try (
             BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()));
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))

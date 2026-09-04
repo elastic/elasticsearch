@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -42,8 +44,28 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
-        super(settings, clusterService, threadPool, client, EstimatedHeapUsageCollector.EMPTY, NodeUsageStatsForThreadPoolsCollector.EMPTY);
+    @Nullable // if no fakery should take place
+    private volatile UnaryOperator<CacheSizesAndCommitmentStats> cacheSizesAndCommitmentStatsFunction;
+
+    public MockInternalClusterInfoService(
+        Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NodeClient client
+    ) {
+        super(
+            settings,
+            writeLoadConstraintSettings,
+            clusterService,
+            threadPool,
+            client,
+            EstimatedHeapUsageCollector.EMPTY,
+            CacheSizesAndCommitmentCollector.EMPTY,
+            PartitionSizeCollector.EMPTY,
+            NodeUsageStatsForThreadPoolsCollector.EMPTY,
+            SearchLaneRequirementsCollector.EMPTY
+        );
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {
@@ -53,6 +75,19 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFn) {
         this.shardSizeFunction = shardSizeFn;
+        ClusterInfoServiceUtils.refresh(this);
+    }
+
+    /**
+     * Sets a function used to replace the collected {@link CacheSizesAndCommitmentStats} (always
+     * {@link CacheSizesAndCommitmentStats#EMPTY} in production today, since no real {@link CacheSizesAndCommitmentCollector}
+     * implementation exists) with fake node cache size and commitment data, and shard cache requirement data, for driving
+     * cache-capacity-aware allocation deciders in tests.
+     */
+    public void setCacheSizesAndCommitmentStatsFunctionAndRefresh(
+        UnaryOperator<CacheSizesAndCommitmentStats> cacheSizesAndCommitmentStatsFn
+    ) {
+        this.cacheSizesAndCommitmentStatsFunction = cacheSizesAndCommitmentStatsFn;
         ClusterInfoServiceUtils.refresh(this);
     }
 
@@ -127,6 +162,15 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 shardStats.getSearchIdleTime()
             );
         }).toArray(ShardStats[]::new);
+    }
+
+    @Override
+    CacheSizesAndCommitmentStats adjustCacheSizesAndCommitmentStats(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+        var function = this.cacheSizesAndCommitmentStatsFunction;
+        if (function == null) {
+            return cacheSizesAndCommitmentStats;
+        }
+        return function.apply(cacheSizesAndCommitmentStats);
     }
 
     @Override

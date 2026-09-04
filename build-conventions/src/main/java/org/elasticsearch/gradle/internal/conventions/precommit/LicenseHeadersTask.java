@@ -21,12 +21,17 @@ import org.apache.rat.report.RatReport;
 import org.apache.rat.report.claim.ClaimStatistic;
 import org.apache.rat.report.xml.XmlReportFactory;
 import org.apache.rat.report.xml.writer.impl.base.XmlWriter;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.Problem;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -48,6 +53,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,11 +98,14 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private ListProperty<License> additionalLicenses;
 
+    private final ProblemReporter problemReporter;
+
     @Inject
-    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
+    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout, Problems problems) {
         additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
         reportFile = objectFactory.fileProperty().convention(projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml"));
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
+        this.problemReporter = problems.getReporter();
     }
 
     /**
@@ -191,14 +200,87 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             return simpleLicenseFamily;
         }).toArray(SimpleLicenseFamily[]::new));
 
+        List<Problem> problems = new ArrayList<>();
+
+        checkForDuplicateHeaders(problems);
+
         File repFile = getReportFile().getAsFile().get();
         ClaimStatistic stats = generateReport(reportConfiguration, repFile);
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
+            List<String> unapproved = unapprovedFiles(repFile);
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(repFile).forEach(getLogger()::error);
-            throw new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath());
+            unapproved.forEach(file -> {
+                getLogger().error(file);
+                problems.add(
+                    problemReporter.create(
+                        ProblemId.create(
+                            "unapproved-license-header",
+                            "Unapproved license header",
+                            ElasticsearchBuildProblems.LICENSE_HEADERS
+                        ),
+                        spec -> spec.contextualLabel("Unapproved license header in " + file)
+                            .fileLocation(file)
+                            .solution("Add an approved license header to the file")
+                    )
+                );
+            });
+        }
+        if (problems.isEmpty() == false) {
+            throw problemReporter.throwing(
+                new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath()),
+                problems
+            );
+        }
+    }
+
+    /**
+     * Checks each source file for duplicate license header blocks. Apache RAT only verifies that an approved
+     * license header is present — it does not fail when a file contains more than one header. A file with two
+     * different headers is ambiguous about which license governs it, so we fail explicitly.
+     * <p>
+     * Detection strategy: count occurrences of the block-comment opener pattern
+     * {@code "/*\n * Copyright Elasticsearch B.V."} in each file (after normalising line endings to LF).
+     * Matching against the full opener rather than just the copyright string avoids false positives from
+     * files that legitimately mention the copyright text inside string literals, text blocks, or Javadoc
+     * comments (e.g. code-generators that embed a license header in the strings they emit).
+     */
+    private void checkForDuplicateHeaders(List<Problem> problems) {
+        // The exact prefix of every Elasticsearch license block-comment header.
+        final String HEADER_OPENER = "/*\n * Copyright Elasticsearch B.V.";
+        for (FileCollection dirSet : getSourceFolders().get()) {
+            for (File f : dirSet.getAsFileTree().matching(patternFilterable -> patternFilterable.exclude(getExcludes()))) {
+                String content;
+                try {
+                    // Normalise Windows line endings so the pattern always contains a plain '\n'.
+                    content = Files.readString(f.toPath(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+                } catch (IOException e) {
+                    throw new GradleException("Cannot read " + f + " to check for duplicate license headers", e);
+                }
+                int count = 0;
+                int idx = 0;
+                while ((idx = content.indexOf(HEADER_OPENER, idx)) != -1) {
+                    count++;
+                    idx += 1;
+                }
+                if (count > 1) {
+                    String path = f.getAbsolutePath();
+                    getLogger().error("Duplicate license header in: " + path);
+                    problems.add(
+                        problemReporter.create(
+                            ProblemId.create(
+                                "duplicate-license-header",
+                                "Duplicate license header",
+                                ElasticsearchBuildProblems.LICENSE_HEADERS
+                            ),
+                            spec -> spec.contextualLabel("Duplicate license header in " + path)
+                                .fileLocation(path)
+                                .solution("Remove the duplicate license header block from the file")
+                        )
+                    );
+                }
+            }
         }
     }
 

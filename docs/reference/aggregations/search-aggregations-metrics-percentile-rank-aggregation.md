@@ -7,7 +7,7 @@ mapped_pages:
 # Percentile ranks aggregation [search-aggregations-metrics-percentile-rank-aggregation]
 
 
-A `multi-value` metrics aggregation that calculates one or more percentile ranks over numeric values extracted from the aggregated documents. These values can be extracted from specific numeric or [histogram fields](/reference/elasticsearch/mapping-reference/histogram.md) in the documents.
+A `multi-value` metrics aggregation that calculates one or more percentile ranks over numeric values extracted from the aggregated documents. These values can be extracted from specific numeric, [histogram](/reference/elasticsearch/mapping-reference/histogram.md) or [exponential histogram](/reference/elasticsearch/mapping-reference/exponential-histogram.md) {applies_to}`stack: ga 9.4` fields in the documents.
 
 ::::{note}
 Please see [Percentiles are (usually) approximate](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation), [Compression](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-compression) and [Execution hint](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-execution-hint) for advice regarding approximation, performance and memory use of the percentile ranks aggregation

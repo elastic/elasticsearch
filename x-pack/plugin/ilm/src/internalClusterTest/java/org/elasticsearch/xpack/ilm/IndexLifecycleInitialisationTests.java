@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -183,12 +185,14 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
         assertNotNull(indexLifecycleService.getScheduledJob());
+        @FixForMultiProject(description = "ilm is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .getMetadata()
-                .getProject()
+                .getProject(projectId)
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
@@ -421,12 +425,14 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
         awaitIndexExists("test");
+        @FixForMultiProject(description = "ilm is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .getMetadata()
-                .getProject()
+                .getProject(projectId)
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));

@@ -19,7 +19,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -92,13 +91,11 @@ public class RestVectorTileAction extends BaseRestHandler {
     static final String LABEL_POSITION_FIELD_NAME = INTERNAL_AGG_PREFIX + "label_position";
 
     private final SearchUsageHolder searchUsageHolder;
-    private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, Settings settings) {
+    public RestVectorTileAction(SearchUsageHolder searchUsageHolder, CrossProjectModeDecider crossProjectModeDecider) {
         this.searchUsageHolder = searchUsageHolder;
-        this.settings = settings;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -177,7 +174,9 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getSuggest(),
                         searchResponse.isTimedOut(),
                         searchResponse.isTerminatedEarly(),
-                        searchResponse.getProfileResults() == null ? null : new SearchProfileResults(searchResponse.getProfileResults()),
+                        searchResponse.getSearchProfileShardResults() == null
+                            ? null
+                            : new SearchProfileResults(searchResponse.getSearchProfileShardResults()),
                         searchResponse.getNumReducePhases(),
                         searchResponse.getScrollId(),
                         searchResponse.getTotalShards(),

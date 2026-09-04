@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -275,9 +276,21 @@ public class ReadOnlyEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
+    }
+
+    @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert false : "this should not be called";
+        throw new UnsupportedOperationException("updates are not supported on a read-only engine");
     }
 
     @Override
@@ -453,7 +466,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         listener.onResponse(new FlushResult(false, lastCommittedSegmentInfos.getGeneration()));
     }
 
@@ -607,8 +620,8 @@ public class ReadOnlyEngine extends Engine {
                 return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
             }
 
-            long minValue = DocValuesSkipper.globalMinValue(searcher, field);
-            long maxValue = DocValuesSkipper.globalMaxValue(searcher, field);
+            long minValue = DocValuesSkipper.globalMinValue(searcher.getIndexReader(), field);
+            long maxValue = DocValuesSkipper.globalMaxValue(searcher.getIndexReader(), field);
             if (minValue == Long.MAX_VALUE && maxValue == Long.MIN_VALUE) {
                 // no skipper
                 return ShardLongFieldRange.EMPTY;
@@ -621,9 +634,10 @@ public class ReadOnlyEngine extends Engine {
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,
         SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
     ) throws EngineException {
-        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, externalDirectoryReaderWrapper, referenceManager);
         return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {

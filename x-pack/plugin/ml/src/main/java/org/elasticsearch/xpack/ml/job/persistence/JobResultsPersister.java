@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -141,6 +142,7 @@ public class JobResultsPersister {
             }
             String id = bucketWithoutRecords.getId();
             logger.trace("[{}] ES API CALL: index bucket to index [{}] with ID [{}]", jobId, indexName, id);
+            bucketWithoutRecords.setEventIngested(Instant.now());
             indexResult(id, bucketWithoutRecords, "bucket");
 
             persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
@@ -156,6 +158,7 @@ public class JobResultsPersister {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
                     logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);
+                    bucketInfluencer.setEventIngested(Instant.now());
                     indexResult(id, bucketInfluencer, "bucket influencer");
                 }
             }
@@ -186,6 +189,7 @@ public class JobResultsPersister {
         public synchronized Builder persistRecords(List<AnomalyRecord> records) {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
+                record.setEventIngested(Instant.now());
                 indexResult(record.getId(), record, "record");
             }
 
@@ -202,6 +206,7 @@ public class JobResultsPersister {
         public synchronized Builder persistInfluencers(List<Influencer> influencers) {
             for (Influencer influencer : influencers) {
                 logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
+                influencer.setEventIngested(Instant.now());
                 indexResult(influencer.getId(), influencer, "influencer");
             }
 
@@ -371,7 +376,7 @@ public class JobResultsPersister {
     }
 
     private static SearchRequest buildQuantilesDocIdSearch(String quantilesDocId) {
-        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
+        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
                     .fetchSource(false)
@@ -469,7 +474,7 @@ public class JobResultsPersister {
             indexNames.add(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         }
         if (commitTypes.contains(CommitType.STATE)) {
-            indexNames.add(AnomalyDetectorsIndex.jobStateIndexPattern());
+            Collections.addAll(indexNames, AnomalyDetectorsIndex.jobStateIndexPatterns());
         }
         if (commitTypes.contains(CommitType.ANNOTATIONS)) {
             // We refresh using the read alias in order to ensure all indices will

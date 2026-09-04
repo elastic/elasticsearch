@@ -1,5 +1,0 @@
-pr: 138728
-summary: Respect flexible field access pattern in geoip and `ip_location` processors
-area: Ingest Node
-type: bug
-issues: []

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 153304
+summary: Track Painless def-dispatched allocation-annotated calls
+type: enhancement

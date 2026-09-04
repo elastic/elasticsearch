@@ -11,7 +11,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -96,9 +96,11 @@ public abstract class StreamOutput extends OutputStream {
         this.version = version;
     }
 
-    public long position() throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    /**
+     * @return the current position of the stream, in bytes. Increases as data is written to the stream. If the stream is seekable then
+     *         the seek operation updates the current {@code position()}.
+     */
+    public abstract long position();
 
     /**
      * Writes a single byte.
@@ -343,7 +345,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a possibly-null {@link String}, represented as a {@link boolean} which is {@code false} if the string is null, or else
+     * Write a possibly-null {@link String}, represented as a {@code boolean} which is {@code false} if the string is null, or else
      * {@code true} if it is not null, and in this latter case it is followed by the string itself written as if with {@link #writeString}.
      * <p>
      * May be performance-critical, so subclasses must specify an explicit implementation. If performance is unimportant, consider using
@@ -402,20 +404,20 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final ThreadLocal<BytesRefBuilder> spareBytesRefBuilder = ThreadLocal.withInitial(BytesRefBuilder::new);
-
+    /**
+     * Write a {@link Text}: its length in bytes (NB not Unicode code units) written using {@link #writeInt} followed by its UTF-8 encoding.
+     */
     public void writeText(Text text) throws IOException {
-        if (text.hasBytes() == false) {
-            final String string = text.string();
-            var spare = spareBytesRefBuilder.get();
-            spare.copyChars(string);
-            writeInt(spare.length());
-            write(spare.bytes(), 0, spare.length());
-        } else {
+        if (text.hasBytes()) {
             var encoded = text.bytes();
-            BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
-            writeInt(bytes.length());
-            bytes.writeTo(this);
+            writeInt(encoded.length());
+            write(encoded.bytes(), encoded.offset(), encoded.length());
+        } else {
+            final String string = text.string();
+            final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(string, 0, string.length());
+            writeInt(byteLength);
+            final int written = StreamOutputHelper.writeUtf8Chars(string, this);
+            assert written == byteLength : written + " bytes written but expected " + byteLength;
         }
     }
 
@@ -1171,6 +1173,19 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
         writeCollection(list, StreamOutput::writeNamedWriteable);
+    }
+
+    /**
+     * Writes a possibly-{@code null} collection of {@link NamedWriteable} objects which can then be read using {@link
+     * StreamInput#readOptionalNamedWriteableCollectionAsList}.
+     */
+    public void writeOptionalNamedWriteableCollection(@Nullable Collection<? extends NamedWriteable> list) throws IOException {
+        if (list == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeCollection(list, StreamOutput::writeNamedWriteable);
+        }
     }
 
     /**

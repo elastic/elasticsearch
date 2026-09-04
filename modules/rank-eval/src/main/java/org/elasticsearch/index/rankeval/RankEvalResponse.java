@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,13 +23,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Returns the results for a {@link RankEvalRequest}.<br>
  * The response contains a detailed section for each evaluation query in the request and
  * possible failures that happened when execution individual queries.
+ * <p>
+ * When this response is built from live search results, it retains references to pooled {@link org.elasticsearch.search.SearchHit}
+ * instances. Callers must {@link #close()} when finished with the response so those references are released (idempotent).
  **/
-public class RankEvalResponse extends ActionResponse implements ToXContentObject {
+public class RankEvalResponse extends ActionResponse implements ToXContentObject, Releasable {
 
     /** The overall evaluation result. */
     private final double metricScore;
@@ -36,6 +41,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     private final Map<String, EvalQueryQuality> details;
     /** exceptions for specific ranking evaluation queries, keyed by their id */
     private final Map<String, Exception> failures;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
         this.metricScore = metricScore;
@@ -70,6 +77,18 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     public Map<String, Exception> getFailures() {
         return Collections.unmodifiableMap(failures);
+    }
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
+        for (EvalQueryQuality quality : details.values()) {
+            for (RatedSearchHit ratedSearchHit : quality.getHitsAndRatings()) {
+                ratedSearchHit.getSearchHit().decRef();
+            }
+        }
     }
 
     @Override

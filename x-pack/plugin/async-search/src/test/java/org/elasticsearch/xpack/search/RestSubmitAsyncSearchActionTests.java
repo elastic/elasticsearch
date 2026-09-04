@@ -12,6 +12,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.usage.UsageService;
@@ -32,12 +35,15 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(
-            new UsageService().getSearchUsageHolder(),
-            nf -> false,
-            Settings.EMPTY
-        );
+        RestSubmitAsyncSearchAction action = createAction(false);
         controller().registerHandler(action);
+    }
+
+    private static RestSubmitAsyncSearchAction createAction(boolean crossProjectEnabled) {
+        final CrossProjectModeDecider crossProjectModeDecider = crossProjectEnabled
+            ? new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+            : CrossProjectModeDecider.NOOP;
+        return new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), nf -> false, crossProjectModeDecider);
     }
 
     /**
@@ -47,7 +53,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     @SuppressWarnings("unchecked")
     public void testRequestParameterDefaults() throws IOException {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             SubmitAsyncSearchRequest submitRequest = (SubmitAsyncSearchRequest) request;
             assertThat(submitRequest.getWaitForCompletionTimeout(), equalTo(TimeValue.timeValueSeconds(1)));
@@ -100,6 +106,46 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testCpsDefaultsMrtToFalse() throws Exception {
+        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/test_index/_async_search")
+            .build();
+        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest();
+        submitRequest.getSearchRequest().setCcsMinimizeRoundtrips(false);
+        RestSearchAction.parseSearchRequest(
+            submitRequest.getSearchRequest(),
+            submitAsyncRestRequest,
+            null,
+            nf -> false,
+            size -> submitRequest.getSearchRequest().source().size(size),
+            new UsageService().getSearchUsageHolder(),
+            java.util.Optional.of(true)
+        );
+        assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCpsIgnoresMrtParamAndWarns() throws Exception {
+        RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/test_index/_async_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "true"))
+            .build();
+        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest();
+        submitRequest.getSearchRequest().setCcsMinimizeRoundtrips(false);
+        RestSearchAction.parseSearchRequest(
+            submitRequest.getSearchRequest(),
+            submitAsyncRestRequest,
+            null,
+            nf -> false,
+            size -> submitRequest.getSearchRequest().source().size(size),
+            new UsageService().getSearchUsageHolder(),
+            java.util.Optional.of(true)
+        );
+        assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+    }
+
+    @SuppressWarnings("unchecked")
     private <T> void doTestParameter(
         String paramName,
         String paramValue,
@@ -107,7 +153,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         Function<SubmitAsyncSearchRequest, T> valueAccessor
     ) throws Exception {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             assertThat(valueAccessor.apply((SubmitAsyncSearchRequest) request), equalTo(expectedValue));
             executeCalled.set(true);

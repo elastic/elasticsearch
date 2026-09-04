@@ -83,10 +83,8 @@ public class SearchActionTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
@@ -345,6 +343,17 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(normalIndices, source);
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.validateSearchRequest(request));
         assertThat(e.getMessage(), equalTo("Rollup search does not support explaining."));
+    }
+
+    public void testSliceParamNotAllowed() {
+        String[] normalIndices = new String[] { ESTestCase.randomAlphaOfLength(10) };
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.size(0);
+        SearchRequest request = new SearchRequest(normalIndices, source);
+        request.routing("slice-1");
+        request.searchSlice("slice-1");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.validateSearchRequest(request));
+        assertThat(e.getMessage(), equalTo("Rollup search does not support [slice]."));
     }
 
     public void testNoRollupAgg() {

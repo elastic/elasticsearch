@@ -215,6 +215,11 @@ public class MapXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public XContentLocation getCurrentLocation() {
+        return new XContentLocation(0, 0);
+    }
+
+    @Override
     public boolean isClosed() {
         return closed;
     }

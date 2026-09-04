@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -68,6 +69,20 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -277,6 +292,28 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("version").test(randomVersionString());
     }
 
+    /**
+     * Querying a date_range field with doc_values disabled should return null for every document
+     * rather than throwing an exception. Before the fix, this caused a full query failure because
+     * the block loader tried to access doc values that were not present.
+     */
+    public void testDateRangeNoDocValues() throws IOException {
+        assumeDateRangeFieldTypeSupported();
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("dates");
+            index.field("type", "date_range");
+            index.field("doc_values", false);
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"dates": {"gte": "2024-01-01", "lte": "2024-12-31"}}""");
+
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 10");
+        assertResultMap(result, List.of(columnInfo("dates", "date_range")), List.of(matchesList().item(null)));
+    }
+
     public void testGeoPoint() throws IOException {
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
@@ -308,14 +345,50 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         intTest().createAlias().test(randomInt());
     }
 
-    public void testFlattenedUnsupported() throws IOException {
-        assumeOriginalTypesReported();
-        new Test("flattened").createIndex("test", "flattened");
-        index("test", """
-            {"flattened": {"a": "foo"}}""");
-        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
+    public void testFlattenedField() throws IOException {
+        assumeFlattenedDatatype();
+        int count = between(1, 3);
+        Map<String, Object> input = new TreeMap<>();
+        Map<String, Object> expected = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            boolean nested = randomBoolean();
+            boolean array = randomBoolean();
+            String leafKey = "leaf" + i;
+            String fullKey = nested ? "parent" + i + "." + leafKey : leafKey;
+            Object value;
+            if (array) {
+                ArrayList<String> vals = new ArrayList<>();
+                vals.add(randomAlphaOfLength(5));
+                vals.add(randomValueOtherThan(vals.get(0), () -> randomAlphaOfLength(5)));
+                Collections.sort(vals);
+                value = vals;
+            } else {
+                value = randomAlphaOfLength(5);
+            }
+            input.put(fullKey, value);
+            expected.put(fullKey, value);
+        }
+        new Test("flattened").test(input, equalTo(expected));
+    }
 
-        assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+    public void testFlattenedFieldNullResult() throws IOException {
+        assumeFlattenedDatatype();
+        // Both an empty object and a missing field load as null
+        new Test("flattened").test(randomBoolean() ? Map.of() : null, null);
+    }
+
+    public void testFlattenedFieldNullValue() throws IOException {
+        assumeFlattenedDatatype();
+        // A null leaf in the flattened object is replaced with the null_value string at index time.
+        // When we read back the document the null leaf should appear as the replacement string.
+        String replacement = randomAlphaOfLength(5);
+        Map<String, Object> input = new TreeMap<>();
+        input.put("present", randomAlphaOfLength(5));
+        input.put("missing", null);
+        Map<String, Object> expected = new TreeMap<>();
+        expected.put("present", input.get("present"));
+        expected.put("missing", replacement);
+        new Test("flattened").nullValue(replacement).test(input, equalTo(expected));
     }
 
     public void testEmptyMapping() throws IOException {
@@ -1340,9 +1413,155 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    public void testTsIndexConflictingTypes() throws IOException {
+        assumeTsIndexOriginalTypesFixed();
+        Settings settings = Settings.builder().put("mode", "time_series").put("routing_path", "metric.name").build();
+
+        ESRestTestCase.createIndex("metrics-counter", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "double",
+                "time_series_metric": "counter"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-gauge", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "double",
+                "time_series_metric": "gauge"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-keyword", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "keyword"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-amd", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "aggregate_metric_double",
+                "metrics": [ "min", "max", "sum", "value_count" ],
+                "default_metric": "max"
+              }
+            }
+            """, null, DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
+        ESRestTestCase.createIndex("metrics-long", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_metric": "gauge"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-long_dimension", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_dimension": true
+              }
+            }
+            """);
+        index("metrics-amd", """
+            {"@timestamp": "2026-01-20T11:10:00Z","metric.name": "network_packets_total",""" + """
+            "metric.value": {"min": -302.50,"max": 702.30,"sum": 200.0,"value_count": 25}}""");
+        index("metrics-counter", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+        index("metrics-gauge", """
+            {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": 50}""");
+        index("metrics-keyword", """
+            {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": "a"}""");
+        index("metrics-long", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+        index("metrics-long_dimension", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+
+        Map<String, Object> result = runEsql("TS metrics-amd,metrics-counter | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "counter_double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-amd,metrics-gauge | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+        result = runEsql("TS metrics-amd,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-counter,metrics-gauge | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "counter_double", "double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+        result = runEsql("TS metrics-counter,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "counter_double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-gauge,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+    }
+
     protected Matcher<Integer> pidMatcher() {
         // TODO these should all always return null because the parent is nested
         return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
+    }
+
+    private void assumeTsIndexOriginalTypesFixed() throws IOException {
+        var capsName = EsqlCapabilities.Cap.TS_ORIGINAL_TYPES_BUG_FIXED.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/141379",
+            requiredClusterCapability
+        );
     }
 
     private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {
@@ -1359,6 +1578,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.REPORT_ORIGINAL_TYPES.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("This test makes sense for versions that report original types", requiredClusterCapability);
+    }
+
+    private void assumeFlattenedDatatype() throws IOException {
+        var capsName = EsqlCapabilities.Cap.FLATTENED_DATATYPE_NULL_VALUE.name().toLowerCase(Locale.ROOT);
+        boolean supported = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("Requires flattened datatype support", supported);
+    }
+
+    private void assumeDateRangeFieldTypeSupported() throws IOException {
+        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
     }
 
     private void assumeSuggestedCastReported() throws IOException {
@@ -1479,6 +1710,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         private Double scalingFactor;
         private Integer ignoreAbove;
         private Object value;
+        private String nullValue;
         private boolean createAlias;
 
         Test(String type) {
@@ -1553,6 +1785,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         Test value(Object value) {
             this.value = value;
+            return this;
+        }
+
+        Test nullValue(String nullValue) {
+            this.nullValue = nullValue;
             return this;
         }
 
@@ -1675,6 +1912,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
             if (value != null) {
                 builder.field("value", value);
+            }
+            if (nullValue != null) {
+                builder.field("null_value", nullValue);
             }
 
             if (subFields.isEmpty() == false) {

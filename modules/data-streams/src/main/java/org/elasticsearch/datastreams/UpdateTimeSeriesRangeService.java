@@ -118,7 +118,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     private ProjectMetadata.Builder updateTimeSeriesTemporalRange(ProjectMetadata project, Instant now) {
         ProjectMetadata.Builder mBuilder = null;
         for (DataStream dataStream : project.dataStreams().values()) {
-            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(dataStream.getIndexMode()) == false) {
                 continue;
             }
             if (dataStream.isReplicated()) {

@@ -27,6 +27,24 @@ public record TimeSpan(long startMillis, long startNanos, long stopMillis, long 
         return new TimeSpan(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
+    public static TimeSpan combine(TimeSpan... spans) {
+        long startMillis = Long.MAX_VALUE;
+        long startNanos = Long.MAX_VALUE;
+        long stopMillis = 0;
+        long stopNanos = 0;
+        boolean combined = false;
+        for (TimeSpan span : spans) {
+            if (span != null) {
+                startMillis = Math.min(startMillis, span.startMillis);
+                startNanos = Math.min(startNanos, span.startNanos);
+                stopMillis = Math.max(stopMillis, span.stopMillis);
+                stopNanos = Math.max(stopNanos, span.stopNanos);
+                combined = true;
+            }
+        }
+        return combined ? new TimeSpan(startMillis, startNanos, stopMillis, stopNanos) : null;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(startMillis);

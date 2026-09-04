@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,6 +64,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.Repository;
@@ -112,6 +115,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -236,10 +240,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     restoreSnapshotResponseListener
                 )
         );
+        final var maybeWaitForGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, index, shards);
 
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(maybeWaitForGreenListener, ignore -> {
             client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener
@@ -482,8 +486,55 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    public void testSnapshotEndTimesAreUnique() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, true);
+
+        final String repoName = "repo";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 3);
+        final int numSnapshots = randomIntBetween(2, 5);
+
+        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+            testClusterNodes.nodes().values().iterator().next().clusterService().state()
+        );
+
+        // Queue all snapshots concurrently so they all compete for finalization at the same simulated millisecond.
+        final var allSnapshotsDone = new SubscribableListener<Collection<CreateSnapshotResponse>>();
+        final var groupListener = new GroupedActionListener<>(numSnapshots, allSnapshotsDone);
+        continueOrDie(createRepoAndIndex(repoName, index, shards), ignored -> {
+            for (int i = 0; i < numSnapshots; i++) {
+                client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-" + i)
+                    .setWaitForCompletion(true)
+                    .execute(groupListener);
+            }
+        });
+
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + numSnapshots - 1);
+
+        assertTrue(allSnapshotsDone.isDone());
+
+        final Repository repository = masterNode.repositoriesService().repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        assertThat(repositoryData.getSnapshotIds(), hasSize(numSnapshots));
+
+        final Set<Long> endTimes = repositoryData.getSnapshotIds()
+            .stream()
+            .map(id -> getSnapshotInfo(repository, id).endTime())
+            .collect(Collectors.toSet());
+        assertThat("all snapshot end times must be distinct", endTimes, hasSize(numSnapshots));
+    }
+
     public void testConcurrentSnapshotCreateAndDeleteOther() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -539,7 +590,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 2);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -557,7 +613,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testBulkSnapshotDeleteWithAbort() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -604,7 +666,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .deleteSnapshot(new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "*"), deleteSnapshotStepListener)
         );
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + inProgressSnapshots);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -614,7 +681,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -682,9 +755,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
+        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, "restored_" + index, shards);
+
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(restoredIndexGreenListener, ignored -> {
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener.delegateFailure((l, r) -> {
@@ -694,7 +768,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 1);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         var response = safeResult(searchResponseListener);
         try {
@@ -761,7 +840,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
             for (int i = 0; i < indices; ++i) {
-                client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
+                client().admin().indices().create(new CreateIndexRequest("index-" + i).settings(defaultIndexSettings(1)), listener);
             }
         });
 
@@ -787,7 +866,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
+                        client().admin()
+                            .indices()
+                            .create(new CreateIndexRequest(index).settings(defaultIndexSettings(1)), ActionListener.noop());
                     }
                 }
 
@@ -928,7 +1009,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
-            final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
+            final ShardRouting shardToRelocate = clusterStateResponse.getState()
+                .routingTable()
+                .allShards(index)
+                .stream()
+                .filter(ShardRouting::primary)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no primary shard found"));
             final TestClusterNodes.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(shardToRelocate.currentNodeId());
             final TestClusterNodes.TestClusterNode otherNode = testClusterNodes.randomDataNodeSafe(currentPrimaryNode.node().getName());
             scheduleNow(() -> testClusterNodes.stopNode(currentPrimaryNode));
@@ -979,9 +1066,32 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         ActionListener.noop()
                                     )
                             );
-                        } else {
-                            scheduleSoon(this);
-                        }
+                        } else if (shardRouting.started()
+                            && shardRouting.currentNodeId().equals(currentPrimaryNode.node().getId()) == false) {
+                                // The shard recovers from blob store in stateless without needing the original primary node
+                                assertTrue(DiscoveryNode.isStateless(masterNode.settings));
+                                if (masterNodeCount > 1) {
+                                    scheduleNow(() -> testClusterNodes.stopNode(masterNode));
+                                }
+                                testClusterNodes.randomDataNodeSafe()
+                                    .client()
+                                    .admin()
+                                    .cluster()
+                                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                                    .execute(ActionListener.running(() -> {
+                                        createdSnapshot.set(true);
+                                        testClusterNodes.randomDataNodeSafe()
+                                            .client()
+                                            .admin()
+                                            .cluster()
+                                            .deleteSnapshot(
+                                                new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName),
+                                                ActionListener.noop()
+                                            );
+                                    }));
+                            } else {
+                                scheduleSoon(this);
+                            }
                     });
                 }
             });
@@ -1004,6 +1114,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
+
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -1055,10 +1166,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
+        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseStepListener, restoredIndex, shards);
+
         final SubscribableListener<SearchResponse> searchResponseStepListener = new SubscribableListener<>();
 
-        continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(restoredIndexGreenListener, restoreSnapshotResponse -> {
             client().search(
                 new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
                 searchResponseStepListener
@@ -1204,7 +1316,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         };
 
-        setupTestCluster(1, 1, node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(
+            1,
+            1,
+            node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         final var masterNode = testClusterNodes.randomMasterNodeSafe();
         final var client = masterNode.client();
@@ -1295,10 +1413,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
         }));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
-                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+                + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
             testListener.isDone()
         );
         safeAwait(testListener); // shouldn't throw
@@ -1364,11 +1487,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
     public void testDeleteIndexBetweenSuccessAndFinalization() {
 
         final var sequencer = new ShardSnapshotUpdatesSequencer();
-
+        final boolean monotonicSnapshotEndTime = randomBoolean();
         setupTestCluster(
             1,
             1,
-            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR
+            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
         );
 
         final var masterNode = testClusterNodes.randomMasterNodeSafe();
@@ -1519,10 +1643,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }));
             });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount + 1);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
-                + Strings.toString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
+                + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
             testListener.isDone()
         );
         safeAwait(testListener); // shouldn't throw
@@ -1824,6 +1953,38 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return createIndexResponseStepListener;
     }
 
+    protected SubscribableListener<Void> maybeWaitForGreenAfterRestore(
+        SubscribableListener<RestoreSnapshotResponse> restoreListener,
+        String indexName,
+        int expectedNumShards
+    ) {
+        final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
+        continueOrDie(restoreListener, restoreSnapshotResponse -> {
+            assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+
+            // Wait for green index when the node is stateless, otherwise subsequent search may fail
+            if (DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
+                client().admin()
+                    .cluster()
+                    .prepareHealth(TimeValue.MINUS_ONE, indexName)
+                    .setWaitForGreenStatus()
+                    .execute(clusterHealthResponseListener);
+            } else {
+                // Just fake a green health since it does not matter in stateful
+                final var clusterHealthResponse = new ClusterHealthResponse();
+                clusterHealthResponse.setStatus(ClusterHealthStatus.GREEN);
+                clusterHealthResponseListener.onResponse(clusterHealthResponse);
+            }
+        });
+
+        final SubscribableListener<Void> greenHealthListener = new SubscribableListener<>();
+        continueOrDie(clusterHealthResponseListener, clusterHealthResponse -> {
+            assertThat(clusterHealthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            greenHealthListener.onResponse(null);
+        });
+        return greenHealthListener;
+    }
+
     protected void clearDisruptionsAndAwaitSync() {
         testClusterNodes.clearNetworkDisruptions();
         stabilize();
@@ -1931,18 +2092,35 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes) {
-        setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, randomBoolean());
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+        setupTestCluster(masterNodes, dataNodes, transportInterceptorFactory, randomBoolean());
+    }
+
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new TestClusterNodes(
             masterNodes,
             dataNodes,
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
-        );
+            expectedWarnings -> assertWarnings(expectedWarnings)
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 
@@ -1954,7 +2132,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.scheduleNow(runnable);
     }
 
-    private static Settings defaultIndexSettings(int shards) {
+    protected Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
         return indexSettings(shards, 0).build();
     }

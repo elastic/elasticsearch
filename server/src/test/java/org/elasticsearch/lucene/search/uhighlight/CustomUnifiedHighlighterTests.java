@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.search.uhighlight;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenOffsetFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
@@ -25,16 +26,21 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
@@ -43,6 +49,7 @@ import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,6 +62,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.emptyArray;
 
 public class CustomUnifiedHighlighterTests extends ESTestCase {
 
@@ -150,6 +158,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
                     builder,
                     offsetSource,
+                    false,
                     locale,
                     "index",
                     "text",
@@ -244,6 +253,172 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             0,
             outputs
         );
+    }
+
+    /** Single-document readers retain postings offsets for multi-term queries. */
+    public void testMultiTermQueryKeepsPostingsOffsetSourceForSingleDocumentReader() throws Exception {
+        final String content = "The quick brown fox.";
+        final String expectedSnippet = "The <b>quick</b> brown fox.";
+        for (Query query : new Query[] {
+            new PrefixQuery(new Term("text", "qui")),
+            new WildcardQuery(new Term("text", "qu*ck")),
+            new FuzzyQuery(new Term("text", "quack")) }) {
+            assertOffsetSourceAndSnippet(content, query, false, UnifiedHighlighter.OffsetSource.ANALYSIS, expectedSnippet);
+            assertOffsetSourceAndSnippet(content, query, true, UnifiedHighlighter.OffsetSource.POSTINGS, expectedSnippet);
+        }
+    }
+
+    public void testRewrittenAndUnrecognizedQueriesKeepPostingsOffsetSourceForSingleDocumentReader() throws Exception {
+        final String content = "The quick brown fox.";
+
+        // FieldExistsQuery cannot be converted to an automaton.
+        final String termSnippet = "The <b>quick</b> brown fox.";
+        Query unrecognized = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "quick")), BooleanClause.Occur.MUST)
+            .add(new FieldExistsQuery("text"), BooleanClause.Occur.MUST)
+            .build();
+        assertOffsetSourceAndSnippet(content, unrecognized, false, UnifiedHighlighter.OffsetSource.ANALYSIS, termSnippet);
+        assertOffsetSourceAndSnippet(content, unrecognized, true, UnifiedHighlighter.OffsetSource.POSTINGS, termSnippet);
+
+        // Disable weight matches so Lucene rewrites the phrase before choosing the offset source.
+        final String rewrittenSnippet = "The <b>quick</b> <b>brown</b> <b>fox</b>.";
+        MultiPhrasePrefixQuery phrasePrefix = new MultiPhrasePrefixQuery("text");
+        phrasePrefix.add(new Term("text", "quick"));
+        phrasePrefix.add(new Term("text", "brown"));
+        phrasePrefix.add(new Term("text", "fo"));
+        assertOffsetSourceAndSnippet(content, phrasePrefix, false, UnifiedHighlighter.OffsetSource.ANALYSIS, rewrittenSnippet, false);
+        assertOffsetSourceAndSnippet(content, phrasePrefix, true, UnifiedHighlighter.OffsetSource.POSTINGS, rewrittenSnippet, false);
+    }
+
+    public void testQueryMaxAnalyzedOffsetBoundsMultiTermMatchingLikeQueryDsl() throws Exception {
+        final String content = "quick brown padding padding fox"; // "fox" starts at offset 28, past the cutoff
+        final int cutoff = 20;
+        Query pastCutoff = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "quick")), BooleanClause.Occur.MUST)
+            .add(new PrefixQuery(new Term("text", "fo")), BooleanClause.Occur.MUST)
+            .build();
+        assertThat(highlightWithTruncatedAnalyzer(content, pastCutoff, UnifiedHighlighter.OffsetSource.POSTINGS, cutoff), emptyArray());
+        assertThat(highlightWithTruncatedAnalyzer(content, pastCutoff, UnifiedHighlighter.OffsetSource.ANALYSIS, cutoff), emptyArray());
+        assertThat(highlightWithTruncatedIndex(content, pastCutoff, cutoff), emptyArray());
+
+        // Matches before the cutoff should produce the same snippet.
+        Query insideCutoff = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "quick")), BooleanClause.Occur.MUST)
+            .add(new PrefixQuery(new Term("text", "bro")), BooleanClause.Occur.MUST)
+            .build();
+        final String expected = "<b>quick</b> <b>brown</b> padding padding fox";
+        for (Snippet[] snippets : new Snippet[][] {
+            highlightWithTruncatedAnalyzer(content, insideCutoff, UnifiedHighlighter.OffsetSource.POSTINGS, cutoff),
+            highlightWithTruncatedAnalyzer(content, insideCutoff, UnifiedHighlighter.OffsetSource.ANALYSIS, cutoff),
+            highlightWithTruncatedIndex(content, insideCutoff, cutoff) }) {
+            assertThat(snippets.length, equalTo(1));
+            assertThat(snippets[0].getText(), equalTo(expected));
+        }
+    }
+
+    private Snippet[] highlightWithTruncatedAnalyzer(String content, Query query, UnifiedHighlighter.OffsetSource offsetSource, int cutoff)
+        throws IOException {
+        Analyzer analyzer = new StandardAnalyzer();
+        MemoryIndex memoryIndex = new MemoryIndex(true);
+        memoryIndex.addField("text", content, analyzer);
+        return highlightWithCutoff(
+            memoryIndex.createSearcher(),
+            new LimitTokenOffsetAnalyzer(analyzer, cutoff),
+            query,
+            offsetSource,
+            false,
+            cutoff,
+            content
+        );
+    }
+
+    private Snippet[] highlightWithTruncatedIndex(String content, Query query, int cutoff) throws IOException {
+        Analyzer analyzer = new StandardAnalyzer();
+        MemoryIndex memoryIndex = new MemoryIndex(true);
+        memoryIndex.addField("text", new LimitTokenOffsetFilter(analyzer.tokenStream("text", content), cutoff, false));
+        return highlightWithCutoff(
+            memoryIndex.createSearcher(),
+            analyzer,
+            query,
+            UnifiedHighlighter.OffsetSource.POSTINGS,
+            true,
+            cutoff,
+            content
+        );
+    }
+
+    private Snippet[] highlightWithCutoff(
+        IndexSearcher searcher,
+        Analyzer analyzer,
+        Query query,
+        UnifiedHighlighter.OffsetSource offsetSource,
+        boolean singleDocumentReader,
+        int cutoff,
+        String content
+    ) throws IOException {
+        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+        builder.withBreakIterator(() -> BreakIterator.getSentenceInstance(Locale.ROOT));
+        builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            builder,
+            offsetSource,
+            singleDocumentReader,
+            Locale.ROOT,
+            "index",
+            "text",
+            query,
+            0,
+            1,
+            Integer.MAX_VALUE,
+            QueryMaxAnalyzedOffset.create(cutoff, Integer.MAX_VALUE),
+            true,
+            true
+        );
+        return highlighter.highlightField((LeafReader) searcher.getIndexReader(), 0, () -> content);
+    }
+
+    private void assertOffsetSourceAndSnippet(
+        String content,
+        Query query,
+        boolean singleDocumentReader,
+        UnifiedHighlighter.OffsetSource expectedOffsetSource,
+        String expectedSnippet
+    ) throws IOException {
+        assertOffsetSourceAndSnippet(content, query, singleDocumentReader, expectedOffsetSource, expectedSnippet, true);
+    }
+
+    private void assertOffsetSourceAndSnippet(
+        String content,
+        Query query,
+        boolean singleDocumentReader,
+        UnifiedHighlighter.OffsetSource expectedOffsetSource,
+        String expectedSnippet,
+        boolean weightMatchesEnabled
+    ) throws IOException {
+        Analyzer analyzer = new StandardAnalyzer();
+        MemoryIndex memoryIndex = new MemoryIndex(true);
+        memoryIndex.addField("text", content, analyzer);
+        IndexSearcher searcher = memoryIndex.createSearcher();
+        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+        builder.withBreakIterator(() -> BreakIterator.getSentenceInstance(Locale.ROOT));
+        builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            builder,
+            UnifiedHighlighter.OffsetSource.POSTINGS,
+            singleDocumentReader,
+            Locale.ROOT,
+            "index",
+            "text",
+            query,
+            0,
+            1,
+            Integer.MAX_VALUE,
+            QueryMaxAnalyzedOffset.create(null, Integer.MAX_VALUE),
+            true,
+            weightMatchesEnabled
+        );
+        assertThat(highlighter.resolvedOffsetSource(), equalTo(expectedOffsetSource));
+        LeafReader reader = (LeafReader) searcher.getIndexReader();
+        Snippet[] snippets = highlighter.highlightField(reader, 0, () -> content);
+        assertThat(snippets.length, equalTo(1));
+        assertThat(snippets[0].getText(), equalTo(expectedSnippet));
     }
 
     public void testSentenceBoundedBreakIterator() throws Exception {
@@ -399,6 +574,27 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public void testPhraseSpanningMultipleValues() throws Exception {
+        final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
+        final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
+            .add(new Term("text", "be"))
+            .add(new Term("text", "true"))
+            .add(new Term("text", "the"))
+            .add(new Term("text", "person"))
+            .build();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
+            0,
+            outputs
+        );
     }
 
     public void testExceedMaxAnalyzedOffset() throws Exception {

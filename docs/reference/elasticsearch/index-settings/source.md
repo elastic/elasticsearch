@@ -2,15 +2,18 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/source-index-settings.html
 navigation_title: Source settings
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # Source index settings [source-index-settings]
 
-All settings around the _source metadata field.
+All settings around the `_source` metadata field.
 
 $$$source-mode$$$
 
-`index.source.mode`
+`index.mapping.source.mode`
 : (Static, string) The source mode for the index. Valid values are [`synthetic`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source), [`disabled`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field) or `stored`. Defaults to `stored`. The `stored` source mode always stores the source metadata field on disk.
 
 $$$recovery-use_synthetic_source$$$

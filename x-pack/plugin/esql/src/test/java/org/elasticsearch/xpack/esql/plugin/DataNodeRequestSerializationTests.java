@@ -14,27 +14,32 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
@@ -45,13 +50,11 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -106,71 +109,119 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
     }
 
+    public void testRetainSearchContextsRoundTrips() throws IOException {
+        DataNodeRequest request = createTestInstance();
+        request = new DataNodeRequest(
+            request.sessionId(),
+            request.configuration(),
+            request.clusterAlias(),
+            request.shards(),
+            request.aliasFilters(),
+            request.plan(),
+            request.indices(),
+            request.indicesOptions(),
+            request.runNodeLevelReduction(),
+            request.reductionLateMaterialization(),
+            true
+        );
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertTrue(copy.retainSearchContexts());
+        assertThat(copy.getDescription(), containsString("retainSearchContexts=true"));
+
+        DataNodeRequest downgraded = copyInstance(
+            request,
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)
+        );
+        assertFalse(downgraded.retainSearchContexts());
+    }
+
+    public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+
+        String query = "FROM test | KEEP first_name*";
+        Configuration configuration = randomConfiguration(query, randomTables());
+        Versioned<LogicalPlan> logicalPlan = parse(query, UnmappedResolution.LOAD_ALL);
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, logicalPlan.minimumVersion()));
+        PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(logicalPlan));
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
+            EstimatesRowSize.estimateRowSize(0, physicalPlan),
+            configuration
+        ).v2();
+        UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
+        assertTrue(before.pattern().matches("first_name_suffix"));
+        assertFalse(before.pattern().matches("first_name"));
+
+        DataNodeRequest request = new DataNodeRequest(
+            "load-all-session",
+            configuration,
+            "",
+            List.of(new DataNodeRequest.Shard(new ShardId("test", "n/a", 0), SplitShardCountSummary.fromInt(0))),
+            Map.of(),
+            dataNodePlan,
+            new String[] { "test" },
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            false,
+            false,
+            false
+        );
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+        UnmappedFieldsAttribute after = unmappedFieldsAttribute(copy.plan());
+        assertThat(after, equalTo(before));
+    }
+
+    private static UnmappedFieldsAttribute unmappedFieldsAttribute(PhysicalPlan plan) {
+        List<UnmappedFieldsAttribute> attributes = new ArrayList<>();
+        plan.forEachDown(
+            FragmentExec.class,
+            fragment -> fragment.fragment()
+                .forEachDown(
+                    EsRelation.class,
+                    relation -> attributes.addAll(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class))
+                )
+        );
+        return EsqlTestUtils.singleValue("expected one UnmappedFieldsAttribute in FragmentExec EsRelation output", attributes);
+    }
+
     @Override
     protected DataNodeRequest mutateInstance(DataNodeRequest in) throws IOException {
-        return switch (between(0, 9)) {
-            case 0 -> {
-                var request = new DataNodeRequest(
-                    randomAlphaOfLength(20),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(in.getParentTask());
-                yield request;
-            }
-            case 1 -> {
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    randomConfiguration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(in.getParentTask());
-                yield request;
-            }
-            case 2 -> {
-                List<DataNodeRequest.Shard> shards = randomList(
+        var sessionId = in.sessionId();
+        var configuration = in.configuration();
+        var clusterAlias = in.clusterAlias();
+        var shards = in.shards();
+        var aliasFilters = in.aliasFilters();
+        var plan = in.plan();
+        var indices = in.indices();
+        var indicesOptions = in.indicesOptions();
+        var runNodeLevelReduction = in.runNodeLevelReduction();
+        var reductionLateMaterialization = in.reductionLateMaterialization();
+        var retainSearchContexts = in.retainSearchContexts();
+        TaskId parentTask = in.getParentTask();
+
+        switch (between(0, 10)) {
+            case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
+            case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
+            case 2 -> shards = randomValueOtherThan(
+                shards,
+                () -> randomList(
                     1,
                     10,
                     () -> new DataNodeRequest.Shard(
                         new ShardId("new-index-" + between(1, 10), "n/a", between(1, 10)),
                         SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))
                     )
-                );
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    shards,
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(in.getParentTask());
-                yield request;
-            }
+                )
+            );
             case 3 -> {
                 String newQuery = randomFrom("""
                     from test
@@ -185,152 +236,56 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     | eval c = first_name
                     | stats x = avg(salary)
                     """);
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    mapAndMaybeOptimize(parse(newQuery)),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(in.getParentTask());
-                yield request;
+                var previousPlan = plan;
+                plan = randomValueOtherThan(previousPlan, () -> mapAndMaybeOptimize(parse(newQuery)));
             }
-            case 4 -> {
-                final Map<Index, AliasFilter> aliasFilters;
-                if (randomBoolean()) {
-                    aliasFilters = Map.of();
-                } else {
-                    aliasFilters = Map.of(new Index("concrete-index", "n/a"), AliasFilter.of(new TermQueryBuilder("id", "2"), "alias-2"));
-                }
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    aliasFilters,
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(request.getParentTask());
-                yield request;
-            }
-            case 5 -> {
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(
-                    randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
-                    randomNonNegativeLong()
-                );
-                yield request;
-            }
-            case 6 -> {
-                var clusterAlias = randomValueOtherThan(in.clusterAlias(), () -> randomAlphaOfLength(10));
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    clusterAlias,
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(request.getParentTask());
-                yield request;
-            }
-            case 7 -> {
-                var indices = randomArrayOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    indices,
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(request.getParentTask());
-                yield request;
-            }
-            case 8 -> {
-                var indicesOptions = randomValueOtherThan(
-                    in.indicesOptions(),
-                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
-                );
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    indicesOptions,
-                    in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
-                );
-                request.setParentTask(request.getParentTask());
-                yield request;
-            }
+            case 4 -> aliasFilters = aliasFilters.isEmpty()
+                ? Map.of(new Index("concrete-index", "n/a"), AliasFilter.of(new TermQueryBuilder("id", "2"), "alias-2"))
+                : Map.of();
+            case 5 -> parentTask = new TaskId(
+                randomValueOtherThan(parentTask.getNodeId(), () -> randomAlphaOfLength(10)),
+                randomNonNegativeLong()
+            );
+            case 6 -> clusterAlias = randomValueOtherThan(clusterAlias, () -> randomAlphaOfLength(10));
+            case 7 -> indices = randomArrayOtherThan(indices, () -> generateRandomStringArray(10, 10, false, false));
+            case 8 -> indicesOptions = randomValueOtherThan(
+                indicesOptions,
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
             case 9 -> {
-                var request = new DataNodeRequest(
-                    in.sessionId(),
-                    in.configuration(),
-                    in.clusterAlias(),
-                    in.shards(),
-                    in.aliasFilters(),
-                    in.plan(),
-                    in.indices(),
-                    in.indicesOptions(),
-                    in.runNodeLevelReduction() == false,
-                    in.reductionLateMaterialization() == false
-                );
-                request.setParentTask(request.getParentTask());
-                yield request;
+                runNodeLevelReduction = runNodeLevelReduction == false;
+                reductionLateMaterialization = reductionLateMaterialization == false;
             }
+            case 10 -> retainSearchContexts = retainSearchContexts == false;
             default -> throw new AssertionError("invalid value");
-        };
+        }
+
+        var request = new DataNodeRequest(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            retainSearchContexts
+        );
+        request.setParentTask(parentTask);
+        return request;
     }
 
     static Versioned<LogicalPlan> parse(String query) {
-        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        return parse(query, UnmappedResolution.DEFAULT);
+    }
+
+    static Versioned<LogicalPlan> parse(String query, UnmappedResolution unmappedResolution) {
+        var analyzer = analyzer().addIndex("test", "mapping-basic.json").unmappedResolution(unmappedResolution).buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
-        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query))), minimumVersion);
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);
     }
 
     static PhysicalPlan mapAndMaybeOptimize(Versioned<LogicalPlan> logicalPlan) {

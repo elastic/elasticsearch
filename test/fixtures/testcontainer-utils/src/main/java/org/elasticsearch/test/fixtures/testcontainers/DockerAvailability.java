@@ -33,7 +33,7 @@ public class DockerAvailability {
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
-    static void assumeDockerIsAvailable() {
+    public static void assumeDockerIsAvailable() {
         org.junit.Assume.assumeFalse("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
         if (CI && DOCKER_PROBING_SUCCESSFUL == false) {
             throw new AssertionError("Docker is expected to be available on this CI node but probing failed.");
@@ -114,8 +114,9 @@ public class DockerAvailability {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())
                     .stream()
+                    .map(line -> line.contains("#") ? line.substring(0, line.indexOf('#')) : line)
                     .map(String::trim)
-                    .filter(line -> (line.isEmpty() || line.startsWith("#")) == false)
+                    .filter(line -> line.isEmpty() == false)
                     .collect(Collectors.toList());
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read " + exclusionsFile.getAbsolutePath(), e);

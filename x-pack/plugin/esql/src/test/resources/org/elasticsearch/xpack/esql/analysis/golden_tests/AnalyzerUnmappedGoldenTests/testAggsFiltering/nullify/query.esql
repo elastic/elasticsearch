@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0

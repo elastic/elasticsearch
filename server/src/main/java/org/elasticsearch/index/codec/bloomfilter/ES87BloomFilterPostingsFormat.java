@@ -39,6 +39,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.util.BigArrays;
@@ -99,6 +100,10 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
     @Override
     public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
         return new FieldsReader(state);
+    }
+
+    public Function<String, PostingsFormat> getPostingsFormats() {
+        return postingsFormats;
     }
 
     @Override
@@ -457,6 +462,11 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
                 public TermState termState() throws IOException {
                     // TODO: return TermState that includes BloomFilter and fix _disk_usage API
                     return getDelegate().termState();
+                }
+
+                @Override
+                public IOBooleanSupplier prepareSeekExact(BytesRef text) throws IOException {
+                    return getDelegate().prepareSeekExact(text);
                 }
             };
         }

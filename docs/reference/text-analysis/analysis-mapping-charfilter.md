@@ -11,7 +11,7 @@ The `mapping` character filter accepts a map of keys and values. Whenever it enc
 
 Matching is greedy; the longest pattern matching at a given point wins. Replacements are allowed to be the empty string.
 
-The `mapping` filter uses Lucene’s [MappingCharFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/charfilter/MappingCharFilter.md).
+The `mapping` filter uses Lucene’s [MappingCharFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/charfilter/MappingCharFilter.html).
 
 ## Example [analysis-mapping-charfilter-analyze-ex]
 

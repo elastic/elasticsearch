@@ -1,0 +1,104 @@
+setup:
+  - requires:
+      cluster_features: [ "semantic_field.semantic_field_mapper" ]
+      reason: a semantic field stores its original input value in doc values so _source can be rebuilt from doc values
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-synthetic-index
+        body:
+          settings:
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"Text value is rebuilt from doc values in synthetic source":
+  - do:
+      index:
+        index: test-semantic-synthetic-index
+        id: text_1
+        body:
+          my_field: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-synthetic-index
+        id: text_1
+  # Only the original input is reconstructed. The exact key count proves nothing extra (the inference results _inference_fields or
+  # the field's internal inference sub-fields) is present in the rebuilt _source.
+  - match: { _source.my_field: "a cat on a windowsill" }
+  - length: { _source: 1 }
+
+---
+"Image value is rebuilt from doc values in synthetic source":
+  # The base64 payload is stored decoded and regenerated on read, so the data URI must come back unchanged.
+  - do:
+      index:
+        index: test-semantic-synthetic-index
+        id: image_1
+        body:
+          my_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-synthetic-index
+        id: image_1
+  - match: { _source.my_field.type: image }
+  - match: { _source.my_field.format: base64 }
+  - match: { _source.my_field.value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
+  # Exactly the original input: one top-level field, whose object has only {type, format, value}.
+  - length: { _source: 1 }
+  - length: { _source.my_field: 3 }
+
+---
+"A mix of text and image values keeps document order":
+  - do:
+      index:
+        index: test-semantic-synthetic-index
+        id: mixed_1
+        body:
+          my_field:
+            - "a cat"
+            - type: image
+              value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+            - "a dog"
+        refresh: true
+
+  - do:
+      get:
+        index: test-semantic-synthetic-index
+        id: mixed_1
+  - match: { _source.my_field.0: "a cat" }
+  - match: { _source.my_field.1.type: image }
+  - match: { _source.my_field.1.format: base64 }
+  - match: { _source.my_field.1.value: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+  - match: { _source.my_field.2: "a dog" }
+  # Exactly three array elements and one top-level field; the image element has only {type, format, value}.
+  - length: { _source: 1 }
+  - length: { _source.my_field: 3 }
+  - length: { _source.my_field.1: 3 }

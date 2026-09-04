@@ -1,0 +1,25 @@
+Apache Iceberg
+Copyright 2017-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains code from the following projects:
+
+Apache Avro (https://avro.apache.org/)
+* Copyright 2010-2019 The Apache Software Foundation
+* License: Apache License 2.0
+
+Apache ORC (https://orc.apache.org/)
+* Copyright 2013-2019 The Apache Software Foundation
+* License: Apache License 2.0
+
+Apache Parquet (https://parquet.apache.org/)
+* Copyright 2012-2019 The Apache Software Foundation
+* License: Apache License 2.0
+
+Google Guava (https://github.com/google/guava)
+* Copyright (C) 2007 The Guava Authors
+* License: Apache License 2.0

@@ -1,0 +1,194 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_with_fork_subqueries_and_views, views_with_branching ]
+      reason: 'requires SET unmapped_fields="load" support for subqueries and views'
+  #
+  # Both indices map id and color but leave note unmapped (dynamic: false); note is present in _source. Under
+  # unmapped_fields="load" it can be loaded from _source where it is referenced.
+  #
+  - do:
+      indices.create:
+        index: idx1
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: integer
+              color:
+                type: keyword
+  - do:
+      indices.create:
+        index: idx2
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: integer
+              color:
+                type: keyword
+  # idx3 maps note as an integer; combined with a branch that loads note as keyword from _source this surfaces a cross-branch
+  # type conflict.
+  - do:
+      indices.create:
+        index: idx3
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: integer
+              note:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx1" } }
+          - { "id": 1, "color": "red", "note": "n1" }
+          - { "index": { "_index": "idx1" } }
+          - { "id": 2, "color": "blue", "note": "n2" }
+          - { "index": { "_index": "idx2" } }
+          - { "id": 3, "color": "green", "note": "n3" }
+          - { "index": { "_index": "idx3" } }
+          - { "id": 4, "note": 7 }
+
+---
+"load unmapped field referenced inside one view branch":
+  # Branching view (expands to ViewUnionAll): note is referenced inside the idx2 branch only, so it is loaded from _source there
+  # ("n3") and null-filled in the idx1 branch.
+  - do:
+      esql.put_view:
+        name: v_branch_ref
+        body:
+          query: 'FROM idx1, (FROM idx2 | KEEP id, note)'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_branch_ref | KEEP id, note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, null] }
+  - match: { values.1: [2, null] }
+  - match: { values.2: [3, "n3"] }
+
+---
+"load unmapped field referenced only above a branching view":
+  # The view branches over independent sources (idx1 and the idx2 subquery), so it expands to a ViewUnionAll. note is referenced only
+  # in the outer query, above the union, and is unmapped in every branch source. Because it is mentioned only after the union, it is
+  # loaded from _source in all branches, exactly as a plain multi-index pattern (FROM idx1, idx2) would load it.
+  - do:
+      esql.put_view:
+        name: v_union
+        body:
+          query: 'FROM idx1, (FROM idx2)'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_union | KEEP id, color, note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: color }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: note }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, "red", "n1"] }
+  - match: { values.1: [2, "blue", "n2"] }
+  - match: { values.2: [3, "green", "n3"] }
+
+---
+"cross-branch type conflict fails when the column is used":
+  # note is mapped as integer in idx3 but loaded as keyword from _source in the idx1 subquery branch. Keeping the column is tolerated,
+  # but using it (EVAL) forces type resolution and the conflict is rejected.
+  - do:
+      esql.put_view:
+        name: v_conflict
+        body:
+          query: 'FROM idx3, (FROM idx1 | KEEP id, note)'
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_conflict | EVAL x = note + 1 | KEEP id, note, x | LIMIT 10'
+  - match: { error.type: verification_exception }
+  - match: { error.reason: "/(?s).*Column.\\[note\\].has.conflicting.data.types.in.subqueries..\\[integer,.keyword\\].*/" }
+
+---
+"loading an unmapped field in one view does not cross-pollinate a sibling view":
+  - do:
+      esql.put_view:
+        name: v_loads_note
+        body:
+          query: 'FROM idx1 | KEEP id, color, note'
+  - do:
+      esql.put_view:
+        name: v_plain
+        body:
+          query: 'FROM idx2 | KEEP id, color'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_loads_note, v_plain | KEEP id, note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, "n1"] }
+  - match: { values.1: [2, "n2"] }
+  - match: { values.2: [3, null] }
+
+---
+"loading an unmapped field in a subquery does not cross-pollinate a sibling view":
+  - do:
+      esql.put_view:
+        name: v_plain_a
+        body:
+          query: 'FROM idx1 METADATA _index | KEEP id, color, _index'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_plain_a, (FROM idx2 METADATA _index | KEEP id, color, note, _index) | KEEP id, note, _index | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, null, "idx1"] }
+  - match: { values.1: [2, null, "idx1"] }
+  - match: { values.2: [3, "n3", "idx2"] }
+
+---
+"an unmapped field materialized by EVAL in a view wins over load from source":
+  - do:
+      esql.put_view:
+        name: v_plain_a
+        body:
+          query: 'FROM idx1 METADATA _index | EVAL note = "abc"'
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_plain_a, (FROM idx2 METADATA _index | KEEP id, color, note, _index) | KEEP id, note, _index | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0: [1, "abc", "idx1"] }
+  - match: { values.1: [2, "abc", "idx1"] }
+  - match: { values.2: [3, "n3", "idx2"] }

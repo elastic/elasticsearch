@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -67,12 +67,15 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 var result = indexShard.getService()
                     .getFromTranslog(
                         getRequest.id(),
+                        getRequest.routing(),
                         getRequest.storedFields(),
                         getRequest.realtime(),
                         getRequest.version(),
                         getRequest.versionType(),
                         getRequest.fetchSourceContext(),
-                        getRequest.isForceSyntheticSource()
+                        getRequest.isForceSyntheticSource(),
+                        getRequest.getSplitShardCountSummary(),
+                        getRequest.refresh()
                     );
                 long segmentGeneration = -1;
                 if (result == null) {
@@ -83,7 +86,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         });
     }
 
-    public static class Request extends LegacyActionRequest implements IndicesRequest {
+    public static class Request extends UntypedActionRequest implements IndicesRequest {
 
         private final GetRequest getRequest;
         private final ShardId shardId;

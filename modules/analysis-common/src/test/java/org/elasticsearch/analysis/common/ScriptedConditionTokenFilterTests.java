@@ -9,12 +9,6 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
@@ -26,22 +20,33 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
 
 public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
+    private TestThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdownNow();
+    }
 
     public void testSimpleCondition() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -78,14 +83,8 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
                 return (FactoryType) factory;
             }
         };
-        Client client = new MockClient(Settings.EMPTY, null);
 
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
-        when(services.client()).thenReturn(client);
-        when(services.scriptService()).thenReturn(scriptService);
-        plugin.createComponents(services);
-
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),
@@ -98,20 +97,49 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             assertNotNull(analyzer);
             assertAnalyzesTo(analyzer, "Vorsprung Durch Technik", new String[] { "Vorsprung", "Durch", "TECHNIK" });
         }
-
     }
 
-    private class MockClient extends AbstractClient {
-        MockClient(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool, TestProjectResolvers.alwaysThrow());
-        }
-
-        @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {}
+    public void testSelfReferentialConditionIsRejected() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("index.analysis.filter.cond.type", "condition")
+            .put("index.analysis.filter.cond.script.source", "token.getPosition() > 1")
+            .putList("index.analysis.filter.cond.filter", "cond")
+            .put("index.analysis.analyzer.myAnalyzer.type", "custom")
+            .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.myAnalyzer.filter", "cond")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
+            @Override
+            public boolean execute(Token token) {
+                return token.getPosition() > 1;
+            }
+        };
+        @SuppressWarnings("unchecked")
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
+            @Override
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                return (FactoryType) factory;
+            }
+        };
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(scriptService).build();
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(plugin),
+            new StablePluginsRegistry()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> module.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings)
+        );
+        assertThat(e.getMessage(), containsString("Token filter [cond] refers to itself"));
     }
-
 }

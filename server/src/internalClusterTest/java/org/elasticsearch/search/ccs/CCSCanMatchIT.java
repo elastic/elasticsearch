@@ -33,7 +33,6 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
@@ -51,13 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
-public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
-    static final String REMOTE_CLUSTER = "cluster_a";
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of("cluster_a");
-    }
+public class CCSCanMatchIT extends AbstractCrossClusterSearchTestCase {
 
     private static class EngineWithExposingTimestamp extends InternalEngine {
         EngineWithExposingTimestamp(EngineConfig engineConfig) {

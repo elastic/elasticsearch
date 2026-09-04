@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,10 +26,10 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -63,23 +64,6 @@ public class SecureClusterStateSettings implements SecureSettings {
     // nullable (if closed), but otherwise immutable secrets map
     private @Nullable Map<String, Secret> secrets;
     private final Set<String> secretNames;
-
-    /**
-     * Do NOT use, this will be removed as part of ES-13910.
-     * @deprecated  For testing, use {@code new MockSecureSettings().toSecureClusterStateSettings()} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public SecureClusterStateSettings(SecureSettings secureSettings) {
-        this(
-            Map.ofEntries(
-                secureSettings.getSettingNames()
-                    .stream()
-                    .map(key -> entry(key, new Secret(getValueAsByteArray(secureSettings, key), getSHA256Digest(secureSettings, key))))
-                    .toArray(Map.Entry[]::new)
-            )
-        );
-    }
 
     public SecureClusterStateSettings(StreamInput in) throws IOException {
         this(in.readImmutableMap(v -> new Secret(in.readByteArray(), in.readByteArray())));
@@ -189,22 +173,6 @@ public class SecureClusterStateSettings implements SecureSettings {
         return Objects.hash(secrets);
     }
 
-    private static byte[] getValueAsByteArray(SecureSettings secureSettings, String key) {
-        try (var is = secureSettings.getFile(key)) {
-            return is.readAllBytes();
-        } catch (IOException | GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static byte[] getSHA256Digest(SecureSettings secureSettings, String key) {
-        try {
-            return secureSettings.getSHA256Digest(key);
-        } catch (GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private record Secret(byte[] secret, byte[] sha256Digest) implements Writeable {
 
         private static Secret stringSecret(String secret) {
@@ -252,7 +220,7 @@ public class SecureClusterStateSettings implements SecureSettings {
 
                     Set<String> duplicateKeys = Sets.intersection(stringSecrets.keySet(), fileSecrets.keySet());
                     if (duplicateKeys.isEmpty() == false) {
-                        throw new IllegalStateException("Some settings were defined as both string and file settings: " + duplicateKeys);
+                        throw new IllegalStateException("Some secrets were defined as both string and file secrets: " + duplicateKeys);
                     }
 
                     Map.Entry[] entries = new Map.Entry[stringSecrets.size() + fileSecrets.size()];
@@ -269,9 +237,40 @@ public class SecureClusterStateSettings implements SecureSettings {
 
             ParseField stringSecretsField = new ParseField("string_secrets");
             ParseField fileSecretsField = new ParseField("file_secrets");
-            secretsParser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), stringSecretsField);
-            secretsParser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), fileSecretsField);
+            secretsParser.declareObject(optionalConstructorArg(), ParserHolder::parseSecrets, stringSecretsField);
+            secretsParser.declareObject(optionalConstructorArg(), ParserHolder::parseSecrets, fileSecretsField);
             return secretsParser;
+        }
+
+        private static Map<String, String> parseSecrets(XContentParser parser, Void ignore) throws IOException {
+            Map<String, String> secrets = new HashMap<>();
+            parseSecrets(parser, new StringBuilder(), secrets);
+            return secrets;
+        }
+
+        // see Settings.fromXContent
+        private static void parseSecrets(XContentParser parser, StringBuilder keyBuilder, Map<String, String> secrets) throws IOException {
+            final int length = keyBuilder.length();
+            String currentFieldName;
+            while ((currentFieldName = parser.nextFieldName()) != null) {
+                keyBuilder.setLength(length);
+                keyBuilder.append(currentFieldName);
+                XContentParser.Token token = parser.nextToken();
+                switch (token) {
+                    case START_OBJECT -> {
+                        keyBuilder.append('.');
+                        parseSecrets(parser, keyBuilder, secrets);
+                    }
+                    case VALUE_STRING -> {
+                        String key = keyBuilder.toString();
+                        String value = parser.text();
+                        if (secrets.put(key, value) != null) {
+                            throw new IllegalStateException("Duplicate secret for key: " + key);
+                        }
+                    }
+                    default -> XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
+                }
+            }
         }
     }
 }

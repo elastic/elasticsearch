@@ -271,6 +271,15 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (inferenceStatsMap == null) {
                     inferenceStatsMap = Collections.emptyMap();
                 }
+                if (modelSizeStatsMap == null) {
+                    modelSizeStatsMap = Collections.emptyMap();
+                }
+                if (assignmentStatsMap == null) {
+                    assignmentStatsMap = Collections.emptyMap();
+                }
+                if (ingestStatsMap == null) {
+                    ingestStatsMap = Collections.emptyMap();
+                }
 
                 List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
                 expandedModelIdsWithAliases.keySet().forEach(modelId -> {
@@ -300,7 +309,12 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 // look up by model id
                                 ingestStats = ingestStatsMap.get(modelId);
                             }
-                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                            // First try deployment ID (for deployed PyTorch models with per-deployment stats),
+                            // then fall back to model ID (for undeployed or non-PyTorch models)
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(deploymentId);
+                            if (modelSizeStats == null) {
+                                modelSizeStats = modelSizeStatsMap.get(modelId);
+                            }
                             trainedModelStats.add(
                                 new TrainedModelStats(
                                     modelId,
@@ -324,7 +338,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                             : modelStats1.getDeploymentStats().getDeploymentId();
                         var deploymentId2 = modelStats2.getDeploymentStats() == null
                             ? null
-                            : modelStats1.getDeploymentStats().getDeploymentId();
+                            : modelStats2.getDeploymentStats().getDeploymentId();
 
                         assert deploymentId1 != null && deploymentId2 != null
                             : "2 results for model " + modelStats1.getModelId() + " both should have deployment stats";

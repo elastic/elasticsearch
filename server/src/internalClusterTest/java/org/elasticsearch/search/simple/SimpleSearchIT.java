@@ -16,8 +16,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -29,6 +31,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -121,23 +124,14 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
     }
 
-    public void testIpCidr() throws Exception {
-        createIndex("test");
+    private void testIpCidr(XContentBuilder mapping) throws Exception {
+        testIpCidr(Settings.EMPTY, mapping);
+    }
 
-        indicesAdmin().preparePutMapping("test")
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("ip")
-                    .field("type", "ip")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+    private void testIpCidr(Settings settings, XContentBuilder mapping) throws Exception {
+        createIndex("test", settings);
+
+        indicesAdmin().preparePutMapping("test").setSource(mapping).get();
         ensureGreen();
 
         prepareIndex("test").setId("1").setSource("ip", "192.168.0.1").get();
@@ -168,6 +162,44 @@ public class SimpleSearchIT extends ESIntegTestCase {
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
             RestStatus.BAD_REQUEST,
             containsString("Expected [ip/prefix] but was [0/0/0/0/0]")
+        );
+    }
+
+    public void testIpCidr() throws Exception {
+        testIpCidr(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("ip")
+                .field("type", "ip")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+    }
+
+    public void testIpCidrHighCardinality() throws Exception {
+        // In strict-columnar mode an ip field defaults to HIGH-cardinality (binary) doc values, exercising the same path the explicit
+        // cardinality option used to provide.
+        // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+        // — incompatible with the disable_sequence_numbers default that columnar mode enables.
+        testIpCidr(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .build(),
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("ip")
+                .field("type", "ip")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
         );
     }
 

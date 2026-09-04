@@ -176,7 +176,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                   "remote_indices": [
                     {
                       "names": ["%s"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]
@@ -390,7 +390,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                   "remote_indices": [
                     {
                       "names": ["index1", "not_found_index", "prefixed_index"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]
@@ -499,7 +499,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 "remote_indices": [
                    {
                      "names": ["*"],
-                     "privileges": ["read", "read_cross_cluster"],
+                     "privileges": ["read"],
                      "clusters": ["other_remote_*"]
                    }
                  ]"""));
@@ -684,7 +684,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                   "remote_indices": [
                     {
                       "names": ["*"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_missing_cluster"]
                     }
                   ]

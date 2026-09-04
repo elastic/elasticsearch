@@ -230,7 +230,7 @@ public class PersistentTasksService {
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead.
      * Accepts operation timeout as optional parameter
      */
-    @Deprecated(forRemoval = true)  // Use the explict cluster/project version instead
+    @Deprecated(forRemoval = true)  // Use the explicit cluster/project version instead
     void sendUpdateStateRequest(
         final String taskId,
         final long taskAllocationID,

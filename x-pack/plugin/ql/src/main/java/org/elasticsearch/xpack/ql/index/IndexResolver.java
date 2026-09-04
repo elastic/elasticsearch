@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -23,10 +21,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -76,7 +72,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class IndexResolver {
 
@@ -122,13 +117,9 @@ public class IndexResolver {
     private static final IndicesOptions INDICES_ONLY_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(false)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
@@ -136,13 +127,9 @@ public class IndexResolver {
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(false)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
@@ -151,12 +138,7 @@ public class IndexResolver {
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
@@ -165,12 +147,7 @@ public class IndexResolver {
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
@@ -318,11 +295,11 @@ public class IndexResolver {
                 if (indices != null) {
                     for (String indexName : indices) {
                         // TODO: perform two requests w/ & w/o frozen option to retrieve (by diff) the throttling status?
-                        Tuple<String, String> splitRef = splitQualifiedIndex(indexName);
+                        var split = RemoteClusterAware.splitIndexName(indexName);
                         // Field caps on "remote:foo" should always return either empty or remote indices. But in case cluster's
                         // detail is missing, it's going to be a local index. TODO: why would this happen?
-                        String cluster = splitRef.v1() == null ? clusterName : splitRef.v1();
-                        indexInfos.add(new IndexInfo(cluster, splitRef.v2(), IndexType.STANDARD_INDEX));
+                        String cluster = split.clusterAlias() == null ? clusterName : split.clusterAlias();
+                        indexInfos.add(new IndexInfo(cluster, split.indexExpression(), IndexType.STANDARD_INDEX));
                     }
                 }
                 filterResults(javaRegex, indexInfos, listener);
@@ -367,33 +344,16 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         boolean crossProjectEnabled,
         String projectRouting,
-        ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
-        IndicesOptions iOpts;
-        if (crossProjectEnabled) {
-            iOpts = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        } else {
-            iOpts = indicesOptions;
-        }
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
-            if (crossProjectEnabled) {
-                Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
-                ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
-                    iOpts,
-                    projectRouting,
-                    resolvedIndexExpressions,
-                    resolvedRemotely
-                );
-                if (ex != null) {
-                    l.onFailure(ex);
-                    return;
-                }
-            }
             l.onResponse(mergedMappings(typeRegistry, indexWildcard, response));
         }));
     }
@@ -871,7 +831,7 @@ public class IndexResolver {
                         }
                     }
                     // TODO is split still needed?
-                    if (pattern == null || pattern.matcher(splitQualifiedIndex(index).v2()).matches()) {
+                    if (pattern == null || pattern.matcher(RemoteClusterAware.splitIndexName(index).indexExpression()).matches()) {
                         String indexName = indexNameProcessor.apply(index);
                         Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);

@@ -86,7 +86,7 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
 
         for (DataStream ds : dataStreams.values()) {
             // We choose to not count time series backing indices that do not belong to a time series data stream.
-            if (ds.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (IndexMode.isTsdb(ds.getIndexMode()) == false) {
                 continue;
             }
             tsDataStreamCount++;
@@ -96,7 +96,7 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
 
             for (Index backingIndex : ds.getIndices()) {
                 IndexMetadata indexMetadata = projectMetadata.index(backingIndex);
-                if (indexMetadata.getIndexMode() != IndexMode.TIME_SERIES) {
+                if (IndexMode.isTsdb(indexMetadata.getIndexMode()) == false) {
                     continue;
                 }
                 tsIndexCount++;

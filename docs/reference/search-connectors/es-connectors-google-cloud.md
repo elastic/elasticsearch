@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic Google Cloud Storage connector* is a [connector](/reference/search-connectors/index.md) for [Google Cloud Storage](https://cloud.google.com/storage) data sources.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-google-cloud-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-google-cloud-client-availability-prerequisites]

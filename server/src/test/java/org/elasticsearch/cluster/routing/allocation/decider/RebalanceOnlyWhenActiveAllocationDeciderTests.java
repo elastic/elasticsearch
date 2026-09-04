@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -180,6 +181,6 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
     }
 
     private static RoutingAllocation createRoutingAllocation(ClusterState state) {
-        return new RoutingAllocation(new AllocationDeciders(List.of()), state, null, null, 0L);
+        return TestRoutingAllocationFactory.forClusterState(state).build();
     }
 }

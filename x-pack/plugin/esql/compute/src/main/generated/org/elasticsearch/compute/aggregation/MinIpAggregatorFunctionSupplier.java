@@ -30,13 +30,13 @@ public final class MinIpAggregatorFunctionSupplier implements AggregatorFunction
 
   @Override
   public MinIpAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return MinIpAggregatorFunction.create(driverContext, channels);
+    return new MinIpAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MinIpGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinIpGroupingAggregatorFunction.create(channels, driverContext);
+    return new MinIpGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

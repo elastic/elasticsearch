@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM employees
+| EVAL x = does_not_exist::KEYWORD
+| ENRICH languages ON x

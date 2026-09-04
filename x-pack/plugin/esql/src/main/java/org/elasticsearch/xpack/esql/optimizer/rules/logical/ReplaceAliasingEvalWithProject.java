@@ -24,7 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameUtils.locallyUniqueTemporaryName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator.locallyUniqueTemporaryName;
 
 /**
  * Replace aliasing evals (eval x=a) with a projection which can be further combined / simplified.

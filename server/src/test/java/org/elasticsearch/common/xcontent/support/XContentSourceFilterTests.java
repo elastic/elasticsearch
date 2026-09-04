@@ -308,8 +308,7 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(actual, actual, emptySet(), singleton("nonExistingField"));
     }
 
-    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63842")
     public void testNotOmittingObjectsWithExcludedProperties() throws IOException {
         String actual = """
             {
@@ -450,8 +449,7 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, emptySet(), singleton("foobar"));
     }
 
-    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63842")
     public void testArraySubFieldExclusion() throws IOException {
         String actual = """
             {
@@ -470,8 +468,6 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, emptySet(), singleton("array.exclude"));
     }
 
-    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testEmptyArraySubFieldsExclusion() throws IOException {
         String actual = """
             {

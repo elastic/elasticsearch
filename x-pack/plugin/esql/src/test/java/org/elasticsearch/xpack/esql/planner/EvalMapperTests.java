@@ -12,8 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -51,12 +51,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +70,6 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DATE = field("date", DataType.DATETIME);
 
     private static final Configuration TEST_CONFIG = new Configuration(
-        ZoneOffset.UTC,
         Instant.now(),
         Locale.US,
         "test",
@@ -85,7 +84,8 @@ public class EvalMapperTests extends ESTestCase {
         false,
         10000000,
         100000,
-        null
+        ResolvedSettings.EMPTY,
+        Map.of()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -154,8 +154,8 @@ public class EvalMapperTests extends ESTestCase {
         Layout layout = lb.build();
 
         var supplier = EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
+        ExpressionEvaluator evaluator1 = supplier.get(driverContext());
+        ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);

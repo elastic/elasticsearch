@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Map;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -62,13 +64,13 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("1", "test")));
             getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("1", "test")));
             getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("2", "test")));
             getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("2", "test")));
         }
 
         // now start another one so we move some primaries
@@ -79,21 +81,25 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("1", "test")));
             getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("1", "test")));
             getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("1", "test")));
             getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("2", "test")));
             getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("2", "test")));
             getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSource(), equalTo(expectedSource("2", "test")));
         }
     }
 
     private String source(String id, String nameValue) {
         return "{ \"type1\" : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+    }
+
+    private Map<String, Object> expectedSource(String id, String nameValue) {
+        return Map.of("type1", Map.of("id", id, "name", nameValue));
     }
 }

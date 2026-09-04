@@ -115,4 +115,29 @@ public class SplitShardCountSummaryTests extends ESTestCase {
 
         assertThat(new SplitShardCountSummary(n).compareTo(new SplitShardCountSummary(m)), equalTo(Integer.compare(n, m)));
     }
+
+    public void testCheckReturningValidDecision() {
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 4, 0).build();
+
+        assertEquals(
+            SplitShardCountSummary.Decision.CURRENT,
+            new SplitShardCountSummary(4).check(4, IndexReshardingMetadata.newSplitByMultiple(2, 2))
+        );
+        assertEquals(
+            SplitShardCountSummary.Decision.OLDER,
+            new SplitShardCountSummary(2).check(4, IndexReshardingMetadata.newSplitByMultiple(2, 2))
+        );
+    }
+
+    public void testCheckReturningInvalidDecision() {
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 4, 0).build();
+
+        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(8).check(4, null));
+        assertEquals(SplitShardCountSummary.Decision.INVALID, new SplitShardCountSummary(2).check(4, null));
+
+        assertEquals(
+            SplitShardCountSummary.Decision.INVALID,
+            new SplitShardCountSummary(2).check(4, IndexReshardingMetadata.newSplitByMultiple(4, 2))
+        );
+    }
 }

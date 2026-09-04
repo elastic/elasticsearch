@@ -1,0 +1,159 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "semantic_text.original_values_in_doc_values", "semantic_text.highlighter" ]
+      reason: columnar index modes (snapshot-only) rebuild _source from doc values, where semantic_text stores its original input value
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-columnar-index
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  # columnar_stored materializes the rebuilt _source blob at ingest (from doc values) rather than per query.
+  - do:
+      indices.create:
+        index: test-columnar-stored-index
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+---
+"Original value is rebuilt from doc values in columnar":
+  - do:
+      index:
+        index: test-columnar-index
+        id: doc_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      get:
+        index: test-columnar-index
+        id: doc_1
+  # Exactly the original document (@timestamp + the field); no inference results or internal sub-fields are reconstructed.
+  - match: { _source.sparse_field: "the quick brown fox" }
+  - length: { _source: 2 }
+
+---
+"Highlighting reads the field from doc values in columnar":
+  - do:
+      index:
+        index: test-columnar-index
+        id: hl_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-columnar-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "What is a fox?"
+          highlight:
+            fields:
+              sparse_field:
+                type: "semantic"
+                number_of_fragments: 1
+  - match: { hits.hits.0.highlight.sparse_field.0: "the quick brown fox" }
+
+---
+"Original value is rebuilt in columnar_stored (blob materialized at ingest)":
+  - do:
+      index:
+        index: test-columnar-stored-index
+        id: doc_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      get:
+        index: test-columnar-stored-index
+        id: doc_1
+  # The rebuilt _source holds only the original document (@timestamp + the field). _inference_fields is inference-generated, not
+  # part of the original document, so the exact key count confirms it is not materialized into the columnar stored _source.
+  - match: { _source.sparse_field: "the quick brown fox" }
+  - length: { _source: 2 }
+
+  # Multi-valued input must keep document order and duplicates through the ingest-time reconstruction.
+  - do:
+      index:
+        index: test-columnar-stored-index
+        id: doc_2
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          sparse_field: [ "first value", "second value", "first value" ]
+        refresh: true
+
+  - do:
+      get:
+        index: test-columnar-stored-index
+        id: doc_2
+  - match: { _source.sparse_field: [ "first value", "second value", "first value" ] }
+  - length: { _source: 2 }
+  - length: { _source.sparse_field: 3 }
+
+---
+"Highlighting works in columnar_stored":
+  - do:
+      index:
+        index: test-columnar-stored-index
+        id: hl_1
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-columnar-stored-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "What is a fox?"
+          highlight:
+            fields:
+              sparse_field:
+                type: "semantic"
+                number_of_fragments: 1
+  - match: { hits.hits.0.highlight.sparse_field.0: "the quick brown fox" }

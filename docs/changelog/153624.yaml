@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 153624
+summary: Extend DLM Explain Endpoint With frozen tier progress formation
+type: enhancement

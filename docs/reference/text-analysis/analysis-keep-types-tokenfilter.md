@@ -23,7 +23,7 @@ Some tokenizers don’t support this token filter, for example keyword, simple_p
 ::::
 
 
-This filter uses Lucene’s [TypeTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/TypeTokenFilter.md).
+This filter uses Lucene’s [TypeTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/TypeTokenFilter.html).
 
 ## Include example [analysis-keep-types-tokenfilter-analyze-include-ex]
 

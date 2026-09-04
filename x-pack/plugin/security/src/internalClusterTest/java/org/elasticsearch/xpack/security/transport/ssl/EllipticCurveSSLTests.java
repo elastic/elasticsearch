@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.util.Arrays;
@@ -74,12 +72,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         TransportAddress address = randomFrom(response.getNodes()).getInfo(TransportInfo.class).getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);
-        try (SSLSocket sslSocket = AccessController.doPrivileged(new PrivilegedExceptionAction<SSLSocket>() {
-            @Override
-            public SSLSocket run() throws Exception {
-                return (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort());
-            }
-        })) {
+        try (SSLSocket sslSocket = (SSLSocket) socketFactory.createSocket(address.address().getAddress(), address.address().getPort())) {
             final AtomicReference<HandshakeCompletedEvent> reference = new AtomicReference<>();
             sslSocket.addHandshakeCompletedListener((event) -> {
                 reference.set(event);

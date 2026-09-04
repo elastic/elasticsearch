@@ -82,7 +82,12 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
+    RemoteClusterService(
+        Settings settings,
+        TransportService transportService,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectResolver projectResolver
+    ) {
         super(settings);
         this.isRemoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.isSearchNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -97,7 +102,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {

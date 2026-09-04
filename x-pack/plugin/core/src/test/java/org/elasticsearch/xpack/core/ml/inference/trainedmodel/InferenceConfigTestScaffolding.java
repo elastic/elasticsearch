@@ -14,6 +14,8 @@ public final class InferenceConfigTestScaffolding {
     static Tokenization mutateTokenizationForVersion(Tokenization tokenization, TransportVersion version) {
         if (tokenization instanceof BertTokenization bertTokenization) {
             return BertTokenizationTests.mutateForVersion(bertTokenization, version);
+        } else if (tokenization instanceof ByteLevelBpeTokenization byteLevelBpeTokenization) {
+            return ByteLevelBpeTokenizationTests.mutateForVersion(byteLevelBpeTokenization, version);
         } else if (tokenization instanceof MPNetTokenization mpNetTokenization) {
             return MPNetTokenizationTests.mutateForVersion(mpNetTokenization, version);
         } else if (tokenization instanceof RobertaTokenization robertaTokenization) {
@@ -41,6 +43,20 @@ public final class InferenceConfigTestScaffolding {
                 robertaTokenization.maxSequenceLength,
                 truncate,
                 robertaTokenization.span
+            );
+        } else if (tokenization instanceof ByteLevelBpeTokenization byteLevelBpeTokenization) {
+            return new ByteLevelBpeTokenization(
+                byteLevelBpeTokenization.doLowerCase(),
+                byteLevelBpeTokenization.withSpecialTokens(),
+                byteLevelBpeTokenization.maxSequenceLength(),
+                truncate,
+                byteLevelBpeTokenization.getSpan(),
+                byteLevelBpeTokenization.isAddPrefixSpace(),
+                byteLevelBpeTokenization.getUnkToken(),
+                byteLevelBpeTokenization.getPadToken(),
+                byteLevelBpeTokenization.getBosToken(),
+                byteLevelBpeTokenization.getEosToken(),
+                byteLevelBpeTokenization.getMaskToken()
             );
         } else if (tokenization instanceof BertTokenization) {
             return new BertTokenization(
@@ -71,6 +87,8 @@ public final class InferenceConfigTestScaffolding {
             return new BertJapaneseTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof BertTokenization) {
             return new BertTokenizationUpdate(truncate, span);
+        } else if (tokenization instanceof ByteLevelBpeTokenization) {
+            return new ByteLevelBpeTokenizationUpdate(truncate, span);
         } else if (tokenization instanceof XLMRobertaTokenization) {
             return new XLMRobertaTokenizationUpdate(truncate, span);
         }

@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -130,6 +133,16 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
             task.onFailure(new RuntimeException("test exception"));
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testExceptionWrapperTruncates() {
+        SetStepInfoUpdateTask.ExceptionWrapper wrapper = new SetStepInfoUpdateTask.ExceptionWrapper(
+            new ElasticsearchException(
+                "this is a long message " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
+            )
+        );
+
+        assertThat(Strings.toString(wrapper), containsString("... (~23 chars truncated)"));
     }
 
     private void setStatePolicy(String policyValue) {

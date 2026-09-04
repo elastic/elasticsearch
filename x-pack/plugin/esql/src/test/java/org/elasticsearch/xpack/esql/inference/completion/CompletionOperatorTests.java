@@ -13,9 +13,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.hamcrest.Matcher;
@@ -24,12 +24,13 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompletionResults> {
+public class CompletionOperatorTests extends InferenceOperatorTestCase<CompletionResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
     private int inputChannel;
@@ -41,7 +42,13 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new CompletionOperator.Factory(
+            mockedInferenceService(),
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel),
+            Map.of(),
+            null
+        );
     }
 
     @Override
@@ -86,12 +93,12 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     }
 
     @Override
-    protected ChatCompletionResults mockInferenceResult(InferenceAction.Request request) {
-        List<ChatCompletionResults.Result> results = new ArrayList<>();
+    protected CompletionResults mockInferenceResult(InferenceAction.Request request) {
+        List<CompletionResults.Result> results = new ArrayList<>();
         for (String input : request.getInput()) {
-            results.add(new ChatCompletionResults.Result(input.toUpperCase(Locale.ROOT)));
+            results.add(new CompletionResults.Result(input.toUpperCase(Locale.ROOT)));
         }
-        return new ChatCompletionResults(results);
+        return new CompletionResults(results);
     }
 
     @Override
@@ -112,15 +119,14 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         Operator.OperatorFactory factory = new CompletionOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            evaluatorFactory(inputChannel)
+            evaluatorFactory(inputChannel),
+            Map.of(),
+            null
         );
 
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
-        Exception actualException = expectThrows(
-            ElasticsearchException.class,
-            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
-        );
+        var runner = new TestDriverRunner().builder(driverContext).input(simpleInput(driverContext.blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
 
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }

@@ -1,5 +1,0 @@
-pr: 138917
-summary: Optimize geogrid functions to read points from doc-values
-area: "ES|QL"
-type: enhancement
-issues: []

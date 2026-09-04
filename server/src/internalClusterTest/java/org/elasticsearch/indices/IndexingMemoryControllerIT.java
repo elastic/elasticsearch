@@ -19,7 +19,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,6 +26,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -59,39 +59,10 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 .put("indices.memory.index_buffer_size", "10mb")
                 .build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getThreadPoolMergeExecutorService(),
-                indexSettings,
-                config.getWarmer(),
-                config.getStore(),
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                config.getTranslogConfig(),
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getSnapshotCommitSupplier(),
-                config.getLeafSorter(),
-                config.getRelativeTimeInNanosSupplier(),
-                config.getIndexCommitListener(),
-                config.isPromotableToPrimary(),
-                config.getMapperService(),
-                config.getEngineResetLock(),
-                config.getMergeMetrics(),
-                config.getIndexDeletionPolicyWrapper()
-            );
+            return EngineConfig.builder(config)
+                .indexSettings(indexSettings)
+                .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+                .build();
         }
 
         @Override
@@ -110,11 +81,14 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
         // Force merge so we know all merges are done before we start deleting:
         BaseBroadcastResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(r);
-        final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {
             client().prepareDelete("index", Integer.toString(i)).get();
         }
-        assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1)));
+        assertBusy(
+            () -> assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1))),
+            5,
+            TimeUnit.SECONDS
+        );
     }
 
     /* When there is memory pressure, we write indexing buffers to disk on the same thread as the indexing thread,

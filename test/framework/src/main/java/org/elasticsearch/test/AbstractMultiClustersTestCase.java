@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
@@ -169,10 +170,19 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // Multi-cluster tests keep all clusters alive between test methods (only closing them in stopClusters()),
+        // so cluster-internal page caches are live when after() fires. The check runs in stopClusters() instead,
+        // after all clusters are fully shut down.
+        return false;
+    }
+
     @AfterClass
-    public static void stopClusters() throws IOException {
+    public static void stopClusters() throws Exception {
         IOUtils.close(clusterGroup);
         clusterGroup = null;
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
     protected void disconnectFromRemoteClusters() throws Exception {
@@ -189,6 +199,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
+        settings.putNull("cluster.remote." + clusterAlias + ".skip_unavailable");
         internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -224,9 +235,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
         final List<String> seedAddresses = seedNodes.stream().map(TransportAddress::toString).toList();
-        boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
-            ? skipUnavailableForRemoteClusters().get(clusterAlias)
-            : DEFAULT_SKIP_UNAVAILABLE;
+        boolean skipUnavailable = skipUnavailableForRemoteClusters().getOrDefault(clusterAlias, DEFAULT_SKIP_UNAVAILABLE);
         Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);

@@ -11,10 +11,6 @@ The *Elastic Jira connector* is a [connector](/reference/search-connectors/index
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector** [es-connectors-jira-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-jira-client-availability-prerequisites]
@@ -124,11 +120,17 @@ The following configuration fields are required to set up the connector:
 `data_source`
 :   Dropdown to determine the Jira platform type: `Jira Cloud`, `Jira Server`, or `Jira Data Center`. Default value is `Jira Cloud`.
 
+`data_center_auth_method` {applies_to}`stack: ga 9.6`
+:   The authentication method for Jira Data Center: `Basic authentication` or `Personal access token`. Default value is `Basic authentication`.
+
 `data_center_username`
-:   The username of the account for Jira Data Center.
+:   The username of the account for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
 
 `data_center_password`
-:   The password of the account to be used for Jira Data Center.
+:   The password of the account to be used for Jira Data Center. {applies_to}`stack: ga 9.6` This field is only available for `Basic authentication`.
+
+`data_center_personal_access_token` {applies_to}`stack: ga 9.6`
+:   The personal access token for Jira Data Center. This field is only available for `Personal access token`.
 
 `username`
 :   The username of the account for Jira Server.

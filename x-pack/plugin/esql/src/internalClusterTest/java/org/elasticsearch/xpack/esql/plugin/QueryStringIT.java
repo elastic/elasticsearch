@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -235,6 +236,36 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testWhereQstrAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testWhereQstrAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | WHERE qstr("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | WHERE id > 0
+            | SORT id
+            | WHERE qstr("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+    }
+
     public void testWhereQstrWithLookupJoin() {
         var query = """
             FROM test
@@ -244,5 +275,63 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
+    }
+
+    public void testQstrAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testQstrAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithQstr() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeLookupJoinWithQstr() {
+        var query = """
+            FROM test
+            | WHERE false
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE qstr("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after LOOKUP"));
     }
 }

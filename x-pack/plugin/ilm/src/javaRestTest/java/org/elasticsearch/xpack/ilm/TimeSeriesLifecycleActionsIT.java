@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -262,6 +263,32 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         });
     }
 
+    public void testAllocateActionRemovesAutoExpandReplicas() throws Exception {
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+        );
+        AllocateAction allocateAction = new AllocateAction(0, null, null, null, null);
+        String endPhase = randomFrom("warm", "cold");
+        createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(endPhase).getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()), equalTo("0"));
+            assertNull(
+                "auto_expand_replicas must be removed when an explicit replica count is set by the allocate action",
+                settings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+            );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(
             client(),
@@ -282,7 +309,19 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
-            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            if (indexILMState.containsKey("failed_step")) {
+                assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            } else {
+                // The failed step gets reset every time ILM retries, so we introduce an alternative check
+                // We check that ILM is re-trying the wait-for-snapshot step
+                assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+                assertThat(indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), notNullValue());
+                assertThat((int) indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThan(0));
+                // And that the previous step failed because the SLM policy was missing
+                assertThat(indexILMState.get("previous_step_info"), notNullValue());
+                Map<String, Object> previousStepInfo = (Map<String, Object>) indexILMState.get("previous_step_info");
+                assertThat(previousStepInfo.get("reason"), equalTo("configured policy '" + slmPolicy + "' not found"));
+            }
         }, slmPolicy);
         createSlmPolicy(slmPolicy, snapshotRepo); // put the slm policy back
         assertBusy(() -> {

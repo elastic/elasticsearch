@@ -85,6 +85,13 @@ public class BaseBroadcastResponse extends ActionResponse {
     }
 
     /**
+     * The shards that were not available when the request was executed.
+     */
+    public int getUnavailableShards() {
+        return totalShards - successfulShards - failedShards;
+    }
+
+    /**
      * The REST status that should be used for the response
      */
     public RestStatus getStatus() {

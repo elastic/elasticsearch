@@ -105,10 +105,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     private boolean globalBlock;
     private ClusterBlock block;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initializeClusterAndShards() throws Exception {
         globalBlock = randomBoolean();
         RestStatus restStatus = randomFrom(RestStatus.values());
         block = new ClusterBlock(randomIntBetween(1, 10), randomAlphaOfLength(5), false, true, false, restStatus, ClusterBlockLevel.ALL);
@@ -129,7 +127,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 
-        primary = newStartedShard(p -> newShard(shardRouting, indexSettings, new InternalEngineFactory()), true);
+        primary = newStartedShard(p -> newShard(shardRouting, null, indexSettings, new InternalEngineFactory()), true);
         for (int i = 0; i < 10; i++) {
             final String id = Integer.toString(i);
             indexDoc(primary, "_doc", id, "{\"value\":" + id + "}");
@@ -174,7 +172,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         @SuppressWarnings("unchecked")
                         private TransportResponseHandler<TransportReplicationAction.ReplicaResponse> getResponseHandler() {
                             return (TransportResponseHandler<TransportReplicationAction.ReplicaResponse>) getResponseHandlers()
-                                .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER);
+                                .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER, -1);
                         }
 
                         @Override
@@ -208,13 +206,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterAndServices() throws Exception {
         closeShards(primary, replica);
         transportService.stop();
         clusterService.close();
-        super.tearDown();
     }
 
     public void testTransportReplicationActionWithAllPermits() throws Exception {
@@ -391,10 +387,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 }
             }
         }
-        assertWarnings(
-            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the breaking changes documentation for the next major version."
-        );
     }
 
     private void assertSuccessfulOperation(final TestAction action, final Response response) {
@@ -458,7 +450,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 mockIndicesService(shardId, executedOnPrimary, primary, replica),
                 threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 Request::new,
                 Request::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

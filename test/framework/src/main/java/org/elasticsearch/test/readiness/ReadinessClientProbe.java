@@ -16,15 +16,13 @@ import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-import static org.junit.Assert.fail;
 
 /**
  * Helper test interface that provides basic socket connect functionality to
@@ -45,18 +43,12 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeTrue(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                try {
-                    channelConnect(channel, socketAddress);
-                    // if we succeeded to connect the server is ready
-                } catch (IOException e) {
-                    fail("Shouldn't reach here");
-                }
-                return null;
-            });
+        try (SocketChannel channel = SocketChannel.open(family)) {
+            channelConnect(channel, socketAddress);
         }
     }
 
@@ -66,15 +58,14 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeFalse(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                expectThrows(ConnectException.class, () -> {
-                    var result = channelConnect(channel, socketAddress);
-                    probeLogger.info("No exception on channel connect, connection success [{}]", result);
-                });
-                return null;
+        try (SocketChannel channel = SocketChannel.open(family)) {
+            expectThrows(ConnectException.class, () -> {
+                var result = channelConnect(channel, socketAddress);
+                probeLogger.info("No exception on channel connect, connection success [{}]", result);
             });
         }
     }

@@ -66,6 +66,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -755,6 +757,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     /**
+     * A deeply nested query string must fail with a {@link QueryShardException} rather than a {@link StackOverflowError}.
+     */
+    public void testToQueryWithDeeplyNestedParentheses() {
+        int depth = 100000;
+        String queryString = "(".repeat(depth) + TEXT_FIELD_NAME + ":value" + ")".repeat(depth);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
+    /**
      * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
      */
     public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {
@@ -1434,5 +1449,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         b.field("ww_keyword");
         Query q = b.doToQuery(createSearchExecutionContext());
         assertEquals(new TermQuery(new Term("ww_keyword", "query with spaces")), q);
+    }
+
+    public void testQueryStringCircuitBreakerTripsWithManyWildcards() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            StringJoiner joiner = new StringJoiner(" OR ");
+            IntStream.range(0, 100).forEach(i -> joiner.add("*a*b*c*d*e*f*g*h*" + i + "*"));
+            return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
+        });
+    }
+
+    public void testQueryStringCircuitBreakerTripsWithManyRegexps() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            StringJoiner joiner = new StringJoiner(" OR ");
+            IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
+            return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
+        });
     }
 }

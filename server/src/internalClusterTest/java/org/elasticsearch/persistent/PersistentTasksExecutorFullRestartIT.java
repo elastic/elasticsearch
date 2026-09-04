@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -92,10 +91,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             equalTo(numberOfTasks)
         );
 
-        assertBusy(() -> {
-            // Make sure the task is removed from the cluster state
-            assertThat(findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME), empty());
-        });
+        awaitClusterState(state -> findTasks(state, TestPersistentTasksExecutor.NAME).isEmpty());
 
     }
 }

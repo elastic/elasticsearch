@@ -57,7 +57,7 @@ public class BitBinaryDenseVector extends ByteBinaryDenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         if (queryVector.length == vectorValue.length) {
             // assume that the query vector is a bit vector and do a bitwise AND
             return andBitCount(vectorValue, queryVector);

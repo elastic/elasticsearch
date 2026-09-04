@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -44,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -275,6 +277,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             .keepAlive(keepAlive);
         final String asyncId;
         long currentExpiration;
+        scriptPermits.drainPermits();
         try {
             try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
@@ -283,6 +286,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             }
             currentExpiration = getExpirationFromTask(asyncId);
             assertThat(currentExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+            assertThat(getTaskKeepAlive(asyncId), equalTo(keepAlive.getStringRep()));
             // update the expiration while the task is still running
             int iters = iterations(1, 5);
             for (int i = 0; i < iters; i++) {
@@ -297,6 +301,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 long updatedExpiration = getExpirationFromTask(asyncId);
                 assertThat(updatedExpiration, greaterThanOrEqualTo(currentExpiration + extraKeepAlive));
                 assertThat(updatedExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+                assertThat(getTaskKeepAlive(asyncId), equalTo(keepAlive.getStringRep()));
                 currentExpiration = updatedExpiration;
             }
         } finally {
@@ -326,6 +331,76 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    public void testCancelOnExpiry() throws Exception {
+        var request = asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(queryPragmas())
+            // small interval so that we can return quickly on submission
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+            .keepOnCompletion(randomBoolean())
+            .allowPartialResults(false)
+            // large interval so that the tasks won't be cancelled until it has started
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
+        final String asyncId;
+        scriptPermits.drainPermits();
+        try {
+            try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+                assertThat(initialResponse.isRunning(), is(true));
+                assertTrue(initialResponse.asyncExecutionId().isPresent());
+                asyncId = initialResponse.asyncExecutionId().get();
+            }
+            // make sure at least one data node driver has started
+            assertBusy(() -> {
+                List<TaskInfo> driverTasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(d -> d.status().toString().contains("Lucene"))
+                    .toList();
+                assertThat(driverTasks, not(empty()));
+                for (TaskInfo driveTask : driverTasks) {
+                    assertFalse(driveTask.cancelled());
+                }
+            });
+            var getRequest = new GetAsyncResultRequest(asyncId).setWaitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+                .setKeepAlive(timeValueMillis(randomIntBetween(1, 100)));
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertTrue(resp.isRunning());
+            }
+            // all the started drivers were canceled
+            assertBusy(() -> {
+                List<TaskInfo> tasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks();
+                for (TaskInfo task : tasks) {
+                    assertTrue(task.cancelled());
+                }
+            });
+            // the async task was canceled
+            assertBusy(() -> {
+                List<TaskInfo> queryTasks = getEsqlQueryTasks();
+                assertThat(queryTasks, hasSize(1));
+                assertTrue(queryTasks.get(0).cancelled());
+            });
+        } finally {
+            scriptPermits.release(numberOfDocs());
+        }
+        TaskCancelledException error = expectThrows(TaskCancelledException.class, () -> {
+            var getRequest = new GetAsyncResultRequest(asyncId).setWaitForCompletionTimeout(timeValueSeconds(10))
+                .setKeepAlive(timeValueSeconds(30));
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertThat(resp.isRunning(), is(false));
+            }
+        });
+        assertThat(error.getMessage(), containsString("keep_alive expired"));
+    }
+
     private static long getExpirationFromTask(String asyncId) {
         List<EsqlQueryTask> tasks = new ArrayList<>();
         for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
@@ -342,9 +417,17 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         return tasks.getFirst().getExpirationTimeMillis();
     }
 
+    private String getTaskKeepAlive(String asyncId) throws Exception {
+        List<TaskInfo> tasks = getEsqlQueryTasks();
+        assertThat(tasks, hasSize(1));
+        EsqlQueryStatus status = (EsqlQueryStatus) tasks.getFirst().status();
+        assertThat(status.id().getEncoded(), equalTo(asyncId));
+        return status.keepAlive().getStringRep();
+    }
+
     private static long getExpirationFromDoc(String asyncId) {
         String docId = AsyncExecutionId.decode(asyncId).getDocId();
-        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).get();
+        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).setRealtime(true).get();
         assertTrue(doc.isExists());
         return ((Number) doc.getSource().get(AsyncTaskIndexService.EXPIRATION_TIME_FIELD)).longValue();
     }

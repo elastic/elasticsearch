@@ -13,12 +13,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockChatCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockCompletionRequestManager;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
@@ -31,7 +30,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -111,7 +110,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
                 threadPool,
                 new TimeValue(30, TimeUnit.SECONDS)
             );
-            sender.send(requestManager, new EmbeddingsInput(List.of("abc"), null), null, listener);
+            sender.send(requestManager, EmbeddingsInput.fromStrings(List.of("abc"), null), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.456F, 0.678F, 0.789F }))));
@@ -125,7 +124,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var model = AmazonBedrockChatCompletionModelTests.createModel(
+            var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
                 "test_id",
                 "test_region",
                 "test_model",
@@ -135,8 +134,8 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var requestManager = new AmazonBedrockChatCompletionRequestManager(model, threadPool, new TimeValue(30, TimeUnit.SECONDS));
-            sender.send(requestManager, new ChatCompletionInput(List.of("abc")), null, listener);
+            var requestManager = new AmazonBedrockCompletionRequestManager(model, threadPool, new TimeValue(30, TimeUnit.SECONDS));
+            sender.send(requestManager, new CompletionInput(List.of("abc")), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test response text"))));
@@ -155,7 +154,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSender(AmazonBedrockRequestSender.Factory factory) {
-        return factory.createSender();
+    public static AmazonBedrockRequestSender createSender(AmazonBedrockRequestSender.Factory factory) {
+        return (AmazonBedrockRequestSender) factory.createSender();
     }
 }

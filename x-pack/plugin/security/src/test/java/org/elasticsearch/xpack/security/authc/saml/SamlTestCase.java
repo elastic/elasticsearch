@@ -15,6 +15,9 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.WatcherHandle;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -25,6 +28,7 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -36,6 +40,9 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class SamlTestCase extends ESTestCase {
 
@@ -169,5 +176,17 @@ public abstract class SamlTestCase extends ESTestCase {
         idpDescriptor.setEntityID(idpEntityId);
         idpDescriptor.getRoleDescriptors().add(idpRole);
         return idpDescriptor;
+    }
+
+    /**
+     * Mocks the {@link ResourceWatcherService} in a way that is sufficient to support SAML testing
+     * (for example by ensuring mocked methods do not return {@code null} when the SAML realm relies on a non-null contract)
+     */
+    public static ResourceWatcherService mockResourceWatcherService() throws IOException {
+        ResourceWatcherService service = mock(ResourceWatcherService.class);
+        @SuppressWarnings("unchecked")
+        WatcherHandle<FileWatcher> handle = mock(WatcherHandle.class);
+        when(service.add(any(FileWatcher.class), any(ResourceWatcherService.Frequency.class))).thenReturn(handle);
+        return service;
     }
 }

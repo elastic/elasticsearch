@@ -37,6 +37,7 @@ public class StackYamlIT extends ESClientYamlSuiteTestCase {
         .module("ingest-common")
         .module("mapper-extras")
         .module("data-streams")
+        .module("x-pack-inference")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .user(USER, PASS)

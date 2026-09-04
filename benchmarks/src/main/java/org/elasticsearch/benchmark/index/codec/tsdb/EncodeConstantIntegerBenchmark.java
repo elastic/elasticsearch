@@ -46,38 +46,45 @@ public class EncodeConstantIntegerBenchmark {
     @Param({ "1", "4", "8", "9", "16", "17", "24", "25", "32", "33", "40", "48", "56", "57", "64" })
     private int bitsPerValue;
 
+    /**
+     * Number of blocks encoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
+
     private final AbstractTSDBCodecBenchmark encode;
 
     public EncodeConstantIntegerBenchmark() {
         this.encode = new EncodeBenchmark();
     }
 
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        encode.setupInvocation();
-    }
-
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
         encode.setupTrial(new ConstantIntegerSupplier(SEED, bitsPerValue, encode.getBlockSize()));
-        encode.setupInvocation();
+
+        encode.setBlocksPerInvocation(blocksPerInvocation);
         encode.run();
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         encode.benchmark(bh);
-        metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
+        metrics.recordOperation(encode.getBlockSize() * blocksPerInvocation, encode.getEncodedSize() * blocksPerInvocation);
     }
 
     /**
-     * Measures compression efficiency metrics (compression ratio, encoded bits/bytes per value).
+     * Reports compression metrics (encoded size, compression ratio, bits per value).
      *
-     * <p>Uses zero warmup and single iteration because compression metrics are deterministic:
-     * the same input data always produces the same encoded size. Unlike throughput measurements
-     * which vary due to JIT compilation and CPU state, compression ratios are constant across runs.
+     * <p>This benchmark exists only to collect compression statistics via {@link CompressionMetrics}.
+     * The reported time is not meaningful and should be ignored. Metrics are per-block regardless
+     * of the {@code blocksPerInvocation} setting.
      */
     @Benchmark
+    @BenchmarkMode(Mode.SingleShotTime)
     @Warmup(iterations = 0)
     @Measurement(iterations = 1)
     public void compression(Blackhole bh, CompressionMetrics metrics) throws IOException {

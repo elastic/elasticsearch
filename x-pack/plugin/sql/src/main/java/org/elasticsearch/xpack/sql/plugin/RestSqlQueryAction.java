@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,8 +38,8 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSqlQueryAction(Settings settings) {
-        crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestSqlQueryAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

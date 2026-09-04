@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,10 +53,13 @@ import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -134,7 +136,18 @@ public final class IndexModule {
     // whether to use the query cache
     public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.queries.cache.enabled",
-        true,
+        settings -> {
+            if (settings == null) {
+                return Boolean.TRUE.toString();
+            }
+            // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
+            // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
+            // a circular static initialization that results in a NullPointerException at boot time.
+            // vectordb_columnar is intentionally excluded from the columnar family here: unlike the other columnar
+            // modes it keeps the query cache enabled, since filtered vector search relies on it to cache the filter bitset.
+            String mode = settings.get("index.mode");
+            return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
+        },
         Property.IndexScope
     );
 
@@ -179,10 +192,12 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final SetOnce<MutableOperationGate> mutableOperationGate = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -202,20 +217,21 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider,
+        final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, loggingFieldsProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, loggingFieldsProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -224,6 +240,7 @@ public final class IndexModule {
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
     }
 
     /**
@@ -406,6 +423,11 @@ public final class IndexModule {
         this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
+    public void setMutableOperationGate(MutableOperationGate gate) {
+        ensureNotFrozen();
+        this.mutableOperationGate.set(Objects.requireNonNull(gate));
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -491,7 +513,7 @@ public final class IndexModule {
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
@@ -549,7 +571,7 @@ public final class IndexModule {
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
-                idFieldMapper,
+                idFieldDataEnabled,
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
@@ -557,10 +579,12 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
+                mutableOperationGate.get(),
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                mergeMetrics,
+                metricHolder
             );
             success = true;
             return indexService;
@@ -670,11 +694,9 @@ public final class IndexModule {
             () -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             scriptService,
-            query -> {
-                throw new UnsupportedOperationException("no index query shard context available");
-            },
+            query -> { throw new UnsupportedOperationException("no index query shard context available"); },
             mapperMetrics,
             documentMapper,
             null

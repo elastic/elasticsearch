@@ -15,8 +15,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -25,12 +25,15 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 
 import java.util.List;
@@ -109,7 +112,7 @@ public class InferenceFunctionEvaluator {
             }
         }, CircuitBreaker.REQUEST).withCircuitBreaking();
 
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).breaker(breaker).build(), null);
 
         // Create the inference operator for the specific function type using the provider
         try {
@@ -210,12 +213,26 @@ public class InferenceFunctionEvaluator {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext),
+                        textEmbedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
+                    );
+                    case Embedding embedding -> new EmbeddingOperator.Factory(
+                        inferenceService,
+                        inferenceId(inferenceFunction, foldContext),
+                        expressionEvaluatorFactory(embedding.inputText(), foldContext),
+                        embedding.inputDataType(),
+                        embedding.inputTimeout(),
+                        Source.EMPTY,
+                        false
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), foldContext)
+                        expressionEvaluatorFactory(completion.prompt(), foldContext),
+                        completion.taskSettings().toFoldedMap(foldContext),
+                        completion.timeout()
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };
@@ -243,7 +260,7 @@ public class InferenceFunctionEvaluator {
          * @param e the foldable expression to create an evaluator factory for
          * @return an expression evaluator factory for the given expression
          */
-        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
+        private ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
             assert e.foldable() : "Input expression must be foldable";
             return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
         }

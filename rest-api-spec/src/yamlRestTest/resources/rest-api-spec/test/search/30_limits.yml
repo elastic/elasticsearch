@@ -189,3 +189,29 @@ setup:
                     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+---
+"Regexp stacked quantifiers are collapsed":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query:
+            regexp:
+              foo.keyword:
+                value: "b.+++++r"
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._id: "1"}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query:
+            query_string:
+              default_field: foo.keyword
+              query: "/b.+++++r/"
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._id: "1"}

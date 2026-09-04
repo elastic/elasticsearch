@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -58,8 +58,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
     private Long timeBetweenStarts;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         lastRunDuration = randomBoolean() ? randomLongBetween(0, 100000) : null;
         timeBetweenStarts = randomBoolean() ? randomLongBetween(0, 100000) : null;
         when(dataStreamLifecycleService.getLastRunDuration()).thenReturn(lastRunDuration);

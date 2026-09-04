@@ -1,5 +1,0 @@
-pr: 140028
-summary: Fix null folding of nested COALESCE
-area: ES|QL
-type: bug
-issues: []

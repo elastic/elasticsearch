@@ -20,4 +20,11 @@ public interface CharFilterFactory {
     default Reader normalize(Reader reader) {
         return reader;
     }
+
+    /**
+     * See {@link TokenFilterFactory#sharingKey()}.
+     */
+    default Object sharingKey() {
+        return this;
+    }
 }

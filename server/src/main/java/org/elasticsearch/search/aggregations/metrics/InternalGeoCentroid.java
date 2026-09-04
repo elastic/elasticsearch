@@ -27,6 +27,13 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     }
 
     /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalGeoCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
+        super(name, centroid, count, shapeData, metadata);
+    }
+
+    /**
      * Read from a stream.
      */
     public InternalGeoCentroid(StreamInput in) throws IOException {
@@ -71,6 +78,14 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     protected InternalGeoCentroid copyWith(double firstSum, double secondSum, long totalCount) {
         final GeoPoint result = (Double.isNaN(firstSum)) ? null : new GeoPoint(firstSum / totalCount, secondSum / totalCount);
         return copyWith(result, totalCount);
+    }
+
+    @Override
+    protected InternalGeoCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final GeoPoint result = shapeData.totalWeight() > 0
+            ? new GeoPoint(shapeData.firstWeightedSum() / shapeData.totalWeight(), shapeData.secondWeightedSum() / shapeData.totalWeight())
+            : null;
+        return new InternalGeoCentroid(name, result, count, shapeData, getMetadata());
     }
 
     @Override

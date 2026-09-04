@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +34,8 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class ExplainRequestTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initNamedWriteableRegistry() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
@@ -51,6 +52,7 @@ public class ExplainRequestTests extends ESTestCase {
             request.query(QueryBuilders.termQuery("field", "value"));
             request.storedFields(new String[] { "field1", "field2" });
             request.routing("some_routing");
+            request.setRoutingFromSlice(true);
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 ExplainRequest readRequest = new ExplainRequest(in);
@@ -60,8 +62,16 @@ public class ExplainRequestTests extends ESTestCase {
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.routing(), readRequest.routing());
                 assertEquals(request.fetchSourceContext(), readRequest.fetchSourceContext());
+                assertTrue(readRequest.isRoutingFromSlice());
             }
         }
+    }
+
+    public void testRoutingFromSliceSetter() {
+        ExplainRequest request = new ExplainRequest("index", "id");
+        assertFalse(request.isRoutingFromSlice());
+        request.setRoutingFromSlice(true);
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidation() {

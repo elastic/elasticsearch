@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
@@ -22,6 +21,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * A generic flat format that can use several different underlying vector storage formats.
+ * <p>
+ * This format is not meant to be used directly; it should be used as part of another vector format implementation.
+ */
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
@@ -39,7 +43,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93GenericFlatVectorScorer.INSTANCE
     );
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE
@@ -49,9 +53,8 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
             return "ES93BitFlatVectorsFormat";
         }
     };
-    // TODO: a separate scorer for bfloat16
     private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93GenericFlatVectorScorer.INSTANCE
     );
 
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(

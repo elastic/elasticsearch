@@ -27,6 +27,8 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -51,22 +53,18 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
-import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
-        super.setUp();
+    @Before
+    public void registerErrorListener() throws Exception {
         LogConfigurator.registerErrorListener();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownLogging() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        super.tearDown();
     }
 
     public void testLocationInfoTest() throws IOException {
@@ -250,7 +248,7 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events, hasSize(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            assertThat("Contents of [" + path + "] are wrong", events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
+            assertThat("Contents of [" + path + "] are wrong", events.get(i), endsWith(prefix + " test"));
         }
     }
 

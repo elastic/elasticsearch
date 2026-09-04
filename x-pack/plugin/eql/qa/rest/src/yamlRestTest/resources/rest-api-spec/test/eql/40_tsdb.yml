@@ -1,4 +1,6 @@
 setup:
+  - requires:
+      test_runner_features: [allowed_warnings]
   - do:
       indices.create:
           index: test1
@@ -61,6 +63,8 @@ setup:
           - '{"id":8, "@timestamp": "2021-04-28T18:51:03.142Z", "event.category": "network", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test2
         body:
@@ -96,6 +100,8 @@ setup:
                           tx:
                             type: long
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         refresh: true
         index: test2

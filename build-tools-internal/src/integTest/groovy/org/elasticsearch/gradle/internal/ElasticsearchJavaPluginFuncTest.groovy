@@ -16,7 +16,7 @@ class ElasticsearchJavaPluginFuncTest extends AbstractGradleInternalPluginFuncTe
 
     Class<? extends Plugin> pluginClassUnderTest = ElasticsearchJavaPlugin.class
 
-    def "compatibility options are resolved from from build params minimum runtime version"() {
+    def "compatibility options are resolved from build params minimum runtime version"() {
         when:
         buildFile.text << """
         import org.elasticsearch.gradle.Architecture

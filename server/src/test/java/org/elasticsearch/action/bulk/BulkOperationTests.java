@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -38,23 +40,29 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -67,6 +75,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -79,6 +88,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -474,6 +484,61 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
     }
 
+    public static final class BulkOperation429Exception extends ElasticsearchException {
+        public BulkOperation429Exception(String msg) {
+            super(msg);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+    }
+
+    /**
+     * A bulk operation to a data stream with a failure store enabled should NOT redirect any documents that fail at a shard level to the
+     * failure store if the exception thrown is of an invalid type (backpressure, version conflict, etc.)
+     */
+    public void testFailingDocumentIgnoredByFailureStoreWhenInvalidException() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        final Exception expectedException = randomFrom(
+            new VersionConflictException("test"),
+            new EsRejectedExecutionException("test"),
+            new CircuitBreakingException("test", randomFrom(CircuitBreaker.Durability.values())),
+            new ClusterBlockException(Set.of(MetadataIndexStateService.createIndexClosingBlock())),
+            new BulkOperation429Exception("test")
+        );
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> expectedException))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(
+            l -> newBulkOperation(
+                clusterState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(clusterState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                false
+            ).run()
+        );
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(equalTo(expectedException)));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
     public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(
@@ -559,6 +624,74 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
+     * {@link NodeClient#executeAndReturnTask} throws rather than notifying the listener when it cannot start a shard request at all, so the
+     * ref acquired for that request is never released. On the redirect round the throw escapes into a
+     * {@link org.elasticsearch.action.support.RefCountingRunnable} delegate, which logs and swallows it once assertions are disabled,
+     * leaving the bulk operation to hang and its task registered forever.
+     */
+    public void testShardRequestDispatchFailureDuringRedirectCompletesBulk() throws Exception {
+        // Requests that go to two separate shards, the second of which is redirected to the failure store
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        // The three failures NodeClient#executeLocally documents as escaping instead of reaching the listener
+        RuntimeException dispatchFailure = randomFrom(
+            new TaskCancelledException("parent task was cancelled [request timed out after [2m]]"),
+            new IllegalArgumentException("Request exceeded the maximum size of task headers [16kb]"),
+            new IllegalStateException("failed to find action [indices:data/write/bulk[s]] to execute")
+        );
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onBackingIndexWrite = thatFailsDocuments(
+            Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause"))
+        );
+        NodeClient client = new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportShardBulkAction.TYPE.equals(action) == false) {
+                    fail("Unexpected client call to " + action.name());
+                }
+                BulkShardRequest shardRequest = (BulkShardRequest) request;
+                if (shardRequest.shardId().getIndex().equals(ds2FailureStore1.getIndex())) {
+                    throw dispatchFailure;
+                }
+                onBackingIndexWrite.accept(shardRequest, ActionListener.notifyOnce((ActionListener<BulkShardResponse>) listener));
+                return null;
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                try {
+                    executeAndReturnTask(action, request, listener);
+                } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
+        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(sameInstance(dispatchFailure)));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
@@ -1090,7 +1223,7 @@ public class BulkOperationTests extends ESTestCase {
         return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
@@ -1104,20 +1237,7 @@ public class BulkOperationTests extends ESTestCase {
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
                     }
-                } else {
-                    fail("Unexpected client call to " + action.name());
-                }
-                return null;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (LazyRolloverAction.INSTANCE.equals(action)) {
+                } else if (LazyRolloverAction.INSTANCE.equals(action)) {
                     ActionListener<RolloverResponse> notifyOnceListener = ActionListener.notifyOnce(
                         (ActionListener<RolloverResponse>) listener
                     );
@@ -1125,6 +1245,12 @@ public class BulkOperationTests extends ESTestCase {
                         onRolloverAction.accept((RolloverRequest) request, notifyOnceListener);
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);
+                    }
+                } else if (TransportShardBulkAction.TYPE.equals(action)) {
+                    try {
+                        executeAndReturnTask(action, request, listener);
+                    } catch (TaskCancelledException | IllegalArgumentException | IllegalStateException e) {
+                        listener.onFailure(e);
                     }
                 } else {
                     fail("Unexpected client call to " + action.name());
@@ -1228,6 +1354,7 @@ public class BulkOperationTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         when(clusterService.localNode()).thenReturn(mockNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         return new BulkOperation(
             null,
@@ -1246,7 +1373,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
-            failureStoreNodeFeatureEnabled
+            failureStoreNodeFeatureEnabled,
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

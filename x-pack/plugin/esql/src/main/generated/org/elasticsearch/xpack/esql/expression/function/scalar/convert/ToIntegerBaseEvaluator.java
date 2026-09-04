@@ -15,32 +15,32 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToIntegerBase}.
+ * {@link ExpressionEvaluator} implementation for {@link ToIntegerBase}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ToIntegerBaseEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ToIntegerBaseEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToIntegerBaseEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator string;
+  private final ExpressionEvaluator string;
 
-  private final EvalOperator.ExpressionEvaluator base;
+  private final ExpressionEvaluator base;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ToIntegerBaseEvaluator(Source source, EvalOperator.ExpressionEvaluator string,
-      EvalOperator.ExpressionEvaluator base, DriverContext driverContext) {
+  public ToIntegerBaseEvaluator(Source source, ExpressionEvaluator string, ExpressionEvaluator base,
+      DriverContext driverContext) {
     this.source = source;
     this.string = string;
     this.base = base;
@@ -76,10 +76,11 @@ public final class ToIntegerBaseEvaluator implements EvalOperator.ExpressionEval
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef stringScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (stringBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (stringBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -87,10 +88,11 @@ public final class ToIntegerBaseEvaluator implements EvalOperator.ExpressionEval
               result.appendNull();
               continue position;
         }
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (baseBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -140,25 +142,20 @@ public final class ToIntegerBaseEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory string;
+    private final ExpressionEvaluator.Factory string;
 
-    private final EvalOperator.ExpressionEvaluator.Factory base;
+    private final ExpressionEvaluator.Factory base;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
-        EvalOperator.ExpressionEvaluator.Factory base) {
+    public Factory(Source source, ExpressionEvaluator.Factory string,
+        ExpressionEvaluator.Factory base) {
       this.source = source;
       this.string = string;
       this.base = base;

@@ -21,8 +21,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -75,10 +77,8 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
     private IndexRoutingTable routingTable;
     private ClusterIndexHealth indexHealth;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initIndexStatsFields() throws Exception {
         indexStats = mock(IndexStats.class);
         metadata = mockIndexMetadata(index, primaries, replicas);
         routingTable = mockIndexRoutingTable(index, primaries, replicas, activePrimaries, activeReplicas, initializing, relocating);
@@ -348,7 +348,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             .field("index", index.getName())
             .field("uuid", index.getUUID())
             .field("created", metadata.getCreationDate())
-            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
+            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT))
+            .field("mode", IndexSettings.MODE.get(metadata.getSettings()).getName())
+            .field("codec", EngineConfig.INDEX_CODEC_SETTING.get(metadata.getSettings()));
         {
             builder.startObject("shards")
                 .field("total", total)

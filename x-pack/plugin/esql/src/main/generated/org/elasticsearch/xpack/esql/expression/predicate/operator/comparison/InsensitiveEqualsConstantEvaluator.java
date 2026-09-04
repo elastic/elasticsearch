@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
+ * {@link ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class InsensitiveEqualsConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InsensitiveEqualsConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator lhs;
+  private final ExpressionEvaluator lhs;
 
   private final ByteRunAutomaton rhs;
 
@@ -39,7 +39,7 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
   private Warnings warnings;
 
-  public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
+  public InsensitiveEqualsConstantEvaluator(Source source, ExpressionEvaluator lhs,
       ByteRunAutomaton rhs, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
@@ -69,10 +69,11 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -110,25 +111,19 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+    private final ExpressionEvaluator.Factory lhs;
 
     private final ByteRunAutomaton rhs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        ByteRunAutomaton rhs) {
+    public Factory(Source source, ExpressionEvaluator.Factory lhs, ByteRunAutomaton rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;

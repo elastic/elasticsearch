@@ -1,5 +1,0 @@
-pr: 140528
-summary: Enable nullify and fail unmapped resolution in tech-preview
-area: ES|QL
-type: feature
-issues: []

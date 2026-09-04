@@ -258,7 +258,6 @@ public class FunctionScoreQuery extends Query {
                 final Set<Term> terms = new HashSet<>();
                 this.visit(QueryVisitor.termCollector(terms));
                 scriptScoreFunction.setTermStatsFactory((ctx, docIdSupplier) -> new ScriptTermStats(searcher, ctx, docIdSupplier, terms));
-
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);

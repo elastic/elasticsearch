@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,8 +51,9 @@ public class ChunkedDataExtractor implements DataExtractor {
     private long chunkSpan;
     private boolean isCancelled;
     private DataExtractor currentExtractor;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
-    public ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
+    ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
         this.currentStart = context.start();
@@ -85,7 +90,19 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     private void setUpChunkedSearch() {
-        DataSummary dataSummary = dataExtractorFactory.newExtractor(currentStart, context.end()).getSummary();
+        // Keep a reference so that if getSummary() throws (e.g. because a remote cluster was skipped)
+        // we can still recover the cluster states it observed and expose them via getLinkedClusterStates().
+        DataExtractor summaryExtractor = dataExtractorFactory.newExtractor(currentStart, context.end());
+        DataSummary dataSummary;
+        try {
+            dataSummary = summaryExtractor.getSummary();
+        } catch (ResourceNotFoundException e) {
+            List<LinkedClusterState> failedStates = summaryExtractor.getLinkedClusterStates();
+            if (failedStates.isEmpty() == false) {
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, failedStates);
+            }
+            throw e;
+        }
         if (dataSummary.hasData()) {
             currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
             currentEnd = currentStart;
@@ -130,8 +147,25 @@ public class ChunkedDataExtractor implements DataExtractor {
                 isNewSearch = true;
             }
 
-            Result result = currentExtractor.next();
+            Result result;
+            try {
+                result = currentExtractor.next();
+            } catch (IOException | RuntimeException e) {
+                // Capture states from the inner extractor before rethrowing so that
+                // getLinkedClusterStates() gives accurate data to DatafeedJob's catch block.
+                List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
+                if (innerStates.isEmpty() == false) {
+                    lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                }
+                throw e;
+            }
             lastSearchInterval = result.searchInterval();
+            if (result.linkedClusterStates().isEmpty() == false) {
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                    lastLinkedClusterStates,
+                    result.linkedClusterStates()
+                );
+            }
             if (result.data().isPresent()) {
                 return result;
             }
@@ -158,7 +192,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return new Result(lastSearchInterval, Optional.empty());
+        return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
     private void advanceTime() {
@@ -196,6 +230,11 @@ public class ChunkedDataExtractor implements DataExtractor {
     @Override
     public long getEndTime() {
         return context.end();
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     ChunkedDataExtractorContext getContext() {

@@ -24,7 +24,7 @@ Never expose an unprotected node to the public internet. If you do, you are perm
 ::::
 
 
-Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-system-configuration.md#dev-vs-prod). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
+Configuring {{es}} to bind to a non-local address will [convert some warnings into fatal exceptions](docs-content://deploy-manage/deploy/self-managed/important-settings-configuration.md#bootstrap-checks). If a node refuses to start after configuring its network settings then you must address the logged exceptions before proceeding.
 
 ## Commonly used network settings [common-network-settings]
 
@@ -201,6 +201,16 @@ Use the following advanced settings to configure the HTTP interface independentl
 `http.max_header_size`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Maximum size of allowed headers. Defaults to `16kb`.
 
+$$$http-headers-cluster-name-enabled$$$
+
+`http.headers.cluster_name.enabled`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) When `true`, HTTP responses include an `Elastic-Cluster-Name` header set to this node's `cluster.name`. This is the self-managed equivalent of the `X-Found-Handling-Cluster` header that {{ecloud}} adds, and lets clients capture the cluster name for telemetry without an extra request. Defaults to `false`.
+
+    ::::{note}
+    The header is not returned on unauthenticated responses, and is not exposed via CORS by default (see [`http.cors.expose-headers`](#http-cors-expose-headers)). Because `cluster.name` is operator-defined, enable this setting only if exposing the cluster name in responses is acceptable for your deployment.
+    ::::
+
+
 $$$http-compression$$$
 
 `http.compression` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
@@ -309,12 +319,8 @@ $$$http-cors-allow-credentials$$$
 
 ### HTTP client configuration [_http_client_configuration]
 
-Many HTTP clients and proxies are configured for browser-like response latency and impose a fairly short timeout by default, reporting a failure if {{es}} takes longer than this timeout to complete the processing of a request. {{es}} will always eventually respond to every request, but some requests may require many minutes of processing time to complete. Consider carefully whether your client’s default response timeout is appropriate for your needs. In many cases it is better to wait longer for a response instead of failing, and this means you should disable any response timeouts:
-
-* If you react to a timeout by retrying the request, the retry will often end up being placed at the back of the same queue which held the original request. It will therefore take longer to complete the processing of the request if you time out and retry instead of waiting more patiently. Retrying also imposes additional load on {{es}}.
-* If a request is not idempotent and cannot be retried then failing the request is your last resort. Waiting more patiently for a response will usually allow the overall operation to succeed.
-
-If you disable the response timeout in your client, make sure to configure TCP keepalives instead. TCP keepalives are the recommended way to prevent a client from waiting indefinitely in the event of a network outage.
+::::{include} _snippets/http-client-configuration.md
+::::
 
 
 
@@ -666,11 +672,6 @@ It may also be possible to identify some reasons for delays from the server logs
 
 
 ## TCP readiness port [tcp-readiness-port]
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed ready when it has successfully joined a cluster. In a single node configuration, the node is said to be ready, when it’s able to accept requests.
 

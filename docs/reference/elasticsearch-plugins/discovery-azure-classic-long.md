@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-azure-classic-long.html
 ---
 
-# Setup process for Azure Discovery [discovery-azure-classic-long]
+# Setup process for Azure discovery [discovery-azure-classic-long]
 
 We will expose here one strategy which is to hide our Elasticsearch cluster from outside.
 
@@ -179,7 +179,7 @@ ssh azure-elasticsearch-cluster.cloudapp.net
 Once connected,  [install {{es}}](docs-content://deploy-manage/deploy/self-managed/installing-elasticsearch.md).
 
 
-## Install Elasticsearch cloud azure plugin [discovery-azure-classic-long-plugin]
+## Install Elasticsearch cloud Azure plugin [discovery-azure-classic-long-plugin]
 
 ```sh
 # Install the plugin

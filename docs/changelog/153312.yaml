@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 153312
+summary: Fix deserialization issue with `ShardFieldStats` in stateless context
+type: bug

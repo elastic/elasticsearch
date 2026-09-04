@@ -97,6 +97,8 @@ $$$fault-detection-settings$$$`cluster.fault_detection.follower_check.interval`
 `cluster.follower_lag.timeout`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long the master node waits to receive acknowledgements for cluster state updates from lagging nodes. The default value is `90s`. If a node does not successfully apply the cluster state update within this period of time, it is considered to have failed and is removed from the cluster. See [Publishing the cluster state](docs-content://deploy-manage/distributed-architecture/discovery-cluster-formation/cluster-state-overview.md#cluster-state-publishing).
 
+    {applies_to}`stack: ga 9.4` The value `-1` means that the master node will wait indefinitely for cluster state updates to be acknowledged.
+
 `cluster.max_voting_config_exclusions`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Sets a limit on the number of voting configuration exclusions at any one time. The default value is `10`. See [*Add and remove nodes in your cluster*](docs-content://deploy-manage/maintenance/add-and-remove-elasticsearch-nodes.md).
 

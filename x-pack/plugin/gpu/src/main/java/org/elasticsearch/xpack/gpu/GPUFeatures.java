@@ -15,10 +15,11 @@ import java.util.Set;
 public class GPUFeatures implements FeatureSpecification {
 
     public static final NodeFeature VECTORS_INDEXING_USE_GPU = new NodeFeature("vectors.indexing.use_gpu", true);
+    public static final NodeFeature VECTORS_INDEXING_GPU_MONITORING = new NodeFeature("vectors.indexing.gpu_monitoring");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of();
+        return Set.of(VECTORS_INDEXING_GPU_MONITORING);
     }
 
     @Override

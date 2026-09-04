@@ -28,28 +28,17 @@ For information about basic constructs that Painless and Java share, refer to co
 
 Painless scripts are parsed and compiled using the [ANTLR4](https://www.antlr.org/) and [ASM](https://asm.ow2.org/) libraries. Scripts are compiled directly into Java Virtual Machine (JVM) bytecode and executed against a standard JVM. 
 
-:::{image} images/painless-compilation-process.png
-:alt: Painless compilation process
-:::
-
-<!--
-:::{diagram} mermaid
+```mermaid
 flowchart LR
     A[Painless Script] --> B[ANTLR4 & ASM<br/>parsing & compilation]
     B --> C[JVM Bytecode] 
     C --> D[Standard JVM<br/>execution]
-    
-    classDef elasticBlue fill:#0B64DD,stroke:#333,stroke-width:2px,color:#fff
-    classDef lightTeal fill:#48EFCF,stroke:#333,stroke-width:2px,color:#000
-    classDef lightPoppy fill:#FF957D,stroke:#333,stroke-width:2px,color:#000
-    classDef pink fill:#F04E98,stroke:#333,stroke-width:2px,color:#fff
-    
-    class A elasticBlue
-    class B lightTeal
-    class C lightPoppy
-    class D pink
-:::
--->
+
+    class A highlight
+    class B tip
+    class C caution
+    class D error
+```
 
 ### Step breakdown:
 
@@ -73,16 +62,12 @@ This context-aware design allows Painless to optimize performance and security f
 
 Understanding context-syntax relationships is essential for effective Painless development. For detailed information about context-syntax patterns and practical examples, refer to [Painless syntax-context bridge](docs-content://explore-analyze/scripting/painless-syntax-context-bridge.md).
 
-:::{image} images/painless-integration-points.png
-:alt: Painless integration-points
-:::
-Double-click to expand the image.
-
-<!--
-:::{diagram} mermaid
+```mermaid
 flowchart TD
-  A[Painless Scripts] --> B[Dev Tools Console]
+  A[Painless Scripts] --> B[Dev Tools Console <a href='http://google.com'>test link</a>]
+  link B "docs-content://explore-analyze/query-filter/tools/console.md" _blank
   A --> C[Ingest Pipelines]
+  link C "https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines" "Elasticsearch Ingest Pipelines"
   A --> D[Update API]
   A --> E[Search Queries]
   A --> F[Runtime Fields]
@@ -97,27 +82,17 @@ flowchart TD
   G --> G1[Alert Conditions]
   H --> H1[Data Migration Scripts]
   I --> I1[Custom Calculations]
-  style A fill:#0A52B3,color:#fff
-  style B fill:#FA744E,color:#fff
-  style C fill:#02BCB7,color:#fff
-  style D fill:#E55940,color:#fff
-  style E fill:#1893FF,color:#fff
-  style F fill:#FFDF56,color:#000
-  style G fill:#DD0A73,color:#fff
-  style H fill:#128D91,color:#fff
-  style I fill:#45A8FF,color:#fff
- 
-  style B1 fill:#FDB5A1,color:#000
-  style C1 fill:#7DD3D0,color:#000
-  style D1 fill:#F2A895,color:#000
-  style E1 fill:#7DC4FF,color:#000
-  style F1 fill:#FFF2AB,color:#000
-  style G1 fill:#F990C6,color:#000
-  style H1 fill:#7DD3D0,color:#000
-  style I1 fill:#A1D1FF,color:#000
-:::
--->
 
+  class A highlight
+  class B caution
+  class C,H tip
+  class D,G error
+  class E,I,E1,I1 note
+  class F,F1 warning
+  class B1,D1 caution
+  class C1,H1 tip
+  class G1 error
+```
 
 ### Where to write Painless scripts:
 

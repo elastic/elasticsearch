@@ -11,9 +11,52 @@ package org.elasticsearch.gradle.internal.transport
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
+import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
+
+    static final String PATCH_BRANCH = "patch/serverless-fix"
+
+    /** Configures the build as a repository which has a branch tracking serverless production. */
+    static final String PATCH_BRANCH_PROPERTY = "-Porg.elasticsearch.transport.patchBranch=" + PATCH_BRANCH
+
+    @Override
+    GradleRunner gradleRunner(Object... arguments) {
+        return gradleRunnerWithEnv(Map.of(), arguments)
+    }
+
+    /** Run gradle with the CI branch env vars set to the given values, and stripped when not given. */
+    GradleRunner gradleRunnerWithEnv(Map<String, String> ciEnv, Object... arguments) {
+        // Strip CI branch env vars so tests are not affected by the branch name the CI build is running on.
+        // Tests that explicitly exercise CI behavior pass them in.
+        Map<String, String> env = new HashMap<>(System.getenv())
+        env.remove("BUILDKITE_BRANCH")
+        env.remove("BUILDKITE_PULL_REQUEST_BASE_BRANCH")
+        env.putAll(ciEnv)
+        return super.gradleRunner(arguments).withEnvironment(env)
+    }
+
+    /**
+     * Creates the serverless patch branch at the current state, advances main past it with a new
+     * transport version, and checks the patch branch back out. Generating on the patch branch must
+     * not hand out the id main has already taken.
+     */
+    void setupPatchBranch() {
+        execute("git checkout -b ${PATCH_BRANCH} main")
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("newer_92", "8124000")
+        transportVersionUpperBound("9.2", "newer_92", "8124000")
+        commitAll("advance-main")
+        execute("git checkout ${PATCH_BRANCH}")
+    }
+
+    /** Commit the current working tree state, so that it becomes part of the git base. */
+    void commitAll(String message) {
+        execute("git add .")
+        // note the command is split on whitespace, so the message cannot contain spaces
+        execute("git commit -m ${message}")
+    }
 
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->
@@ -109,7 +152,6 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
     }
 
     def setup() {
-        configurationCacheCompatible = false
         internalBuild()
         settingsFile << """
             include ':myserver'
@@ -133,11 +175,16 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         referableAndReferencedTransportVersion("older_92", "8122000")
         referableAndReferencedTransportVersion("existing_92", "8123000,8012001")
         unreferableTransportVersion("initial_9.0.0", "8000000")
+        unreferableTransportVersion("initial_9.1.0", "8011000")
         unreferableTransportVersion("initial_8.19.7", "7123001")
         transportVersionUpperBound("9.2", "existing_92", "8123000")
         transportVersionUpperBound("9.1", "existing_92", "8012001")
         transportVersionUpperBound("9.0", "initial_9.0.0", "8000000")
         transportVersionUpperBound("8.19", "initial_8.19.7", "7123001")
+        javaResource("myserver", "org/elasticsearch/TransportVersions.csv", """
+            9.0.0,8000000
+            9.1.0,8012001
+        """)
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
         javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
             public static TransportVersion fromName(String name) {
@@ -167,6 +214,10 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         execute("git init")
         execute('git config user.email "build-tool@elastic.co"')
         execute('git config user.name "Build tool"')
+        file(".gitignore") << """
+        .gradle/
+        build/
+        """.stripIndent()
         execute("git add .")
         execute('git commit -m "Initial"')
     }

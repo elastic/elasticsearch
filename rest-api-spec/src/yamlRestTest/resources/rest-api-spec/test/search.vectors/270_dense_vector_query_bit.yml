@@ -1,0 +1,180 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_bit
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: true
+                similarity: l2_norm
+
+  # dv_unindexed_bit mirrors dv_bit's vectors, to compare Hamming scoring against the indexed equivalent.
+  - do:
+      indices.create:
+        index: dv_unindexed_bit
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bit
+                dims: 40
+                index: false
+
+  - do:
+      index:
+        index: dv_bit
+        id: "1"
+        body: { name: cow.jpg,    vector: [2, -1, 1, 4, -3] }
+  - do:
+      index:
+        index: dv_bit
+        id: "2"
+        body: { name: moose.jpg,  vector: [-1, 5, 0, 1, 4] }
+  - do:
+      index:
+        index: dv_bit
+        id: "3"
+        body: { name: rabbit.jpg, vector: [3, 0, -1, 2, 6] }
+
+  # dv_unindexed_bit mirrors dv_bit exactly.
+  - do:
+      index:
+        index: dv_unindexed_bit
+        id: "1"
+        body: { name: cow.jpg,    vector: [2, -1, 1, 4, -3] }
+  - do:
+      index:
+        index: dv_unindexed_bit
+        id: "2"
+        body: { name: moose.jpg,  vector: [-1, 5, 0, 1, 4] }
+  - do:
+      index:
+        index: dv_unindexed_bit
+        id: "3"
+        body: { name: rabbit.jpg, vector: [3, 0, -1, 2, 6] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector on a bit field: quantized flag is a no-op":
+  # BIT fields encode hamming distance over the bits themselves — no codec quantization layer.
+  - do:
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+  - set: { hits.hits.0._score: bit_score_0 }
+  - set: { hits.hits.1._score: bit_score_1 }
+  - set: { hits.hits.2._score: bit_score_2 }
+
+  - do:
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $bit_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $bit_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $bit_score_2, error: 0.000001}}
+
+---
+"dense_vector on a bit field rejects non-l2 similarity_function override":
+  # l2_norm (Hamming) is the only valid metric for bit vectors, on both indexed and non-indexed fields.
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: cosine
+
+  - do:
+      catch: bad_request
+      search:
+        index: dv_unindexed_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: cosine
+
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: dot_product
+
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: max_inner_product
+
+---
+"dense_vector Hamming scoring on a non-indexed bit field matches the indexed equivalent":
+  # bit fields score by Hamming distance ((numBits - xorBitCount) / numBits). A non-indexed bit field has no
+  # KNN values, so it is scored from doc values; the scores must match the indexed bit field exactly.
+  - do:
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: bit_top_id }
+  - set: { hits.hits.0._score: bit_indexed_score_0 }
+  - set: { hits.hits.1._score: bit_indexed_score_1 }
+  - set: { hits.hits.2._score: bit_indexed_score_2 }
+
+  - do:
+      search:
+        index: dv_unindexed_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $bit_top_id }
+  # Query equals doc 1 (cow) verbatim ⇒ Hamming 0 ⇒ score (40 - 0) / 40 = 1.0.
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.000001}}
+  - close_to: {hits.hits.0._score: {value: $bit_indexed_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $bit_indexed_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $bit_indexed_score_2, error: 0.000001}}

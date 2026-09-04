@@ -1,0 +1,4 @@
+FROM employees
+| WHERE emp_no > 10000
+| user_agent ua = first_name WITH { "extract_device_type": true }
+| WHERE ua.name == "Chrome" AND salary > 5000

@@ -13,13 +13,12 @@
   - gte: { http.total_opened: 1 }
   - is_true: http.clients
   - gte: { http.clients.0.id: 1 }
-  - match: { http.clients.0.agent: "/.*/" }
-  - match: { http.clients.0.local_address: "/.*/" }
-  - match: { http.clients.0.remote_address: "/.*/" }
-  - is_true:  http.clients.0.last_uri
   - gte: { http.clients.0.opened_time_millis: 1684328268000 } # 2023-05-17
-  - gte: { http.clients.0.last_request_time_millis: 1684328268000 }
-  - gte: { http.clients.0.request_count: 1 }
-  - gte: { http.clients.0.request_size_bytes: 0 }
-    # values for clients.0.closed_time_millis, clients.0.x_forwarded_for, and clients.0.x_opaque_id are often
-    # null and cannot be tested here
+    # Other per-client fields (agent, local_address, remote_address, last_uri,
+    # last_request_time_millis, request_count, request_size_bytes,
+    # closed_time_millis, x_forwarded_for, x_opaque_id) are populated lazily
+    # from the first request on the channel and may be unset on a freshly
+    # accepted connection. The clients list ordering is also non-deterministic,
+    # so clients.0 may be any tracked channel. Deeper assertions on these
+    # fields live in HttpStatsIT, where the test client can be located
+    # deterministically.

@@ -15,9 +15,10 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -38,18 +40,20 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * Counts the number of points in the geometry
  * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_NPoints.html">PostGIS:ST_NPoints</a>.
  */
-public class StNPoints extends SpatialUnaryDocValuesFunction {
+public class StNPoints extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StNPoints",
         StNPoints::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StNPoints.class).unary(StNPoints::new).name("st_npoints");
     private static final GeometryPointCountVisitor pointCounter = new GeometryPointCountVisitor();
 
     @FunctionInfo(
         returnType = "integer",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        briefSummary = "Counts the number of points in the supplied geometry.",
         description = "Counts the number of points in the supplied geometry.",
         examples = @Example(file = "spatial_shapes", tag = "st_npoints"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
@@ -80,7 +84,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         } else {

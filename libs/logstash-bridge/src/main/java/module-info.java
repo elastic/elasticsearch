@@ -15,7 +15,8 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.painless;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.ingest.common;
-    requires org.elasticsearch.ingest.useragent;
+    requires org.elasticsearch.useragent;
+    requires org.elasticsearch.useragent.api;
     requires org.elasticsearch.mustache;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
@@ -23,7 +24,9 @@ module org.elasticsearch.logstashbridge {
     requires org.elasticsearch.redact;
     requires org.elasticsearch.spatial;
     requires org.elasticsearch.wildcard;
-    requires org.elasticsearch.ingest.geoip;
+    requires org.elasticsearch.iplocation.api;
+    requires org.elasticsearch.ip_location;
+    requires org.elasticsearch.ingest.iplocation;
     requires com.maxmind.db;
 
     exports org.elasticsearch.logstashbridge;

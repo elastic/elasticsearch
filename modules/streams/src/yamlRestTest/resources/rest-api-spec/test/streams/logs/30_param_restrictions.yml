@@ -1,23 +1,39 @@
 ---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_streams/status
+          capabilities: [stream_split]
+      test_runner_features: capabilities
+      reason: "Logs stream split into logs.otel and logs.ecs"
+
+---
 teardown:
   - do:
-      streams.logs_disable: { }
+      streams.logs_disable:
+        name: logs.otel
+
+  - do:
+      streams.logs_disable:
+        name: logs.ecs
 
 ---
 "Check User Can't Use Restricted Params On Logs Endpoint":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       bulk:
         list_executed_pipelines: true
         body: |
-          { "index": { "_index": "logs"} }
+          { "index": { "_index": "logs.otel"} }
           { "foo": "bar" }
           { "index": { "_index": "not-logs" } }
           { "foo": "bar" }
@@ -30,24 +46,26 @@ teardown:
 ---
 "Check User Can't Use Restricted Params On Logs Endpoint - Single Doc":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       streams.status: { }
-  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
 
   - do:
       index:
         require_alias: true
-        index: logs
+        index: logs.otel
         body: { "foo": "bar" }
       catch: '/When writing to a stream, only the following parameters are allowed: \[.+\] however the following were used: \[.+\]/'
 
 ---
 "Allowed Params Only - Bulk Should Succeed":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
@@ -55,7 +73,7 @@ teardown:
         error_trace: true
         timeout: "1m"
         body: |
-          { "index": { "_index": "logs"} }
+          { "index": { "_index": "logs.otel"} }
           { "foo": "bar" }
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
@@ -63,44 +81,47 @@ teardown:
 ---
 "Allowed Params Only - Single Doc Should Succeed":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       index:
-        index: logs
+        index: logs.otel
         error_trace: true
         timeout: "1m"
         body: |
           { "foo": "bar" }
-  - match: { _index: "logs" }
+  - match: { _index: "logs.otel" }
   - match: { result: "created" }
 
 ---
 "Allowed Params Only - Single Doc with ID Should Succeed":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       index:
-        index: logs
+        index: logs.otel
         id: 123456
         body: |
           { "foo": "bar" }
-  - match: { _index: "logs" }
+  - match: { _index: "logs.otel" }
   - match: { result: "created" }
 
 ---
 "No Params - Bulk Should Succeed":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       bulk:
         body: |
-          { "index": { "_index": "logs"} }
+          { "index": { "_index": "logs.otel"} }
           { "foo": "bar" }
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
@@ -108,20 +129,22 @@ teardown:
 ---
 "No Params - Single Doc Should Succeed":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
   -
     do:
       index:
-        index: logs
+        index: logs.otel
         body: { "foo": "bar" }
-  - match: { _index: "logs" }
+  - match: { _index: "logs.otel" }
   - match: { result: "created" }
 
 ---
 "Mixed Allowed and Disallowed Params - Bulk Should Fail":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
@@ -131,7 +154,7 @@ teardown:
         routing: "custom-routing"
         refresh: true
         body: |
-          { "index": { "_index": "logs"} }
+          { "index": { "_index": "logs.otel"} }
           { "foo": "bar" }
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
@@ -141,12 +164,13 @@ teardown:
 ---
 "Mixed Allowed and Disallowed Params - Single Doc Should Fail":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       index:
-        index: logs
+        index: logs.otel
         error_trace: true
         timeout: "1m"
         routing: "custom-routing"
@@ -157,7 +181,8 @@ teardown:
 ---
 "Multiple Disallowed Params - Bulk Should Fail":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
@@ -166,7 +191,7 @@ teardown:
         wait_for_active_shards: "2"
         refresh: true
         body: |
-          { "index": { "_index": "logs"} }
+          { "index": { "_index": "logs.otel"} }
           { "foo": "bar" }
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
@@ -176,12 +201,13 @@ teardown:
 ---
 "Multiple Disallowed Params - Single Doc Should Fail":
   - do:
-      streams.logs_enable: { }
+      streams.logs_enable:
+        name: logs.otel
   - is_true: acknowledged
 
   - do:
       index:
-        index: logs
+        index: logs.otel
         routing: "custom-routing"
         pipeline: "my-pipeline"
         wait_for_active_shards: "2"

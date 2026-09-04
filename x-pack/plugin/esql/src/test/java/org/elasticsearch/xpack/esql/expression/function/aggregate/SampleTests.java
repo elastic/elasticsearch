@@ -61,7 +61,8 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.geohashCases(1, 1000),
                 MultiRowTestCaseSupplier.geotileCases(1, 1000),
-                MultiRowTestCaseSupplier.geohexCases(1, 1000)
+                MultiRowTestCaseSupplier.geohexCases(1, 1000),
+                MultiRowTestCaseSupplier.flattenedCases(1, 1000)
             )
                 .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))
@@ -84,7 +85,7 @@ public class SampleTests extends AbstractAggregationTestCase {
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
 
-            var rows = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).toList();
+            var rows = fieldTypedData.originalMultiRowData().stream().filter(Objects::nonNull).toList();
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, limitTypedData),
@@ -122,5 +123,10 @@ public class SampleTests extends AbstractAggregationTestCase {
                 return true;
             }
         };
+    }
+
+    @Override
+    public boolean isDeterministic() {
+        return false;
     }
 }

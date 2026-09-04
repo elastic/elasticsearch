@@ -10,20 +10,27 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
@@ -750,6 +757,130 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
+    public void testWriteTextRoundTrip() throws IOException {
+        String string = randomBoolean() ? randomRealisticUnicodeOfCodepointLengthBetween(0, 256) : randomAlphaOfLengthBetween(0, 256);
+        Text fromString = new Text(string);
+        Text fromBytes = new Text(new XContentString.UTF8Bytes(string.getBytes(StandardCharsets.UTF_8)));
+        try (TestStreamOutput output = new TestStreamOutput()) {
+            output.writeText(fromString);
+            output.writeText(fromBytes);
+            output.writeOptionalText(null);
+            output.writeOptionalText(fromString);
+            try (StreamInput in = output.bytes().streamInput()) {
+                assertEquals(string, in.readText().string());
+                assertEquals(string, in.readText().string());
+                assertNull(in.readOptionalText());
+                assertEquals(string, in.readOptionalText().string());
+            }
+        }
+    }
+
+    public void testWriteTextEncoding() throws IOException {
+        for (String string : List.of(
+            "",
+            "hello",
+            "sk\u00E5l", // two-byte chars
+            "\u65E5\u672C\u8A9E", // three-byte chars
+            "\uD83D\uDE00", // supplementary code point, four bytes
+            "\uD800", // unpaired high surrogate
+            "\uDC00", // unpaired low surrogate
+            "\uD800a", // high surrogate followed by something other than a low surrogate
+            "a".repeat(100_000), // many times longer than the scratch buffer
+            "\uD83D\uDE00".repeat(50_000)
+        )) {
+            assertWriteTextEncoding(string);
+        }
+        assertWriteTextEncoding(randomRealisticUnicodeOfCodepointLengthBetween(1, 50_000));
+    }
+
+    public void testWriteTextEncodesSurrogatePairAcrossBufferBoundaries() throws IOException {
+        // the encoder must not split a surrogate pair across two chunks, wherever the boundary falls
+        for (int prefixLength = 0; prefixLength <= 1024; prefixLength++) {
+            assertWriteTextEncoding("a".repeat(prefixLength) + "\uD83D\uDE00" + "a");
+        }
+    }
+
+    public void testWriteTextEncodesSurrogatePairAtEveryBufferOffset() throws IOException {
+        // sweeping the buffer size puts the boundary at every offset in turn, so the pair straddles it in one of these iterations
+        final String string = "a\u00E5\u65E5\uD83D\uDE00b";
+        final byte[] expected = expectedTextBytes(string);
+        for (int bufferSize = 1; bufferSize <= expected.length + 1; bufferSize++) {
+            final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try (BufferedStreamOutput output = new BufferedStreamOutput(bytes, new BytesRef(new byte[bufferSize]))) {
+                output.writeText(new Text(string));
+            }
+            assertArrayEquals("buffer size " + bufferSize, expected, bytes.toByteArray());
+        }
+    }
+
+    public void testWriteTextEncodesCodePointsAcrossPageBoundary() throws IOException {
+        // the trailing filler pushes the text past one page, so each value straddles the page boundary for some of these prefix lengths
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        for (String straddling : List.of("\uD83D\uDE00", "\u65E5", "\u00E5", "a", "\uD800")) {
+            for (int prefixLength = pageSize - Integer.BYTES - 8; prefixLength < pageSize; prefixLength++) {
+                final String string = "a".repeat(prefixLength) + straddling + "b".repeat(pageSize);
+                try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                    output.writeText(new Text(string));
+                    final String message = "straddling [" + straddling + "] at prefix length " + prefixLength;
+                    assertArrayEquals(message, expectedTextBytes(string), BytesReference.toBytes(output.bytes()));
+                }
+            }
+        }
+    }
+
+    public void testWriteTextFlushesChunksToDelegate() throws IOException {
+        // the encoding fits neither the stream's own buffer nor the scratch buffer, so it reaches the delegate in chunks
+        final String string = randomAlphaOfLength(20_000) + "\uD83D\uDE00".repeat(20_000) + "\u65E5".repeat(20_000);
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (BufferedStreamOutput output = new BufferedStreamOutput(bytes, new BytesRef(new byte[8]))) {
+            output.writeText(new Text(string));
+        }
+        assertArrayEquals(expectedTextBytes(string), bytes.toByteArray());
+    }
+
+    private static void assertWriteTextEncoding(String string) throws IOException {
+        final Text text = new Text(string);
+        final byte[] expected = expectedTextBytes(string);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.writeText(text);
+            assertArrayEquals(expected, BytesReference.toBytes(output.bytes()));
+        }
+
+        // the transport path, and the only implementation whose writeBytes has to span recycled pages
+        try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            output.writeText(text);
+            assertArrayEquals(expected, BytesReference.toBytes(output.bytes()));
+        }
+
+        // the encoding fits a buffer of exactly its own size, so these sit either side of the in-place/scratch-buffer decision
+        for (int bufferSize : new int[] { expected.length, expected.length - 1 }) {
+            final ByteArrayOutputStream buffered = new ByteArrayOutputStream();
+            try (BufferedStreamOutput output = new BufferedStreamOutput(buffered, new BytesRef(new byte[bufferSize]))) {
+                output.writeText(text);
+            }
+            assertArrayEquals("buffer size " + bufferSize, expected, buffered.toByteArray());
+        }
+
+        // the counting stream feeds serialized-size estimates, so its count must agree with the bytes the other implementations write
+        final CountingStreamOutput counting = new CountingStreamOutput();
+        counting.writeText(text);
+        assertThat(counting.position(), equalTo((long) expected.length));
+    }
+
+    /**
+     * The bytes {@link StreamOutput#writeText} has always written: the length in bytes, followed by the encoding produced by
+     * {@link BytesRefBuilder#copyChars}, which is how it used to build them.
+     */
+    private static byte[] expectedTextBytes(String string) {
+        final BytesRefBuilder utf8 = new BytesRefBuilder();
+        utf8.copyChars(string);
+        final byte[] expected = new byte[Integer.BYTES + utf8.length()];
+        ByteUtils.writeIntBE(utf8.length(), expected, 0);
+        System.arraycopy(utf8.bytes(), 0, expected, Integer.BYTES, utf8.length());
+        return expected;
+    }
+
     public void testReadTooLargeArraySize() throws IOException {
         try (TestStreamOutput output = new TestStreamOutput()) {
             output.writeVInt(10);
@@ -930,97 +1061,104 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeByte(byte b) {
             output.writeByte(b);
             counting.writeByte(b);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeBytes(byte[] b, int offset, int length) {
             output.writeBytes(b, offset, length);
             counting.writeBytes(b, offset, length);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
+        }
+
+        @Override
+        public long position() {
+            final var result = output.position();
+            assertEquals(result, counting.position());
+            return result;
         }
 
         @Override
         public void writeInt(int i) throws IOException {
             output.writeInt(i);
             counting.writeInt(i);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeIntArray(int[] values) throws IOException {
             output.writeIntArray(values);
             counting.writeIntArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeLong(long i) throws IOException {
             output.writeLong(i);
             counting.writeLong(i);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeLongArray(long[] values) throws IOException {
             output.writeLongArray(values);
             counting.writeLongArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeFloat(float v) throws IOException {
             output.writeFloat(v);
             counting.writeFloat(v);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeFloatArray(float[] values) throws IOException {
             output.writeFloatArray(values);
             counting.writeFloatArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeDouble(double v) throws IOException {
             output.writeDouble(v);
             counting.writeDouble(v);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeDoubleArray(double[] values) throws IOException {
             output.writeDoubleArray(values);
             counting.writeDoubleArray(values);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeString(String str) throws IOException {
             output.writeString(str);
             counting.writeString(str);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeOptionalString(@Nullable String str) throws IOException {
             output.writeOptionalString(str);
             counting.writeOptionalString(str);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void writeGenericString(String value) throws IOException {
             output.writeGenericString(value);
             counting.writeGenericString(value);
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public BytesReference bytes() {
             BytesReference bytesReference = output.bytes();
-            assertThat((long) bytesReference.length(), equalTo(counting.size()));
+            assertThat((long) bytesReference.length(), equalTo(counting.position()));
             return bytesReference;
         }
 
@@ -1031,7 +1169,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         public int size() {
             int size = output.size();
-            assertThat((long) size, equalTo(counting.size()));
+            assertThat((long) size, equalTo(counting.position()));
             return size;
         }
 
@@ -1039,12 +1177,12 @@ public class BytesStreamsTests extends ESTestCase {
         public void flush() {
             output.flush();
             counting.flush();
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
         }
 
         @Override
         public void close() {
-            assertThat((long) output.size(), equalTo(counting.size()));
+            assertThat((long) output.size(), equalTo(counting.position()));
             output.close();
             counting.close();
         }

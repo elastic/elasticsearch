@@ -165,6 +165,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
+    public void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
+        checkHandle();
+        handle.upgradeToVersion(version, onNodeUpgradeComplete);
+    }
+
+    @Override
     public InputStream getNodeLog(int index, LogType logType) {
         checkHandle();
         return handle.getNodeLog(index, logType);

@@ -1,0 +1,9 @@
+FROM (FROM employees | EVAL name = first_name | KEEP name),
+     (TS k8s
+      | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+      | WHERE max_rate > 0
+      | EVAL name = cluster
+      | KEEP name),
+     (FROM golden_salaries | KEEP name)
+| WHERE name == "staging"
+| SORT name

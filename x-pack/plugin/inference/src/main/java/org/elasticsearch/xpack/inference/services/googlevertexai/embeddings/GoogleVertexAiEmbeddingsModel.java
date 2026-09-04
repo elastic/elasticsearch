@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -25,6 +26,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -67,7 +69,6 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         super(model, taskSettings);
     }
 
-    // Should only be used directly for testing
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -77,12 +78,16 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public GoogleVertexAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
+            var serviceSettings = (GoogleVertexAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings();
             this.nonStreamingUri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -90,19 +95,21 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     // Should only be used directly for testing
-    protected GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         String uri,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            serviceSettings,
+            authHeaderDecorator
         );
         try {
             this.nonStreamingUri = new URI(uri);
@@ -136,15 +143,15 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return visitor.create(this, taskSettings);
     }
 
-    public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
+    public static URI buildUri(@Nullable String location, String projectId, String modelId) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(format("%s%s", location, GoogleVertexAiUtils.GOOGLE_VERTEX_AI_HOST_SUFFIX))
+            .setHost(GoogleVertexAiUtils.resolveHost(location))
             .setPathSegments(
                 GoogleVertexAiUtils.V1,
                 GoogleVertexAiUtils.PROJECTS,
                 projectId,
                 GoogleVertexAiUtils.LOCATIONS,
-                location,
+                GoogleVertexAiUtils.resolveLocation(location),
                 GoogleVertexAiUtils.PUBLISHERS,
                 GoogleVertexAiUtils.PUBLISHER_GOOGLE,
                 GoogleVertexAiUtils.MODELS,

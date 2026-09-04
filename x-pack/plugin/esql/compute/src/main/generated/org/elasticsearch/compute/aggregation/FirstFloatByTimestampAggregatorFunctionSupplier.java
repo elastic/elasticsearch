@@ -31,13 +31,13 @@ public final class FirstFloatByTimestampAggregatorFunctionSupplier implements Ag
   @Override
   public FirstFloatByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstFloatByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstFloatByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstFloatByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstFloatByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstFloatByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

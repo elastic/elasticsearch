@@ -7,7 +7,7 @@ mapped_pages:
 # Boxplot aggregation [search-aggregations-metrics-boxplot-aggregation]
 
 
-A `boxplot` metrics aggregation that computes boxplot of numeric values extracted from the aggregated documents. These values can be generated from specific numeric or [histogram fields](/reference/elasticsearch/mapping-reference/histogram.md) in the documents.
+A `boxplot` metrics aggregation that computes boxplot of numeric values extracted from the aggregated documents. These values can be generated from specific numeric, [histogram](/reference/elasticsearch/mapping-reference/histogram.md) or [exponential histogram](/reference/elasticsearch/mapping-reference/exponential-histogram.md) {applies_to}`stack: ga 9.4` fields in the documents.
 
 The `boxplot` aggregation returns essential information for making a [box plot](https://en.wikipedia.org/wiki/Box_plot): minimum, maximum, median, first quartile (25th percentile)  and third quartile (75th percentile) values.
 

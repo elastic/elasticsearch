@@ -28,6 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.PUBLIC)
 public class RestStreamsStatusAction extends BaseRestHandler {
 
+    // When the 'logs' stream was split into 'logs.otel' and 'logs.ecs'
+    public static final String STREAM_SPLIT = "stream_split";
     public static final Set<String> SUPPORTED_PARAMS = Collections.singleton(RestUtils.REST_MASTER_TIMEOUT_PARAM);
 
     @Override
@@ -53,5 +55,10 @@ public class RestStreamsStatusAction extends BaseRestHandler {
     @Override
     public Set<String> supportedQueryParameters() {
         return SUPPORTED_PARAMS;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(STREAM_SPLIT);
     }
 }

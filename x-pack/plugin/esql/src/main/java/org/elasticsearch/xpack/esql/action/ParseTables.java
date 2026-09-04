@@ -42,7 +42,9 @@ public class ParseTables {
 
     ParseTables(EsqlQueryRequest request, XContentParser p) {
         // TODO use a real block factory
-        this.blockFactory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        this.blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
+            .build();
         this.request = request;
         this.p = p;
     }

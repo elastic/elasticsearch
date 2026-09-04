@@ -29,6 +29,7 @@ public abstract class SortingBinaryDocValues extends SortedBinaryDocValues {
     private final Sorter sorter;
 
     protected SortingBinaryDocValues() {
+        super(null);
         values = new BytesRefBuilder[] { new BytesRefBuilder() };
         sorter = new InPlaceMergeSorter() {
 

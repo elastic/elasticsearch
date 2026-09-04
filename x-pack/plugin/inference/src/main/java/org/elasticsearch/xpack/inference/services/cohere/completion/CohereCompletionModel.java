@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-public class CohereCompletionModel extends CohereModel {
+public class CohereCompletionModel extends CohereModel<CohereCompletionServiceSettings> {
 
     public CohereCompletionModel(
         String modelId,
@@ -30,32 +30,22 @@ public class CohereCompletionModel extends CohereModel {
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
+        this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets, context));
+    }
+
+    CohereCompletionModel(String modelId, CohereCompletionServiceSettings serviceSettings, @Nullable DefaultSecretSettings secretSettings) {
         this(
-            modelId,
-            CohereCompletionServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
+            new ModelSecrets(secretSettings)
         );
     }
 
-    // should only be used for testing
-    CohereCompletionModel(
-        String modelId,
-        CohereCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
+    public CohereCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            modelConfigurations,
+            modelSecrets,
+            ((CohereCompletionServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
-    }
-
-    @Override
-    public CohereCompletionServiceSettings getServiceSettings() {
-        return (CohereCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override

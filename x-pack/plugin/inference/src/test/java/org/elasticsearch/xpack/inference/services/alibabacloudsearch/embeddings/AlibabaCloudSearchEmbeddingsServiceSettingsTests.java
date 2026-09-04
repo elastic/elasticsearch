@@ -9,66 +9,153 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AbstractAlibabaCloudSearchServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractAlibabaCloudSearchServiceSettingsTests<
     AlibabaCloudSearchEmbeddingsServiceSettings> {
+
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 1024;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 256;
+
     public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dims = 1536;
-        var maxInputTokens = 512;
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings, similarity, dims, maxInputTokens);
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(
+            commonSettings,
+            randomFrom(SimilarityMeasure.values()),
+            randomInt(TEST_DIMENSIONS),
+            randomInt(TEST_MAX_INPUT_TOKENS)
+        );
     }
 
-    public void testFromMap() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
-        var serviceSettings = AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    AlibabaCloudSearchServiceSettings.HOST,
-                    host,
-                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
-                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
-                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema
-                )
-            ),
-            null
-        );
+    @Override
+    protected AlibabaCloudSearchEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(map, context);
+    }
 
-        MatcherAssert.assertThat(
+    @Override
+    protected AlibabaCloudSearchEmbeddingsServiceSettings createServiceSettings(AlibabaCloudSearchServiceSettings commonSettings) {
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings, null, null, null);
+    }
+
+    @Override
+    protected List<String> additionalImmutableFields() {
+        return List.of(ServiceFields.SIMILARITY, ServiceFields.DIMENSIONS);
+    }
+
+    public void testFromMap_TaskFields_Success() {
+        var map = buildCommonServiceSettingsMap(TEST_SERVICE_ID, TEST_HOST, TEST_WORKSPACE_NAME, TEST_HTTP_SCHEMA, TEST_RATE_LIMIT);
+        map.put(ServiceFields.SIMILARITY, TEST_SIMILARITY_MEASURE.toString());
+        map.put(ServiceFields.DIMENSIONS, TEST_DIMENSIONS);
+        map.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+
+        var serviceSettings = AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(
             serviceSettings,
             is(
                 new AlibabaCloudSearchEmbeddingsServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens
+                    new AlibabaCloudSearchServiceSettings(
+                        TEST_SERVICE_ID,
+                        TEST_HOST,
+                        TEST_WORKSPACE_NAME,
+                        TEST_HTTP_SCHEMA,
+                        new RateLimitSettings(TEST_RATE_LIMIT)
+                    ),
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS
+                )
+            )
+        );
+    }
+
+    public void testFromMap_NonPositiveDimensions_ThrowsException() {
+        var map = buildCommonServiceSettingsMap(TEST_SERVICE_ID, TEST_HOST, TEST_WORKSPACE_NAME, null, null);
+        map.put(ServiceFields.DIMENSIONS, randomIntBetween(-10, 0));
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()))
+        );
+
+        assertThat(thrownException.getCause().getMessage(), containsString("must be a positive integer"));
+    }
+
+    public void testFromMap_NonPositiveMaxInputTokens_ThrowsException() {
+        var map = buildCommonServiceSettingsMap(TEST_SERVICE_ID, TEST_HOST, TEST_WORKSPACE_NAME, null, null);
+        map.put(ServiceFields.MAX_INPUT_TOKENS, randomIntBetween(-10, 0));
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()))
+        );
+
+        assertThat(thrownException.getCause().getMessage(), containsString("must be a positive integer"));
+    }
+
+    public void testUpdateServiceSettings_MaxInputTokens_IsUpdated() {
+        var originalServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
+            initialCommonServiceSettings(),
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS
+        );
+
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS))
+        );
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AlibabaCloudSearchEmbeddingsServiceSettings(
+                    initialCommonServiceSettings(),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullMaxInputTokens_ClearsValue() {
+        var originalServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
+            initialCommonServiceSettings(),
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS
+        );
+
+        var update = new HashMap<String, Object>();
+        update.put(ServiceFields.MAX_INPUT_TOKENS, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(update);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AlibabaCloudSearchEmbeddingsServiceSettings(
+                    initialCommonServiceSettings(),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    null
                 )
             )
         );
@@ -87,7 +174,23 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
     @Override
     protected AlibabaCloudSearchEmbeddingsServiceSettings mutateInstance(AlibabaCloudSearchEmbeddingsServiceSettings instance)
         throws IOException {
-        return null;
+        var commonSettings = instance.getCommonSettings();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.getMaxInputTokens();
+
+        switch (between(0, 3)) {
+            case 0 -> commonSettings = randomValueOtherThan(
+                instance.getCommonSettings(),
+                AlibabaCloudSearchServiceSettingsTests::createRandom
+            );
+            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(16, 1024));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens);
+
     }
 
     public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {

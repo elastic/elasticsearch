@@ -209,17 +209,21 @@ public class JavaDateMathParser implements DateMathParser {
         try {
             if (timeZone == null) {
                 return DateFormatters.from(formatter.apply(value)).toInstant();
-            } else {
-                TemporalAccessor accessor = formatter.apply(value);
-                // Use the offset if provided, otherwise fall back to the zone, or null.
-                ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
-                ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
-                if (zoneId != null) {
-                    timeZone = zoneId;
-                }
-
-                return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
+            TemporalAccessor accessor = formatter.apply(value);
+            // Prefer offset over zone ID: an explicit offset is unambiguous, whereas a named
+            // zone requires knowing the date to resolve DST. Avoid TemporalQueries.zone(),
+            // which has the opposite precedence (see commit 6f47fa3d).
+            ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
+            ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
+            if (zoneId != null) {
+                timeZone = zoneId;
+            } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(ChronoField.YEAR) == false) {
+                // epoch_millis/epoch_second inputs are bare numbers with no zone info, so zoneId
+                // is always null here. They are UTC by definition; time_zone must not shift them.
+                return DateFormatters.from(accessor).toInstant();
+            }
+            return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
         } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException(
                 "failed to parse date field [{}] with format [{}]: [{}]",

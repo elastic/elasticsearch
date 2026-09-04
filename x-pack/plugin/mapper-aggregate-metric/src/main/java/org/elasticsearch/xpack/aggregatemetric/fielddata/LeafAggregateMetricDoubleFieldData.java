@@ -20,4 +20,9 @@ public interface LeafAggregateMetricDoubleFieldData extends LeafFieldData {
      */
     SortedNumericDoubleValues getAggregateMetricValues(Metric metric);
 
+    /**
+     * Return the average of an aggregate_metric of double values
+     */
+    SortedNumericDoubleValues getAggregateMetricValues();
+
 }

@@ -30,13 +30,13 @@ public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public MaxIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return MaxIntAggregatorFunction.create(driverContext, channels);
+    return new MaxIntAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxIntGroupingAggregatorFunction.create(channels, driverContext);
+    return new MaxIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -23,9 +23,9 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] {}, 0),
             blockFactory.newLongArrayVector(new long[] { 0 }, 0),
             blockFactory.newConstantLongBlockWith(0, 0).asVector(),
-            blockFactory.newConstantLongBlockWith(0, 0).filter().asVector(),
+            blockFactory.newConstantLongBlockWith(0, 0).filter(false).asVector(),
             blockFactory.newLongBlockBuilder(0).build().asVector(),
-            blockFactory.newLongBlockBuilder(0).appendLong(1).build().asVector().filter()
+            blockFactory.newLongBlockBuilder(0).appendLong(1).build().asVector().filter(false)
         );
         assertAllEquals(vectors);
     }
@@ -49,8 +49,8 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             ),
             blockFactory.newConstantLongBlockWith(0, 0),
             blockFactory.newLongBlockBuilder(0).build(),
-            blockFactory.newLongBlockBuilder(0).appendLong(1).build().filter(),
-            blockFactory.newLongBlockBuilder(0).appendNull().build().filter(),
+            blockFactory.newLongBlockBuilder(0).appendLong(1).build().filter(false),
+            blockFactory.newLongBlockBuilder(0).appendNull().build().filter(false),
             (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
@@ -62,14 +62,28 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3),
             blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock().asVector(),
             blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 3),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newLongArrayVector(new long[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            blockFactory.newLongArrayVector(new long[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 0, 1, 2, 3 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 4, 2, 3 }, 4).filter(false, 0, 2, 3),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector(),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector().filter(0, 1, 2),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(0, 2, 3).asVector(),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().asVector().filter(0, 2, 3)
+            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().asVector().filter(false, 0, 1, 2),
+            blockFactory.newLongBlockBuilder(3)
+                .appendLong(1)
+                .appendLong(4)
+                .appendLong(2)
+                .appendLong(3)
+                .build()
+                .filter(false, 0, 2, 3)
+                .asVector(),
+            blockFactory.newLongBlockBuilder(3)
+                .appendLong(1)
+                .appendLong(4)
+                .appendLong(2)
+                .appendLong(3)
+                .build()
+                .asVector()
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(vectors);
 
@@ -78,15 +92,29 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3),
             blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).asBlock().asVector(),
             blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 1 }, 3),
-            blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            blockFactory.newLongArrayVector(new long[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            blockFactory.newLongArrayVector(new long[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).filter(false, 0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 4 }, 4).filter(false, 0, 1, 2),
+            blockFactory.newLongArrayVector(new long[] { 3, 1, 1, 1 }, 4).filter(false, 1, 2, 3),
+            blockFactory.newLongArrayVector(new long[] { 1, 4, 1, 1 }, 4).filter(false, 0, 2, 3),
             blockFactory.newConstantLongBlockWith(1, 3).asVector(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector(),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector().filter(0, 1, 2),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(1).appendLong(1).build().filter(0, 2, 3).asVector(),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(1).appendLong(1).build().asVector().filter(0, 2, 3)
+            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(1).appendLong(1).build().asVector().filter(false, 0, 1, 2),
+            blockFactory.newLongBlockBuilder(3)
+                .appendLong(1)
+                .appendLong(4)
+                .appendLong(1)
+                .appendLong(1)
+                .build()
+                .filter(false, 0, 2, 3)
+                .asVector(),
+            blockFactory.newLongBlockBuilder(3)
+                .appendLong(1)
+                .appendLong(4)
+                .appendLong(1)
+                .appendLong(1)
+                .build()
+                .asVector()
+                .filter(false, 0, 2, 3)
         );
         assertAllEquals(moreVectors);
     }
@@ -109,14 +137,14 @@ public class LongBlockEqualityTests extends ComputeTestCase {
                 BitSet.valueOf(new byte[] { 0b1000 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 3).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(false, 0, 1, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 1, 2, 4, 3 }, 4).filter(false, 0, 1, 3).asBlock(),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build(),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().filter(0, 1, 2),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(0, 2, 3),
-            blockFactory.newLongBlockBuilder(3).appendLong(1).appendNull().appendLong(2).appendLong(3).build().filter(0, 2, 3)
+            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(3).build().filter(false, 0, 1, 2),
+            blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(4).appendLong(2).appendLong(3).build().filter(false, 0, 2, 3),
+            blockFactory.newLongBlockBuilder(3).appendLong(1).appendNull().appendLong(2).appendLong(3).build().filter(false, 0, 2, 3)
         );
         assertAllEquals(blocks);
 
@@ -137,15 +165,15 @@ public class LongBlockEqualityTests extends ComputeTestCase {
                 BitSet.valueOf(new byte[] { 0b100 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            blockFactory.newLongArrayVector(new long[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            blockFactory.newLongArrayVector(new long[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 2).filter(false, 0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 9, 4 }, 3).filter(false, 0, 1).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 9, 4, 9 }, 3).filter(false, 0, 2).asBlock(),
             blockFactory.newConstantLongBlockWith(9, 2),
             blockFactory.newLongBlockBuilder(2).appendLong(9).appendLong(9).build(),
-            blockFactory.newLongBlockBuilder(2).appendLong(9).appendLong(9).build().filter(0, 1),
-            blockFactory.newLongBlockBuilder(2).appendLong(9).appendLong(4).appendLong(9).build().filter(0, 2),
-            blockFactory.newLongBlockBuilder(2).appendLong(9).appendNull().appendLong(9).build().filter(0, 2)
+            blockFactory.newLongBlockBuilder(2).appendLong(9).appendLong(9).build().filter(false, 0, 1),
+            blockFactory.newLongBlockBuilder(2).appendLong(9).appendLong(4).appendLong(9).build().filter(false, 0, 2),
+            blockFactory.newLongBlockBuilder(2).appendLong(9).appendNull().appendLong(9).build().filter(false, 0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -159,7 +187,7 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3),
             blockFactory.newLongArrayVector(new long[] { 1, 2, 4 }, 3),
             blockFactory.newConstantLongBlockWith(9, 2).asVector(),
-            blockFactory.newLongBlockBuilder(2).appendLong(1).appendLong(2).build().asVector().filter(1),
+            blockFactory.newLongBlockBuilder(2).appendLong(1).appendLong(2).build().asVector().filter(false, 1),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(5).build().asVector(),
             blockFactory.newLongBlockBuilder(1).appendLong(1).appendLong(2).appendLong(3).appendLong(4).build().asVector()
         );
@@ -175,7 +203,7 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
             blockFactory.newLongArrayVector(new long[] { 1, 2, 4 }, 3).asBlock(),
             blockFactory.newConstantLongBlockWith(9, 2),
-            blockFactory.newLongBlockBuilder(2).appendLong(1).appendLong(2).build().filter(1),
+            blockFactory.newLongBlockBuilder(2).appendLong(1).appendLong(2).build().filter(false, 1),
             blockFactory.newLongBlockBuilder(3).appendLong(1).appendLong(2).appendLong(5).build(),
             blockFactory.newLongBlockBuilder(1).appendLong(1).appendLong(2).appendLong(3).appendLong(4).build(),
             blockFactory.newLongBlockBuilder(1).appendLong(1).appendNull().build(),

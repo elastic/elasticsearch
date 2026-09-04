@@ -1,0 +1,5 @@
+pr: 158510
+summary: Fix partition_path templates that bind the wrong directory
+area: ES|QL
+type: bug
+issues: []

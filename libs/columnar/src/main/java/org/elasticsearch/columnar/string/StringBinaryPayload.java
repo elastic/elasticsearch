@@ -170,6 +170,28 @@ public final class StringBinaryPayload {
         }
 
         /**
+         * The extreme non-null value of {@code payload} — its maximum when {@code maxMode}, its minimum otherwise
+         * — or {@code null} when no slot holds one, which is what a document of no slots at all and one of nothing
+         * but nulls both look like. Resets this decoder and walks every slot, so it reads a payload whole rather
+         * than stepping through it.
+         *
+         * <p>The returned {@link BytesRef} is a view into {@code payload}'s own bytes, so it outlives this call
+         * but not the payload; a caller that keeps it must copy it.
+         */
+        public BytesRef extreme(BytesRef payload, boolean maxMode) throws IOException {
+            BytesRef extreme = null;
+            for (int slot = reset(payload); slot > 0; slot--) {
+                final BytesRef value = next();
+                // clone, not deepCopyOf: next() hands back one reused BytesRef, so the winner cannot be held onto,
+                // but the bytes behind it are the payload's own.
+                if (value != null && (extreme == null || (maxMode ? value.compareTo(extreme) > 0 : value.compareTo(extreme) < 0))) {
+                    extreme = value.clone();
+                }
+            }
+            return extreme;
+        }
+
+        /**
          * How many slots of the payload {@link #reset} was last given are null. Walks the lengths without
          * touching a value's bytes or disturbing the cursor, so a caller can ask before or during iteration.
          */

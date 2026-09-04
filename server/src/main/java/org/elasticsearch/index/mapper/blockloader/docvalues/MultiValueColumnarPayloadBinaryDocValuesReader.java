@@ -14,7 +14,6 @@ import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
-import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -71,25 +70,16 @@ public final class MultiValueColumnarPayloadBinaryDocValuesReader {
 
     /** Appends the minimum non-null value. */
     public void readMin(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
-        readExtreme(bytes, builder, (a, b) -> a.compareTo(b) < 0);
+        readExtreme(bytes, builder, false);
     }
 
     /** Appends the maximum non-null value. */
     public void readMax(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
-        readExtreme(bytes, builder, (a, b) -> a.compareTo(b) > 0);
+        readExtreme(bytes, builder, true);
     }
 
-    private void readExtreme(BytesRef bytes, BlockLoader.BytesRefBuilder builder, BiPredicate<BytesRef, BytesRef> predicate)
-        throws IOException {
-        BytesRef extreme = null;
-        for (int slot = decoder.reset(bytes); slot > 0; slot--) {
-            final BytesRef value = decoder.next();
-            // clone, not deepCopyOf: the decoder reuses one BytesRef across slots so the winner cannot be held onto, but the bytes
-            // behind it are the blob's own and outlive this call. The builder copies them out.
-            if (value != null && (extreme == null || predicate.test(value, extreme))) {
-                extreme = value.clone();
-            }
-        }
+    private void readExtreme(BytesRef bytes, BlockLoader.BytesRefBuilder builder, boolean maxMode) throws IOException {
+        BytesRef extreme = decoder.extreme(bytes, maxMode);
         if (extreme == null) {
             builder.appendNull();
         } else {

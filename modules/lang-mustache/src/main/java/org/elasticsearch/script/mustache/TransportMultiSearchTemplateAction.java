@@ -335,7 +335,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
      *       since it is already a byte array view, not expanded into Java objects.</li>
      *   <li>For a real search: {@link #RENDER_HEAP_OVERHEAD_FACTOR} × serialised
      *       {@link SearchSourceBuilder} size, matching the 2× factor used by
-     *       {@link TransportMultiSearchAction#estimateActualBytes}. The builder is the in-memory
+     *       {@code TransportMultiSearchAction#estimateActualBytes}. The builder is the in-memory
      *       parsed representation of the source and is retained until the inner search executes.</li>
      *   <li>For simulate-only (no builder): {@link #RENDER_HEAP_OVERHEAD_FACTOR} × {@code source.length()}
      *       as a proxy, since there is no builder to serialise.</li>

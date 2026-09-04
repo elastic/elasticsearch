@@ -17,6 +17,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
@@ -46,7 +47,16 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         }
     }
 
-    private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
+    /**
+     * The distribution modes this suite crosses, read from the contract rather than listed here.
+     *
+     * <p>The hard-coded list had drifted: it named coordinator_only, round_robin and adaptive, while
+     * dimension.distribution declares a fourth, weighted_round_robin. So the one mode most in need of a
+     * multi-node cluster had never run on one -- on a single node there is nothing to distribute to.
+     * Reading the declaration means a value added there is crossed here without an edit, and cannot be
+     * silently one short again.
+     */
+    private static final List<String> DISTRIBUTION_MODES = FixtureDimensions.get().values("distribution");
 
     private static final ElasticsearchCluster CLUSTER_INSTANCE = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
 
@@ -83,9 +93,19 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         return CLUSTER_INSTANCE.getHttpAddresses();
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to parquet and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "distributed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<Object[]> backendTests = readExternalSpecTests("/external-basic.csv-spec", "/external-multivalue.csv-spec");
+        List<Object[]> backendTests = readExternalSpecTestsForSuite("distributed");
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] backendTest : backendTests) {
             for (String mode : DISTRIBUTION_MODES) {

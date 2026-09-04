@@ -1,0 +1,44 @@
+// Union-by-name widening of a column declared with different types in each file.
+//
+// `age` is declared integer in the first file and long in the second, so the unified schema must
+// widen it to long and both files' values must read back correctly under that type.
+//
+// Kept apart from external-multifile-ubn.csv-spec because NDJSON cannot express it. NDJSON has no
+// declared types -- its schema is inferred from the JSON tokens, and 30/40/50/60 all infer as
+// INTEGER -- so there is no declared integer to widen to a declared long, and the case would be
+// asserting a type the format never had. That is a property of the format, not a defect, which is
+// why there is no bug filed against it. NdJsonFormatSpecIT deliberately does not list this file.
+
+ubnWidenedColumnProjection
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM ubn_union
+| KEEP name, age
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | age:long
+alice        | 30
+bob          | 40
+charlie      | 50
+dave         | 60
+;
+
+// The widened column aggregates as a long across both files.
+ubnWidenedColumnAggregates
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM ubn_union
+| STATS lo = MIN(age), hi = MAX(age)
+;
+
+lo:long | hi:long
+30      | 60
+;

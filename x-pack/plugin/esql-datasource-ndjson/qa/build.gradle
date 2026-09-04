@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -21,6 +22,11 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
+  // Declared explicitly for the csvSpecTest source set. The exclusion lookup now lives in
+  // AbstractExternalSourceSpecTestCase rather than in each suite, so fixture-common is needed at RUNTIME
+  // here even though nothing in this module names it any more -- without it every test in the suite dies
+  // with NoClassDefFoundError before reaching an assertion.
+  csvSpecTestImplementation project(xpackModule('esql:qa:fixture-common'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
 
   // S3 fixture infrastructure for mocking S3 operations
@@ -56,7 +62,7 @@ def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
 def serverProject = project(xpackModule('esql:qa:server'))
 def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
-def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books', 'employees_no_mv']
+def standaloneNdjsonFromCsv = fixtureMatrix.datasetsFor('ndjson')
 
 def generateStandaloneNdjsonTasks = []
 standaloneNdjsonFromCsv.each { baseName ->
@@ -77,7 +83,7 @@ standaloneNdjsonFromCsv.each { baseName ->
   generateStandaloneNdjsonTasks.add(tasks.named(taskName))
 }
 
-// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.ndjson.
+// Multifile-split fixtures: employees.csv split into multifile_split/employees_NN.ndjson, layout.split.parts ways.
 // Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
 // NdJsonFormatSpecIT's readScriptSpec is broadened to include them.
 def multifileSplitDir = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/multifile_split")
@@ -87,13 +93,26 @@ tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
   dependsOn testFixturesProject.tasks.named('processResources')
   classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
-  args = [multifileSplitCsv.path, multifileSplitDir.path, '3']
+  args = [multifileSplitCsv.path, multifileSplitDir.path, fixtureMatrix.splitParts as String]
   inputs.file(multifileSplitCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
   systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateStandaloneNdjsonTasks.add(tasks.named('generateMultifileSplitNdjson_employees'))
+
+// Every layout the matrix declares, for this format. Standalone and multifile_split are
+// registered above; the rest arrive from the shared declaration.
+ext.fixtureLayoutFormat = 'ndjson'
+ext.fixtureLayoutRoot = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures")
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+ext.fixtureLayoutGenerator = 'ndjsonFixtureGenerator'
+ext.fixtureLayoutSkip = ['multifile_split'] as Set
+ext.serverProject = serverProject
+ext.testFixturesProject = testFixturesProject
+ext.testFixturesDataDir = testFixturesDataDir
+ext.fixtureLayoutTasks = generateStandaloneNdjsonTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 
 tasks.register('generateStandaloneNdjsonFixtures') {
   dependsOn generateStandaloneNdjsonTasks
@@ -146,6 +165,9 @@ tasks.named('processCsvSpecTestResources').configure {
 // declares the shared ElasticsearchCluster at the abstract-class level — INGEST fires exactly
 // once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
   dependsOn 'generateStandaloneNdjsonFixtures'
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
@@ -155,6 +177,42 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  // The vector suites are NOT part of the PR path: they cross every routed case with every
+  // expressible vector, measured at 75 minutes across the four formats. They live in
+  // vectorSpecTests, which nothing adds to `check`.
+  filter { excludeTestsMatching '*VectorSpecIT' }
+}
+
+
+// The full vector crossing. Deliberately NOT wired into `check` -- it is invoked by the
+// esql-datasource-vectors-manual pipeline, where a 75-minute run belongs. Adding it to `check`
+// would put that on every PR, which is what this separation exists to prevent.
+def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
+  dependsOn 'generateStandaloneNdjsonFixtures'
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  filter { includeTestsMatching '*VectorSpecIT' }
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+
+ext.fixtureCoverageLayoutRoots = [
+  ndjson: file("${ndjsonFixtureOutputRoot}/iceberg-fixtures")
+]
+ext.fixtureCoverageFormats = ['ndjson', 'ndjson-compressed']
+ext.fixtureCoverageSpecDirs = [
+  project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
+  file('src/javaRestTest/resources')
+]
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

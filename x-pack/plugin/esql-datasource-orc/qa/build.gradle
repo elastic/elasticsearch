@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -84,7 +85,7 @@ def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
 def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
 
 // Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToOrcFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv']
+def csvToOrcFixtures = fixtureMatrix.datasetsFor('orc')
 
 def generateOrcTasks = []
 csvToOrcFixtures.each { baseName ->
@@ -105,7 +106,7 @@ csvToOrcFixtures.each { baseName ->
   generateOrcTasks.add(tasks.named(taskName))
 }
 
-// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.orc.
+// Multifile-split fixtures: employees.csv split into multifile_split/employees_NN.orc, layout.split.parts ways.
 // Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec, which the
 // OrcFormatSpecIT picks up via the readExternalSpecTests("/external-*.csv-spec") glob.
 def multifileSplitDir = file("${orcFixtureOutputDir}/multifile_split")
@@ -115,13 +116,25 @@ tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
   dependsOn project(xpackModule('esql:qa:testFixtures')).tasks.named('processResources')
   classpath = serverProject.configurations.orcFixtureGenerator + serverProject.sourceSets.orcFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
-  args = [multifileSplitCsv.absolutePath, multifileSplitDir.absolutePath, '3']
+  args = [multifileSplitCsv.absolutePath, multifileSplitDir.absolutePath, fixtureMatrix.splitParts as String]
   inputs.file(multifileSplitCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
   systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateOrcTasks.add(tasks.named('generateMultifileSplitOrc_employees'))
+
+// Every layout the matrix declares, for this format.
+ext.fixtureLayoutFormat = 'orc'
+ext.fixtureLayoutRoot = orcFixtureOutputDir
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
+ext.fixtureLayoutGenerator = 'orcFixtureGenerator'
+ext.fixtureLayoutSkip = ['multifile_split'] as Set
+ext.serverProject = serverProject
+ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+ext.testFixturesDataDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/data')
+ext.fixtureLayoutTasks = generateOrcTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 
 tasks.register('generateOrcFixtures') {
   dependsOn generateOrcTasks
@@ -192,6 +205,50 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  // The vector suite is NOT part of the PR path: it crosses every routed case with every expressible
+  // vector. It lives in vectorSpecTests, which nothing adds to `check`.
+  filter { excludeTestsMatching '*VectorSpecIT' }
+}
+
+
+// The full vector crossing for ORC. Deliberately NOT wired into `check` -- it is invoked by the
+// esql-datasource-vectors-manual pipeline, whose matrix names this module explicitly.
+//
+// The task existing is not the same as the task running. When this landed, the pipeline matrix listed
+// csv, ndjson and parquet only, so this suite was invoked by nothing -- while the capability rows had
+// already been told ORC renders its format cell, so the contract audit reported ORC covered and the
+// discrimination test asserted its cells were carried. Every gate was green over zero ORC cases. Adding
+// a suite means adding it to the matrix in the same change.
+//
+// ORC needs no fixture variants: every fixture-bound dimension is scoped away from it, so the vectors
+// vary only format-agnostic axes and generateOrcFixtures serves all of them. That is why this arrives as
+// a task and a suite class rather than as a generator.
+def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
+  dependsOn generateOrcFixtures
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  filter { includeTestsMatching '*VectorSpecIT' }
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+
+ext.fixtureCoverageLayoutRoots = [
+  orc: orcFixtureOutputDir
+]
+ext.fixtureCoverageFormats = ['orc']
+ext.fixtureCoverageSpecDirs = [
+  project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
+  file('src/javaRestTest/resources')
+]
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

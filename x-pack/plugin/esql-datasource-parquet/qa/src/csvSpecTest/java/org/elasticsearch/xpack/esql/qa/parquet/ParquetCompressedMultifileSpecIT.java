@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpecTestCase {
 
-    private static final List<String> CODECS = List.of("gzip", "zstd");
+    private static final List<String> CODECS = FixtureMatrix.get().parquetCodecs("parquet-compressed-multifile");
 
     private final String codecName;
 
@@ -51,8 +52,18 @@ public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpe
     // The reader: "java" this IT injects is redundant with the .parquet extension default (the codec lives
     // inside the .parquet file, so the extension is unchanged), so FROM-on-S3 still uses the Java reader.
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to parquet and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "parquet-compressed-multifile";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(CODECS, "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
+        return readExternalSpecTestsWithCodecsForSuite(CODECS, "parquet-compressed-multifile");
     }
 }

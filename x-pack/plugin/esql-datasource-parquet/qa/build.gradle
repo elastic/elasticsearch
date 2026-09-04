@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -71,13 +72,13 @@ ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixture
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv', 'uint32_pushdown', 'uint64_pushdown', 'null_batch_keyword']
+ext.csvToParquetFixtures = fixtureMatrix.datasetsFor('parquet')
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesDataDir) {
-    include csvToParquetFixtures.collect { "${it}.csv" }
+    include csvToParquetFixtures.collect { it + '.csv' }
   }
   into parquetFixtureDir
 }
@@ -101,21 +102,24 @@ csvToParquetFixtures.each { baseName ->
   generateParquetTasks.add(tasks.named(taskName))
 }
 
-// Generate multifile fixtures by splitting employees.csv into 3 parts.
-def multifileDir = file("${parquetFixtureOutputDir}/multifile")
-def multifileEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
-tasks.register('generateMultifileParquet_employees', JavaExec) {
-  dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
-  dependsOn testFixturesProject.tasks.named('processResources')
-  classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
-  mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
-  args = [multifileEmployeesCsv.path, multifileDir.path, '3']
-  inputs.file(multifileEmployeesCsv)
-  outputs.dir(multifileDir)
-  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
-  systemProperty 'slf4j.internal.verbosity', 'WARN'
-}
-generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
+// This module registers every layout itself, in the blocks above, so the shared registrar has
+// nothing to add for the layouts that exist today.
+//
+// `multifile` is absent from this module entirely: that pair is headerless, and Parquet names
+// every column, so the layout has no meaning here. It used to hold an unconsumed 3-way split of
+// employees, which meant the layout named two different things depending on the format.
+ext.fixtureLayoutFormat = 'parquet'
+ext.fixtureLayoutRoot = ext.parquetFixtureOutputDir
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+ext.fixtureLayoutGenerator = 'parquetFixtureGenerator'
+// Named explicitly, NOT derived from the declaration: a derived skip set would silently absorb
+// any layout added later, which is the drift this whole change exists to remove. Listing them
+// means a new layout is NOT skipped here, so it either gets a task in this file or fails.
+ext.fixtureLayoutSkip = ['multifile', 'multifile_ubn', 'multifile_type_drift', 'multifile_temporal',
+                         'multifile_perm', 'multifile_split', 'hive', 'hive_shadow'] as Set
+ext.fixtureLayoutTasks = ext.generateParquetTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
+
 
 // Generate multifile_ubn fixtures: two Parquet files with divergent schemas for UNION_BY_NAME tests.
 // parquet_ubn_a.csv has [name:keyword, age:integer, score:double]
@@ -210,7 +214,7 @@ def multifilePermDir = file("${parquetFixtureOutputDir}/multifile_perm")
   generateParquetTasks.add(tasks.named(taskName))
 }
 
-// Generate multifile_split fixtures by splitting employees.csv into 3 parts.
+// Generate multifile_split fixtures by splitting employees.csv; layout.split.parts sets the count.
 // Uses a separate directory from multifile/ so the template {{employees_multifile_split}}
 // works identically for both Parquet and CSV (multifile/ has format-specific fixtures).
 def multifileSplitDir = file("${parquetFixtureOutputDir}/multifile_split")
@@ -220,7 +224,7 @@ tasks.register('generateMultifileSplitParquet_employees', JavaExec) {
   dependsOn testFixturesProject.tasks.named('processResources')
   classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
-  args = [multifileSplitEmployeesCsv.path, multifileSplitDir.path, '3']
+  args = [multifileSplitEmployeesCsv.path, multifileSplitDir.path, fixtureMatrix.splitParts as String]
   inputs.file(multifileSplitEmployeesCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
@@ -234,7 +238,7 @@ generateParquetTasks.add(tasks.named('generateMultifileSplitParquet_employees'))
 // column) so the data column stays intact and queries can compare lang against the underlying value.
 // Used by external-hive-partitioned.csv-spec to exercise HivePartitionDetector end-to-end, including
 // the __HIVE_DEFAULT_PARTITION__ sentinel.
-def hivePartitionedDir = file("${parquetFixtureOutputDir}/hive-partitioned")
+def hivePartitionedDir = file("${parquetFixtureOutputDir}/${fixtureMatrix.layoutDir('hive')}")
 def hivePartitionedEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
 tasks.register('generateHivePartitionedParquet_employees', JavaExec) {
   dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
@@ -254,13 +258,14 @@ generateParquetTasks.add(tasks.named('generateHivePartitionedParquet_employees')
 // generator preserves `languages` in the parquet payload. Reading this dataset therefore hides the physical
 // column behind the path-derived one (Spark/DuckDB shadowing semantics) and emits the shadow warning. Used to
 // reproduce that `partition_detection: none` cannot opt out of that substitution.
-def hiveShadowDir = file("${parquetFixtureOutputDir}/hive-partitioned-shadow")
+def hiveShadowDir = file("${parquetFixtureOutputDir}/${fixtureMatrix.layoutDir('hive_shadow')}")
 tasks.register('generateHiveShadowParquet_employees', JavaExec) {
   dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
   dependsOn testFixturesProject.tasks.named('processResources')
   classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
-  args = [hivePartitionedEmployeesCsv.path, hiveShadowDir.path, '--hive-by', 'languages', 'languages']
+  args = [hivePartitionedEmployeesCsv.path, hiveShadowDir.path, '--hive-by',
+          fixtureMatrix.layoutBucketBy('hive_shadow'), fixtureMatrix.layoutPartitionColumn('hive_shadow')]
   inputs.file(hivePartitionedEmployeesCsv)
   outputs.dir(hiveShadowDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
@@ -339,6 +344,9 @@ tasks.named('processCsvSpecTestResources').configure {
 // entire suite. Isolation from ClickBenchParquetSpecIT (which fires INGEST with an empty
 // indicesToLoad) is achieved by having the spec ITs live in the csvSpecTest source set.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
   dependsOn generateParquetFixtures
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
@@ -348,6 +356,42 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+  // The vector suites are NOT part of the PR path: they cross every routed case with every
+  // expressible vector, measured at 75 minutes across the four formats. They live in
+  // vectorSpecTests, which nothing adds to `check`.
+  filter { excludeTestsMatching '*VectorSpecIT' }
+}
+
+
+// The full vector crossing. Deliberately NOT wired into `check` -- it is invoked by the
+// esql-datasource-vectors-manual pipeline, where a 75-minute run belongs. Adding it to `check`
+// would put that on every PR, which is what this separation exists to prevent.
+def vectorSpecTests = tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
+  // Vector crossing puts thousands of cases in this task, past randomizedtesting's 600s default.
+  // Raising the ceiling lets it finish; it does not make it faster.
+  systemProperty 'tests.timeoutSuite', '14400000!'
+  dependsOn generateParquetFixtures
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+  filter { includeTestsMatching '*VectorSpecIT' }
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+
+ext.fixtureCoverageLayoutRoots = [
+  parquet: ext.parquetFixtureOutputDir
+]
+ext.fixtureCoverageFormats = ['parquet']
+ext.fixtureCoverageSpecDirs = [
+  project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
+  file('src/javaRestTest/resources')
+]
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

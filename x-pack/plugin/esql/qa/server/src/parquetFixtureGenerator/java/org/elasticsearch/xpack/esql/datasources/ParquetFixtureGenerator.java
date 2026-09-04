@@ -19,8 +19,9 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,29 +135,12 @@ public final class ParquetFixtureGenerator {
         CompressionCodecName codec
     ) throws IOException {
         CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
-        int sourceColIdx = -1;
-        for (int i = 0; i < result.schema().size(); i++) {
-            if (result.schema().get(i).name().equals(sourceColumn)) {
-                sourceColIdx = i;
-                break;
-            }
-        }
-        if (sourceColIdx < 0) {
-            throw new IOException("Source column not found in CSV: " + sourceColumn);
-        }
-
         String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
-        // LinkedHashMap so the on-disk layout iterates buckets in a deterministic order.
-        Map<String, List<Object[]>> buckets = new LinkedHashMap<>();
-        for (Object[] row : result.rows()) {
-            Object cell = sourceColIdx < row.length ? row[sourceColIdx] : null;
-            String bucket = cell == null ? "__HIVE_DEFAULT_PARTITION__" : cell.toString();
-            buckets.computeIfAbsent(bucket, k -> new ArrayList<>()).add(row);
-        }
+        Map<String, List<Object[]>> buckets = HivePartitioner.bucketRows(result, sourceColumn);
 
         Files.createDirectories(outputDir);
         for (Map.Entry<String, List<Object[]>> e : buckets.entrySet()) {
-            Path partitionDir = outputDir.resolve(partitionColumn + "=" + e.getKey());
+            Path partitionDir = outputDir.resolve(HivePartitioner.partitionDirName(partitionColumn, e.getKey()));
             Files.createDirectories(partitionDir);
             Path outputPath = partitionDir.resolve(baseName + ".parquet");
             byte[] bytes = generateFromRows(
@@ -331,6 +315,25 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
                 .named(col.name());
+            case "date_nanos" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(col.name());
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: Parquet has no version type, same as the scalar arm"
+            );
+            case "uint32" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named(col.name());
+            case "uint16" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(16, false))
+                .named(col.name());
+            case "uint64" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.intType(64, false))
+                .named(col.name());
             case "text", "txt" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
                 .as(LogicalTypeAnnotation.stringType())
@@ -398,9 +401,19 @@ public final class ParquetFixtureGenerator {
         switch (type) {
             case "integer", "short", "byte" -> listElement.append("element", ((Number) elem).intValue());
             case "long" -> listElement.append("element", ((Number) elem).longValue());
-            case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
+            case "double", "scaled_float" -> listElement.append("element", ((Number) elem).doubleValue());
+            // parquetListType maps these to a FLOAT column, so a double here is the wrong width.
+            case "float", "half_float" -> listElement.append("element", ((Number) elem).floatValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
-            case "date" -> listElement.append("element", ((Number) elem).longValue());
+            case "date", "date_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: Parquet has no version type, same as the scalar arm"
+            );
+            // Same reason as the scalar arm: the physical list element is INT32, so truncating the
+            // uint32 long to int preserves the raw bit pattern the column stores.
+            case "uint32" -> listElement.append("element", ((Number) elem).intValue());
+            case "uint16" -> listElement.append("element", ((Number) elem).intValue());
+            case "uint64" -> listElement.append("element", ((Number) elem).longValue());
             default -> listElement.append("element", elem.toString());
         }
     }
@@ -420,11 +433,20 @@ public final class ParquetFixtureGenerator {
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
                 case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
+                case "version" -> throw new IllegalArgumentException(
+                    "column [" + leafName + "] declared [version]: Parquet has no version type -- it would read back as a keyword"
+                );
                 case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }
         } catch (Exception e) {
-            // Skip unparseable values
+            // Fail loudly. This catch used to swallow the exception and skip the value, which turned a
+            // missing type arm into a fixture that is silently short a column value at build time --
+            // indistinguishable from a legitimately null cell, and impossible to notice in a green suite.
+            throw new IllegalArgumentException(
+                "cannot write column [" + leafName + "] declared [" + type + "] with value [" + value + "]",
+                e
+            );
         }
     }
 

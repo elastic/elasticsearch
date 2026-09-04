@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 
@@ -22,13 +23,11 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+public class CsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
-    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .csv.bz2/.csv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz")
-        : List.of("csv.gz", "csv.zst", "csv.zstd");
+    // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
+    // codec surface and is therefore snapshot-only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get().textCodecFormats("csv", Build.current().isSnapshot());
 
     public CsvCompressedFormatSpecIT(
         String fileName,
@@ -43,23 +42,22 @@ public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to csv and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "csv-compressed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         // external-basic / external-multifile read the multi-value employees fixture, which does not
         // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
         // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
         // data) to restore the equivalent coverage.
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/csv-headerless.csv-spec",
-            "/csv-multifile.csv-spec",
-            "/csv-multifile-resolution.csv-spec",
-            "/csv-multivalue.csv-spec",
-            "/csv-only-declared-dialect.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(COMPRESSED_FORMATS, "csv-compressed");
     }
 }

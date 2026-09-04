@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,10 +24,18 @@ import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.DeclaredSchemas;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -37,9 +46,11 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,10 +80,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
 
     /** Pattern to match template placeholders like {{employees}} */
+    /**
+     * The one {@code {{template}}} grammar. There were two regexes for this, disagreeing on case --
+     * {@code \\w+} accepted uppercase and {@code [a-z0-9_]+} did not -- so a template name would
+     * eventually have resolved on one path and silently not on the other.
+     */
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     /** Default base path for fixtures within the resource directory */
-    private static final String FIXTURES_BASE = "standalone";
+    private static final String FIXTURES_BASE = FixtureMatrix.get().layout(FixtureMatrix.STANDALONE).dir();
 
     /**
      * Storage backend for accessing external files.
@@ -93,11 +109,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final List<StorageBackend> BACKENDS;
 
     static {
-        List<StorageBackend> backends = new ArrayList<>(
-            List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.GCS, StorageBackend.AZURE)
-        );
-        if (FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class) != null) {
-            backends.add(StorageBackend.LOCAL);
+        // Read from the contract rather than listed here. dimension.storage_scheme declares every scheme
+        // and the backend each one reaches (storage_scheme.backend.<v>), so this list and that declaration
+        // were two statements of the same axis -- and only the declaration was under the audit. A scheme
+        // added there would not have been crossed here, silently.
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        List<StorageBackend> backends = new ArrayList<>();
+        for (String scheme : dimensions.values("storage_scheme")) {
+            String backend = dimensions.backendFor("storage_scheme", scheme);
+            if (backend == null) {
+                throw new IllegalStateException(
+                    "storage_scheme [" + scheme + "] names no backend; dimension.storage_scheme.backend." + scheme + " is missing"
+                );
+            }
+            StorageBackend resolved = StorageBackend.valueOf(backend);
+            // LOCAL only exists when the fixtures are on disk for this module; every other backend is
+            // served by a fixture the suite starts itself.
+            if (resolved == StorageBackend.LOCAL
+                && FixtureUtils.resolveLocalFixturesPath(logger, AbstractExternalSourceSpecTestCase.class) == null) {
+                continue;
+            }
+            backends.add(resolved);
         }
         BACKENDS = List.copyOf(backends);
     }
@@ -107,10 +139,51 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 7 arguments:
      * (fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend).
      */
+    /**
+     * Loads the csv-spec files declared for a suite in {@code suite.<token>.specs}, rather than a list
+     * written out here.
+     *
+     * <p>The declaration has two consumers -- this method and the coverage gate that asks whether a
+     * declared fixture cell has a reader. While the list lived in the suite, the gate could only
+     * approximate it by scanning directories, and a spec in a scanned directory that no suite loaded still
+     * counted as a consumer: that reported the csv column covered for hive_shadow while every one of the
+     * ten shadow executions was TSV.
+     */
+    protected static List<Object[]> readExternalSpecTestsForSuite(String suiteToken) throws Exception {
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTests(MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        if (excluded.isEmpty()) {
+            return loaded;
+        }
+        // Drop whole spec files the declaration excludes for this suite. Filtering here rather than
+        // assuming away per case at run time: a case that is registered and then always skipped is a skip
+        // no gate can see and no report can count.
+        return loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /** The spec file name (without extension) a parameterised row came from -- element 0 is the file name. */
+    private static String specNameOf(Object[] row) {
+        String fileName = String.valueOf(row[0]);
+        return fileName.endsWith(".csv-spec") ? fileName.substring(0, fileName.length() - ".csv-spec".length()) : fileName;
+    }
+
     protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
+            List<URL> matched = classpathResources(pattern);
+            // Per pattern, not just in aggregate. A literal route to a spec that no longer exists
+            // matches nothing and contributes nothing, and the aggregate check cannot see it while any
+            // sibling pattern still resolves -- which is how suite.csv-compressed kept routing a spec
+            // this branch had already deleted, losing 13 cases with every gate green.
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
         }
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
@@ -135,6 +208,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
      * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
      */
+    /**
+     * Codec-fanned variant of {@link #readExternalSpecTestsForSuite}: the spec list comes from
+     * {@code suite.<token>.specs} rather than from a list written at the call site.
+     *
+     * <p>Without this the compressed suites could not read the declaration at all, so the declaration and
+     * the suite drifted -- the declaration claimed twelve specs for ndjson-compressed while the suite
+     * hard-coded six, and the coverage gate believed the declaration. That is the same false green the gate
+     * exists to prevent, reintroduced one level up.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithFormatsForSuite(List<String> formats, String suiteToken) throws Exception {
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(formats, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
     protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
         return readExternalSpecTestsWithExtraParam(formats, specPatterns);
     }
@@ -151,6 +239,385 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Codec cross-product with the spec set read from the declaration rather than listed at the call site.
+     * The codec counterpart of {@link #readExternalSpecTestsWithFormatsForSuite}; see that method for why
+     * whole-spec exclusions are filtered here instead of being skipped per case at run time.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithCodecsForSuite(List<String> codecs, String suiteToken) throws Exception {
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(codecs, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /**
+     * Cross-products the spec set with the generated vectors a directive can express for this format.
+     *
+     * <p>The extra column is the vector's rendered name, so a failure names the combination that broke.
+     * The suite turns it back into settings via {@link FixtureDimensions#parseRendered} and returns them
+     * from {@link #vectorSettings()}.
+     *
+     * <p>Only the directive-expressible subset appears here. Vectors that need a fixture built, a cluster
+     * configured, a pragma set or a backend stood up are not reachable through this seam, and
+     * {@link FixtureDimensions#directiveExpressibleVectors} is named so the call site says so.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithVectorsForSuite(String format, String suiteToken) throws Exception {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        List<Map<String, String>> vectors = dimensions.expressibleVectors(format, MATRIX.seams(suiteToken));
+        if (vectors.isEmpty()) {
+            throw new IllegalStateException(
+                "no vectors for format [" + format + "] under the seams suite [" + suiteToken + "] declares; it would register nothing"
+            );
+        }
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = crossWithVectors(dimensions, vectors, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /**
+     * Crosses the spec corpus with vectors, pinning each vector to the ONE backend its scheme names.
+     *
+     * <p>Deliberately not the {@code BACKENDS} cross-product the other factories use. {@code
+     * storage_scheme} is already a declared dimension with its own pair verdicts, so multiplying every
+     * vector by every backend stacks an undeclared axis on a declared one -- the same combination
+     * counted twice, with the backend axis invisible to the contract. A vector that wants a different
+     * backend says so by carrying a different scheme.
+     */
+    private static List<Object[]> crossWithVectors(FixtureDimensions dimensions, List<Map<String, String>> vectors, String... specPatterns)
+        throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String pattern : specPatterns) {
+            List<URL> matched = classpathResources(pattern);
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
+        }
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        List<Object[]> out = new ArrayList<>();
+        int pinned = 0;
+        int unrepresentable = 0;
+        for (Object[] baseTest : baseTests) {
+            for (Map<String, String> vector : vectors) {
+                if (directivePins(baseTest, vectorInjectedSettings(dimensions, vector))) {
+                    pinned++;
+                    continue;
+                }
+                if (bytesCannotCarry(dimensions, baseTest, vector)) {
+                    unrepresentable++;
+                    continue;
+                }
+                if (partitionDetectionCannotCarry(baseTest, vector, vectorInjectedSettings(dimensions, vector))) {
+                    unrepresentable++;
+                    continue;
+                }
+                if (declaredSchemaCannotCarry(baseTest, vector)) {
+                    unrepresentable++;
+                    continue;
+                }
+                out.add(appendVectorAndBackend(dimensions, baseTest, vector));
+            }
+        }
+        // Counted and logged, never silent: a filtered pair is a combination deliberately not run, and
+        // the number is the only way to tell that from a combination nobody thought of.
+        // Guarded on ALL the counters, not just `pinned`: a crossing that filtered only for
+        // unrepresentable dialects used to log nothing at all, so the one number that distinguishes a
+        // deliberate omission from an unnoticed one was hidden exactly when it was the only omission.
+        if (pinned > 0 || unrepresentable > 0) {
+            logger.info(
+                "vector crossing: {} registered, {} filtered as directive-pinned, {} as bytes-cannot-carry",
+                out.size(),
+                pinned,
+                unrepresentable
+            );
+        }
+        return out;
+    }
+
+    /**
+     * Whether closed-schema mode cannot express this case's data.
+     *
+     * <p>{@code dynamic: false} requires EVERY column declared, and the corpus uses six types the
+     * validator does not admit -- byte, short, float, half_float, scaled_float, version. Measured, only
+     * 4 of 10 datasets are fully declarable. Registering the rest would fail on the declaration rather
+     * than on anything about the reader, which is noise that looks like signal.
+     *
+     * <p>Open mode has no such limit: it declares what it can and lets the reader infer the rest.
+     */
+    /**
+     * Whether a declared-schema vector can carry this case at all.
+     *
+     * <p>Two ways it cannot. The schema is built from a dataset's canonical header, so a source whose
+     * template resolves to NO dataset -- every sources-based layout: multifile, multifile_ubn,
+     * multifile_perm, multifile_temporal, multifile_type_drift, none of which declare derived_from --
+     * has no header to build one from. This used to `continue`, treating "nothing to inject" as
+     * "nothing to do": the pair registered, injectDeclaredSchema returned the JSON untouched, and the
+     * case ran the byte-identical INFERRED baseline while its name announced a declared schema. A pass
+     * that means nothing, which is worse than a failure because nothing downstream can tell them apart.
+     *
+     * <p>And a closed declaration must name every column, so a dataset carrying a type outside
+     * DECLARABLE_TYPES cannot be declared closed at all.
+     */
+    /**
+     * Whether a partition_detection vector can carry this case at all.
+     *
+     * <p>A hive layout derives a column from the path -- lang, languages -- and the cases reading it name
+     * that column in their queries. Turn detection off and the column is never derived, so the query fails
+     * verification with "Unknown column [lang]". Correct on both sides, and not a defect: the case asks for
+     * something the configuration removes.
+     *
+     * <p>Keyed on the LAYOUT rather than a list of case names. The pair became reachable on parquet, ndjson
+     * and tsv only when the crossing stopped pinning format-less cliques to csv, and it produced 228 of 245
+     * parquet failures on the first run afterwards. Enumerating the twelve cases across four suites would
+     * need redoing for the next format or the next hive spec; asking the layout does not.
+     */
+    /**
+     * Whether a vector's partition settings contradict what a case's own directive already pins.
+     *
+     * <p>Two arms, and they answer to different authorities. The first is a harness fact the reader cannot
+     * know: a layout whose DIRECTORIES carry the partition column cannot be read with detection off, so
+     * the rows would simply not have the column.
+     *
+     * <p>The second asks the reader instead of restating it. It builds the config the dataset would
+     * actually register with -- every partition key the reader recognises, taking the case's own value
+     * where it declares one, because {@link #injectSetting} leaves a declared key untouched -- and hands
+     * it to {@link PartitionConfig#fromConfig}. If that throws, registration would 400 and the dataset
+     * would never exist, so the pairing cannot run.
+     *
+     * <p>Restating the rule here was wrong twice over, and both ways were live. It compared the vector's
+     * SLOT rather than what gets injected, and every vector carries a partition_detection slot -- most at
+     * the default {@code auto}, which injects nothing -- so a case pinning hive partitioning off was
+     * filtered out of every vector including the ones the reader accepts. And it matched {@code "false"}
+     * exactly while the reader compares case-insensitively, so a directive spelling it {@code False}
+     * would have slipped through. Asking the component removes both classes of drift at once.
+     */
+    private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector, Map<String, String> injected) {
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        if ("none".equals(vector.get("partition_detection"))) {
+            for (DatasetSource source : testCase.datasetSources) {
+                String template = templateNameIn(source.resource());
+                if (template != null && MATRIX.partitionColumnFor(template) != null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        for (DatasetSource source : testCase.datasetSources) {
+            Map<String, Object> merged = new LinkedHashMap<>();
+            for (String key : PartitionConfig.CONFIG_KEYS) {
+                String declared = DatasetRegistry.declaredSetting(source.withJson(), key);
+                String value = declared != null ? declared : injected.get(key);
+                if (value != null) {
+                    merged.put(key, value);
+                }
+            }
+            try {
+                PartitionConfig.fromConfig(merged);
+            } catch (IllegalArgumentException e) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean declaredSchemaCannotCarry(Object[] baseTest, Map<String, String> vector) {
+        String mode = vector.get("schema_mode");
+        if (mode == null || mode.startsWith("declared") == false) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template == null) {
+                continue;
+            }
+            String dataset = MATRIX.datasetForTemplate(template);
+            if (dataset == null) {
+                // No dataset, so no header, so no declaration can be injected for this source.
+                return true;
+            }
+            if ("declared_closed".equals(mode) == false) {
+                continue;
+            }
+            List<CsvFixtureParser.ColumnSpec> schema = DeclaredSchemas.headerSchema(
+                AbstractExternalSourceSpecTestCase.class.getClassLoader(),
+                dataset
+            );
+            if (schema != null && DeclaredSchemas.fullyDeclarable(schema) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether the vector's dialect cannot carry the data this case reads.
+     *
+     * <p>A bracket cell holds commas and brackets need quoting, so a dataset declared unrepresentable in
+     * a dialect has no bytes in that dialect anywhere -- and the layouts derived from it (multifile,
+     * hive, split) do not either. Registering such a pair announces a dialect over bytes never written
+     * in it, which is the misbind this contract exists to prevent; here the crossing would manufacture it.
+     *
+     * <p>Counted rather than silent: a combination that cannot exist has to be distinguishable from one
+     * nobody thought of.
+     */
+    /**
+     * Whether a vector that changes the BYTES can carry this case at all.
+     *
+     * <p>One check for every such slot, not one per slot. Only STANDALONE is redirected to the per-vector
+     * tree, so a case reading any other layout gets the SHARED bytes while its name announces something
+     * they were never written with. How that fails depends on the slot, and the quiet one is the danger:
+     * a foreign dialect is rejected by the reader, but a parquet file carries its codec in its own
+     * metadata and decodes fine, so the case PASSES under a name claiming a codec it never touched.
+     *
+     * <p>This was three special cases keyed on individual slots, and adding {@code delimiter} to
+     * DIALECT_SLOTS silently needed a fourth: standalone cases redirected correctly while every
+     * multi-file case read comma-delimited bytes and announced a semicolon. Driving the check from
+     * DIALECT_SLOTS instead means the next byte-changing slot is covered by declaring it, which is the
+     * only place it can be forgotten and then not be forgotten.
+     */
+    private static boolean bytesCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        List<String> pinned = new ArrayList<>();
+        for (String slot : byteChangingSlots()) {
+            String value = vector.get(slot);
+            if (value != null && value.equals(dimensions.defaultValue(slot, vector.get("format"))) == false) {
+                pinned.add(slot);
+            }
+        }
+        if (pinned.isEmpty()) {
+            return false;
+        }
+        // The EFFECTIVE dialect, not only a pinned one. A dataset can be unrepresentable in the format's
+        // own default -- mv_sample has no bytes in PLAIN, and PLAIN is what tsv defaults to -- so a vector
+        // pinning only `delimiter` still reads a tree that dataset was never written into. Scoping this to
+        // a pinned text_mode registered those cases against files the generator had correctly skipped, and
+        // they failed as "Object not found" rather than as anything meaningful.
+        String textMode = vector.getOrDefault("text_mode", dimensions.defaultValue("text_mode", vector.get("format")));
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template == null) {
+                continue;
+            }
+            if (MATRIX.layoutFor(template).isStandalone() == false) {
+                return true;
+            }
+            // A dataset with no bytes in this dialect anywhere cannot be carried even standalone. Only the
+            // dialect axis has this: a codec or a delimiter can render any dataset, while a bracket cell
+            // holds commas that PLAIN and ESCAPED cannot disambiguate.
+            String dataset = MATRIX.datasetForTemplate(template);
+            if (dataset != null
+                && textMode != null
+                && MATRIX.unrepresentableDialects(
+                    dataset,
+                    vector.getOrDefault("delimiter", dimensions.defaultValue("delimiter", vector.get("format")))
+                ).contains(textMode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The slots whose value changes the bytes on disk: the dialect tree, plus the parquet codec tree. */
+    private static List<String> byteChangingSlots() {
+        List<String> slots = new ArrayList<>(FixtureDimensions.DIALECT_SLOTS);
+        slots.add("parquet_codec");
+        return slots;
+    }
+
+    /**
+     * Whether the case already pins any key the vector would inject.
+     *
+     * <p>Such a pair must not register. {@code injectSetting} deliberately leaves a directive that
+     * already declares a key alone, so the vector's value would never land -- and the case would pass
+     * under a name claiming a configuration it never ran. That is the silent misbind this contract
+     * exists to catch, and here it would be manufactured by the crossing itself.
+     */
+    /**
+     * Every setting a vector would inject into a dataset directive: the directive-bound slots AND the
+     * read keys of the fixture-bound ones.
+     *
+     * <p>Both travel through {@link #injectSetting}, which leaves the JSON untouched when the case already
+     * declares that key. Gating on the directive settings alone therefore missed the read keys entirely,
+     * and the gap is not theoretical: mv_syntax binds to the FIXTURE seam and announces itself through the
+     * read key {@code multi_value_syntax}, so a case declaring that key crossed with a vector pinning
+     * brackets registered happily, had its bytes redirected to the bracket-written tree, and had the
+     * announcement dropped -- the reader parsed bracket bytes while being told {@code none}. Green, under
+     * a name claiming a configuration the reader never saw. That silent pass is the single failure this
+     * crossing exists to prevent, so the pin check must consult the same set that gets injected.
+     *
+     * <p>The vector's own {@code format} slot supplies the per-format defaults, which is what decides
+     * whether a slot sits off default and is therefore injected at all.
+     */
+    private static Map<String, String> vectorInjectedSettings(FixtureDimensions dimensions, Map<String, String> vector) {
+        Map<String, String> injected = new LinkedHashMap<>(dimensions.directiveSettings(vector));
+        injected.putAll(dimensions.readSettings(vector, vector.get("format")));
+        return injected;
+    }
+
+    private static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
+        if (vectorSettings.isEmpty()) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            for (String key : vectorSettings.keySet()) {
+                if (DatasetRegistry.declaresSetting(source.withJson(), key)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The reader name a vector runs under: the base format, plus the extension its codec appends.
+     *
+     * <p>The reader dispatches on the suffix, and the compressed suites already spell it {@code csv.gz},
+     * so a codec vector needs no new resolution path -- only the right token. A vector at the default
+     * codec gets the bare format, which is why an unvaried suite resolves byte-identically to before.
+     *
+     * <p>Static because it is consumed in a {@code super(...)} argument, before the instance exists.
+     */
+    protected static String vectorReaderName(String baseFormat, String vectorName) {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        String codec = dimensions.parseRendered(vectorName).get("text_codec");
+        if (codec == null) {
+            return baseFormat;
+        }
+        String extension = dimensions.extensionFor("text_codec", codec);
+        if (extension == null) {
+            throw new IllegalStateException(
+                "vector names text_codec [" + codec + "] but the contract declares no extension for it; nothing could resolve its files"
+            );
+        }
+        return baseFormat + "." + extension;
+    }
+
+    /** One parameter row: the base case, the vector's rendered name, and the backend its scheme names. */
+    private static Object[] appendVectorAndBackend(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        String scheme = vector.get("storage_scheme");
+        StorageBackend backend = StorageBackend.valueOf(dimensions.backendFor("storage_scheme", scheme));
+        // Loudly, not by dropping the row: a vector silently not registered is the absence this contract
+        // exists to make impossible. The typed skip for an unavailable backend belongs with the backend
+        // seam, which no vector reaches yet.
+        if (BACKENDS.contains(backend) == false) {
+            throw new IllegalStateException(
+                "vector pins storage_scheme [" + scheme + "] -> backend [" + backend + "], which this environment does not provide"
+            );
+        }
+        Object[] row = new Object[baseTest.length + 2];
+        System.arraycopy(baseTest, 0, row, 0, baseTest.length);
+        row[baseTest.length] = dimensions.render(vector);
+        row[baseTest.length + 1] = backend;
+        return row;
+    }
+
+    /**
      * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
      * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
      * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing
@@ -159,7 +626,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
+            List<URL> matched = classpathResources(pattern);
+            // Per pattern, not just in aggregate. A literal route to a spec that no longer exists
+            // matches nothing and contributes nothing, and the aggregate check cannot see it while any
+            // sibling pattern still resolves -- which is how suite.csv-compressed kept routing a spec
+            // this branch had already deleted, losing 13 cases with every gate green.
+            if (matched.isEmpty()) {
+                throw new IllegalStateException(
+                    "spec pattern ["
+                        + pattern
+                        + "] matches no file on this suite's classpath; "
+                        + "the routing in fixture-matrix.properties names a spec that does not exist"
+                );
+            }
+            urls.addAll(matched);
         }
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
@@ -327,6 +807,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     private final StorageBackend storageBackend;
     private final String format;
+    private final String specName;
     /**
      * Per-test choice of Azure URI form, set once in {@link #doTest()} so that all template
      * substitutions within a single test (including wildcard expansions returning multiple files)
@@ -356,10 +837,38 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
         this.storageBackend = storageBackend;
         this.format = format;
+        this.specName = groupName;
+    }
+
+    /**
+     * The token this suite's exclusions are declared under in {@code fixture-exclusions.properties}.
+     *
+     * <p>Defaults to the base format with any codec stripped, which is correct for the suites whose
+     * declaration token IS their format ({@code csv}, {@code tsv}, {@code ndjson}, {@code orc},
+     * {@code parquet}). A suite whose token diverges from its format MUST override this: the
+     * parquet-rs suite runs with format {@code "parquet"} (its reader is selected separately) and the
+     * compressed suites carry a codec, so for those the default would silently resolve to another
+     * suite's exclusion set.
+     */
+    protected String exclusionSuiteToken() {
+        return FixtureMatrix.baseFormat(format);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        // One skip path for every external-source suite, reading the single declaration. The message is the
+        // declared reason, so a skip explains itself in the log rather than asserting a hard-coded cause.
+        // Own token first, then the one it inherits from. A vector suite runs its sibling's corpus, so a
+        // case the sibling excludes is excluded here too -- but it also has entries of its own, naming the
+        // vectors a defect appears under. Consulting only one token loses whichever set is not it.
+        String ownToken = exclusionSuiteToken();
+        String inheritedToken = FixtureMatrix.get().exclusionSource(ownToken);
+        Map<String, String> lookupVector = exclusionLookupVector();
+        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(ownToken, specName, testName, lookupVector);
+        if (exclusion == null && inheritedToken.equals(ownToken) == false) {
+            exclusion = FixtureExclusions.get().find(inheritedToken, specName, testName, lookupVector);
+        }
+        assumeTrue(exclusion == null ? "" : testName + ": " + exclusion.reason(), exclusion == null);
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
@@ -378,13 +887,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     @Override
     protected void doTest() throws Throwable {
-        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class. After the FROM
-        // <dataset> migration the {{clickbench}} template lives in the dataset directive's resource rather
-        // than the query (which is now plain `FROM clickbench`), so check the declared sources too.
-        boolean clickBench = testCase.query.contains("{{clickbench}}")
-            || testCase.datasetSources.stream().anyMatch(source -> source.resource().contains("{{clickbench}}"));
-        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", clickBench);
-
         if (testCase.datasetSources.isEmpty() == false && forceExternalRebuild() == false) {
             runDatasetMode();
             return;
@@ -417,10 +919,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
-        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
-        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
+        if (referencesGlobLayout(query)) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
@@ -488,7 +987,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
         // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
         for (DatasetSource source : testCase.datasetSources) {
-            if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
+            if (referencesGlobLayout(source.resource())) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
         }
@@ -541,22 +1040,52 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Fail if the matrix does not declare this dataset for this format.
+     * <p>
+     * Without this the spec resolves to a path no generator ever wrote and the failure arrives
+     * as a missing file, or worse as an empty result. The matrix knows whether the cell is
+     * absent because no format could carry it or because nobody propagated it, so the message
+     * says which.
+     */
+    private void requireDeclaredCell(String dataset) {
+        // The suite's format is a file extension: compressed suites run as "csv.gz" and friends,
+        // and the codec dimension does not change which datasets exist.
+        String baseFormat = FixtureMatrix.baseFormat(format);
+        if (MATRIX.declares(baseFormat, dataset)) {
+            return;
+        }
+        String reason = MATRIX.restrictionReason(dataset);
+        StringBuilder message = new StringBuilder("the fixture matrix does not declare dataset [").append(dataset)
+            .append("] for format [")
+            .append(baseFormat)
+            .append("], so this fixture is never generated");
+        if (reason == null) {
+            message.append(". Declare it in fixture-matrix.properties.");
+        } else {
+            message.append(". The matrix says: ").append(reason);
+        }
+        throw new AssertionError(message.toString());
+    }
+
+    /**
      * Override to change the base directory within the resource tree where single-file fixtures live.
      * Defaults to {@code "standalone"}. Subclasses testing compressed Parquet fixtures can override
      * this to point at codec-specific directories (e.g. {@code "standalone-snappy"}).
      */
     protected String fixturesBase() {
-        return FIXTURES_BASE;
+        // A vector pinning a dialect reads its own tree; one pinning none resolves exactly where it did
+        // before, which is what lets a suite move onto vectors without changing what it reads.
+        return vectorFixturesBase(FIXTURES_BASE);
     }
 
     /**
      * Override to change the base directory within the resource tree where multi-file split fixtures
-     * live (template {@code {{x_multifile_split}}}). Defaults to {@code "multifile_split"}. Subclasses
-     * testing codec-compressed multi-file fixtures override this to point at codec-specific directories
-     * (e.g. {@code "multifile_split-gzip"}).
+     * live (template {@code {{x_multifile_split}}}). Defaults to the directory the fixture matrix
+     * declares for that layout. Subclasses testing codec-compressed multi-file fixtures override this
+     * to point at codec-specific directories (e.g. {@code "multifile_split-gzip"}).
      */
     protected String multifileSplitDir() {
-        return "multifile_split";
+        return MATRIX.layout(MULTIFILE_SPLIT_LAYOUT).dir();
     }
 
     /**
@@ -665,6 +1194,120 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * The directive settings the running vector pins, keyed by their {@code WITH} key.
+     *
+     * <p>Empty by default, so a suite that has not been moved onto generated vectors behaves exactly as
+     * before. A suite driven by {@link FixtureDimensions}
+     * overrides this with the directive-bound slots of its vector that sit off their declared default.
+     */
+    protected Map<String, String> vectorSettings() {
+        return Map.of();
+    }
+
+    /**
+     * Applies the cluster settings the running vector pins, and puts them back when the case ends.
+     *
+     * <p>A cluster setting is not a per-request knob. It is cluster-wide state that outlives the case that
+     * set it, and these suites share one cluster, so leaving it set makes the NEXT vector run a
+     * configuration it never announced. Restoring in an {@code @After} rather than at the end of the test
+     * body is what makes that hold when a case fails: without it, one failure silently reconfigures every
+     * case behind it, and the run stops meaning what its case names say.
+     *
+     * <p>A vector at its default issues no update at all, so a suite that varies nothing pays nothing and
+     * behaves exactly as it did before this seam existed.
+     */
+    @Before
+    public void applyVectorClusterSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        vectorClusterSettings().forEach(builder::put);
+        if (vectorClusterSettings().isEmpty() == false) {
+            updateClusterSettings(builder.build());
+        }
+    }
+
+    @After
+    public void restoreVectorClusterSettings() throws IOException {
+        Settings.Builder builder = Settings.builder();
+        vectorClusterSettings().keySet().forEach(builder::putNull);
+        if (vectorClusterSettings().isEmpty() == false) {
+            updateClusterSettings(builder.build());
+        }
+    }
+
+    private Map<String, String> vectorClusterSettings() {
+        return FixtureDimensions.get().clusterSettings(vector(), FixtureMatrix.baseFormat(format));
+    }
+
+    @Override
+    protected void addSuitePragmas(Settings.Builder settings) {
+        FixtureDimensions.get().pragmaSettings(vector(), FixtureMatrix.baseFormat(format)).forEach(settings::put);
+    }
+
+    /**
+     * The vector this case runs under, or empty for a suite that does not use them.
+     *
+     * <p>One accessor rather than each suite computing its own settings and its own fixture base: those
+     * two must agree about which slots are off default, and two derivations of the same thing is how
+     * they stop agreeing.
+     */
+    protected Map<String, String> vector() {
+        return Map.of();
+    }
+
+    /**
+     * The vector as the exclusion table sees it, plus one derived slot the table cannot compute itself.
+     *
+     * <p>{@code rerendered} says the bytes under this vector were written by TextRowRenderer from parsed
+     * values rather than being the authored fixture. That loses byte detail the author put there on
+     * purpose -- trailing padding, and the difference between an absent field and an empty one -- so a
+     * case asserting either cannot hold on any re-rendered tree. Which SLOT caused the re-render is
+     * irrelevant, and enumerating them (@text_mode.escaped, @mv_syntax.brackets, @delimiter.pipe, ...)
+     * means every future byte-changing dimension silently needs another entry per case. One derived slot
+     * says the thing that is actually true.
+     */
+    private Map<String, String> exclusionLookupVector() {
+        Map<String, String> vector = vector();
+        if (vector.isEmpty()) {
+            return vector;
+        }
+        Map<String, String> withDerived = new LinkedHashMap<>(vector);
+        withDerived.put("rerendered", String.valueOf(fixturesBase().startsWith("vector/")));
+        return withDerived;
+    }
+
+    /**
+     * Where this case reads its files from: the per-vector tree when the vector pins a dialect, the
+     * shared tree otherwise.
+     *
+     * <p>A vector that pins no dialect slot must resolve to exactly the path it resolved to before, which
+     * is what lets a suite move onto vectors without changing what it reads.
+     */
+    protected String vectorFixturesBase(String defaultBase) {
+        Map<String, String> pinned = new LinkedHashMap<>();
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        String baseFormat = FixtureMatrix.baseFormat(format);
+
+        // A parquet codec is not a dialect: the bytes are not re-rendered per vector, they are written
+        // once by compressed-parquet-fixtures.gradle into a `standalone-<codec>` tree that has existed
+        // all along and that ParquetCompressedFormatSpecIT already reads. This branch is selection, not
+        // generation -- the absence it closes was generated-then-never-read, the one shape an empty
+        // directory cannot reveal. The path form is taken from that suite rather than invented, so both
+        // ways of reaching the same bytes stay one convention.
+        String codec = vector().get("parquet_codec");
+        if (codec != null && codec.equals(dimensions.defaultValue("parquet_codec", baseFormat)) == false) {
+            return "standalone-" + codec;
+        }
+
+        for (String slot : FixtureDimensions.DIALECT_SLOTS) {
+            String value = vector().get(slot);
+            if (value != null && value.equals(dimensions.defaultValue(slot, baseFormat)) == false) {
+                pinned.put(slot, value);
+            }
+        }
+        return pinned.isEmpty() ? defaultBase : "vector/" + FixtureDimensions.slugFor(pinned) + "/standalone";
+    }
+
+    /**
      * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
      * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
      * ({@link #rebuildExternalFromDatasets}).
@@ -687,9 +1330,159 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
             // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
             // column-aligned fixtures with trimming; the shared injector adds the key.
-            boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-            return csvOrTsv ? injectTrimSpaces(s.withJson()) : s.withJson();
+            // Which formats these keys belong to is declared, not listed here: text_mode applies to exactly
+            // the formats whose reader accepts the delimited-text keys. Listing them meant a new text
+            // format would silently stop getting trim_spaces while every test still passed.
+            boolean csvOrTsv = FixtureDimensions.get().appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
+            String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource()) : s.withJson();
+            // Then whatever the running vector pins. A directive-bound dimension at its default injects
+            // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to
+            // before, which is what lets vectors be introduced one dimension at a time.
+            for (Map.Entry<String, String> setting : vectorSettings().entrySet()) {
+                json = injectSetting(json, setting.getKey(), setting.getValue());
+            }
+            // Bytes are not enough: a file written in a non-default dialect and read without being
+            // announced is parsed under the default and read wrong, silently. The bytes and the
+            // announcement are one change, which is why a fixture-bound dimension carries a read_key.
+            for (Map.Entry<String, String> setting : FixtureDimensions.get()
+                .readSettings(vector(), FixtureMatrix.baseFormat(format))
+                .entrySet()) {
+                json = injectSetting(json, setting.getKey(), setting.getValue());
+            }
+            json = injectDeclaredSchema(json, s);
+            return json;
         });
+    }
+
+    /**
+     * Adds {@code "multi_value_syntax": "brackets"} for a source whose fixtures were WRITTEN with bracket
+     * multi-values, unless the directive already sets it.
+     *
+     * <p>Per source, not per suite. employees.csv carries bracket multi-values on all 100 rows, so an
+     * RFC-4180 reader splitting on commas misaligns every column of anything derived from it; employees_no_mv
+     * carries none. A single spec can read both, so there is no suite-wide answer -- and injecting brackets
+     * everywhere would retire the coverage of the {@code none} default, which is what real users get.
+     *
+     * <p>The dialect comes from the declaration via {@link FixtureMatrix#writeDialectForTemplate}, keyed on
+     * the template the directive names. It is a property of the authored data, and checkFixtureDialect fails
+     * if the declaration and the CSV disagree.
+     */
+    static String injectMultiValueSyntax(String withJson, String resource) {
+        String template = templateNameIn(resource);
+        if (template == null || "brackets".equals(MATRIX.writeDialectForTemplate(template)) == false) {
+            return withJson;
+        }
+        return injectSetting(withJson, "multi_value_syntax", "brackets");
+    }
+
+    /**
+     * Adds one setting to a dataset directive's {@code WITH} JSON, unless the directive already declares it.
+     *
+     * <p>Whether it does is decided by parsing rather than by matching raw text: a directive may carry a
+     * nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection. Placement stays textual -- {@code withJson} is parser-guaranteed to be a brace-delimited
+     * object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     *
+     * <p>This is the seam every generated vector reaches: a dimension declared to bind as a directive
+     * becomes a key here, so adding one to the declaration needs no new injector.
+     */
+    static String injectSetting(String withJson, String key, String value) {
+        if (DatasetRegistry.declaresSetting(withJson, key)) {
+            return withJson;
+        }
+        String entry = "\"" + key + "\": \"" + value + "\"";
+        if (withJson == null) {
+            return "{" + entry + "}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        String separator = head.endsWith("{") ? "" : ", ";
+        return head + separator + entry + withJson.substring(close);
+    }
+
+    /**
+     * Adds the declared schema a {@code schema_mode} vector asks for, derived from the dataset itself.
+     *
+     * <p>The only dimension whose value cannot be a constant in the contract: a declared schema IS the
+     * dataset's columns, so it is built from the same canonical CSV the fixtures are generated from --
+     * one source, so the declaration cannot drift from the bytes it describes.
+     *
+     * <p>A directive that already declares {@code mappings} is left alone. Those cases exist to test a
+     * SPECIFIC declaration (renamed columns, deliberate type choices), and overwriting it would run
+     * something other than the case that was written.
+     */
+    private String injectDeclaredSchema(String withJson, DatasetSource source) {
+        String mode = vector().get("schema_mode");
+        // declaresMappings, not declaresSetting: `mappings` is the reserved schema key and is lifted OUT
+        // of settings, so the settings map structurally cannot contain it and the guard never fired --
+        // every case that already declared a schema got a second one and failed on a duplicate field.
+        if (mode == null || mode.startsWith("declared") == false || DatasetRegistry.declaresMappings(withJson)) {
+            return withJson;
+        }
+        String template = templateNameIn(source.resource());
+        String dataset = template == null ? null : MATRIX.datasetForTemplate(template);
+        if (dataset == null) {
+            return withJson;
+        }
+        List<CsvFixtureParser.ColumnSpec> schema = DeclaredSchemas.headerSchema(getClass().getClassLoader(), dataset);
+        if (schema == null) {
+            return withJson;
+        }
+        String mappings = DeclaredSchemas.mappingsJson(schema, "declared_open".equals(mode));
+        return mappings == null ? withJson : injectRawSetting(withJson, "mappings", mappings);
+    }
+
+    /**
+     * Like {@link #injectSetting} but for a value that is itself a JSON object rather than a string.
+     *
+     * <p>Separate because the quoting differs and getting it wrong produces a directive that parses as a
+     * string where an object was meant -- the reader then rejects it in a way that reads like a schema
+     * defect rather than a quoting one.
+     */
+    static String injectRawSetting(String withJson, String key, String rawJsonValue) {
+        String entry = "\"" + key + "\": " + rawJsonValue;
+        if (withJson == null) {
+            return "{" + entry + "}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        return head + (head.endsWith("{") ? "" : ", ") + entry + withJson.substring(close);
+    }
+
+    /**
+     * The filename a standalone template resolves to, shaped by the vector's {@code path_shape}.
+     *
+     * <p>{@code exact} names the file. {@code glob} asks for it by pattern instead -- the same single
+     * file, reached through the resolver's listing path rather than a direct get. That distinction is the
+     * point: listing and direct-get are different code, and #1791 (a whole file dropped during split
+     * discovery) lived in the discovery half.
+     *
+     * <p>{@code comma_list} is NOT shaped here. A one-element comma list is indistinguishable from
+     * exact, so on a standalone template it would test nothing; it is meaningful only where a template
+     * names several files, which is the multifile layouts' territory rather than this branch.
+     */
+    private String pathShaped(String templateName, String extension) {
+        if ("glob".equals(vector().get("path_shape")) == false) {
+            return templateName + "." + extension;
+        }
+        // A single-character wildcard INSIDE the name, with the extension kept literal. The two obvious
+        // shapes both over-match, and each was measured rather than reasoned about:
+        // `employees*` also matches employees_no_mv -- a COUNT returned 321 where 221 was expected,
+        // because the glob pulled in a sibling dataset.
+        // `employees.*` also matches employees.csv.gz and .zst and .bz2, because generateCompressedFixtures
+        // writes every compressed variant into this same directory.
+        // `employee?.csv` reaches exactly one file, through the resolver's LISTING path rather than a
+        // direct get -- which is the whole point of this dimension, since listing is where #1791 lived.
+        return templateName.substring(0, templateName.length() - 1) + "?." + extension;
+    }
+
+    /** The {@code {{template}}} a dataset directive's resource names, or null when it names none. */
+    private static String templateNameIn(String resource) {
+        if (resource == null) {
+            return null;
+        }
+        Matcher m = TEMPLATE_PATTERN.matcher(resource);
+        return m.find() ? m.group(1) : null;
     }
 
     /**
@@ -802,41 +1595,35 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return result.toString();
     }
 
-    /** Suffix that triggers multi-file glob resolution */
-    private static final String MULTIFILE_SUFFIX = "_multifile";
-    /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
-    private static final String MULTIFILE_SPLIT_SUFFIX = "_multifile_split";
-    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
-    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
-     * Suffix that triggers a multi-file glob whose files share the same columns in different
-     * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
-     * cross-file column-order reconciliation against silent value swaps.
+     * The fixture matrix. The suffixes and directories below are read from it rather than
+     * written down here, so the layout a generator writes into and the layout a spec asks for
+     * cannot drift apart -- naming a layout the declaration does not know about fails on the
+     * spot instead of resolving to a path nothing ever wrote.
      */
-    private static final String MULTIFILE_PERM_SUFFIX = "_multifile_perm";
-    /**
-     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
-     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
-     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
-     * warning; under STRICT it still throws.
-     */
-    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
-    /**
-     * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
-     * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
-     * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
-     * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
-     */
-    private static final String MULTIFILE_TEMPORAL_SUFFIX = "_multifile_temporal";
-    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
-    private static final String HIVE_SUFFIX = "_hive";
+    private static final FixtureMatrix MATRIX = FixtureMatrix.get();
+
+    /** The one layout whose directory a subclass may redirect to a codec-specific variant. */
+    private static final String MULTIFILE_SPLIT_LAYOUT = "multifile_split";
 
     /**
-     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
-     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
-     * contains {@code _hive} so the HTTP glob-skip applies to it too.
+     * True when the given text references a layout the fixture matrix declares as a GLOB layout (anything
+     * other than {@code standalone}). Derived from the declaration rather than from hard-coded layout names,
+     * so a layout added to {@code fixture-matrix.properties} is covered without editing this class -- which
+     * is the whole point of the declaration owning the convention.
+     *
+     * <p>Matching is on the bare suffix, which needs no precedence reasoning: every glob layout contributes
+     * its own suffix, so {@code _hive_shadow} is matched by its own entry rather than by being a superstring
+     * of {@code _hive}.
      */
-    private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
+    private static boolean referencesGlobLayout(String text) {
+        for (FixtureMatrix.Layout layout : MATRIX.layouts()) {
+            if (layout.isStandalone() == false && text.contains(layout.suffix())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
@@ -845,37 +1632,24 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
+        FixtureMatrix.Layout layout = MATRIX.layoutFor(templateName);
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
-            relativePath = "multifile_type_drift/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_TEMPORAL_SUFFIX)) {
-            relativePath = "multifile_temporal/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
-            // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
-            relativePath = "multifile_perm/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
-            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
-            relativePath = "multifile_ubn/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_SPLIT_SUFFIX)) {
-            // Same-schema multi-file split: employees_multifile_split -> multifile_split/*.<format>.
-            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir() to
-            // route to codec-specific directories (e.g. "multifile_split-gzip").
-            relativePath = multifileSplitDir() + "/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
-            // Multi-file template: employees_multifile -> multifile/*.parquet
-            relativePath = "multifile/*." + format;
-        } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
-            // Hive layout whose partition key shadows a same-named payload column.
-            relativePath = "hive-partitioned-shadow/**/*." + format;
-        } else if (templateName.endsWith(HIVE_SUFFIX)) {
-            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
-            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
-            // parses the directory names independently)
-            relativePath = "hive-partitioned/**/*." + format;
+        if (layout.isStandalone()) {
+            // A single file named after the dataset -- the one layout that is per-dataset, so the only
+            // one whose absence is checkable HERE, from the template name alone.
+            //
+            // Not the only way a cell can be absent, though: a glob layout can be declared empty for a
+            // format (layout.<name>.sources.<format> = , with a reason), and a suite can route a spec
+            // naming a layout its format never generates. Those are caught by checkFixtureCoverage
+            // against the declaration rather than at resolve time, because the template alone does not
+            // say which format is reading it.
+            requireDeclaredCell(templateName);
+            relativePath = fixturesBase() + "/" + pathShaped(templateName, format);
         } else {
-            // Single-file template: employees -> standalone/employees.parquet
-            String filename = templateName + "." + format;
-            relativePath = fixturesBase() + "/" + filename;
+            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir()
+            // to route to codec-specific directories (e.g. "multifile_split-gzip").
+            String dir = layout.name().equals(MULTIFILE_SPLIT_LAYOUT) ? multifileSplitDir() : layout.dir();
+            relativePath = dir + "/" + layout.glob() + "." + format;
         }
 
         switch (storageBackend) {

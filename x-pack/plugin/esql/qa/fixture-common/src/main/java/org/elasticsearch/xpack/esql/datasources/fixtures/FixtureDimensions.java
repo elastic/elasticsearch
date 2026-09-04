@@ -1,0 +1,1392 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.fixtures;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Consumer;
+
+/**
+ * The dimensions of the external-datasource read path, and which pairs of them interact.
+ *
+ * <p>Testing every combination of every dimension is millions of configurations. What makes that
+ * tractable is that most pairs do not interact: varying both together exercises no code path that
+ * varying each alone does not. So the declaration records, for every pair, whether they INTERACT --
+ * and the test set is derived from that rather than written by hand.
+ *
+ * <p>A group is a MAXIMAL CLIQUE of the interaction graph: a set of dimensions in which every pair
+ * interacts. Each group is tested as a full cross product with every dimension outside it pinned at
+ * its declared default, so any generated vector differs from the baseline in only that group's
+ * dimensions. Cliques are the sites where a three-way or higher interaction can live at all, since
+ * such an effect needs its constituent pairs to interact.
+ *
+ * <p>The asymmetry that matters: an {@code interacting} verdict costs test executions if it is wrong.
+ * An {@code independent} verdict REMOVES cells, and nothing ever reveals that they are missing -- so
+ * it carries the mechanism that makes it safe, and an untraceable pair is recorded {@code unverified}
+ * and treated as interacting. Uncertainty costs tests, never coverage.
+ */
+public final class FixtureDimensions {
+
+    private static final String RESOURCE = "fixture-dimensions.properties";
+
+    /** How a pair of dimensions relates. */
+    public enum Verdict {
+        /** Varying both together reaches code that varying each alone does not. Cross them. */
+        INTERACTING,
+        /** The cross product exists but carries no new signal. Skipping it is a licensed choice. */
+        INDEPENDENT,
+        /** No single configuration can hold both values, so there is nothing to test or to justify. */
+        DISJOINT,
+        /** Not traced. Treated as INTERACTING, so the cells are generated until someone settles it. */
+        UNVERIFIED
+    }
+
+    /**
+     * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
+     * classpath touches this class -- including code that never asks for a dimension -- so a missing or
+     * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
+     * the declaration is read when it is wanted, and the failure names the caller that wanted it.
+     */
+    /**
+     * How a dimension's value is made real. Public because a test that repeats the list drifts from the
+     * parser that enforces it, and then agrees with itself while both are wrong.
+     *
+     * <p>{@code fixture} writes bytes, {@code resolver} changes how those bytes are asked for,
+     * {@code directive} and {@code pragma} travel with the query, {@code backend} selects where the data
+     * lives, and {@code cluster} needs a differently-configured node.
+     */
+    public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster", "cluster_setting");
+
+    private static final class Holder {
+        private static final FixtureDimensions INSTANCE = load();
+    }
+
+    private final List<String> names;
+    private final Map<String, List<String>> valuesByName;
+    private final Map<String, String> defaultByName;
+    private final Map<String, Set<String>> appliesToByName;
+    private final Map<String, String> bindsByName;
+    private final Map<String, String> directiveKeyByName;
+    private final Map<String, Map<String, String>> settingValuesByName;
+    private final Map<String, String> derivedByName;
+    private final Map<String, Map<String, String>> derivedValuesByName;
+    private final Map<String, String> readKeyByName;
+    private final Map<String, String> pragmaKeyByName;
+    private final Map<String, String> clusterSettingKeyByName;
+    private final Map<String, Map<String, String>> formatDefaultsByName;
+    private final Map<String, Map<String, String>> backendByName;
+    private final Map<String, Map<String, String>> extensionByName;
+    private final Map<String, Map<String, String>> absenceByName;
+    private final Map<String, Set<String>> valueDisjointByPair;
+    private final Map<String, Verdict> verdicts;
+
+    private FixtureDimensions(
+        List<String> names,
+        Map<String, List<String>> valuesByName,
+        Map<String, String> defaultByName,
+        Map<String, Set<String>> appliesToByName,
+        Map<String, String> bindsByName,
+        Map<String, String> directiveKeyByName,
+        Map<String, Map<String, String>> settingValuesByName,
+        Map<String, String> derivedByName,
+        Map<String, Map<String, String>> derivedValuesByName,
+        Map<String, String> readKeyByName,
+        Map<String, String> pragmaKeyByName,
+        Map<String, String> clusterSettingKeyByName,
+        Map<String, Map<String, String>> formatDefaultsByName,
+        Map<String, Map<String, String>> backendByName,
+        Map<String, Map<String, String>> extensionByName,
+        Map<String, Map<String, String>> absenceByName,
+        Map<String, Set<String>> valueDisjointByPair,
+        Map<String, Verdict> verdicts
+    ) {
+        this.names = List.copyOf(names);
+        this.valuesByName = Map.copyOf(valuesByName);
+        this.defaultByName = Map.copyOf(defaultByName);
+        this.appliesToByName = Map.copyOf(appliesToByName);
+        this.bindsByName = Map.copyOf(bindsByName);
+        this.directiveKeyByName = Map.copyOf(directiveKeyByName);
+        this.settingValuesByName = Map.copyOf(settingValuesByName);
+        this.derivedByName = Map.copyOf(derivedByName);
+        this.derivedValuesByName = Map.copyOf(derivedValuesByName);
+        this.readKeyByName = Map.copyOf(readKeyByName);
+        this.pragmaKeyByName = Map.copyOf(pragmaKeyByName);
+        this.clusterSettingKeyByName = Map.copyOf(clusterSettingKeyByName);
+        this.formatDefaultsByName = Map.copyOf(formatDefaultsByName);
+        this.backendByName = Map.copyOf(backendByName);
+        this.extensionByName = Map.copyOf(extensionByName);
+        this.absenceByName = Map.copyOf(absenceByName);
+        this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
+        this.verdicts = Map.copyOf(verdicts);
+    }
+
+    /** The {@code WITH} key a directive-bound dimension travels under, or null when its value is derived. */
+    public String directiveKey(String dimension) {
+        return directiveKeyByName.get(dimension);
+    }
+
+    /**
+     * What a dimension's value becomes in a SETTING -- the value itself unless the declaration maps it
+     * to a different spelling.
+     *
+     * <p>Named for the setting rather than the directive because every path needs it: a directive-bound
+     * dimension spells its value into the {@code WITH} clause, and a fixture-bound one with a
+     * {@code read_key} spells it into the setting that tells the reader how the bytes were written.
+     * {@code delimiter} is the first of the latter -- its slot is named {@code semicolon} while the
+     * reader wants {@code ;} -- and while this was called directiveValue the reader and pragma paths
+     * skipped the mapping silently and would have announced the slot name instead of the spelling.
+     */
+    public String settingValue(String dimension, String value) {
+        return settingValuesByName.getOrDefault(dimension, Map.of()).getOrDefault(value, value);
+    }
+
+    /**
+     * The single character a {@code delimiter} slot renders and reads with.
+     *
+     * <p>Derived from the contract's own {@code value.<v>} mapping rather than re-switched in each
+     * generator: the writer chooses the byte and the reader is told which byte to expect, and if those
+     * two ever disagree the fixture is unreadable in a way that looks like a reader bug. One mapping,
+     * consulted by both, cannot disagree with itself.
+     */
+    public char delimiterChar(String value) {
+        return charValue("delimiter", value);
+    }
+
+    /** The single character a char-valued dimension's slot renders and reads with. */
+    public char charValue(String dimension, String value) {
+        String spelling = settingValue(dimension, value);
+        // A tab cannot be written literally: Properties would decode it and the parser trims every value,
+        // so it is carried as the two-character escape and decoded here.
+        if (spelling.equals("\\t")) {
+            return '\t';
+        }
+        if (spelling.length() != 1) {
+            throw new IllegalStateException(
+                "delimiter ["
+                    + value
+                    + "] spells ["
+                    + spelling
+                    + "], which is not one character; "
+                    + "dimension.delimiter.value."
+                    + value
+                    + " must map to a single char"
+            );
+        }
+        return spelling.charAt(0);
+    }
+
+    /** The reader setting a fixture-bound value announces itself under, or null when it needs none. */
+    public String readKey(String dimension) {
+        return readKeyByName.get(dimension);
+    }
+
+    /**
+     * The query pragma a pragma-bound dimension travels under, or null.
+     *
+     * <p>Deliberately NOT the same map as {@link #directiveKey}: a pragma is not a dataset setting, and
+     * putting it in the directive map would make the dimension look directive-expressible, change the
+     * generated vector counts, and inject an unknown key into every dataset's WITH clause.
+     */
+    public String pragmaKey(String dimension) {
+        return pragmaKeyByName.get(dimension);
+    }
+
+    /**
+     * The dynamic cluster setting a value is applied through, or null when the dimension is not one.
+     *
+     * <p>Separate from pragmaKey because the mechanism differs: a pragma rides the query, while this is a
+     * cluster-wide update that must be applied before the query and put back after. Only settings marked
+     * {@code Property.Dynamic} can be carried this way -- of the fourteen esql.external.* settings, three
+     * are: cache.enabled, max_glob_expansion and max_discovered_files. The rest are NodeScope and would
+     * need a cluster per value, which is the `cluster` seam's problem, not this one.
+     */
+    public String clusterSettingKey(String dimension) {
+        return clusterSettingKeyByName.get(dimension);
+    }
+
+    /**
+     * The value a dimension falls back to for one format.
+     *
+     * <p>Per-format because a reader default can be per-extension: the text mode a {@code .tsv} file is
+     * read with is plain, while {@code .csv} is quoted. One global default would make every tsv vector
+     * claim to vary a slot that was already at its baseline.
+     */
+    public String defaultValue(String dimension, String format) {
+        return formatDefaultsByName.getOrDefault(dimension, Map.of()).getOrDefault(format, defaultValue(dimension));
+    }
+
+    /**
+     * Whether a vector carries a value combination no configuration can express.
+     *
+     * <p>Distinct from a per-cell absence: neither value is missing on its own, only their pairing is
+     * unconstructible, so there is no cell to license. Left unexpressed the derivation emits vectors that
+     * look expressible and can never run.
+     */
+    public boolean carriesDisjointValues(Map<String, String> vector) {
+        for (Map.Entry<String, Set<String>> declared : valueDisjointByPair.entrySet()) {
+            int dot = declared.getKey().indexOf('.');
+            String left = vector.get(declared.getKey().substring(0, dot));
+            String right = vector.get(declared.getKey().substring(dot + 1));
+            if (left != null && right != null && declared.getValue().contains(left + ":" + right)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The file extension a value appends to the format token, or null when it appends none.
+     *
+     * <p>The reader dispatches on the suffix, so this is how a codec becomes real without any new
+     * resolution path: the suite's format token becomes {@code csv.gz} exactly as the compressed suites
+     * already spell it.
+     */
+    public String extensionFor(String dimension, String value) {
+        return extensionByName.getOrDefault(dimension, Map.of()).get(value);
+    }
+
+    /** The storage backend a value corresponds to, or null when the dimension names none. */
+    public String backendFor(String dimension, String value) {
+        return backendByName.getOrDefault(dimension, Map.of()).get(value);
+    }
+
+    /**
+     * The declared reason a value is not exercised, or null when nothing licenses its absence.
+     *
+     * <p>A per-format reason wins over a bare one, so a value can be a rule on one format and a gap on
+     * another without either shadowing the other silently.
+     */
+    public String absenceReason(String dimension, String value, String format) {
+        Map<String, String> declared = absenceByName.getOrDefault(dimension, Map.of());
+        String perFormat = declared.get(value + "." + format);
+        return perFormat != null ? perFormat : declared.get(value);
+    }
+
+    /** What a dimension's value is derived from when no constant can express it, or null when one can. */
+    public String derivedFrom(String dimension) {
+        return derivedByName.get(dimension);
+    }
+
+    /**
+     * What one VALUE of a dimension needs beyond itself, or null when it stands alone.
+     *
+     * <p>Separate from {@link #derivedFrom} because the two are different claims. A dimension is derived
+     * when none of its values is a constant; a VALUE is derived when the rest of the dimension is fine and
+     * that one option needs a companion. {@code partition_detection} is the second kind -- auto, hive and
+     * none are constants, and template alone is rejected because it needs the path template with it.
+     */
+    public String derivedFromForValue(String dimension, String value) {
+        return derivedValuesByName.getOrDefault(dimension, Map.of()).get(value);
+    }
+
+    /**
+     * The query pragmas a vector pins: pragma-bound slots sitting off their declared default.
+     *
+     * <p>Separate from {@link #directiveSettings} because a pragma is not a dataset setting -- it travels
+     * with the query, not the registration, and putting it in the WITH clause would make the reader
+     * reject an unknown key.
+     */
+    public Map<String, String> pragmaSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = pragmaKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
+        }
+        return out;
+    }
+
+    /**
+     * The reader settings a vector's fixture-bound slots must announce.
+     *
+     * <p>Bytes alone are not enough: a file written in a dialect the reader is not told about is parsed
+     * under the default and read wrong. The bytes and the announcement are one change, which is why a
+     * fixture-bound dimension carries a {@code read_key}.
+     */
+    public Map<String, String> readSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = readKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
+        }
+        return out;
+    }
+
+    /**
+     * The constant {@code WITH} settings a vector pins: every directive-bound slot sitting off its
+     * declared default and expressible as a constant.
+     *
+     * <p>Slots at their default are omitted -- omission IS the default, so an all-defaults vector
+     * produces no settings and reads byte-identically to a suite that never heard of vectors. Derived
+     * slots are absent too; a caller that wants those has to supply them from the dataset, and
+     * {@link #derivedFrom} names what it needs.
+     */
+    /**
+     * The cluster settings the running vector pins, keyed by their settings-API key.
+     *
+     * <p>Only slots off their format's default appear. The cluster already sits at the default, so an
+     * unvaried case issues no settings update at all -- and that is what lets the restore be a plain
+     * removal rather than a saved-and-replayed copy of whatever was there before.
+     *
+     * <p>Only DYNAMIC settings can be carried this way; a NodeScope-only setting needs a cluster per
+     * value, which is the {@code cluster} seam's problem, not this one's.
+     */
+    public Map<String, String> clusterSettings(Map<String, String> vector, String format) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String key = clusterSettingKey(slot.getKey());
+            if (key == null || slot.getValue().equals(defaultValue(slot.getKey(), format))) {
+                continue;
+            }
+            out.put(key, settingValue(slot.getKey(), slot.getValue()));
+        }
+        return out;
+    }
+
+    public Map<String, String> directiveSettings(Map<String, String> vector) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            String dimension = slot.getKey();
+            String key = directiveKeyByName.get(dimension);
+            if (key == null || slot.getValue().equals(defaultValue(dimension))) {
+                continue;
+            }
+            // A derived dimension has a key but no constant VALUE: schema_mode rides `mappings`, and its
+            // content is the dataset's schema. Emitting the slot value here put the literal string
+            // "declared_open" under mappings, which the reader rejects -- and because the key was then
+            // present, the code that builds the real schema skipped it as already declared.
+            if (derivedByName.containsKey(dimension)) {
+                continue;
+            }
+            out.put(key, settingValue(dimension, slot.getValue()));
+        }
+        return out;
+    }
+
+    public static FixtureDimensions get() {
+        return Holder.INSTANCE;
+    }
+
+    private static FixtureDimensions load() {
+        Properties props = new Properties();
+        try (InputStream in = FixtureDimensions.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("[" + RESOURCE + "] is not on the classpath");
+            }
+            props.load(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not read [" + RESOURCE + "]", e);
+        }
+        return parse(props);
+    }
+
+    /**
+     * Parses a declaration. Separate from {@link #load()} so the validation below -- unknown keys, a
+     * default outside its own values, a missing binds, an incomplete pair table -- can be tested against
+     * a constructed Properties rather than only against the real resource, which no test can make wrong.
+     */
+    static FixtureDimensions parse(Properties props) {
+
+        Map<String, List<String>> values = new LinkedHashMap<>();
+        Map<String, String> defaults = new LinkedHashMap<>();
+        Map<String, Set<String>> appliesTo = new LinkedHashMap<>();
+        Map<String, String> binds = new LinkedHashMap<>();
+        Map<String, String> directiveKeys = new LinkedHashMap<>();
+        Map<String, Map<String, String>> directiveValues = new LinkedHashMap<>();
+        Map<String, String> derived = new LinkedHashMap<>();
+        Map<String, Map<String, String>> derivedValues = new LinkedHashMap<>();
+        Map<String, String> readKeys = new LinkedHashMap<>();
+        Map<String, String> declaredKeys = new LinkedHashMap<>();
+        Map<String, String> pragmaKeys = new LinkedHashMap<>();
+        Map<String, String> clusterSettingKeys = new LinkedHashMap<>();
+        Map<String, Map<String, String>> formatDefaults = new LinkedHashMap<>();
+        Map<String, Map<String, String>> backends = new LinkedHashMap<>();
+        Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
+        Map<String, Map<String, String>> absences = new LinkedHashMap<>();
+        Map<String, Verdict> verdicts = new LinkedHashMap<>();
+        Map<String, Set<String>> valueDisjoint = new LinkedHashMap<>();
+        Set<String> disjointWhys = new LinkedHashSet<>();
+
+        for (String key : new TreeSet<>(props.stringPropertyNames())) {
+            String raw = props.getProperty(key);
+            String value = raw.trim();
+            // A value that is ALL whitespace was something before the trim ran. Properties decodes \t and
+            // \u0020 escapes before we ever see them, so a deliberate tab or space arrives here as a real
+            // character and the trim silently deletes it, handing the caller a well-formed empty string.
+            // That is how the delimiter dimension came to ask the renderer for an empty field separator.
+            // Refuse it at the source: a whitespace value is either a typo or a character that must be
+            // carried as an escape, and both deserve to be named rather than guessed at downstream.
+            if (value.isEmpty() && raw.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "value for ["
+                        + key
+                        + "] is entirely whitespace, so trimming leaves nothing; a whitespace character must be "
+                        + "written as an escape that survives the trim (see dimension.delimiter.value.tab)"
+                );
+            }
+            if (key.startsWith("dimension.")) {
+                // Split on the FIRST dot: a dimension name never contains one, and half the attributes
+                // are two-part (`gap.<v>.<format>` is three). Splitting on the last dot instead reads a
+                // value name as the attribute, which is why this used to need a special case per
+                // two-part attribute -- one per attribute, each easy to forget when adding the next.
+                String rest = key.substring("dimension.".length());
+                int dot = rest.indexOf('.');
+                if (dot < 0) {
+                    throw new IllegalStateException("malformed dimension key [" + key + "]");
+                }
+                String name = rest.substring(0, dot);
+                String attribute = rest.substring(dot + 1);
+                int sub = attribute.indexOf('.');
+                String head = sub < 0 ? attribute : attribute.substring(0, sub);
+                String tail = sub < 0 ? null : attribute.substring(sub + 1);
+                switch (head) {
+                    case "values" -> values.put(name, splitList(requireBare(key, tail, value)));
+                    case "applies_to" -> appliesTo.put(name, new LinkedHashSet<>(splitList(requireBare(key, tail, value))));
+                    case "binds" -> binds.put(name, requireBare(key, tail, value));
+                    case "read_key" -> readKeys.put(name, requireBare(key, tail, value));
+                    // Routed to the directive or pragma map after the loop, from `binds` -- doing it here
+                    // would depend on `binds` having been seen first, which is alphabetical luck.
+                    case "key" -> declaredKeys.put(name, requireBare(key, tail, value));
+                    case "default" -> {
+                        if (tail == null) {
+                            defaults.put(name, value);
+                        } else {
+                            formatDefaults.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(tail, value);
+                        }
+                    }
+                    case "derived" -> {
+                        if (tail == null) {
+                            derived.put(name, value);
+                        } else {
+                            derivedValues.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(tail, value);
+                        }
+                    }
+                    case "value" -> directiveValues.computeIfAbsent(name, k -> new LinkedHashMap<>())
+                        .put(requireQualified(key, tail), value);
+                    case "backend" -> backends.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(requireQualified(key, tail), value);
+                    case "ext" -> extensions.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(requireQualified(key, tail), value);
+                    // `gap.<v>`, `gap.<v>.<format>`, and the `rule.` pair. The kind comes from the key and
+                    // the reason text must repeat it, so a copied line whose text says the other kind is a
+                    // build failure rather than a report that quietly contradicts itself.
+                    case "gap", "rule", "bug" -> {
+                        String slot = requireQualified(key, tail);
+                        if (value.startsWith(head + ":") == false) {
+                            throw new IllegalStateException(
+                                "absence [" + key + "] is declared as [" + head + "] but its reason does not start with [" + head + ":]"
+                            );
+                        }
+                        absences.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
+                    }
+                    default -> throw new IllegalStateException("unknown dimension attribute in [" + key + "]");
+                }
+            } else if (key.startsWith("pair.")) {
+                String rest = key.substring("pair.".length());
+                // pair.<a>.<b> is the verdict; pair.<a>.<b>.why carries the mechanism for a reader.
+                if (rest.endsWith(".value_disjoint.why")) {
+                    disjointWhys.add(rest.substring(0, rest.length() - ".value_disjoint.why".length()));
+                    continue;
+                }
+                if (rest.endsWith(".why") || rest.endsWith(".needs")) {
+                    continue;
+                }
+                // A value-PAIR hole, which the per-cell absence grammar cannot express: neither value is
+                // absent on its own, only their combination is unconstructible. Intercepted before the
+                // verdict parse, which would read `value_disjoint` as a malformed verdict.
+                if (rest.endsWith(".value_disjoint")) {
+                    valueDisjoint.put(rest.substring(0, rest.length() - ".value_disjoint".length()), new LinkedHashSet<>(splitList(value)));
+                    continue;
+                }
+                verdicts.put(rest, parseVerdict(key, value));
+            } else if (key.endsWith(".why") || key.endsWith(".needs")) {
+                // prose attached to a verdict; carried for the reader, not consumed here
+            } else {
+                throw new IllegalStateException(
+                    "unknown key [" + key + "] in [" + RESOURCE + "]; expected 'dimension.<n>.*' or 'pair.<a>.<b>'"
+                );
+            }
+        }
+
+        // A declared `key` means different things depending on how the dimension binds, and the
+        // difference is load-bearing: a pragma key reaching directiveKeyByName would make distribution
+        // look directive-expressible, change the per-format vector counts, and inject an unknown
+        // setting into every dataset WITH clause.
+        for (Map.Entry<String, String> declared : declaredKeys.entrySet()) {
+            String owner = declared.getKey();
+            if ("pragma".equals(binds.get(owner))) {
+                pragmaKeys.put(owner, declared.getValue());
+            } else if ("cluster_setting".equals(binds.get(owner))) {
+                // Same reason the pragma key is kept apart: routed into directiveKeyByName it would make a
+                // cluster setting look directive-expressible and inject an unknown key into every WITH clause.
+                clusterSettingKeys.put(owner, declared.getValue());
+            } else {
+                directiveKeys.put(owner, declared.getValue());
+            }
+        }
+
+        List<String> names = new ArrayList<>(values.keySet());
+        Collections.sort(names);
+        for (String name : names) {
+            if (defaults.containsKey(name) == false) {
+                throw new IllegalStateException("dimension [" + name + "] declares no default");
+            }
+            if (values.get(name).contains(defaults.get(name)) == false) {
+                throw new IllegalStateException(
+                    "dimension [" + name + "] defaults to [" + defaults.get(name) + "], which is not one of its values"
+                );
+            }
+        }
+        // The pair table must be TOTAL: adding a dimension without saying how it relates to the
+        // existing ones is exactly the unexamined combination this declaration exists to prevent.
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                String pair = names.get(i) + "." + names.get(j);
+                if (verdicts.containsKey(pair) == false) {
+                    throw new IllegalStateException("no verdict declared for pair [" + pair + "]");
+                }
+            }
+        }
+        for (String name : names) {
+            if (binds.containsKey(name) == false) {
+                throw new IllegalStateException("dimension [" + name + "] declares no binds -- nothing knows how to make its value real");
+            }
+            // `binds = directive` says the value travels in the WITH clause; it does not say what it
+            // becomes there. Without one of these a vector cannot be turned into a query, and the
+            // omission would show up as a suite that silently runs its default everywhere.
+            boolean isDirective = "directive".equals(binds.get(name));
+            boolean hasKey = directiveKeys.containsKey(name);
+            boolean isDerived = derived.containsKey(name);
+            if (isDirective && hasKey == false && isDerived == false) {
+                throw new IllegalStateException(
+                    "directive-bound dimension [" + name + "] declares neither a key nor derived -- nothing can express its value"
+                );
+            }
+            // NOT alternatives, which is what this rule used to say. `key` names WHERE the value travels;
+            // `derived` names WHERE THE VALUE COMES FROM. schema_mode needs both: it rides the mappings
+            // key, and its content is the dataset's own schema, which no constant in this file can hold.
+            // Treating them as exclusive made the most brittle dimension in the contract inexpressible.
+            if (isDirective == false && (hasKey || isDerived)) {
+                throw new IllegalStateException(
+                    "dimension [" + name + "] binds as [" + binds.get(name) + "] but declares a directive key or derived"
+                );
+            }
+        }
+        for (Map.Entry<String, Map<String, String>> e : derivedValues.entrySet()) {
+            if (values.containsKey(e.getKey()) == false) {
+                throw new IllegalStateException("derived value declared for unknown dimension [" + e.getKey() + "]");
+            }
+            for (String v : e.getValue().keySet()) {
+                if (values.get(e.getKey()).contains(v) == false) {
+                    throw new IllegalStateException(
+                        "derived value [" + e.getKey() + ".derived." + v + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+        }
+        for (Map.Entry<String, Map<String, String>> e : directiveValues.entrySet()) {
+            if (values.containsKey(e.getKey()) == false) {
+                throw new IllegalStateException("value mapping declared for unknown dimension [" + e.getKey() + "]");
+            }
+            for (String v : e.getValue().keySet()) {
+                if (values.get(e.getKey()).contains(v) == false) {
+                    throw new IllegalStateException(
+                        "value mapping [" + e.getKey() + ".value." + v + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+        }
+        // Normalised to the dimension order the pair key already uses, so a declaration written the other
+        // way round cannot silently fail to match the vectors it is meant to exclude.
+        Map<String, Set<String>> normalisedDisjoint = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : valueDisjoint.entrySet()) {
+            String pair = entry.getKey();
+            int dot = pair.indexOf('.');
+            if (dot < 0) {
+                throw new IllegalStateException("malformed value_disjoint pair [" + pair + "]");
+            }
+            String left = pair.substring(0, dot);
+            String right = pair.substring(dot + 1);
+            requireDeclaredDimension(values, left, "value_disjoint");
+            requireDeclaredDimension(values, right, "value_disjoint");
+            if (disjointWhys.contains(pair) == false) {
+                throw new IllegalStateException(
+                    "value_disjoint [" + pair + "] declares no why; an unexplained hole is indistinguishable from an oversight"
+                );
+            }
+            Set<String> combinations = new LinkedHashSet<>();
+            for (String combination : entry.getValue()) {
+                int colon = combination.indexOf(':');
+                if (colon < 0) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] entry [" + combination + "] is not <value>:<value>");
+                }
+                String leftValue = combination.substring(0, colon).trim();
+                String rightValue = combination.substring(colon + 1).trim();
+                if (values.get(left).contains(leftValue) == false) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] names undeclared value [" + leftValue + "]");
+                }
+                if (values.get(right).contains(rightValue) == false) {
+                    throw new IllegalStateException("value_disjoint [" + pair + "] names undeclared value [" + rightValue + "]");
+                }
+                combinations.add(leftValue + ":" + rightValue);
+            }
+            normalisedDisjoint.put(left + "." + right, combinations);
+        }
+
+        for (String name : names) {
+            if (BINDS.contains(binds.get(name)) == false) {
+                throw new IllegalStateException(
+                    "dimension [" + name + "] binds as [" + binds.get(name) + "], which is not one of " + BINDS
+                );
+            }
+        }
+        // A read key announces a fixture-bound value to the reader. On any other binding nothing would
+        // consume it, so it would sit in the file looking like wiring that exists.
+        for (String name : readKeys.keySet()) {
+            requireDeclaredDimension(values, name, "read_key");
+            if ("fixture".equals(binds.get(name)) == false) {
+                throw new IllegalStateException(
+                    "dimension ["
+                        + name
+                        + "] declares a read_key but binds as ["
+                        + binds.get(name)
+                        + "]; only fixture-bound values are announced"
+                );
+            }
+        }
+        List<String> declaredFormats = values.get("format");
+        for (Map.Entry<String, Map<String, String>> entry : formatDefaults.entrySet()) {
+            requireDeclaredDimension(values, entry.getKey(), "per-format default");
+            for (Map.Entry<String, String> perFormat : entry.getValue().entrySet()) {
+                if (declaredFormats.contains(perFormat.getKey()) == false) {
+                    throw new IllegalStateException(
+                        "per-format default [" + entry.getKey() + ".default." + perFormat.getKey() + "] names an undeclared format"
+                    );
+                }
+                if (values.get(entry.getKey()).contains(perFormat.getValue()) == false) {
+                    throw new IllegalStateException(
+                        "per-format default ["
+                            + entry.getKey()
+                            + ".default."
+                            + perFormat.getKey()
+                            + "] is not one of the dimension's values"
+                    );
+                }
+            }
+        }
+        // A backend correspondence is all-or-nothing: a partial map reads as "these values have a
+        // backend and the rest do not", which is indistinguishable from a forgotten line.
+        for (Map.Entry<String, Map<String, String>> entry : backends.entrySet()) {
+            requireDeclaredDimension(values, entry.getKey(), "backend mapping");
+            for (String mapped : entry.getValue().keySet()) {
+                if (values.get(entry.getKey()).contains(mapped) == false) {
+                    throw new IllegalStateException(
+                        "backend mapping [" + entry.getKey() + ".backend." + mapped + "] names a value the dimension does not declare"
+                    );
+                }
+            }
+            for (String declared : values.get(entry.getKey())) {
+                if (entry.getValue().containsKey(declared) == false) {
+                    throw new IllegalStateException(
+                        "dimension [" + entry.getKey() + "] declares backend mappings but none for value [" + declared + "]"
+                    );
+                }
+            }
+        }
+        for (Map.Entry<String, Map<String, String>> entry : absences.entrySet()) {
+            String owner = entry.getKey();
+            requireDeclaredDimension(values, owner, "absence");
+            for (String slot : entry.getValue().keySet()) {
+                int at = slot.indexOf('.');
+                String absent = at < 0 ? slot : slot.substring(0, at);
+                String format = at < 0 ? null : slot.substring(at + 1);
+                if (values.get(owner).contains(absent) == false) {
+                    throw new IllegalStateException("absence [" + owner + "." + slot + "] names a value the dimension does not declare");
+                }
+                if (format != null && declaredFormats.contains(format) == false) {
+                    throw new IllegalStateException("absence [" + owner + "." + slot + "] names an undeclared format");
+                }
+                // An absence on the value a vector falls back to would declare the BASELINE missing,
+                // which cannot be true -- every vector carries it.
+                // Not getOrDefault with a null key: Map.of() rejects one outright, and a bare absence
+                // (no format segment) is exactly the case that supplies null here.
+                String effectiveDefault = defaults.get(owner);
+                if (format != null) {
+                    effectiveDefault = formatDefaults.getOrDefault(owner, Map.of()).getOrDefault(format, effectiveDefault);
+                }
+                if (absent.equals(effectiveDefault)) {
+                    throw new IllegalStateException(
+                        "absence [" + owner + "." + slot + "] is declared on the effective default value, which every vector carries"
+                    );
+                }
+            }
+        }
+        return new FixtureDimensions(
+            names,
+            values,
+            defaults,
+            appliesTo,
+            binds,
+            directiveKeys,
+            directiveValues,
+            derived,
+            derivedValues,
+            readKeys,
+            pragmaKeys,
+            clusterSettingKeys,
+            formatDefaults,
+            backends,
+            extensions,
+            absences,
+            normalisedDisjoint,
+            verdicts
+        );
+    }
+
+    private static void requireDeclaredDimension(Map<String, List<String>> values, String name, String what) {
+        if (values.containsKey(name) == false) {
+            throw new IllegalStateException(what + " declared for unknown dimension [" + name + "]");
+        }
+    }
+
+    /** An attribute that takes no value name; a trailing segment means the declaration is malformed. */
+    private static String requireBare(String key, String tail, String value) {
+        if (tail != null) {
+            throw new IllegalStateException("dimension attribute in [" + key + "] takes no qualifier");
+        }
+        return value;
+    }
+
+    /** An attribute that requires a value name, so a bare form cannot silently mean "all values". */
+    private static String requireQualified(String key, String tail) {
+        if (tail == null) {
+            throw new IllegalStateException("dimension attribute in [" + key + "] requires a value name");
+        }
+        return tail;
+    }
+
+    private static Verdict parseVerdict(String key, String value) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
+            case "interacting" -> Verdict.INTERACTING;
+            case "independent" -> Verdict.INDEPENDENT;
+            case "disjoint" -> Verdict.DISJOINT;
+            case "unverified" -> Verdict.UNVERIFIED;
+            default -> throw new IllegalStateException("pair [" + key + "] has unknown verdict [" + value + "]");
+        };
+    }
+
+    private static List<String> splitList(String value) {
+        List<String> out = new ArrayList<>();
+        for (String part : value.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty() == false) {
+                out.add(trimmed);
+            }
+        }
+        return out;
+    }
+
+    /** Every declared dimension, sorted, so derived output is stable across runs. */
+    public List<String> names() {
+        return names;
+    }
+
+    public List<String> values(String dimension) {
+        List<String> v = valuesByName.get(dimension);
+        if (v == null) {
+            throw new IllegalArgumentException("unknown dimension [" + dimension + "]; declared are " + names);
+        }
+        return v;
+    }
+
+    public String defaultValue(String dimension) {
+        values(dimension);
+        return defaultByName.get(dimension);
+    }
+
+    /** The formats this dimension exists for, or empty if it applies to all of them. */
+    public Set<String> appliesTo(String dimension) {
+        values(dimension);
+        return appliesToByName.getOrDefault(dimension, Set.of());
+    }
+
+    /**
+     * How a value of this dimension becomes real. {@code fixture} changes the bytes on disk, so a
+     * vector naming it requires a generated fixture; {@code directive} is a key in the dataset WITH
+     * clause and costs nothing; {@code backend} rides the cross product the suites already do;
+     * {@code pragma} is a query pragma; {@code cluster} is a node setting and needs its own cluster.
+     */
+    public String binds(String dimension) {
+        values(dimension);
+        return bindsByName.get(dimension);
+    }
+
+    /** The dimensions in this group whose values require a fixture to exist. */
+    public Set<String> fixtureBound(Set<String> group) {
+        Set<String> out = new TreeSet<>();
+        for (String d : group) {
+            if ("fixture".equals(binds(d))) {
+                out.add(d);
+            }
+        }
+        return out;
+    }
+
+    public Verdict verdict(String a, String b) {
+        String pair = a.compareTo(b) < 0 ? a + "." + b : b + "." + a;
+        Verdict v = verdicts.get(pair);
+        if (v == null) {
+            throw new IllegalArgumentException("no verdict for pair [" + pair + "]");
+        }
+        return v;
+    }
+
+    /** Whether the two must be crossed. UNVERIFIED counts as interacting: uncertainty costs tests. */
+    public boolean crosses(String a, String b) {
+        Verdict v = verdict(a, b);
+        return v == Verdict.INTERACTING || v == Verdict.UNVERIFIED;
+    }
+
+    /**
+     * The groups to cross, as maximal cliques of the interaction graph -- derived, never declared.
+     * Flipping one verdict recomputes them, which is what keeps this a mechanism rather than a list.
+     */
+    public List<Set<String>> groups() {
+        List<Set<String>> out = new ArrayList<>();
+        bronKerbosch(new LinkedHashSet<>(), new LinkedHashSet<>(names), new LinkedHashSet<>(), out);
+        out.removeIf(clique -> clique.size() < 2);
+        out.sort((x, y) -> y.size() != x.size() ? y.size() - x.size() : x.toString().compareTo(y.toString()));
+        return out;
+    }
+
+    private void bronKerbosch(Set<String> r, Set<String> p, Set<String> x, List<Set<String>> out) {
+        if (p.isEmpty() && x.isEmpty()) {
+            out.add(new TreeSet<>(r));
+            return;
+        }
+        for (String v : new ArrayList<>(p)) {
+            Set<String> nv = neighbours(v);
+            Set<String> rr = new LinkedHashSet<>(r);
+            rr.add(v);
+            Set<String> pp = new LinkedHashSet<>(p);
+            pp.retainAll(nv);
+            Set<String> xx = new LinkedHashSet<>(x);
+            xx.retainAll(nv);
+            bronKerbosch(rr, pp, xx, out);
+            p.remove(v);
+            x.add(v);
+        }
+    }
+
+    private Set<String> neighbours(String dimension) {
+        Set<String> out = new LinkedHashSet<>();
+        for (String other : names) {
+            if (other.equals(dimension) == false && crosses(dimension, other)) {
+                out.add(other);
+            }
+        }
+        return out;
+    }
+
+    /** The formats a group can be exercised on: the intersection of its members' applicability. */
+    /**
+     * Emits whatever the clique crossing left uncovered, so every legal t-way COMBINATION is exercised.
+     *
+     * <p>The cliques cross fully INSIDE a group and not at all ACROSS groups -- redundant and incomplete
+     * at once. Measured: 3,265 vectors covering 88.3% of legal pairs and 87.4% of legal triples, with 256
+     * pairs and 2,868 triples never exercised. Two dimensions in different cliques never met, however much
+     * each was crossed at home.
+     *
+     * <p>The alternative is not the full cross: 20 dimensions is 1.05e10 vectors, which exhausts the heap
+     * rather than running. t-way coverage is the useful middle -- every combination of t values appears at
+     * least once, for a cost bounded by the number of uncombined t-tuples rather than by a product. t=2
+     * first because every finding so far came from a pair; t=3 after, because it is affordable here and
+     * catches the defects that need a third value present to appear.
+     *
+     * <p>Additive by construction: nothing the cliques produced is lost, each added vector sits at its
+     * format's baseline with exactly t slots pinned, and running t=2 before t=3 means the cheap
+     * combinations are covered by cheap vectors first.
+     */
+    private void completeTuples(int t, Set<Map<String, String>> seen, Consumer<Map<String, String>> consumer) {
+        Set<String> covered = new LinkedHashSet<>();
+        for (Map<String, String> vector : seen) {
+            recordTuples(t, vector, covered);
+        }
+        List<String> axes = new ArrayList<>(names);
+        axes.remove("format");
+        for (String format : values("format")) {
+            List<String> applicable = new ArrayList<>();
+            for (String axis : axes) {
+                if (appliesHere(axis, format)) {
+                    applicable.add(axis);
+                }
+            }
+            combine(applicable, t, 0, new ArrayList<>(), chosen -> emitForCombination(format, chosen, seen, covered, consumer, t));
+        }
+    }
+
+    /** Walks the value cross of one dimension combination, emitting a vector for each uncovered tuple. */
+    private void emitForCombination(
+        String format,
+        List<String> chosen,
+        Set<Map<String, String>> seen,
+        Set<String> covered,
+        Consumer<Map<String, String>> consumer,
+        int t
+    ) {
+        List<List<String>> choices = new ArrayList<>();
+        for (String axis : chosen) {
+            List<String> legal = new ArrayList<>();
+            for (String value : values(axis)) {
+                if (value.equals(defaultValue(axis, format)) || seamServesAnySeam(axis, value, format)) {
+                    legal.add(value);
+                }
+            }
+            choices.add(legal);
+        }
+        int[] index = new int[chosen.size()];
+        while (true) {
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (int i = 0; i < chosen.size(); i++) {
+                pinned.put(chosen.get(i), choices.get(i).get(index[i]));
+            }
+            String key = tupleKey(format, pinned);
+            if (covered.contains(key) == false) {
+                Map<String, String> vector = new LinkedHashMap<>();
+                for (String d : names) {
+                    vector.put(d, defaultValue(d, format));
+                }
+                vector.put("format", format);
+                vector.putAll(pinned);
+                if (carriesDisjointValues(vector) == false && seen.add(Map.copyOf(vector))) {
+                    recordTuples(t, vector, covered);
+                    consumer.accept(vector);
+                }
+            }
+            int at = chosen.size() - 1;
+            while (at >= 0 && ++index[at] >= choices.get(at).size()) {
+                index[at] = 0;
+                at--;
+            }
+            if (at < 0) {
+                return;
+            }
+        }
+    }
+
+    private boolean seamServesAnySeam(String dimension, String value, String format) {
+        return seamServes(dimension, value, format, EnumSet.allOf(Seam.class));
+    }
+
+    private static void combine(List<String> from, int t, int start, List<String> acc, Consumer<List<String>> sink) {
+        if (acc.size() == t) {
+            sink.accept(new ArrayList<>(acc));
+            return;
+        }
+        for (int i = start; i < from.size(); i++) {
+            acc.add(from.get(i));
+            combine(from, t, i + 1, acc, sink);
+            acc.remove(acc.size() - 1);
+        }
+    }
+
+    private boolean appliesHere(String dimension, String format) {
+        Set<String> scope = appliesTo(dimension);
+        return scope.isEmpty() || scope.contains(format);
+    }
+
+    private void recordTuples(int t, Map<String, String> vector, Set<String> into) {
+        String format = vector.get("format");
+        List<String> axes = new ArrayList<>(names);
+        axes.remove("format");
+        combine(axes, t, 0, new ArrayList<>(), chosen -> {
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (String axis : chosen) {
+                String value = vector.get(axis);
+                if (value == null) {
+                    return;
+                }
+                pinned.put(axis, value);
+            }
+            into.add(tupleKey(format, pinned));
+        });
+    }
+
+    private static String tupleKey(String format, Map<String, String> pinned) {
+        StringBuilder out = new StringBuilder(format);
+        pinned.forEach((k, v) -> out.append('|').append(k).append('=').append(v));
+        return out.toString();
+    }
+
+    public Set<String> formatsFor(Set<String> group) {
+        Set<String> formats = new LinkedHashSet<>(values("format"));
+        for (String d : group) {
+            Set<String> scope = appliesTo(d);
+            if (scope.isEmpty() == false) {
+                formats.retainAll(scope);
+            }
+        }
+        return formats;
+    }
+
+    /**
+     * A vector's identity: its off-default slots, or {@code defaults} when it has none.
+     *
+     * <p>Stable and short, because it becomes part of a test's name -- a failure has to say which
+     * combination broke without the reader decoding eighteen slots, seventeen of which are the baseline.
+     */
+    public String render(Map<String, String> vector) {
+        StringBuilder out = new StringBuilder();
+        String format = vector.get("format");
+        for (String name : names) {
+            String value = vector.get(name);
+            // Against the vector's OWN format: quoted is the baseline on csv and a variation on tsv, so a
+            // global comparison names the wrong slots off-default and hides the ones that are.
+            if (value == null || value.equals(defaultValue(name, format))) {
+                continue;
+            }
+            out.append(out.isEmpty() ? "" : ",").append(name).append('=').append(value);
+        }
+        return out.isEmpty() ? "defaults" : out.toString();
+    }
+
+    /**
+     * The inverse of {@link #render}: the off-default slots a rendered name carries.
+     *
+     * <p>Validated rather than trusted. The name survives a round trip through a test parameter, and a
+     * dimension or value that no longer exists would otherwise inject a setting the reader rejects, or
+     * -- worse -- silently inject nothing and let the case pass as the baseline it is not.
+     */
+    public Map<String, String> parseRendered(String rendered) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (rendered.equals("defaults")) {
+            return out;
+        }
+        for (String slot : rendered.split(",")) {
+            int eq = slot.indexOf('=');
+            if (eq < 0) {
+                throw new IllegalArgumentException("malformed vector name [" + rendered + "]");
+            }
+            String dimension = slot.substring(0, eq);
+            String value = slot.substring(eq + 1);
+            if (valuesByName.containsKey(dimension) == false) {
+                throw new IllegalArgumentException("vector name [" + rendered + "] names unknown dimension [" + dimension + "]");
+            }
+            if (valuesByName.get(dimension).contains(value) == false) {
+                throw new IllegalArgumentException(
+                    "vector name [" + rendered + "] gives [" + dimension + "] a value it does not declare [" + value + "]"
+                );
+            }
+            out.put(dimension, value);
+        }
+        return out;
+    }
+
+    /**
+     * Dimensions whose value is written INTO the bytes, so a variant of them is a separate file tree.
+     *
+     * <p>{@code text_codec} is fixture-bound too but is not here: compressed variants are produced at
+     * fixture-load time from whatever tree already exists, so a codec needs no directory of its own.
+     */
+    /**
+     * The slots whose value changes the BYTES, so a vector pinning one reads a separately rendered tree.
+     *
+     * <p>Public because {@code AbstractExternalSourceSpecTestCase.vectorFixturesBase} needs exactly this
+     * list to build the path it reads from, and it previously kept its own copy. Two lists that must
+     * agree do not: add a slot here and the generator writes a tree the suite never looks in, which
+     * reads as "the dimension does nothing" rather than as a wiring bug.
+     */
+    public static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax", "delimiter", "quote", "escape");
+
+    /**
+     * The distinct dialect variants a format needs on disk, as slug to the slots it pins.
+     *
+     * <p>Derived from the CONTRACT ALONE, never from the capability table. A capability row lands only
+     * when a suite can select the cell, which is after the bytes exist -- so enumerating from rows would
+     * render an empty tree and then claim the tree was rendered.
+     *
+     * <p>Rule-typed cells are excluded: a value we have decided never to produce should not shape the
+     * directory layout.
+     */
+    public Map<String, Map<String, String>> dialectSlugs(String format) {
+        Map<String, Map<String, String>> slugs = new LinkedHashMap<>();
+        forEachVector(vector -> {
+            if (format.equals(vector.get("format")) == false) {
+                return;
+            }
+            Map<String, String> pinned = new LinkedHashMap<>();
+            for (String slot : DIALECT_SLOTS) {
+                String value = vector.get(slot);
+                if (value == null || value.equals(defaultValue(slot, format))) {
+                    continue;
+                }
+                String reason = absenceReason(slot, value, format);
+                if (reason != null && reason.startsWith("rule:")) {
+                    return;
+                }
+                pinned.put(slot, value);
+            }
+            if (pinned.isEmpty() == false) {
+                slugs.putIfAbsent(slugFor(pinned), pinned);
+            }
+        });
+        return slugs;
+    }
+
+    /** The directory name for a set of pinned dialect slots. Stable, and readable in a failure. */
+    public static String slugFor(Map<String, String> pinned) {
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> slot : pinned.entrySet()) {
+            out.append(out.isEmpty() ? "" : "_").append(slot.getKey()).append('-').append(slot.getValue());
+        }
+        return out.toString();
+    }
+
+    /**
+     * How a vector's off-default slots are allowed to become real.
+     *
+     * <p>A suite names the seams it can serve, so a vector needing something the suite cannot do is not
+     * selected rather than selected and quietly run at its default.
+     */
+    public enum Seam {
+        DIRECTIVE,
+        FIXTURE,
+        RESOLVER,
+        BACKEND,
+        PRAGMA,
+        /** Fixed at cluster construction -- a topology cannot change between cases. */
+        CLUSTER,
+        /** A DYNAMIC cluster setting: updatable around a single case, and put back after. */
+        CLUSTER_SETTING
+    }
+
+    /**
+     * The vectors for one format whose every off-default slot travels through one of the given seams.
+     *
+     * <p>The format slot is excluded from the per-slot check on purpose: it selects WHICH suite runs, it
+     * is not a setting varied within one. Whether a format is consumed at all is a separate question,
+     * answered once by {@link FixtureCapabilities#formatIsConsumed} -- which is how ORC yields nothing
+     * despite having a complete fixture tree.
+     */
+    public List<Map<String, String>> expressibleVectors(String format, Set<Seam> seams) {
+        List<Map<String, String>> out = new ArrayList<>();
+        if (FixtureCapabilities.formatIsConsumed(this, format) == false) {
+            return out;
+        }
+        Set<String> rendered = new LinkedHashSet<>();
+        forEachVector(vector -> {
+            if (format.equals(vector.get("format")) == false) {
+                return;
+            }
+            for (Map.Entry<String, String> slot : vector.entrySet()) {
+                String dimension = slot.getKey();
+                if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension, format))) {
+                    continue;
+                }
+                if (seamServes(dimension, slot.getValue(), format, seams) == false) {
+                    return;
+                }
+            }
+            if (rendered.add(render(vector))) {
+                out.add(Map.copyOf(vector));
+            }
+        });
+        return out;
+    }
+
+    /** Whether one off-default slot can be made real by any of the seams on offer. */
+    /**
+     * Whether a seam in {@code seams} can express this cell.
+     *
+     * <p>Public because the audit must ask the same question the crossing asks. It used to answer with its
+     * own copy of this switch, and the copy was looser -- its directive arm omitted the derived-value
+     * condition, so it reported partition_detection=template reachable while the crossing refused it. A
+     * gate that reimplements the rule it is gating will eventually disagree with it, and the disagreement
+     * is silent in the direction that matters: the cell looks covered.
+     */
+    public boolean seamServes(String dimension, String value, String format, Set<Seam> seams) {
+        return switch (binds(dimension)) {
+            case "directive" -> seams.contains(Seam.DIRECTIVE)
+                && directiveKeyByName.containsKey(dimension)
+                && derivedFromForValue(dimension, value) == null;
+            case "fixture" -> seams.contains(Seam.FIXTURE) && FixtureCapabilities.renders(dimension, value, format);
+            // A pragma needs no fixture and no cluster -- only a suite that carries it onto the query.
+            case "pragma" -> seams.contains(Seam.PRAGMA) && pragmaKeyByName.containsKey(dimension);
+            // The remaining seams reject until their own wiring lands; the contract already carries a
+            // typed reason for every cell they would otherwise have to serve.
+            // The resolver seam is wired for the shapes a standalone template can express; a value with
+            // no shaping is licensed by a rule rather than served here.
+            case "resolver" -> seams.contains(Seam.RESOLVER) && FixtureCapabilities.resolverServes(dimension, value, format);
+            // A DYNAMIC cluster setting is not the `cluster` seam: `cluster` means fixed at construction
+            // (a multi-node topology cannot change per case), while these can be updated and put back
+            // around a single query. Conflating them would make cluster_size look reachable.
+            case "cluster_setting" -> seams.contains(Seam.CLUSTER_SETTING) && clusterSettingKey(dimension) != null;
+            case "backend", "cluster" -> false;
+            default -> throw new IllegalStateException("unhandled binds [" + binds(dimension) + "]");
+        };
+    }
+
+    /**
+     * The vectors for one format that a directive alone can express: every off-default slot binds as a
+     * directive AND declares a constant key.
+     *
+     * <p>This is deliberately a small subset of {@link #vectors()}. A slot bound to a fixture, a cluster
+     * setting, a pragma or a backend needs something built before it can be run, and a derived slot needs
+     * the dataset. Those are not skipped quietly -- they are simply not expressible through this seam, and
+     * naming the seam in the method is what keeps that visible at the call site.
+     */
+    public List<Map<String, String>> directiveExpressibleVectors(String format) {
+        // Delegates rather than enumerating again: two enumeration paths would agree until they did not.
+        // FIXTURE rides along because a non-default format IS a fixture cell -- tsv vectors are selected
+        // by the tsv suite reading tsv bytes, which is what its capability row records.
+        return expressibleVectors(format, Set.of(Seam.DIRECTIVE, Seam.FIXTURE));
+    }
+
+    /**
+     * Feeds every vector to the consumer without materialising the set.
+     *
+     * <p>Vectors are a product, so the count grows multiplicatively with the declaration -- eleven
+     * thousand today, and a single added dimension multiplies rather than adds. Holding them all is a
+     * heap cost with no purpose for a caller that only iterates, so this is the primary form and
+     * {@link #vectors()} is the convenience that pays for a list.
+     *
+     * <p>Deduplication is unavoidable here -- every group shares the all-defaults baseline -- but it
+     * costs one set of maps rather than a set of maps plus a rendered key per vector.
+     */
+    /**
+     * The generated vectors, built once.
+     *
+     * <p>Generation is the expensive half -- t-way completion walks every combination of dimensions -- and
+     * expressibleVectors asks for it once per format, so regenerating made the cost four times what it had
+     * to be. Measured at t=4: 58s to generate, 230s to answer four formats from scratch, against 58s total
+     * once memoised. Immutable and derived purely from the declaration, so caching it changes nothing but
+     * the clock.
+     */
+    private volatile List<Map<String, String>> generated;
+
+    private List<Map<String, String>> generatedVectors() {
+        List<Map<String, String>> local = generated;
+        if (local == null) {
+            synchronized (this) {
+                local = generated;
+                if (local == null) {
+                    List<Map<String, String>> built = new ArrayList<>();
+                    // Frozen per vector, not just the list. List.copyOf makes the LIST immutable while every
+                    // element stays the mutable LinkedHashMap the generator built, and this memo is handed to
+                    // every caller in the JVM for the rest of the run -- one stray put would silently
+                    // reconfigure every later suite. Insertion order is preserved rather than using Map.copyOf:
+                    // render() walks the declared name list so it does not care, but the settings accessors walk
+                    // entrySet and their order reaches the injected directive JSON.
+                    generateVectors(vector -> built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector))));
+                    generated = local = List.copyOf(built);
+                }
+            }
+        }
+        return local;
+    }
+
+    public void forEachVector(Consumer<Map<String, String>> consumer) {
+        generatedVectors().forEach(consumer);
+    }
+
+    private void generateVectors(Consumer<Map<String, String>> consumer) {
+        Set<Map<String, String>> seen = new LinkedHashSet<>();
+        for (Set<String> group : groups()) {
+            Set<String> formats = formatsFor(group);
+            if (formats.isEmpty()) {
+                continue;
+            }
+            for (Map<String, String> assignment : crossProduct(new ArrayList<>(group), formats)) {
+                // The baseline has to be filled with THIS format's defaults, not the global ones. A
+                // reader default can be per-extension -- .tsv reads plain where .csv reads quoted -- so a
+                // globally-filled baseline hands every tsv vector an off-default text_mode it never asked
+                // for. That stays invisible while the selection predicate makes the same mistake, and the
+                // two cancel; it surfaces as a silent drop the moment either side is corrected alone.
+                String format = assignment.get("format");
+                Map<String, String> vector = new LinkedHashMap<>();
+                for (String d : names) {
+                    vector.put(d, defaultValue(d, format));
+                }
+                vector.putAll(assignment);
+                // Before dedup, so the universe count reflects the removal honestly rather than hiding it
+                // behind vectors that happened to collide.
+                if (carriesDisjointValues(vector)) {
+                    continue;
+                }
+                if (seen.add(Map.copyOf(vector))) {
+                    consumer.accept(vector);
+                }
+            }
+        }
+        // t=2 first, then 3: cheap combinations get covered by cheap vectors before the expensive pass
+        // runs, so the t=3 pass adds only what pairwise could not reach. t=4 was measured and rejected --
+        // the t<=3 vectors already carry 90.3% of the 215,659 legal 4-tuples, and closing the remaining
+        // 9.7% costs 3.6x the vectors. Strength is not where this matrix is thin; dimensions are.
+        completeTuples(3, seen, consumer);
+    }
+
+    /**
+     * Every vector as a list, for callers that genuinely need one -- a {@code @ParametersFactory}
+     * cannot stream. Prefer {@link #forEachVector} anywhere else.
+     */
+    public List<Map<String, String>> vectors() {
+        List<Map<String, String>> out = new ArrayList<>();
+        forEachVector(out::add);
+        return List.copyOf(out);
+    }
+
+    private List<Map<String, String>> crossProduct(List<String> axes, Set<String> formats) {
+        List<Map<String, String>> acc = new ArrayList<>();
+        acc.add(new LinkedHashMap<>());
+        for (String axis : axes) {
+            List<String> choices = axis.equals("format") ? new ArrayList<>(formats) : values(axis);
+            List<Map<String, String>> next = new ArrayList<>();
+            for (Map<String, String> partial : acc) {
+                for (String choice : choices) {
+                    Map<String, String> copy = new LinkedHashMap<>(partial);
+                    copy.put(axis, choice);
+                    next.add(copy);
+                }
+            }
+            acc = next;
+        }
+        // A group not containing `format` is legal on several, and has to be crossed with all of them.
+        // Pinning ONE -- preferring the global default -- meant every dimension whose clique happened not
+        // to include `format` was exercised on csv and nowhere else: quote, escape and partition_detection
+        // were reachable on tsv, ndjson and parquet by every other measure, and no vector ever carried
+        // them there. The audit called those cells covered because they ARE reachable; the crossing simply
+        // never asked for them, which is coverage claimed and not delivered.
+        if (axes.contains("format") == false) {
+            List<Map<String, String>> spread = new ArrayList<>(acc.size() * formats.size());
+            for (String format : formats) {
+                for (Map<String, String> vector : acc) {
+                    Map<String, String> copy = new LinkedHashMap<>(vector);
+                    copy.put("format", format);
+                    spread.add(copy);
+                }
+            }
+            return spread;
+        }
+        return acc;
+    }
+}

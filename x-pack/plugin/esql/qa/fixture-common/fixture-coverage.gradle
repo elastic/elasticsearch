@@ -1,0 +1,432 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Fails when a layout cell the matrix declares has no spec that reads it.
+ *
+ * The defect class: a cell that is declared, generated on every build, and read by nobody. Nothing fails
+ * and nothing reports it -- the fixtures are simply written and ignored. Generalising partitioned-layout
+ * generation produced exactly that, with hive_shadow generating for four more formats and no spec
+ * referencing it.
+ *
+ * This is the static half: declaration versus spec corpus, no test execution. That is deliberate. Anything
+ * keyed on what actually RAN varies with LOCAL backend availability, snapshotBuild, OS/arch and FIPS, so as
+ * a gate it would be flaky by construction and muted within a week. This check is deterministic, so it can
+ * be enforcing -- and because the declaration checks hang off precommit rather than the test tasks, they
+ * run even in release builds where csvSpecTests is disabled.
+ *
+ * Hooked to precommit following the goldenTestingConventions precedent (x-pack/plugin/esql/build.gradle);
+ * check depends on precommit, so CI reaches it and `./gradlew precommit` catches it locally too.
+ *
+ * checkFixtureGeneration is the exception. It asks whether generation produced files, which has no answer
+ * on a release build that generates none, so it hangs off csvSpecTests instead -- see its own comment.
+ *
+ * Required ext properties, read at SCRIPT level (inside a task closure `ext` resolves to the task's own
+ * property bag, not the project's -- which is how the first version of this file crashed at realization):
+ *   fixtureCoverageFormats   list of format tokens this module owns. A LIST because one module can host
+ *                            more than one format's suites: esql-datasource-csv/qa hosts both Csv and Tsv,
+ *                            so a single-format gate leaves the tsv column structurally unowned.
+ *   fixtureCoverageSpecDirs  directories holding the spec files this module's suites can load.
+ *
+ * The directory-granularity limitation this comment used to record is closed: templatesFor resolves
+ * specs from suite.<token>.specs, the same declaration readScriptSpec reads, so a spec sitting in a
+ * scanned directory that the suite does not route no longer counts as a consumer. The false green it
+ * named -- ndjson x multifile_temporal -- went with it; ndjson routes that spec and declares exclusions
+ * against it.
+ *
+ * What remains a floor rather than a ceiling: this gate sees only the tokens a module claims in
+ * fixtureCoverageFormats. Seven declared suite tokens are claimed by nobody, so their routing and their
+ * exclusions are validated by nothing. That is recorded here rather than in a commit message because it
+ * is the next thing to close, not a property of the design.
+ */
+
+def declarationFile = project(xpackModule('esql:qa:fixture-common'))
+    .file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-matrix.properties')
+
+// Read ext and resolve Files at SCRIPT level, never inside a task closure: there `ext` resolves to the
+// task's own property bag, not the project's. Every task in this file has been written wrong that way at
+// least once.
+def coverageFormats = ext.fixtureCoverageFormats
+def coverageSpecDirs = ext.fixtureCoverageSpecDirs.collect { file(it) }
+// Opt-OUT, not opt-in. A module applying this script must say what it generates, or say that it
+// generates nothing and why. Silence used to mean "skip", which is why this gate ran inert in four of
+// the five modules for the life of the change: nobody decided to skip parquet, orc, ndjson and
+// parquet-rs -- nobody decided anything, and a pass looked identical to a decision.
+if (ext.has('fixtureCoverageLayoutRoots') == false) {
+  throw new GradleException(
+      "${project.path} applies fixture-coverage.gradle but declares no ext.fixtureCoverageLayoutRoots. " +
+      "Declare [format: rootDir] for the formats it generates, or [:] plus " +
+      "ext.fixtureCoverageLayoutRootsReason if it generates none."
+  )
+}
+def coverageLayoutRoots = ext.fixtureCoverageLayoutRoots
+def coverageLayoutRootsReason = ext.has('fixtureCoverageLayoutRootsReason') ? ext.fixtureCoverageLayoutRootsReason : ''
+if (coverageLayoutRoots.isEmpty() && coverageLayoutRootsReason.isEmpty()) {
+  throw new GradleException(
+      "${project.path} declares no layout roots but gives no reason; an undeclared exemption is " +
+      "indistinguishable from an oversight. Set ext.fixtureCoverageLayoutRootsReason."
+  )
+}
+
+// The negative space goes to a FILE, not just the build log. A gap that exists only as a lifecycle line is
+// discoverable for as long as the console scrollback lasts, which is the same problem as a gap nobody
+// declared. This renders every declared cell and every declared gap, with its reason.
+def coverageReportDir = layout.buildDirectory.dir('reports/fixture-coverage')
+// Captured at CONFIGURATION time: reading Task.project inside doLast is deprecated in Gradle 9 and
+// fails outright in 10. Same reason fixture-manifest.gradle captures it here rather than in the task.
+def coverageProjectPath = project.path
+
+tasks.register('checkFixtureCoverage') {
+  description = 'Fails when a declared layout cell has no spec that reads it.'
+  group = 'verification'
+
+  doLast {
+    // Fold continuation lines before parsing; reasons wrap. [ \t]* rather than \s* on purpose: \s* eats
+    // newlines, so a value ending in a backslash followed by a blank line would swallow the next key.
+    def text = declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')
+    def props = new Properties()
+    props.load(new StringReader(text))
+
+    def layouts = props.stringPropertyNames()
+        .findAll { it.startsWith('layout.') && it.endsWith('.dir') }
+        .collect { it.substring('layout.'.length(), it.length() - '.dir'.length()) }
+        .findAll { it != 'standalone' }
+        .sort()
+
+    // Which templates does each suite actually read? Resolved from the SAME declaration the suite's
+    // ParametersFactory reads (suite.<token>.specs), not by scanning directories. Scanning
+    // over-approximated: a spec sitting in a scanned directory that no suite loaded still counted as a
+    // consumer, which reported the csv column covered for hive_shadow while every shadow execution was TSV.
+    // Comments are stripped first: a {{template}} in a `//` line documents a cell, it does not consume it.
+    def templatesFor = { String format ->
+      def patterns = props.getProperty("suite.${format}.specs")
+      if (patterns == null || patterns.trim().isEmpty()) {
+        throw new GradleException(
+            "suite [${format}] declares no [suite.${format}.specs]; the coverage gate cannot know which " +
+            "specs it loads, and an undeclared routing is indistinguishable from one nobody wrote")
+      }
+      // A declared pattern is a classpath glob such as /csv-*.csv-spec or /external-basic.csv-spec.
+      // Glob to regex: split on '*' and quote the literal parts, so a '*' in the declared pattern is the
+      // only metacharacter. Quoting the whole pattern first and then trying to unquote the star does not
+      // work -- Pattern.quote wraps the string in \Q...\E, so the star never appears as itself.
+      def regexes = patterns.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }.collect { pat ->
+        def name = pat.replaceFirst('^/', '')
+        def body = name.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*')
+        java.util.regex.Pattern.compile('^' + body + '$')
+      }
+      def found = [] as Set
+      coverageSpecDirs.each { dir ->
+        if (dir.directory) {
+          dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
+            if (regexes.any { it.matcher(specFile.name).matches() }) {
+              def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
+              (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> found.add(m[1]) }
+            }
+          }
+        }
+      }
+      found
+    }
+    // Longest suffix wins so a future _hive_shadow-style name is not read as its shorter sibling.
+    def layoutOf = { String template ->
+      def best = null
+      layouts.each { l ->
+        if (template.endsWith('_' + l) && (best == null || l.length() > best.length())) {
+          best = l
+        }
+      }
+      best
+    }
+    def problems = []
+    def report = []
+    coverageFormats.each { token ->
+      // Specs are routed by SUITE TOKEN; layout source overrides are keyed by FORMAT. Different axes.
+      def format = props.getProperty("suite.${token}.format")
+      if (format == null) {
+        throw new GradleException("suite [${token}] declares no [suite.${token}.format]")
+      }
+      def consumed = templatesFor(token).collect { layoutOf(it) }.findAll { it != null } as Set
+      def declaredCells = []
+      def declaredGaps = [:]
+      layouts.each { layout ->
+        def override = props.getProperty("layout.${layout}.sources.${format}")
+        def base = props.getProperty("layout.${layout}.sources")
+        def derived = props.getProperty("layout.${layout}.derived_from")
+        if (override != null && override.trim().isEmpty()) {
+          def reason = props.getProperty("layout.${layout}.sources.${format}.reason")
+          if (reason == null || reason.trim().isEmpty()) {
+            problems.add("[${token}] layout [${layout}] is declared empty with no reason; " +
+                         "an undeclared gap is indistinguishable from an oversight")
+          } else {
+            declaredGaps[layout] = reason.trim()
+          }
+        } else if (override != null || base != null || derived != null) {
+          declaredCells.add(layout)
+        }
+      }
+      def uncovered = declaredCells.findAll { consumed.contains(it) == false }
+      if (uncovered.isEmpty() == false) {
+        problems.add("[${token}] no spec reads layout(s) ${uncovered.sort()}; the fixtures are generated " +
+                     "on every build and nothing reads them. Either add a spec that reads the cell, or " +
+                     "declare it empty for this format with a reason in fixture-matrix.properties")
+      }
+      logger.lifecycle("fixture coverage [${token}]: ${declaredCells.size()} declared cell(s), " +
+                       "${declaredGaps.size()} declared gap(s) ${declaredGaps.keySet().sort()}")
+      report << ""
+      report << "suite ${token}  (format ${format}): ${declaredCells.size()} cell(s), ${declaredGaps.size()} gap(s)"
+      report << "-" * 96
+      layouts.each { layout ->
+        if (declaredGaps.containsKey(layout)) {
+          report << String.format("  %-28s %-8s %s", layout, "GAP", declaredGaps[layout].replaceAll(/\s+/, ' '))
+        } else if (declaredCells.contains(layout)) {
+          report << String.format("  %-28s %-8s", layout, consumed.contains(layout) ? "read" : "UNREAD")
+        } else {
+          report << String.format("  %-28s %-8s", layout, "n/a")
+        }
+      }
+    }
+
+    // Written BEFORE the throw: when the gate fails, a rendering of what is actually declared is exactly
+    // what the reader needs, so it must not be the thing that goes missing on failure.
+    def coverageReportFile = coverageReportDir.get().asFile.toPath().resolve('declared-matrix.txt').toFile()
+    coverageReportFile.parentFile.mkdirs()
+    coverageReportFile.text = ([
+      "declared fixture matrix  (project ${coverageProjectPath})",
+      "=" * 96,
+      "read   = declared, generated, and a routed spec reads it",
+      "GAP    = declared empty for this format, reason shown",
+      "n/a    = layout not declared for this format",
+      "",
+      "standalone is not listed: it is the base case every format carries, so the gate does not treat",
+      "it as a declarable cell. Its absence here is that rule, not a missing row.",
+      "",
+      "Only suites in fixtureCoverageFormats appear here. The compressed suites route specs from the",
+      "declaration but are not gated: their cells are owned by the primary suite for the same format."
+    ] + report).join("\n") + "\n"
+    logger.lifecycle("declared fixture matrix -> ${coverageReportFile}")
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("fixture coverage failed:\n  " + problems.join("\n  "))
+    }
+  }
+}
+
+/*
+ * Lints the declared write dialect against the authored data. A dialect declaration that nobody checks is
+ * prose: it would drift from the CSV the moment someone adds or removes a multi-value column, and the
+ * dialect injection that reads it would then configure the wrong reader silently.
+ */
+def dataDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/data')
+
+tasks.register('checkFixtureDialect') {
+  description = 'Fails when a dataset\'s declared write dialect disagrees with its canonical CSV.'
+  group = 'verification'
+
+  doLast {
+    def text = declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')
+    def props = new Properties()
+    props.load(new StringReader(text))
+
+    def datasets = props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.endsWith('.write_dialect') }
+        .collect { it.substring('dataset.'.length(), it.length() - '.write_dialect'.length()) }
+        .sort()
+
+    def problems = []
+    datasets.each { ds ->
+      def declared = props.getProperty("dataset.${ds}.write_dialect").trim()
+      if (declared in ['brackets', 'none'] == false) {
+        problems.add("dataset [${ds}] declares write_dialect [${declared}]; expected brackets or none")
+        return
+      }
+      def csv = new File(dataDir, "${ds}.csv")
+      if (csv.exists() == false) {
+        problems.add("dataset [${ds}] declares a write dialect but ${csv.name} does not exist")
+        return
+      }
+      def lines = csv.readLines()
+      def bracketed = lines.size() > 1 ? lines[1..-1].count { it.contains('[') } : 0
+      def actual = bracketed > 0 ? 'brackets' : 'none'
+      if (actual != declared) {
+        problems.add("dataset [${ds}] declares write_dialect [${declared}] but ${csv.name} has " +
+                     "${bracketed} bracketed row(s), i.e. [${actual}]")
+      }
+    }
+
+    // Every declared dataset must state a dialect: an unstated one would default silently.
+    props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.count('.') == 1 }
+        .collect { it.substring('dataset.'.length()) }
+        .each { ds ->
+          if (props.getProperty("dataset.${ds}.write_dialect") == null) {
+            problems.add("dataset [${ds}] declares no write_dialect; a text reader would be configured by default rather than by declaration")
+          }
+        }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("fixture dialect declaration is wrong:\n  " + problems.join("\n  "))
+    }
+    logger.lifecycle("fixture dialect: ${datasets.size()} dataset(s) linted against their canonical CSV")
+  }
+}
+
+/*
+ * Fails when an exclusion names a case its suite never loads.
+ *
+ * This is the rot direction. An exclusion whose case was renamed, moved or deleted keeps sitting there
+ * looking legitimate while disabling nothing -- and an exclusion naming a spec the suite does not route
+ * silences nothing at all. Six ndjson-compressed entries survived three months that way, describing a
+ * defect that had already been fixed, and deleting them recovered 112 executions.
+ *
+ * Fully static now that routing is declared: resolve suite.<token>.specs, parse the case names out of the
+ * routed spec files, and require every exclusion to name a pair that exists.
+ */
+def exclusionsFile = project(xpackModule('esql:qa:fixture-common'))
+    .file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-exclusions.properties')
+
+tasks.register('checkFixtureExclusions') {
+  description = 'Fails when an exclusion names a case its suite never loads.'
+  group = 'verification'
+
+  doLast {
+    def matrix = new Properties()
+    matrix.load(new StringReader(declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+    def exclusions = new Properties()
+    exclusions.load(new StringReader(exclusionsFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+
+    // (spec -> case names) for every spec file this module can see.
+    def casesBySpec = [:].withDefault { [] as Set }
+    coverageSpecDirs.each { dir ->
+      if (dir.directory) {
+        dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { f ->
+          def spec = f.name - '.csv-spec'
+          f.readLines().each { line ->
+            def t = line.trim()
+            if (t && t.startsWith('//') == false && t.endsWith(';') == false && t ==~ /[A-Za-z][A-Za-z0-9_]*/) {
+              casesBySpec[spec] << t
+            }
+          }
+        }
+      }
+    }
+
+    def problems = []
+    coverageFormats.each { token ->
+      def patterns = matrix.getProperty("suite.${token}.specs")
+      def routed = patterns.split(',').collect { it.trim().replaceFirst('^/', '') - '.csv-spec' }
+          .findAll { it.isEmpty() == false }
+      def routedSpecs = casesBySpec.keySet().findAll { spec ->
+        routed.any { pat -> spec ==~ ('^' + pat.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*') + '$') }
+      }
+      exclusions.stringPropertyNames().findAll { it.startsWith("exclude.${token}.") }.each { key ->
+        def rest = key - "exclude.${token}."
+        def dot = rest.indexOf('.')
+        def spec = rest.substring(0, dot)
+        def caseName = rest.substring(dot + 1)
+        if (routedSpecs.contains(spec) == false) {
+          problems.add("[${token}] excludes ${spec}.${caseName}, but this suite does not route ${spec} -- " +
+                       "the entry disables nothing")
+        } else if (casesBySpec[spec].contains(caseName) == false) {
+          problems.add("[${token}] excludes ${spec}.${caseName}, but ${spec} declares no such case -- " +
+                       "renamed, moved or already fixed, and the entry is now dead weight")
+        }
+      }
+    }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("stale exclusions:\n  " + problems.join("\n  "))
+    }
+    logger.lifecycle("fixture exclusions: every entry for ${coverageFormats} names a case its suite loads")
+  }
+}
+
+/*
+ * Fails when a declared cell produced no files.
+ *
+ * The generation direction, and the one the original defect needed: 20 of 40 layout x format cells were
+ * never generated, and a cell that is never generated fails nothing -- the test simply does not exist for
+ * that format. The consumption gate above cannot see it, because a spec reading the cell looks perfectly
+ * healthy right up to the missing file.
+ *
+ * Observes the artifact rather than the task graph on purpose. Enumerating registered tasks is defeated by
+ * a task that is registered but disabled, by an empty outputs.dir satisfying "declared", and by modules
+ * whose fixture aggregate does not list every generator. A file on disk is not defeated by any of those,
+ * and it makes fixtureLayoutSkip unambiguous by construction: skipping exempts REGISTRATION, never
+ * EXISTENCE.
+ *
+ * Requires ext.fixtureCoverageLayoutRoots: [format: rootDir] for the formats this module generates.
+ */
+tasks.register('checkFixtureGeneration') {
+  description = 'Fails when a declared layout cell produced no fixture files.'
+  group = 'verification'
+
+  // Observing the artifact only means something if the artifact was produced. Without this the gate
+  // passed locally on a build directory left populated by earlier runs and failed on a clean CI agent
+  // where nothing had generated yet -- a stale-state false pass in the gate itself.
+  dependsOn tasks.matching { it.name.startsWith('generate') || it.name.startsWith('sync') }
+
+  doLast {
+    if (coverageLayoutRoots.isEmpty()) {
+      logger.lifecycle("fixture generation: ${coverageLayoutRootsReason}")
+      return
+    }
+    def roots = coverageLayoutRoots
+    def props = new Properties()
+    props.load(new StringReader(declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+
+    def layouts = props.stringPropertyNames()
+        .findAll { it.startsWith('layout.') && it.endsWith('.dir') }
+        .collect { it.substring('layout.'.length(), it.length() - '.dir'.length()) }
+        .findAll { it != 'standalone' }
+        .sort()
+
+    def problems = []
+    roots.each { format, rootDir ->
+      def root = file(rootDir)
+      layouts.each { layout ->
+        def override = props.getProperty("layout.${layout}.sources.${format}")
+        def base = props.getProperty("layout.${layout}.sources")
+        def derived = props.getProperty("layout.${layout}.derived_from")
+        boolean declaredGap = override != null && override.trim().isEmpty()
+        boolean declared = declaredGap == false && (override != null || base != null || derived != null)
+        if (declared == false) {
+          return
+        }
+        def dir = new File(root, props.getProperty("layout.${layout}.dir"))
+        if (dir.directory == false) {
+          problems.add("[${format}] layout [${layout}] is declared but ${dir} does not exist")
+          return
+        }
+        def produced = []
+        dir.eachFileRecurse { f -> if (f.file && f.name.endsWith(".${format}")) { produced << f } }
+        if (produced.isEmpty()) {
+          problems.add("[${format}] layout [${layout}] is declared but ${dir} holds no *.${format} file")
+        }
+      }
+    }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException(
+          "declared fixture cells were not generated:\n  " + problems.join("\n  ") +
+          "\nA cell nothing generates fails nothing -- the test simply does not exist for that format.")
+    }
+    logger.lifecycle("fixture generation: every declared cell for ${roots.keySet()} produced files")
+  }
+}
+
+// The three declaration checks hang off precommit: they compare the declaration against the spec corpus
+// and the authored data, need no build output, and are therefore meaningful everywhere -- including
+// release builds, where csvSpecTests is disabled entirely.
+tasks.named('precommit').configure {
+  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixtureExclusions'
+}
+
+// checkFixtureGeneration is different in kind: it observes ARTIFACTS, so it is only meaningful where
+// generation is expected to have run. Hanging it off precommit made it fail on release builds, which
+// generate no fixtures because no test consumes them -- the gate was asking a question that has no answer
+// there. It rides the test path instead, where the fixtures are a dependency anyway.
+tasks.matching { it.name == 'csvSpecTests' }.configureEach { dependsOn 'checkFixtureGeneration' }

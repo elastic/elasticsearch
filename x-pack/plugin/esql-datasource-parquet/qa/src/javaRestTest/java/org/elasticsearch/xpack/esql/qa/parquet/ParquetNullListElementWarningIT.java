@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.AbstractFromDatasetSubqueryRestT
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.S3BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
@@ -80,7 +81,11 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     private static final String BLOB_KEY = WAREHOUSE + "/standalone/null_list_elements.parquet";
 
     /** Every external distribution mode {@code QueryPragmas#EXTERNAL_DISTRIBUTION} accepts. */
-    private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
+    /**
+     * Read from the contract. This was the third copy of the same list, all three missing
+     * weighted_round_robin -- the mode that needs more than one node to mean anything.
+     */
+    private static final List<String> DISTRIBUTION_MODES = FixtureDimensions.get().values("distribution");
 
     private static final String SUMMARY_WARNING =
         "Parquet lists with null elements were read with those elements omitted; an ES|QL multivalued field cannot hold null";

@@ -1,0 +1,73 @@
+// Probe set for generated dimension vectors.
+//
+// Every case here reads ONE clean, well-formed file. On that data the directive-bound dimensions this
+// suite varies -- error_mode, schema_resolution, datetime_format -- must not change the answer:
+//
+//   error_mode         there is no malformed row, so fail_fast / skip_row / null_field cannot differ
+//   schema_resolution  there is one file, so union_by_name / first_file_wins / strict cannot differ
+//   datetime_format    'custom' is a different SPELLING of the same instant grammar, not a different one
+//
+// So the expected block below is the answer for EVERY vector, and that is the assertion: these
+// combinations are invariant on clean data. It is not a smoke test -- it goes red if strict rejects a
+// single clean file, if null_field nulls a good row, or if the custom datetime spelling stops parsing.
+//
+// What it deliberately does NOT test is what each dimension does when it MATTERS: a malformed row, files
+// that disagree, a non-ISO timestamp. Those need per-vector expectations, which a csv-spec case cannot
+// carry, and they are not covered here or anywhere else yet.
+
+readAllColumnsIsInvariantAcrossVectors
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date          | gender:keyword | hire_date:date           | languages:integer | height:double | salary:integer | still_hired:boolean
+10001          | "Georgi"           | "Facello"         | 1953-09-02T00:00:00.000Z | "M"            | 1986-06-26T00:00:00.000Z | 2                 | 2.03          | 57305          | true
+10002          | "Bezalel"          | "Simmel"          | 1964-06-02T00:00:00.000Z | "F"            | 1985-11-21T00:00:00.000Z | 5                 | 2.08          | 56371          | true
+10003          | "Parto"            | "Bamford"         | 1959-12-03T00:00:00.000Z | "M"            | 1986-08-28T00:00:00.000Z | 4                 | 1.83          | 61805          | false
+10004          | "Chirstian"        | "Koblick"         | 1954-05-01T00:00:00.000Z | "M"            | 1986-12-01T00:00:00.000Z | 5                 | 1.78          | 36174          | true
+10005          | "Kyoichi"          | "Maliniak"        | 1955-01-21T00:00:00.000Z | "M"            | 1989-09-12T00:00:00.000Z | 1                 | 2.05          | 63528          | true
+;
+
+// Reads every row rather than a LIMIT window: error_mode only has an opportunity to differ if the whole
+// file is decoded, and a mode that silently dropped rows would show up here and nowhere above.
+rowCountIsInvariantAcrossVectors
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+// The date path specifically, since datetime_format is one of the varied slots. A spelling that failed to
+// parse would null the column and drop this row from the filter rather than fail loudly.
+dateFilterIsInvariantAcrossVectors
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE birth_date == TO_DATETIME("1953-09-02T00:00:00.000Z")
+| KEEP emp_no, birth_date
+| SORT emp_no;
+
+emp_no:integer | birth_date:date
+10001          | 1953-09-02T00:00:00.000Z
+;
+
+// An aggregation over a numeric column, so the value path is exercised and not just the projection.
+aggregateIsInvariantAcrossVectors
+required_capability: dataset_in_from_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| STATS total = SUM(salary), highest = MAX(salary);
+
+total:long | highest:integer
+4824855    | 74999
+;

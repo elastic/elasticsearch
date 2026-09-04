@@ -71,12 +71,12 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         BigArrays bigArrays,
         CircuitBreaker breaker,
         Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
-        long pagedPartitionThreshold
+        long pagedPartitionBytesThreshold
     ) {
         final int partitionSize = randomIntBetween(128, 10 * 1024);
-        var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionThreshold);
+        var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
         SumAgg agg1 = new SumAgg(breaker);
-        var hash2 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionThreshold);
+        var hash2 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
         SumAgg agg2 = new SumAgg(breaker);
         List<PartitionedKeyAndAggs> gens = new ArrayList<>();
         try {

@@ -95,11 +95,6 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     public static final int PARTITION_THRESHOLD = 400_000;
 
     /**
-     * Total key bytes below which the flat (non-paged) partition storage is used.
-     * A single partition's data can be at most this many bytes, so staying under this
-     * limit guarantees no partition will overflow a Java {@code byte[]}.
-     */
-    /**
      * Total key bytes at or below which {@link #splitPartition} uses flat (non-paged) storage.
      * Above this threshold it switches to {@link PagedBytesRefPartitionedHashKeys}.
      */
@@ -122,7 +117,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     private final BigArrays bigArrays;
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
-    private final long pagedPartitionThreshold;
+    private final long pagedPartitionBytesThreshold;
     private final BytesRef scratch = new BytesRef();
     private final PagedBytesCursor cursorScratch = new PagedBytesCursor();
 
@@ -141,8 +136,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * explicit threshold controlling when {@link #splitPartition} switches from flat to paged storage.
      * Use this in tests to force one path or the other without allocating large data sets.
      */
-    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, long pagedPartitionThreshold) {
-        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, pagedPartitionThreshold);
+    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, long pagedPartitionBytesThreshold) {
+        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, pagedPartitionBytesThreshold);
     }
 
     /**
@@ -159,13 +154,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         BigArrays bigArrays,
         BytesRefArray bytesRefs,
         boolean ownsBytesRefs,
-        long pagedPartitionThreshold
+        long pagedPartitionBytesThreshold
     ) {
         super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
         this.bigArrays = bigArrays;
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;
-        this.pagedPartitionThreshold = pagedPartitionThreshold;
+        this.pagedPartitionBytesThreshold = pagedPartitionBytesThreshold;
         boolean success = false;
         try {
             // If bytesRefs is pre-populated (shared), we don't assume those entries are in this hash.
@@ -950,7 +945,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         int batchStart = 0;
         assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
         final long totalKeyBytes = bytesRefs.totalBytes();
-        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionThreshold
+        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionBytesThreshold
             ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes)
             : new PagedBytesRefPartitionedHashKeys(bigArrays, size, totalKeyBytes);
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
@@ -1032,22 +1027,19 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes) {
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
-            final long avgKeyBytes = totalKeys > 0 ? Math.ceilDiv(totalKeyBytes, totalKeys) : 0;
-            final int initialDataBytes = ArrayUtil.oversize(
-                (int) Math.min((long) avgKeysPerPartition * avgKeyBytes, Integer.MAX_VALUE),
-                1
-            );
-            final int initialOffsetInts = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES * 2
-                + (long) NUM_PARTITIONS * initialDataBytes
-                + (long) NUM_PARTITIONS * initialOffsetInts * Integer.BYTES;
+            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
+            final int initialBytes = ArrayUtil.oversize(avgBytesPerPartition, 1);
+            final int initialOffsets = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
+            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES
+                + (long) NUM_PARTITIONS * initialBytes
+                + (long) NUM_PARTITIONS * initialOffsets * Integer.BYTES;
             breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
             partitionDataUsed = new int[NUM_PARTITIONS];
             partitionData = new byte[NUM_PARTITIONS][];
             partitionOffsets = new int[NUM_PARTITIONS][];
             for (int p = 0; p < NUM_PARTITIONS; p++) {
-                partitionData[p] = new byte[initialDataBytes];
-                partitionOffsets[p] = new int[initialOffsetInts];
+                partitionData[p] = new byte[initialBytes];
+                partitionOffsets[p] = new int[initialOffsets];
             }
         }
 
@@ -1109,7 +1101,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         @Override
         public void releaseAll(CircuitBreaker breaker) {
-            long bytes = (long) NUM_PARTITIONS * Integer.BYTES * 2;
+            long bytes = (long) NUM_PARTITIONS * Integer.BYTES;
             for (int p = 0; p < NUM_PARTITIONS; p++) {
                 final byte[] data = partitionData[p];
                 if (data != null) {
@@ -1129,7 +1121,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         PagedBytesRefPartitionedHashKeys(BigArrays bigArrays, int totalKeys, long totalKeyBytes) {
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
-            final long avgBytesPerPartition = Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
+            final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
             partitionArrays = new BytesRefArray[NUM_PARTITIONS];
             boolean success = false;
             try {

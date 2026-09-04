@@ -63,9 +63,9 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.NamedColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.TimeSeriesColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.NamedColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.TimeSeriesColumn;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -115,11 +115,11 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findById;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByIdOrName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.resolveColumn;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.toCanonicalName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findById;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByIdOrName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.resolveColumn;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.toCanonicalName;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 
 /**
@@ -783,12 +783,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
                 uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
 
+                // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
+                // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
+                // analyzer bound the declared output to the bare attribute instead, and a renamed column would not map.
                 var newAggregates = uniqueAggregates.stream().map(e -> (NamedExpression) e).map(e -> {
-                    Expression inner = e;
                     if (e instanceof Alias a) {
-                        inner = a.child();
+                        return (NamedExpression) new Alias(a.source(), names.next(a.name()), a.child(), a.id());
                     }
-                    return new Alias(e.source(), names.next(e.name()), inner, e.id());
+                    return e;
                 }).toList();
 
                 return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);

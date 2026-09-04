@@ -373,7 +373,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                     nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
                 }
                 if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
-                    if (Assertions.ENABLED && id.length >= fullLength) {
+                    if (Assertions.ENABLED) {
                         // _ts_routing_hash read from doc values
                         var routingHashDVBytes = docValues.docRoutingHash(nextDocID);
                         int routingHashDV = TimeSeriesRoutingHashFieldMapper.decode(

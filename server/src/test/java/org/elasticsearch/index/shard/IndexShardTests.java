@@ -3784,6 +3784,55 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testPreRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, () -> shard.preRecovery(ActionListener.noop()));
+    }
+
+    public void testPrepareForIndexRecoveryThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        expectThrows(IndexShardClosedException.class, shard::prepareForIndexRecovery);
+    }
+
+    public void testRecoverLocallyUpToGlobalCheckpointFailsWithIndexShardClosedException() throws IOException {
+        IndexShard shard = newShard(true);
+        shard.markAsRecovering("for testing");
+        closeShards(shard);
+        PlainActionFuture<Long> future = new PlainActionFuture<>();
+        shard.recoverLocallyUpToGlobalCheckpoint(future);
+        expectThrows(IndexShardClosedException.class, future::actionGet);
+    }
+
+    public void testOpenEngineAndRecoverFromTranslogThrowsIndexShardClosedException() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        shard = reinitShard(shard);
+        shard.markAsRecovering("for testing");
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        closeShardNoCheck(shard);
+        try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            shard.openEngineAndRecoverFromTranslog(future);
+            expectThrows(IndexShardClosedException.class, future::actionGet);
+        } finally {
+            IOUtils.close(shard.store());
+        }
+    }
+
+    public void testResetRecoveryStageThrowsIndexShardClosedException() throws IOException {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        replica.markAsRecovering("peer");
+        closeShards(primary, replica);
+        expectThrows(IndexShardClosedException.class, replica::resetRecoveryStage);
+    }
+
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
         IndexShard indexShard = null;
         try {

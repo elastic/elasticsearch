@@ -548,9 +548,8 @@ public class ExternalSourceResolver {
             return new ExternalUnavailableException(
                 unavailable.throttling(),
                 unavailable,
-                "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -565,7 +564,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+                ExternalFailures.locate("Failed to resolve external source", path, rejected.getMessage())
             );
             wrapped.initCause(rejected);
             return wrapped;
@@ -603,7 +602,9 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             String detail = ExternalFailures.rootDetail(e);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            return new ExternalClientException(e, "Failed to resolve external source [{}]: {}", path, detail);
+            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
+            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
+            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
@@ -611,7 +612,13 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        return new ExternalServerException(e, "Failed to resolve external source [{}]: {}", path, detail);
+        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
+        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
+        return new ExternalServerException(
+            ExternalFailures.rootCause(e),
+            "{}",
+            ExternalFailures.locate("Failed to resolve external source", path, detail)
+        );
     }
 
     private void resolveSource(

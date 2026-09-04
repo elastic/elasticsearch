@@ -2732,6 +2732,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The store's own unavailable message already names the object, so the 503 wrapper must not name it again.
+     * The message-content assertions elsewhere pass either way; only the count discriminates.
+     */
+    public void testTheUnavailableArmNamesThePathOnce() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://b/x.parquet";
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            false,
+            (Throwable) null,
+            "S3 store unavailable reading [{}] (HTTP {})",
+            path,
+            503
+        );
+
+        RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(store));
+
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(mapped));
+        assertEquals(
+            "the object is named once, not once by the store and again by the wrapper",
+            mapped.getMessage().indexOf(path),
+            mapped.getMessage().lastIndexOf(path)
+        );
+    }
+
+    /**
+     * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
+     * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
+     * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.
+     */
+    public void testTheTerminalArmChainsTheCauseNotTheCacheWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalStateException original = new IllegalStateException("broken");
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(original));
+
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(mapped));
+        assertSame("the cause must be the fault itself, not the cache's wrapper", original, mapped.getCause());
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.lang.")));
+        }
+    }
+
+    /**
      * An IOException buried in the cache's {@code ExecutionException} must be a 400: a missing object or
      * access-denied is the caller's fault regardless of which rail (cacheable vs non-cacheable) the resolution
      * ran on.
@@ -2752,6 +2795,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
         assertThat(mapped.getMessage(), containsString("Object not found"));
+        // The detail already names the object, so the wrapper must not name it a second time. containsString on
+        // each half passes either way; the count is what holds the resolver to ExternalFailures.locate.
+        assertEquals(
+            "the object is named once, not once by the detail and again by the wrapper",
+            mapped.getMessage().indexOf("s3://b/x.parquet"),
+            mapped.getMessage().lastIndexOf("s3://b/x.parquet")
+        );
+        // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
+        }
     }
 
     /**

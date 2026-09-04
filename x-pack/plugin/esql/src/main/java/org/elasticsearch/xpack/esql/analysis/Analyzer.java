@@ -1375,7 +1375,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             null,
                             false,
                             // the expanded values are the target's values, so a declared values analyzer carries over
-                            AnalyzedTextExpression.valuesAnalyzerOf(resolved)
+                            AnalyzedTextExpression.declaredValuesAnalyzerOf(resolved)
                         )
                         : resolved
                 );

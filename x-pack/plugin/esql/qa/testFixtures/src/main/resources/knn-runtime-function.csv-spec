@@ -161,3 +161,28 @@ FROM knn_hex_vectors METADATA _score
 id:integer | _score:double
 5          | 2.501841187477112
 ;
+
+
+// Test 8: KNN on a runtime field carries no positional restriction, since it too is evaluated per row rather than
+// through the index. The LIMIT keeps ids 0-3, of which 0 and 3 clear the threshold; id 4 clears it as well (see
+// knnRuntimeWithSimThreshold) but is cut, so a filter evaluated before the LIMIT would return it too. The LIMIT
+// also puts the filter on the coordinator, which has no shard context - scoring a runtime KNN there needs none.
+knnRuntimeAfterLimit
+required_capability: knn_runtime_field
+required_capability: fn_match_runtime_anywhere
+pragma: knn_runtime_field=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| SORT id ASC
+| LIMIT 4
+| WHERE knn(dv, [64, 0, 0], {"similarity": 0.6})
+| KEEP id, label, _score
+| SORT id
+| LIMIT 10
+;
+
+id:integer | label:keyword | _score:double
+0          | x             | 1.0
+3          | xy            | 0.8535534143447876
+;

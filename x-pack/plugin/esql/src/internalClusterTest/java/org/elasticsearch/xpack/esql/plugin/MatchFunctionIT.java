@@ -339,6 +339,63 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testRuntimeMatchAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox. Id 6 does too, so a filter that ran before the
+        // LIMIT - or that the LIMIT failed to constrain - would return it as well.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testRuntimeMatchAfterStats() {
+        var query = """
+            FROM test
+            | STATS ids = count(*) BY summary = to_text(concat("content: ", content))
+            | WHERE match(summary, "fox")
+            | KEEP summary, ids
+            | SORT summary
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("summary", "ids"));
+            assertColumnTypes(resp.columns(), List.of("text", "long"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("content: The quick brown fox jumps over the lazy dog", 1L), List.of("content: This is a brown fox", 1L))
+            );
+        }
+    }
+
+    public void testRuntimeMatchAfterLimitWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE match(summary, "fox")
+            | KEEP id, _score
+            """;
+
+        // The LIMIT is a pipeline breaker, so this filter runs on the coordinator. Runtime scoring needs no shard
+        // context, so the matched term must still score its point there, exactly as it does on a data node.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.0)));
+        }
+    }
+
     public void testMatchAfterMvExpand() {
         var query = """
             FROM test

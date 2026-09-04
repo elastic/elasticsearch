@@ -206,7 +206,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      */
     @Nullable
     protected String valuesAnalyzerName() {
-        return AnalyzedTextExpression.valuesAnalyzerOf(field());
+        return AnalyzedTextExpression.declaredValuesAnalyzerOf(field());
     }
 
     /** The declared values analyzer resolved through the registry, or the standard analyzer when none was declared. */

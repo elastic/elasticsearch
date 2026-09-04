@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,6 +44,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public static final String FORK_FIELD = "_fork";
     public static final int MAX_BRANCHES = 8;
+
     private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
@@ -282,28 +284,35 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             );
         });
 
-        Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
             for (Attribute attr : subPlan.output()) {
-                var expected = outputTypes.get(attr.name());
+                var merged = mergedOutput.get(attr.name());
+
+                // A branch column absent from the merged output cannot be compared against it. Unreachable while the
+                // branches agree on their column names, which expressionsResolved() requires before we get here.
+                if (merged == null) {
+                    continue;
+                }
 
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
-                if (expected == DataType.UNSUPPORTED) {
+                if (merged.dataType() == DataType.UNSUPPORTED) {
                     continue;
                 }
 
-                var actual = attr.dataType();
-                if (actual != expected) {
+                var conflict = Expressions.checkForMergeConflict(attr, merged);
+                if (conflict != null) {
                     failures.add(
                         Failure.fail(
                             attr,
-                            "Column [{}] has conflicting data types in FORK branches: [{}] and [{}]",
+                            "Column [{}] has conflicting {} in FORK branches: [{}] and [{}]",
                             attr.name(),
-                            actual,
-                            expected
+                            conflict.property(),
+                            conflict.branchValue(),
+                            conflict.mergedValue()
                         )
                     );
                 }

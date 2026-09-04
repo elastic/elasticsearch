@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -106,6 +107,36 @@ public final class Expressions {
             list.add(refAttr);
         }
         return list;
+    }
+
+    /**
+     * A property that two same-named attributes disagree on, and so cannot be merged into one output column.
+     *
+     * @param property plural name of the property, for a user-facing message
+     * @param branchValue the value on the attribute being merged in
+     * @param mergedValue the value the merged output carries
+     */
+    public record MergeConflict(String property, String branchValue, String mergedValue) {}
+
+    /**
+     * Why {@code branch} cannot be merged into {@code merged}, or {@code null} when it can.
+     * <p>
+     * {@link #toReferenceAttributesPreservingIds} keeps one attribute per column name, so a branch disagreeing on any
+     * property that changes how the column's values are read would have its rows read as if it had declared the merged
+     * one. Callers report the conflict; this decides what counts as one, so a new text-column property does not have
+     * to be added to every branch-merging plan.
+     */
+    @Nullable
+    public static MergeConflict checkForMergeConflict(Attribute branch, Attribute merged) {
+        if (branch.dataType() != merged.dataType()) {
+            return new MergeConflict("data types", String.valueOf(branch.dataType()), String.valueOf(merged.dataType()));
+        }
+        String branchAnalyzer = AnalyzedTextExpression.effectiveValuesAnalyzerOf(branch);
+        String mergedAnalyzer = AnalyzedTextExpression.effectiveValuesAnalyzerOf(merged);
+        if (branchAnalyzer.equals(mergedAnalyzer) == false) {
+            return new MergeConflict("values analyzers", branchAnalyzer, mergedAnalyzer);
+        }
+        return null;
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

@@ -79,6 +79,18 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, containsString("[LIKE] pattern must be a constant"));
     }
 
+    /**
+     * Whether a full-text function is a runtime search is not stable across planning phases. Here {@code name} is a
+     * {@code ReferenceAttribute} when the plan is analyzed, so the positional check lets it past the LIMIT, but
+     * {@code PushDownAndCombineFilters} then pushes the filter past the RENAME and substitutes the underlying
+     * {@code FieldAttribute}, turning it back into an index-backed search that still sits above the LIMIT. The
+     * post-optimization re-run has to catch what the post-analysis pass let through.
+     */
+    public void testRuntimeFullTextRejectedAfterLimitWhenRenamePushesDownToField() {
+        var err = error(defaultAnalyzer().query("from test | limit 5 | rename first_name as name | where match(name, \"Meditation\")"));
+        assertThat(err, containsString("[MATCH] function cannot be used after LIMIT"));
+    }
+
     private String error(LogicalPlan plan) {
         Throwable e = expectThrows(
             VerificationException.class,

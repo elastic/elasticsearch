@@ -142,7 +142,7 @@ public final class Alias extends NamedExpression {
                     nullable(),
                     id(),
                     synthetic(),
-                    AnalyzedTextExpression.valuesAnalyzerOf(child)
+                    AnalyzedTextExpression.declaredValuesAnalyzerOf(child)
                 )
                 : new UnresolvedAttribute(source(), name());
         }

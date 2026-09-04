@@ -146,10 +146,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
         // no results. Same root cause as "For input string:" for numeric fields.
         "is not an IP string literal",
-        // Columnar mode FORK execution has a known array-bounds bug (Index N out of bounds for
-        // length N) that surfaces as HTTP 500 on the candidate side while the reference succeeds.
-        // TODO: remove once the columnar FORK array-bounds bug is fixed.
-        "out of bounds for length",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side

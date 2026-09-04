@@ -93,7 +93,11 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     private final String prefix;
     private final Expression query;
+    /** True once analysis has borrowed the query from an upstream full-text WHERE. False at parse time. */
     private final boolean implicitQuery;
+    /**
+     * True when ON was omitted or is {@code *}. Set at parse time and kept after the field list is filled in.
+     */
     private final boolean derivedFields;
     private final List<NamedExpression> fields;
     private final MapExpression options;
@@ -224,15 +228,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
-    public Highlight withResolved(
-        Expression newQuery,
-        boolean newImplicitQuery,
-        List<NamedExpression> newFields,
-        List<Attribute> newGeneratedFields
-    ) {
-        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
-    }
-
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
         return copy(newChild, query, fields, options, generatedFields);
@@ -284,7 +279,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
 
     @Override
     public boolean expressionsResolved() {
-        // Empty fields (bare / ON *) are derived during analysis; until then output() lacks the generated columns.
+        // No ON list (bare HIGHLIGHT / HIGHLIGHT <query>): analysis still has to derive fields,
+        // and until then output() has no generated columns. ON * is [UnresolvedStar] and is
+        // rejected by the loop below, not by isEmpty().
         if (fields.isEmpty() || (query != null && query.resolved() == false)) {
             return false;
         }
@@ -300,7 +297,7 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
         if (query == null) {
-            failures.add(fail(this, "HIGHLIGHT requires a query or a preceding full-text WHERE (MATCH, MATCH_PHRASE, QSTR or KQL)"));
+            failures.add(fail(this, "HIGHLIGHT requires a query"));
         } else if (fields.isEmpty()) {
             failures.add(fail(this, "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"));
         }

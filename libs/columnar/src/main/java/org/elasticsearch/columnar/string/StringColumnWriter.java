@@ -54,6 +54,9 @@ public final class StringColumnWriter {
      */
     private static final int ORDINAL_BLOCK_SIZE = 128;
 
+    /** Terms to a block in the dictionary, so the stream records an offset for every term. */
+    private static final int TERMS_PER_BLOCK = 1;
+
     /**
      * Values per entry in the escape-rank table, which bounds the count of escapes before a value to one
      * block's worth of ordinals.
@@ -130,6 +133,8 @@ public final class StringColumnWriter {
             }
         }
 
+        // Set false the moment a value is seen out of order; nothing after that can restore it.
+        boolean sorted = true;
         final ValueStream.Metadata written;
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
@@ -144,16 +149,31 @@ public final class StringColumnWriter {
             )
         ) {
             StringColumnValues values = cursors.get();
+            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+            // The first value out of order settles it, and the rest are written without being compared: what
+            // the comparison decides cannot be restored, and the value it would compare against is not kept.
+            final BytesRefBuilder previous = new BytesRefBuilder();
+            boolean hasPrevious = false;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
                     values.nextValue();
-                    stream.add(values.value());
+                    final BytesRef value = values.value();
+                    if (sorted) {
+                        if (hasPrevious && previous.get().compareTo(value) > 0) {
+                            sorted = false;
+                        } else {
+                            previous.copyBytes(value);
+                            hasPrevious = true;
+                        }
+                    }
+                    stream.add(value);
                 }
             }
             written = stream.finish();
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written),
+            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written, sorted),
             surveyed,
             numValues,
             valuesPerBlock,
@@ -241,16 +261,22 @@ public final class StringColumnWriter {
     ) throws IOException {
         final int dictionarySize = vocabulary.size();
         final BytesRef scratch = new BytesRef();
+        // The dictionary is in term order, so ordinals rise exactly as values do. An escaped value has no
+        // ordinal to place among them, so a column that lets anything escape is not called sorted.
+        boolean sorted = true;
+        int previousOrdinalSeen = -1;
 
         final ValueStream.Metadata dictionary;
         try (
             // Read by ordinal, so consecutive reads land anywhere in it. Compressing it would mean
             // decompressing a chunk for nearly every value read, to save a few tens of kilobytes: the
             // dictionary is bounded by the policy however large the column is.
+            // One term to a block, so the stream keeps an offset for each of them and a term is read where
+            // it lies. The offsets are a monotonic table, read off the mapped file.
             ValueStream.Writer writer = new ValueStream.Writer(
                 ChunkCodec.IDENTITY,
                 targetChunkBytes,
-                valuesPerBlock,
+                TERMS_PER_BLOCK,
                 dictionarySize,
                 directory,
                 context,
@@ -296,6 +322,12 @@ public final class StringColumnWriter {
                                 // only to look them up again, which is most of what merging such a column costs.
                                 final int mapped = values.ordinal();
                                 if (mapped >= 0) {
+                                    // Carried over rather than resolved, but it still says where the value sits
+                                    // among the terms, so the order is read from it as from any other ordinal.
+                                    if (mapped < previousOrdinalSeen) {
+                                        sorted = false;
+                                    }
+                                    previousOrdinalSeen = mapped;
                                     ordinalTemp.writeVInt(mapped);
                                     index++;
                                     continue;
@@ -312,11 +344,16 @@ public final class StringColumnWriter {
                                     hasPrevious = true;
                                 }
                                 if (ordinal == Vocabulary.DROPPED) {
+                                    sorted = false;
                                     ordinalTemp.writeVInt(dictionarySize);
                                     escapeTemp.writeVInt(value.length);
                                     escapeTemp.writeBytes(value.bytes, value.offset, value.length);
                                     escapes++;
                                 } else {
+                                    if (ordinal < previousOrdinalSeen) {
+                                        sorted = false;
+                                    }
+                                    previousOrdinalSeen = ordinal;
                                     ordinalTemp.writeVInt(ordinal);
                                 }
                                 index++;
@@ -363,7 +400,8 @@ public final class StringColumnWriter {
                 ordinals,
                 escapeStream,
                 escapeRanks,
-                dictionarySize
+                dictionarySize,
+                sorted
             );
         } finally {
             IOUtils.close(replays);

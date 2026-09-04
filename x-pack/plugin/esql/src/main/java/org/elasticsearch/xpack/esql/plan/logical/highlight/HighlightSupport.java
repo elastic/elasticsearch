@@ -40,6 +40,11 @@ public final class HighlightSupport {
 
     private HighlightSupport() {}
 
+    /**
+     * Every text or keyword column of {@code childrenOutput}, in output order. This is what {@code ON *} expands to,
+     * and what an omitted ON list falls back to. Metadata attributes are excluded because they are not document
+     * content, so highlighting them says nothing about why a row matched.
+     */
     public static List<NamedExpression> allHighlightableFields(List<Attribute> childrenOutput) {
         LinkedHashMap<String, NamedExpression> byName = new LinkedHashMap<>();
         for (Attribute attr : childrenOutput) {
@@ -51,6 +56,15 @@ public final class HighlightSupport {
         return List.copyOf(byName.values());
     }
 
+    /**
+     * The fields an omitted ON list resolves to: the ones the query names, or - when it names none - every
+     * highlightable column. A query that cannot be narrowed to concrete fields (a string literal, {@code KQL}, a
+     * {@code QSTR} without a concrete {@code default_field}, or anything else the walk does not recognise) may match
+     * through any column, so falling back to all of them is closer to intent than highlighting nothing.
+     * <p>
+     * Negative subtrees contribute no names, and names the child output does not carry are dropped. Either can leave
+     * the result empty, which HIGHLIGHT's post-analysis verification reports as a request for an explicit ON clause.
+     */
     public static List<NamedExpression> deriveFields(Expression query, List<Attribute> childrenOutput) {
         Set<String> names = new LinkedHashSet<>();
         if (collectQueryFieldNames(query, names) == false) {
@@ -96,6 +110,10 @@ public final class HighlightSupport {
         };
     }
 
+    /**
+     * The {@code default_field} option of a {@code QSTR}, or {@code null} when it is absent or does not fold to a
+     * constant. The value may be a wildcard pattern; callers decide whether that still identifies a single field.
+     */
     public static String queryStringDefaultField(QueryString queryString) {
         if (queryString.options() instanceof MapExpression map) {
             Expression value = map.get("default_field");

@@ -553,6 +553,81 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Keyword-field counterpart of {@link #testSkipperNumericSingleValuedIsDetectedAsSingleValued}:
+     * a truly single-valued keyword field backed by a doc-values skipper must be reported as
+     * single-valued so that {@code COUNT(kw)} can be pushed down to an exists-doc-count query.
+     */
+    public void testSkipperKeywordSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("kw");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertEquals("every doc has exactly one value, so maxValueCount must be 1", 1, skipper.maxValueCount());
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued skipper keyword field must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Keyword-field counterpart of {@link #testSkipperNumericMultiValuedIsNotDetectedAsSingleValued}:
+     * a multi-valued keyword field backed by a doc-values skipper must not be reported as single-valued,
+     * so {@code COUNT(kw)} is not incorrectly pushed down to a doc-count exists query.
+     */
+    public void testSkipperKeywordMultiValuedIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(
+                    SortedSetDocValuesField.indexedField("kw", new BytesRef("A")),
+                    SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))
+                )
+            );
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("C"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("kw");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "multi-valued skipper keyword field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Reproduces the mixed-index-mapping bug reported in review: when a query spans two indices
      * where the same field has different storage characteristics — points in one, doc-values skipper
      * in the other — {@code isSingleValue} picks the {@code MappedFieldType} from the first mapped

@@ -590,7 +590,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceMaterialized();
+            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && (context.isSourceStored() || context.isSourceColumnarStored());
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(

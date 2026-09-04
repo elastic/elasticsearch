@@ -181,12 +181,11 @@ public class MapperBuilderContext {
     }
 
     /**
-     * Is a {@code _source} document written to the index, either stored verbatim or as the {@code columnar_stored} blob?
-     * Fields can be left out of such a {@code _source} and patched back on read; a synthetic {@code _source} is rebuilt from
-     * every field in turn, so there is nothing to leave out.
+     * Is {@code _source} stored in the index as the document was sent, rather than rebuilt at read time from the fields
+     * themselves? {@code columnar_stored} answers {@code false} here and {@link #isSourceColumnarStored()} instead.
      */
-    public boolean isSourceMaterialized() {
-        return isSourceSynthetic == false || isSourceColumnarStored;
+    public boolean isSourceStored() {
+        return isSourceSynthetic == false;
     }
 
     /**

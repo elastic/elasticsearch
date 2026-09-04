@@ -142,10 +142,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
@@ -447,6 +449,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
         services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
 
+        // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
+        // without this warning the operator would see their configuration silently not take effect.
+        QuerySettings.watchClusterDefaults(
+            services.clusterService().getClusterSettings(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState())
+        );
+
+        // A license lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
+        // the consumer above never fires; this listener is the only place the operator can learn of it.
+        QuerySettings.watchApproximationLicense(
+            getLicenseState(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState()),
+            () -> services.clusterService().state().metadata().settings(),
+            services.clusterService().getSettings()
+        );
+
         // Create DataSourceModule with all discovered plugins.
         // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
         // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
@@ -656,6 +674,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             )
         );
         settings.addAll(PlannerSettings.settings());
+
+        // The cluster settings backing ES|QL query-setting defaults, derived from the query-settings registry —
+        // one per setting declared with withClusterDefault(). Never hand-maintained: opting a setting in is one
+        // word at its declaration in QuerySettings, and this list follows.
+        settings.addAll(QuerySettings.clusterSettings());
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());

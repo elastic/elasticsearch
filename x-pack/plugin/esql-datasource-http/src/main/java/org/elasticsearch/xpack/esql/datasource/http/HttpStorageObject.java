@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -307,10 +308,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Wrap with path context so stack-trace-only triage names the offending URL.
-                    // The original cause (CompletionException, body subscriber's IOException,
-                    // transport error, etc.) is preserved in the cause chain.
-                    listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
+                    listener.onFailure(mapAsyncSendFailure(throwable));
                     return;
                 }
 
@@ -337,6 +335,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      */
     @Override
     public boolean supportsNativeAsync() {
+        return true;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
         return true;
     }
 
@@ -409,14 +412,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.apply(null);
-        try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + path, e);
-        }
+        return responseHandler.apply(sendChecked(requestSupplier.apply(null), bodyHandler));
     }
 
     /**
@@ -432,14 +428,50 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.get();
+        return responseHandler.apply(sendChecked(requestSupplier.get(), bodyHandler));
+    }
+
+    /**
+     * Sends {@code request} and types a transport fault the same way
+     * {@link HttpTransientTypingInputStream} types a mid-body drop. The JDK {@code HttpClient}
+     * reuses HTTP/1.1 keep-alive connections; when the peer has already closed one, {@code send()}
+     * throws a plain {@link IOException} or {@link IllegalStateException} with message {@code closed}
+     * before any response body exists. Those are retryable transport drops (a fresh connection
+     * succeeds), not client errors, so they become {@link ExternalUnavailableException}.
+     * Interrupt stays an {@link IOException} so it is not retried. Status-bearing failures are
+     * handled by the caller after a successful send.
+     */
+    private <T> HttpResponse<T> sendChecked(HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
         try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
+            return client.send(request, bodyHandler);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("HTTP request interrupted for " + path, e);
+        } catch (IOException e) {
+            throw typeTransportFailure(e);
+        } catch (IllegalStateException e) {
+            throw typeTransportFailure(e);
         }
+    }
+
+    /**
+     * Types an async {@code sendAsync} failure. Unwraps {@link CompletionException} so the same
+     * closed-keep-alive {@link IOException} / {@link IllegalStateException} that {@link #sendChecked}
+     * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
+     */
+    private Exception mapAsyncSendFailure(Throwable throwable) {
+        Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
+        if (cause instanceof ExternalUnavailableException eue) {
+            return eue;
+        }
+        if (cause instanceof IOException || cause instanceof IllegalStateException) {
+            return typeTransportFailure((Exception) cause);
+        }
+        return new IOException("HTTP read failed for " + path, throwable);
+    }
+
+    private ExternalUnavailableException typeTransportFailure(Exception e) {
+        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
     }
 
     /**

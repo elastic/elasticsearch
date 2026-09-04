@@ -23,15 +23,15 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
+import org.elasticsearch.columnar.numeric.NumericColumnSource;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * A range query matching documents whose ColumNAR numeric value falls in {@code [lowerValue, upperValue]}.
- * It reads the column at the binary surface and drives its {@link ColumnarNumericBinaryDocValues#rangeIterator},
+ * It reads the column at the binary surface and drives its {@link NumericColumnSource#rangeIterator},
  * falling back to a per-document scan for sparse or multi-valued columns. Bounds are signed {@code long}s in
  * the column's stored encoding (sortable-long for doubles).
  */
@@ -62,7 +62,7 @@ public final class ColumnarNumericRangeQuery extends Query {
                 }
 
                 // Fast path: a dense single-valued column serves the vectorized, skipper-aware iterator.
-                if (values instanceof ColumnarNumericBinaryDocValues column) {
+                if (values instanceof NumericColumnSource column) {
                     final DocIdSetIterator iterator = column.rangeIterator(lowerValue, upperValue);
                     if (iterator != null) {
                         return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, reader.maxDoc());

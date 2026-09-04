@@ -75,7 +75,8 @@ public record NodeHeapMetrics(String nodeId, long totalBytes, NodeHeapEstimates 
             totalBytes,
             new NodeHeapEstimates(
                 Math.addExact(Math.addExact(nodeHeapEstimates.totalHeapUsage(), indexMetadataUsageDelta), hostedShardsUsageDelta),
-                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), hostedShardsUsageDelta)
+                Math.addExact(nodeHeapEstimates.hostedShardsHeapUsage(), hostedShardsUsageDelta),
+                nodeHeapEstimates.nonShardHeapUsage()
             )
         );
     }

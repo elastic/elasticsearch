@@ -68,7 +68,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     static final TransportVersion SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO = TransportVersion.fromName(
         "search_lane_requirements_in_cluster_info"
     );
-
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final Map<String, Long> shardSizes;

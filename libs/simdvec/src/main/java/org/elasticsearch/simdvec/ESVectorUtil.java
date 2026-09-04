@@ -1080,7 +1080,7 @@ public class ESVectorUtil {
     public static float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
         if (aT.length != m * k) throw new IllegalArgumentException("Invalid a array size [" + aT.length + "] for matrix multiplication");
         if (b.length != m * n) throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
-        return IMPL.matrixMultiply(aT, b, m, k, n);
+        return IMPL.matrixMultiplyTA(aT, b, m, k, n);
     }
 
     /**

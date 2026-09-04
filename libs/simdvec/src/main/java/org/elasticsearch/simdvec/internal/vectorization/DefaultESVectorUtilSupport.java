@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.BFloat16Support;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -773,26 +772,54 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
         float[] c = new float[m * n];
-        for (int i = 0; i < m; i++) {
-            int aBase = i * k;
-            int cBase = i * n;
-            for (int l = 0; l < k; l++) {
-                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
-            }
-        }
+        multiplyAccumulate(a, k, 1, b, c, m, k, n);
         return c;
     }
 
     @Override
     public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
         float[] c = new float[k * n];
-        for (int l = 0; l < m; l++) {
-            int aBase = l * k;
-            int bBase = l * n;
-            for (int i = 0; i < k; i++) {
-                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
+        multiplyAccumulate(aT, 1, k, b, c, k, m, n);
+        return c;
+    }
+
+    /**
+     * Accumulates {@code C += A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l * aDepthStride]}. The strides let {@code A @ B} and
+     * {@code A^T @ B} share this method; the transposed form only swaps them.
+     *
+     * @param aRowStride   distance in {@code a} between consecutive rows of the left operand
+     * @param aInnerStride distance in {@code a} between consecutive contraction steps
+     * @param cRows        rows of C, and of the left operand
+     * @param inner        inner dimension of the multiplication
+     * @param n            columns of C, and of B
+     */
+    private void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        final int innerLimit = inner - inner % 4;
+        for (int i = 0; i < cRows; i++) {
+            int aBase = i * aRowStride;
+            int cBase = i * n;
+            int l = 0;
+            for (; l < innerLimit; l += 4) {
+                int aOffset = aBase + l * aInnerStride;
+                int b0 = l * n;
+                int b1 = b0 + n;
+                int b2 = b0 + n * 2;
+                int b3 = b0 + n * 3;
+                for (int j = 0; j < n; j++) {
+                    float acc = c[cBase + j];
+                    acc = fma(a[aOffset], b[b0 + j], acc);
+                    acc = fma(a[aOffset + aInnerStride], b[b1 + j], acc);
+                    acc = fma(a[aOffset + aInnerStride * 2], b[b2 + j], acc);
+                    acc = fma(a[aOffset + aInnerStride * 3], b[b3 + j], acc);
+                    c[cBase + j] = acc;
+                }
+            }
+            // tail
+            for (; l < inner; l++) {
+                linearCombination(a[aBase + l * aInnerStride], b, l * n, c, cBase, n);
             }
         }
-        return c;
     }
 }

@@ -390,6 +390,7 @@ tasks.register("integTest", Test) {
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  // TODO: LUCENE11 restore InternalDistributionBwcSetupPluginFuncTest once BWC infra is fixed
   // build-tools-internal is a java-gradle-plugin project, so ElasticsearchJavaBasePlugin (and with it
   // MutedTestPlugin) never applies to this integTest task. That means muted-tests.yml is not honored here,
   // unlike the product build. InternalDistributionBwcSetupPluginFuncTest drives the BWC source-build

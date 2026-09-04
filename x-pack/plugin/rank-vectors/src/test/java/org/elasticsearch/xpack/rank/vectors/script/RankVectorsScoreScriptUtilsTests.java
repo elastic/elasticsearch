@@ -43,62 +43,53 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
             }
         }
 
-        List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
+        // the first query vector scores highest against the document's first vector, the second against its second one,
+        // so the result is only correct if each query vector takes its own maximum
+        List<List<Number>> queryVector = List.of(
+            Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f),
+            Arrays.asList(0.0f, 0.0f, -1.0f, 0.0f, 0.0f)
+        );
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
 
-        List<RankVectorsDocValuesField> fields = List.of(
-            new FloatRankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
-                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
-                "test",
-                ElementType.FLOAT,
-                dims
-            ),
-            new FloatRankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
-                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
-                "test",
-                ElementType.FLOAT,
-                dims
-            )
+        RankVectorsDocValuesField field = new FloatRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
+            RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
+            "test",
+            ElementType.FLOAT,
+            dims
         );
-        for (RankVectorsDocValuesField field : fields) {
-            field.setNextDocId(0);
+        field.setNextDocId(0);
 
-            ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field("vector")).thenAnswer(mock -> field);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field("vector")).thenAnswer(mock -> field);
 
-            // Test max similarity dot product
-            MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            float maxSimDotProductExpected = 65425.625f; // Adjust this value based on expected max similarity
-            assertEquals(
-                "maxSimDotProduct result is not equal to the expected value!",
-                maxSimDotProductExpected,
-                maxSimDotProduct.maxSimDotProduct(),
-                0.001
-            );
+        // Test max similarity dot product: 65425.63 against the first vector plus 50.0 against the second
+        MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
+        float maxSimDotProductExpected = 65475.625f;
+        assertEquals(
+            "maxSimDotProduct result is not equal to the expected value!",
+            maxSimDotProductExpected,
+            maxSimDotProduct.maxSimDotProduct(),
+            0.001
+        );
 
-            // Check each function rejects query vectors with the wrong dimension
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
-            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
+        // Check each function rejects query vectors with the wrong dimension
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+        );
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
+        assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
-            // Check scripting infrastructure integration
-            assertEquals(65425.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
-            when(scoreScript._getDocId()).thenReturn(1);
-            e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
-            );
-            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
-        }
+        // Check scripting infrastructure integration
+        assertEquals(65475.625, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
+        when(scoreScript._getDocId()).thenReturn(1);
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
+        );
+        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
     }
 
     public void testBFloat16MultiVectorClassBindings() throws IOException {
@@ -113,62 +104,51 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
             }
         }
 
-        List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
+        List<List<Number>> queryVector = List.of(
+            Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f),
+            Arrays.asList(0.0f, 0.0f, -1.0f, 0.0f, 0.0f)
+        );
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
 
-        List<RankVectorsDocValuesField> fields = List.of(
-            new BFloat16RankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.BFLOAT16),
-                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
-                "test",
-                ElementType.BFLOAT16,
-                dims
-            ),
-            new BFloat16RankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.BFLOAT16),
-                RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
-                "test",
-                ElementType.BFLOAT16,
-                dims
-            )
+        RankVectorsDocValuesField field = new BFloat16RankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(docVectors, ElementType.BFLOAT16),
+            RankVectorsScriptDocValuesTests.wrap(docMagnitudes),
+            "test",
+            ElementType.BFLOAT16,
+            dims
         );
-        for (RankVectorsDocValuesField field : fields) {
-            field.setNextDocId(0);
+        field.setNextDocId(0);
 
-            ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field("vector")).thenAnswer(mock -> field);
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field("vector")).thenAnswer(mock -> field);
 
-            // Test max similarity dot product
-            MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            float maxSimDotProductExpected = 65390.32421875f; // Adjust this value based on expected max similarity
-            assertEquals(
-                "maxSimDotProduct result is not equal to the expected value!",
-                maxSimDotProductExpected,
-                maxSimDotProduct.maxSimDotProduct(),
-                0.1
-            );
+        // Test max similarity dot product: 65390.32 against the first vector plus 50.0 against the second
+        MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
+        float maxSimDotProductExpected = 65440.32421875f;
+        assertEquals(
+            "maxSimDotProduct result is not equal to the expected value!",
+            maxSimDotProductExpected,
+            maxSimDotProduct.maxSimDotProduct(),
+            0.1
+        );
 
-            // Check each function rejects query vectors with the wrong dimension
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
-            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
+        // Check each function rejects query vectors with the wrong dimension
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+        );
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
+        assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
-            // Check scripting infrastructure integration
-            assertEquals(65390.32421875, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.1);
-            when(scoreScript._getDocId()).thenReturn(1);
-            e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
-            );
-            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
-        }
+        // Check scripting infrastructure integration
+        assertEquals(65440.32421875, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.1);
+        when(scoreScript._getDocId()).thenReturn(1);
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
+        );
+        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
     }
 
     public void testByteMultiVectorClassBindings() throws IOException {
@@ -179,50 +159,46 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
         for (int i = 0; i < docVector.length; i++) {
             magnitudes[i][0] = (float) Math.sqrt(VectorUtil.dotProduct(docVector[i], docVector[i]));
         }
-        List<List<Number>> queryVector = List.of(Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4));
-        List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
-        List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 }));
-
-        List<RankVectorsDocValuesField> fields = List.of(
-            new ByteRankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
-                RankVectorsScriptDocValuesTests.wrap(magnitudes),
-                "test",
-                ElementType.BYTE,
-                dims
-            )
+        List<List<Number>> queryVector = List.of(
+            Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4),
+            Arrays.asList((byte) 1, (byte) 0, (byte) 0, (byte) 0, (byte) 0)
         );
-        for (RankVectorsDocValuesField field : fields) {
-            field.setNextDocId(0);
+        List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
+        List<String> hexidecimalString = List.of(
+            HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 }),
+            HexFormat.of().formatHex(new byte[] { 1, 0, 0, 0, 0 })
+        );
 
-            ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
+            RankVectorsScriptDocValuesTests.wrap(magnitudes),
+            "test",
+            ElementType.BYTE,
+            dims
+        );
+        field.setNextDocId(0);
 
-            // Check each function rejects query vectors with the wrong dimension
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
-            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
 
-            // Check scripting infrastructure integration
-            assertEquals(17382.0, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
-            assertEquals(17382.0, new MaxSimDotProduct(scoreScript, hexidecimalString, fieldName).maxSimDotProduct(), 0.001);
-            assertEquals(0.675, new MaxSimInvHamming(scoreScript, queryVector, fieldName).maxSimInvHamming(), 0.001);
-            assertEquals(0.675, new MaxSimInvHamming(scoreScript, hexidecimalString, fieldName).maxSimInvHamming(), 0.001);
-            MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            when(scoreScript._getDocId()).thenReturn(1);
-            e = expectThrows(IllegalArgumentException.class, maxSimDotProduct::maxSimDotProduct);
-            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
-        }
+        // Check each function rejects query vectors with the wrong dimension
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+        );
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
+        assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
+
+        // Check scripting infrastructure integration: 17382 for the first query vector plus 1 for the second
+        assertEquals(17383.0, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
+        assertEquals(17383.0, new MaxSimDotProduct(scoreScript, hexidecimalString, fieldName).maxSimDotProduct(), 0.001);
+        assertEquals(1.275, new MaxSimInvHamming(scoreScript, queryVector, fieldName).maxSimInvHamming(), 0.001);
+        assertEquals(1.275, new MaxSimInvHamming(scoreScript, hexidecimalString, fieldName).maxSimInvHamming(), 0.001);
+        MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
+        when(scoreScript._getDocId()).thenReturn(1);
+        e = expectThrows(IllegalArgumentException.class, maxSimDotProduct::maxSimDotProduct);
+        assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
     }
 
     public void testBitMultiVectorClassBindingsDotProduct() throws IOException {
@@ -231,64 +207,65 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
         float[][] docVector = new float[][] { { 124 } };
         // 124 in binary is b01111100
         List<List<Number>> queryVector = List.of(
-            Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4, (byte) 1, (byte) 125, (byte) -12)
+            Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4, (byte) 1, (byte) 125, (byte) -12),
+            Arrays.asList((byte) 1, (byte) 1, (byte) 1, (byte) 1, (byte) 1, (byte) 1, (byte) 1, (byte) 1)
         );
-        List<List<Number>> floatQueryVector = List.of(Arrays.asList(1.4f, -1.4f, 0.42f, 0.0f, 1f, -1f, -0.42f, 1.2f));
+        List<List<Number>> floatQueryVector = List.of(
+            Arrays.asList(1.4f, -1.4f, 0.42f, 0.0f, 1f, -1f, -0.42f, 1.2f),
+            Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f)
+        );
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
-        List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 124 }));
+        List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 124 }), HexFormat.of().formatHex(new byte[] { 96 }));
 
-        List<RankVectorsDocValuesField> fields = List.of(
-            new BitRankVectorsDocValuesField(
-                RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT),
-                RankVectorsScriptDocValuesTests.wrap(new float[][] { { 5 } }),
-                "test",
-                ElementType.BIT,
-                dims
+        RankVectorsDocValuesField field = new BitRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT),
+            RankVectorsScriptDocValuesTests.wrap(new float[][] { { 5 } }),
+            "test",
+            ElementType.BIT,
+            dims
+        );
+        field.setNextDocId(0);
+
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+
+        // the second query vector sums the dimensions the document's set bits select, i.e. one per set bit
+        MaxSimDotProduct function = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
+        assertEquals(
+            "maxSimDotProduct result is not equal to the expected value!",
+            (-12 + 2 + 4 + 1 + 125) + Integer.bitCount(124),
+            function.maxSimDotProduct(),
+            0.001
+        );
+
+        function = new MaxSimDotProduct(scoreScript, floatQueryVector, fieldName);
+        assertEquals(
+            "maxSimDotProduct result is not equal to the expected value!",
+            (-1.4f + 0.42f + 0f + 1f - 1f) + Integer.bitCount(124),
+            function.maxSimDotProduct(),
+            0.001
+        );
+
+        function = new MaxSimDotProduct(scoreScript, hexidecimalString, fieldName);
+        assertEquals(
+            "maxSimDotProduct result is not equal to the expected value!",
+            Integer.bitCount(124) + Integer.bitCount(124 & 96),
+            function.maxSimDotProduct(),
+            0.0
+        );
+
+        // Check each function rejects query vectors with the wrong dimension
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query vector contains inner vectors which have incorrect number of dimensions. "
+                    + "Must be [1] for bitwise operations, or [8] for byte wise operations: provided [2]."
             )
         );
-        for (RankVectorsDocValuesField field : fields) {
-            field.setNextDocId(0);
-
-            ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
-
-            MaxSimDotProduct function = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            assertEquals(
-                "maxSimDotProduct result is not equal to the expected value!",
-                -12 + 2 + 4 + 1 + 125,
-                function.maxSimDotProduct(),
-                0.001
-            );
-
-            function = new MaxSimDotProduct(scoreScript, floatQueryVector, fieldName);
-            assertEquals(
-                "maxSimDotProduct result is not equal to the expected value!",
-                -1.4f + 0.42f + 0f + 1f - 1f,
-                function.maxSimDotProduct(),
-                0.001
-            );
-
-            function = new MaxSimDotProduct(scoreScript, hexidecimalString, fieldName);
-            assertEquals(
-                "maxSimDotProduct result is not equal to the expected value!",
-                Integer.bitCount(124),
-                function.maxSimDotProduct(),
-                0.0
-            );
-
-            // Check each function rejects query vectors with the wrong dimension
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
-            );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "query vector contains inner vectors which have incorrect number of dimensions. "
-                        + "Must be [1] for bitwise operations, or [8] for byte wise operations: provided [2]."
-                )
-            );
-        }
     }
 
     public void testByteVsFloatSimilarity() throws IOException {
@@ -397,6 +374,48 @@ public class RankVectorsScoreScriptUtilsTests extends ESTestCase {
                     + "Preview of invalid vector: [0.5]"
             );
         }
+    }
+
+    public void testByteBoundariesValidation() throws IOException {
+        String fieldName = "vector";
+        int dims = 3;
+        float[] docVector = new float[] { 0, 0, 0 };
+        // The offending value sits in the middle of a token, so it is only caught if every dimension is validated
+        List<List<Number>> outOfBoundsVector = List.of(List.of(1, 200, 3), List.of(1, 2, 3));
+        List<List<Number>> decimalVector = List.of(List.of(1, 2, 3), List.of(1, 0.5, 3));
+
+        RankVectorsDocValuesField field = new ByteRankVectorsDocValuesField(
+            RankVectorsScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE),
+            RankVectorsScriptDocValuesTests.wrap(new float[][] { { 1 } }),
+            "test",
+            ElementType.BYTE,
+            dims
+        );
+        field.setNextDocId(0);
+
+        ScoreScript scoreScript = mock(ScoreScript.class);
+        when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MaxSimDotProduct(scoreScript, outOfBoundsVector, fieldName)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [200.0] at dim [1]")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(scoreScript, decimalVector, fieldName));
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support non-decimal values but found decimal value [0.5] at dim [1]")
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, outOfBoundsVector, fieldName));
+        assertThat(
+            e.getMessage(),
+            containsString("element_type [byte] vectors only support integers between [-128, 127] but found [200.0] at dim [1]")
+        );
     }
 
 }

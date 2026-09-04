@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -228,12 +229,16 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         sb.append("]}");
         String largeTemplate = sb.toString();
 
-        // Tighten the REQUEST breaker to 1 byte so that any positive charge trips it immediately,
-        // regardless of any pre-existing state in the breaker. The render estimate for the first
-        // item alone is 512 B (RENDER_BASE_OVERHEAD), which already exceeds this limit. Using
-        // "1b" instead of a KB-range value avoids races where the breaker's accumulated bytes
-        // from concurrent or preceding operations happen to leave just enough room under a larger
-        // limit for the charge to succeed.
+        // Pre-charge the REQUEST circuit breaker on every node to 1 GB. The breaker's `used`
+        // counter can drift negative via estimation-inaccuracy releases in prior tests; adding
+        // 1 GB brings it well above any threshold. We then set the limit to 1 b: with
+        // `used >= 1 GB >> 1 b`, the first render (≥ 512 B RENDER_BASE_OVERHEAD) is guaranteed
+        // to trip regardless of prior cluster state.
+        final long preCharge = 1_000_000_000L;
+        Collection<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
+        for (CircuitBreakerService bs : breakerServices) {
+            bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(preCharge);
+        }
         updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
         try {
             int numRequests = 20;
@@ -262,6 +267,9 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             updateClusterSettings(
                 Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
             );
+            for (CircuitBreakerService bs : breakerServices) {
+                bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(-preCharge);
+            }
         }
     }
 

@@ -228,6 +228,15 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return copy(child(), query, fields, newOptions, generatedFields);
     }
 
+    public Highlight withResolved(
+        Expression newQuery,
+        boolean newImplicitQuery,
+        List<NamedExpression> newFields,
+        List<Attribute> newGeneratedFields
+    ) {
+        return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
+    }
+
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
         return copy(newChild, query, fields, options, generatedFields);

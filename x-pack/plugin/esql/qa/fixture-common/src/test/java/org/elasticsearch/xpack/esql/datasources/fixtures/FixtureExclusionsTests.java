@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -121,4 +124,60 @@ public class FixtureExclusionsTests extends ESTestCase {
         assertThat(constraint.kind(), equalTo(FixtureExclusions.Kind.RULE));
     }
 
+    /**
+     * The property #1880 forced into the grammar: a defect reachable only by a value PAIR. Measured on
+     * tsvScalarWithNoneParses, escaped mode alone passes and a semicolon delimiter alone passes; only
+     * together do they fail. An exclusion naming one value would take away roughly twenty passing cells
+     * and report green for it, which is coverage deleted rather than a defect described.
+     */
+    public void testAPairQualifiedExclusionAppliesOnlyWhenEverySlotMatches() {
+        Properties props = new Properties();
+        props.setProperty("suites", "tsv-vector");
+        props.setProperty(
+            "exclude.tsv-vector.some-spec.aCase@text_mode.escaped,delimiter.semicolon",
+            "bug: elastic/esql-planning#1880 -- only the pair splits wrongly"
+        );
+        FixtureExclusions parsed = FixtureExclusions.parse(props);
+
+        // The vector-aware lookup, because that is the one the suites call: an exclusion is only ever
+        // consulted against the vector a case is about to run under.
+        assertThat("both slots present", excluded(parsed, Map.of("text_mode", "escaped", "delimiter", "semicolon")), equalTo(true));
+        assertThat("only the mode", excluded(parsed, Map.of("text_mode", "escaped", "delimiter", "tab")), equalTo(false));
+        assertThat("only the delimiter", excluded(parsed, Map.of("text_mode", "quoted", "delimiter", "semicolon")), equalTo(false));
+        assertThat("neither", excluded(parsed, Map.of("text_mode", "quoted", "delimiter", "tab")), equalTo(false));
+        assertThat("a slot absent from the vector", excluded(parsed, Map.of("text_mode", "escaped")), equalTo(false));
+    }
+
+    private static boolean excluded(FixtureExclusions exclusions, Map<String, String> vector) {
+        return exclusions.find("tsv-vector", "some-spec", "aCase", vector) != null;
+    }
+
+    /** A single slot still means what it always did, and no qualifier still means every vector. */
+    public void testASingleSlotAndAnUnqualifiedExclusionAreUnchanged() {
+        Properties props = new Properties();
+        props.setProperty("suites", "tsv-vector");
+        props.setProperty("exclude.tsv-vector.some-spec.oneSlot@text_mode.escaped", "bug: elastic/esql-planning#1 -- one value");
+        props.setProperty("exclude.tsv-vector.some-spec.everyVector", "rule: the suite cannot express this");
+        FixtureExclusions parsed = FixtureExclusions.parse(props);
+
+        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("text_mode", "escaped")), not(nullValue()));
+        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("text_mode", "quoted")), nullValue());
+
+        assertThat(parsed.find("tsv-vector", "some-spec", "everyVector", Map.of("text_mode", "quoted")), not(nullValue()));
+        assertThat(parsed.find("tsv-vector", "some-spec", "everyVector", Map.of()), not(nullValue()));
+    }
+
+    public void testAMalformedSlotAnywhereInTheListIsRejected() {
+        for (String qualifier : List.of("text_mode.escaped,delimiter", "delimiter,text_mode.escaped", "text_mode.escaped,", "nodot")) {
+            Properties props = new Properties();
+            props.setProperty("suites", "tsv-vector");
+            props.setProperty("exclude.tsv-vector.some-spec.aCase@" + qualifier, "bug: elastic/esql-planning#1 -- malformed");
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                "expected [" + qualifier + "] to be rejected",
+                () -> FixtureExclusions.parse(props)
+            );
+            assertThat(e.getMessage(), containsString("<dimension>.<value>"));
+        }
+    }
 }

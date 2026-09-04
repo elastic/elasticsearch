@@ -53,16 +53,37 @@ public final class FixtureExclusions {
 
     /** One exclusion: which suite, which case, what kind, and the reason in full. */
     /**
-     * @param vectorSlot the {@code dimension.value} this applies to, or null for every vector.
+     * @param vectorSlots the {@code dimension.value} slots a vector must ALL carry for this to apply,
+     *                    comma-separated, or null for every vector.
      */
-    public record Exclusion(String suite, String spec, String caseName, String vectorSlot, Kind kind, String reason) {
-        /** Whether this exclusion covers a case running under the given vector. */
+    public record Exclusion(String suite, String spec, String caseName, String vectorSlots, Kind kind, String reason) {
+        /**
+         * Whether this exclusion covers a case running under the given vector.
+         *
+         * <p>Every named slot must match, because some defects are reachable only by a PAIR of values and
+         * naming one of them takes away far more than the defect. #1880 is the case that forced this:
+         * escaped mode splits a data row at an escaped delimiter, so on tsv it fails under
+         * {@code escaped + semicolon} while {@code escaped} on its own and {@code semicolon} on its own
+         * both pass -- measured, 4 failing instances against about 20 passing ones on the same case. A
+         * single-slot exclusion on either value would have deleted every one of those passing cells and
+         * reported a green suite for doing it.
+         *
+         * <p>This mirrors what the dimension declaration already learned separately: its
+         * {@code value_disjoint} exists because a per-cell grammar cannot say that only a COMBINATION is
+         * impossible. The same is true of defects.
+         */
         public boolean appliesTo(Map<String, String> vector) {
-            if (vectorSlot == null) {
+            if (vectorSlots == null) {
                 return true;
             }
-            int dot = vectorSlot.indexOf('.');
-            return vectorSlot.substring(dot + 1).equals(vector.get(vectorSlot.substring(0, dot)));
+            for (String slot : vectorSlots.split(",")) {
+                String trimmed = slot.trim();
+                int dot = trimmed.indexOf('.');
+                if (trimmed.substring(dot + 1).equals(vector.get(trimmed.substring(0, dot))) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -75,7 +96,7 @@ public final class FixtureExclusions {
     private final Map<String, Map<SpecCase, Exclusion>> bySuite;
 
     /** The identity of an excluded case: its spec and its name. */
-    private record SpecCase(String spec, String caseName, String vectorSlot) {}
+    private record SpecCase(String spec, String caseName, String vectorSlots) {}
 
     private final Set<String> declaredSuites;
 
@@ -220,22 +241,33 @@ public final class FixtureExclusions {
             // last value silently, so two entries for one case resolve to whichever happens to be lower
             // in the file. This file carried four such duplicates, one of them with two DIFFERENT
             // reasons. The composite key means a duplicate now collides here, where it can be reported.
-            // `case@dimension=value` narrows an exclusion to the vectors that carry that slot. Without it a
+            // `case@dimension.value` narrows an exclusion to the vectors that carry that slot. Without it a
             // per-vector defect costs the whole case: hivePartitionWhereIsNull fails under six vectors and
             // PASSES under twenty-one, and a case-wide exclusion would silently discard all twenty-one.
+            //
+            // Several slots may be named, comma-separated, and a vector must carry them ALL. That is not a
+            // convenience: a defect reachable only by a value PAIR cannot be narrowed to one of its values
+            // without deleting every cell where the other value is fine on its own.
             int at = caseOnly.indexOf('@');
             String bare = at < 0 ? caseOnly : caseOnly.substring(0, at);
-            String slot = at < 0 ? null : caseOnly.substring(at + 1);
+            String slots = at < 0 ? null : caseOnly.substring(at + 1);
             // `@dimension.value`, not `@dimension=value`: Properties splits a key on the first unescaped
             // '=', so an equals here is read as the key/value separator and the qualifier silently becomes
             // part of the reason. A dot cannot collide -- dimension names and values are snake_case.
-            if (slot != null && slot.indexOf('.') < 0) {
-                throw new IllegalStateException(
-                    "exclusion [" + key + "] has a vector qualifier [" + slot + "] that is not <dimension>.<value>"
-                );
+            if (slots != null) {
+                // -1 keeps trailing empty segments: `split(",")` drops them, so a trailing comma would
+                // pass validation and then silently mean nothing.
+                for (String slot : slots.split(",", -1)) {
+                    String trimmed = slot.trim();
+                    if (trimmed.isEmpty() || trimmed.indexOf('.') < 0) {
+                        throw new IllegalStateException(
+                            "exclusion [" + key + "] has a vector qualifier [" + trimmed + "] that is not <dimension>.<value>"
+                        );
+                    }
+                }
             }
             Exclusion previous = parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>())
-                .put(new SpecCase(spec, bare, slot), new Exclusion(suite, spec, bare, slot, kind, reason));
+                .put(new SpecCase(spec, bare, slots), new Exclusion(suite, spec, bare, slots, kind, reason));
             if (previous != null) {
                 throw new IllegalStateException(
                     "duplicate exclusion ["

@@ -19,6 +19,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -615,6 +616,79 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             );
         } finally {
             IOUtils.close(toClose);
+        }
+    }
+
+    /**
+     * A single-valued numeric field with a point index must be reported as single-valued via the
+     * {@code PointValues.size() == PointValues.getDocCount()} check. Covers the points branch of
+     * {@code detectSingleValue}, as opposed to the doc-values-skipper branch.
+     */
+    public void testPointIndexedSingleValuedNumericIsDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "lng": { "type": "long" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new LongField("lng", 1, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("lng", 2, Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            PointValues points = leafReader.getPointValues("lng");
+            assertNotNull(points);
+            assertEquals(2, points.size());
+            assertEquals(2, points.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(
+                "single-valued numeric field with a point index must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("lng"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * A multi-valued numeric field with a point index must be reported as multi-valued via the
+     * {@code PointValues.size() == PointValues.getDocCount()} check.
+     */
+    public void testPointIndexedMultiValuedNumericIsDetectedAsMultiValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "lng": { "type": "long" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new LongField("lng", 1, Field.Store.NO), new LongField("lng", 2, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("lng", 3, Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            PointValues points = leafReader.getPointValues("lng");
+            assertNotNull(points);
+            assertEquals(3, points.size());
+            assertEquals(2, points.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "multi-valued numeric field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("lng"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
         }
     }
 

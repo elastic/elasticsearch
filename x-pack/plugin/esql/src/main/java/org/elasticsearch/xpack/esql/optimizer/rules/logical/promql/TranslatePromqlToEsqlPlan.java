@@ -63,9 +63,9 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.NamedColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.TimeSeriesColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.NamedColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.TimeSeriesColumn;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -115,11 +115,11 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findById;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByIdOrName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.resolveColumn;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.toCanonicalName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findById;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByIdOrName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.resolveColumn;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.toCanonicalName;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 
 /**

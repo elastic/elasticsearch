@@ -40,7 +40,8 @@ import java.util.Objects;
  *       a linked index of the same name resolves, a linked dataset/view fails on the detect rail. Results
  *       land in {@code AnalyzerContext.linkedResolution}, keyed by {@link #linkedIndexPattern()}.</li>
  *   <li>The {@code ResolveDatasetShadow} analyzer rule (sibling of {@code ResolveViewShadow}) replaces the
- *       shadow with an {@code EsRelation} on a valid resolution, else leaves it unresolved.</li>
+ *       shadow with an {@code EsRelation} on a valid resolution that matched at least one linked index,
+ *       else leaves it unresolved.</li>
  *   <li>{@code StripDatasetShadowRelations} removes any still-unresolved shadow; a single-survivor union
  *       collapses to its lone child.</li>
  * </ol>

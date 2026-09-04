@@ -77,6 +77,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
@@ -894,7 +895,7 @@ public class LocalExecutionPlanner {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
-            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory)
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
             : null;
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
@@ -931,8 +932,16 @@ public class LocalExecutionPlanner {
             // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
             // the TopNExec can never reach the operator without the readers also being wired to it.
             SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
+            TopNOperator.GlobalTopKMergeConfig globalTopKMerge = null;
             if (minCompetitive == null && luceneMinCompetitivePilot != null) {
                 minCompetitive = luceneMinCompetitivePilot.supplier();
+                if (luceneMinCompetitivePilot.globalTopK() != null && common.limit > 1) {
+                    globalTopKMerge = new TopNOperator.GlobalTopKMergeConfig(
+                        luceneMinCompetitivePilot.globalTopK(),
+                        context.plannerSettings().minCompetitiveGlobalMergeBatchPages(),
+                        context.plannerSettings().minCompetitiveGlobalMergeMaxPendingKeys()
+                    );
+                }
             }
             return source.with(
                 new TopNOperatorFactory(
@@ -944,6 +953,7 @@ public class LocalExecutionPlanner {
                     context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                     topNExec.inputOrdering(),
                     minCompetitive,
+                    globalTopKMerge,
                     parallelWorkerConfig
                 ),
                 source.layout
@@ -1154,7 +1164,8 @@ public class LocalExecutionPlanner {
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
         TopNExec topNExec,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        FoldContext foldCtx
     ) {
         List<Order> orders = topNExec.order();
         if (orders.size() != 1) {
@@ -1185,7 +1196,11 @@ public class LocalExecutionPlanner {
             blockFactory.breaker(),
             topNExec.minCompetitiveKeyConfig()
         );
-        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName());
+        int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
+        SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
+            ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
+            : null;
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
     }
 
     @Nullable

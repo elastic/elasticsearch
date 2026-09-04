@@ -770,3 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
   method: testMultiFileParallelDiscoveryAccumulatesCpuNanos
   issue: https://github.com/elastic/elasticsearch/issues/158461
+- class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
+  method: testAsyncSplitDiscoveryAccumulatesCpuNanos
+  issue: https://github.com/elastic/elasticsearch/issues/158516

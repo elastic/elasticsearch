@@ -220,7 +220,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
-
     private volatile int maxConcurrentOperations;
     private volatile boolean monotonicEndTime;
 

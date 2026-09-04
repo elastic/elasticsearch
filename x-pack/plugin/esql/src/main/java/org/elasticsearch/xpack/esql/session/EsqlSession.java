@@ -237,6 +237,14 @@ public class EsqlSession {
     private final ProjectMetadata projectMetadata;
 
     /**
+     * Hive-partition shadow-column warning bodies from the most recent {@link ExternalSourceResolver#resolve}.
+     * Written when pre-analysis completes (often on the external blob-store pool) and read in
+     * {@link #attachAdditionalData} so they can be merged into {@link DriverCompletionInfo} for
+     * {@code toResponse} to emit. This session is one-shot per query.
+     */
+    private volatile List<String> externalSourceWarnings = List.of();
+
+    /**
      * Mutable state accumulated during EXPLAIN mode execution. All fields are written before
      * {@link #createExplainListener}'s callback fires (sequential callback chain).
      */
@@ -704,19 +712,24 @@ public class EsqlSession {
         );
     }
 
-    private static Versioned<Result> attachAdditionalData(
+    private Versioned<Result> attachAdditionalData(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
         Boolean approximationApplied,
         TransportVersion minimumVersion
     ) {
+        DriverCompletionInfo completionInfo = result.completionInfo();
+        if (completionInfo == null) {
+            completionInfo = DriverCompletionInfo.EMPTY;
+        }
+        completionInfo = completionInfo.withAdditionalWarnings(externalSourceWarnings);
         return new Versioned<>(
             new Result(
                 result.schema(),
                 result.pages(),
                 columnMetadata,
                 result.configuration(),
-                result.completionInfo(),
+                completionInfo,
                 result.executionInfo(),
                 approximationApplied
             ),
@@ -1653,7 +1666,13 @@ public class EsqlSession {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
                 return r;
             })
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen(
+                (l, r) -> preAnalyzeExternalSources(externalSourceResolver, parsed, preAnalysis, r, l.map(preAnalysisResult -> {
+                    ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
+                    externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
+                    return preAnalysisResult;
+                }))
+            )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();

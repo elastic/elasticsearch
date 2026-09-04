@@ -43,44 +43,40 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
 
     /**
      * Verifies correctness with the flat (non-paged) partition storage, which is the default for
-     * tables whose total key bytes are at or below {@link BytesRefSwissHash#FLAT_PARTITION_THRESHOLD_BYTES}.
+     * tables whose total key bytes are at or below {@link BytesRefSwissHash#PAGED_PARTITION_THRESHOLD_BYTES}.
      */
     public void testPartitionFlat() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class);
+        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class, BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     /**
      * Verifies correctness with the paged partition storage (BytesRefArray per partition), which is
-     * used for tables whose total key bytes exceed {@link BytesRefSwissHash#FLAT_PARTITION_THRESHOLD_BYTES}.
-     * The threshold is overridden to zero so small test data exercises the paged path.
+     * used for tables whose total key bytes exceed {@link BytesRefSwissHash#PAGED_PARTITION_THRESHOLD_BYTES}.
+     * The threshold is set to zero so small test data exercises the paged path.
      */
     public void testPartitionPaged() {
-        BytesRefSwissHash.flatPartitionThresholdBytesForTest = 0;
-        try {
-            var recycler = new BytesRefSwissHashTests.TestRecycler();
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
-            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-            runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class);
-            assertThat(breaker.getUsed(), equalTo(0L));
-        } finally {
-            BytesRefSwissHash.flatPartitionThresholdBytesForTest = -1;
-        }
+        var recycler = new BytesRefSwissHashTests.TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L);
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     private void runPartitionTest(
         BytesRefSwissHashTests.TestRecycler recycler,
         BigArrays bigArrays,
         CircuitBreaker breaker,
-        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType
+        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
+        long pagedPartitionThreshold
     ) {
         final int partitionSize = randomIntBetween(128, 10 * 1024);
-        var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays);
+        var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionThreshold);
         SumAgg agg1 = new SumAgg(breaker);
-        var hash2 = new BytesRefSwissHash(recycler, breaker, bigArrays);
+        var hash2 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionThreshold);
         SumAgg agg2 = new SumAgg(breaker);
         List<PartitionedKeyAndAggs> gens = new ArrayList<>();
         try {

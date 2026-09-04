@@ -99,10 +99,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * A single partition's data can be at most this many bytes, so staying under this
      * limit guarantees no partition will overflow a Java {@code byte[]}.
      */
-    static final long FLAT_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
-
-    /** Overrides {@link #FLAT_PARTITION_THRESHOLD_BYTES} in tests; ignored when negative. */
-    static long flatPartitionThresholdBytesForTest = -1;
+    /**
+     * Total key bytes at or below which {@link #splitPartition} uses flat (non-paged) storage.
+     * Above this threshold it switches to {@link PagedBytesRefPartitionedHashKeys}.
+     */
+    static final long PAGED_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
@@ -121,6 +122,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     private final BigArrays bigArrays;
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
+    private final long pagedPartitionThreshold;
     private final BytesRef scratch = new BytesRef();
     private final PagedBytesCursor cursorScratch = new PagedBytesCursor();
 
@@ -131,7 +133,16 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
+        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, PAGED_PARTITION_THRESHOLD_BYTES);
+    }
+
+    /**
+     * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}, with an
+     * explicit threshold controlling when {@link #splitPartition} switches from flat to paged storage.
+     * Use this in tests to force one path or the other without allocating large data sets.
+     */
+    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, long pagedPartitionThreshold) {
+        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, pagedPartitionThreshold);
     }
 
     /**
@@ -139,14 +150,22 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * This allows multiple {@link BytesRefSwissHash} to share the same key storage and ID space.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
-        this(recycler, breaker, null, bytesRefs, false);
+        this(recycler, breaker, null, bytesRefs, false, PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
-    private BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
+    private BytesRefSwissHash(
+        PageCacheRecycler recycler,
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        BytesRefArray bytesRefs,
+        boolean ownsBytesRefs,
+        long pagedPartitionThreshold
+    ) {
         super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
         this.bigArrays = bigArrays;
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;
+        this.pagedPartitionThreshold = pagedPartitionThreshold;
         boolean success = false;
         try {
             // If bytesRefs is pre-populated (shared), we don't assume those entries are in this hash.
@@ -931,10 +950,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         int batchStart = 0;
         assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
         final long totalKeyBytes = bytesRefs.totalBytes();
-        final long flatThreshold = flatPartitionThresholdBytesForTest >= 0
-            ? flatPartitionThresholdBytesForTest
-            : FLAT_PARTITION_THRESHOLD_BYTES;
-        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= flatThreshold
+        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionThreshold
             ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes)
             : new PagedBytesRefPartitionedHashKeys(bigArrays, size, totalKeyBytes);
         final int[] partitionOffsets = partitionedKeys.partitionCounts;

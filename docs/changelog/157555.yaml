@@ -1,6 +1,0 @@
-pr: 157555
-summary: Reject 2^63 when converting `double` to `long`
-area: ES|QL
-type: bug
-issues:
-  - 157551

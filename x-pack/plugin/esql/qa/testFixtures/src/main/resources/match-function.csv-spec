@@ -1234,6 +1234,86 @@ content:text
 [This is a brown dog, extra]
 ;
 
+// The LIMIT keeps only the six lowest book_no, of which just 1463 and 2130 mention Tolkien. Book 2301 does too but
+// is cut by the LIMIT, so a filter wrongly evaluated before it would return three rows instead of two.
+matchOnRuntimeTextAfterLimit
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
+matchOnRuntimeTextAfterStats
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
+// Grouping on a constant makes LIMIT ... BY keep the same six lowest book_no as matchOnRuntimeTextAfterLimit, so the
+// window stays predictable. Book 2301 mentions Tolkien too but falls outside it, and would come back if the filter
+// were evaluated before the breaker.
+matchOnRuntimeTextAfterLimitBy
+
+required_capability: match_function
+required_capability: esql_limit_by
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| EVAL g = 1
+| LIMIT 6 BY g
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+1463
+2130
+;
+
+// DEDUP compares whole rows, so only book_no is kept going into it - a text column is not something to group on.
+matchOnRuntimeTextAfterDedup
+
+required_capability: match_function
+required_capability: dedup_command
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| KEEP book_no
+| DEDUP
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+;
+
+book_no:keyword | b:text
+2130            | 2130
+;
+
 matchOnRuntimeKeyword
 
 required_capability: match_function
@@ -2288,6 +2368,28 @@ content:text
 the Fox jumped
 ;
 
+matchOnRuntimeTextAfterForkHonorsValuesAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+// the values analyzer declared below FORK has to survive the merge into its output. Whitespace does not lowercase,
+// so only the capitalised row matches; losing the declaration would fall back to standard and match both rows.
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| FORK (WHERE true)
+       (WHERE true)
+| WHERE match(content, "Fox")
+| KEEP content, _fork
+| SORT _fork
+;
+
+content:text   | _fork:keyword
+the Fox jumped | fork1
+the Fox jumped | fork2
+;
+
 matchOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_function
 required_capability: fn_to_text_analyzer
@@ -2423,6 +2525,26 @@ book_no:keyword | _score:double
 1463            | 1.0
 2130            | 1.0
 2301            | 1.0
+;
+
+matchOnRuntimeTextAfterLimitWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_anywhere
+
+// The LIMIT puts this filter on the coordinator, which has no shard contexts. Runtime scoring does not need one,
+// so the matched term still scores its point there.
+FROM books METADATA _score
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
 ;
 
 matchOnRuntimeTextMultipleTermsWithScore

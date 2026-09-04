@@ -87,7 +87,11 @@ public class Knn extends SingleFieldFullTextFunction
         ConfigurationFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternaryConfig(Knn::new).name("knn");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
+        .ternaryConfig(Knn::new)
+        // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
+        .snapshotCapabilities("runtime_anywhere")
+        .name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query

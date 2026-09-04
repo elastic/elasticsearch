@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -137,46 +138,104 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     /**
-     * Verifies thundering-herd protection: concurrent {@code getOrLoad} calls for the same key
-     * invoke the loader exactly once. This is the core invariant — without it the parse would
-     * still run N times under the producer fan-out pattern that motivated this cache.
+     * The first load is held open until the waiters are observed blocked, so a later cache hit
+     * cannot masquerade as coalescing.
      */
     public void testThunderingHerdCoalescesConcurrentLoads() throws Exception {
         FooterByteCache.Key k = key("shared.parquet", 5000);
         String expected = "winner";
         AtomicInteger loadCount = new AtomicInteger();
-        CountDownLatch start = new CountDownLatch(1);
-        int threadCount = randomIntBetween(4, 16);
+        CountDownLatch loaderStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoader = new CountDownLatch(1);
         AtomicReference<AssertionError> failure = new AtomicReference<>();
-        List<Thread> threads = new ArrayList<>(threadCount);
-        for (int i = 0; i < threadCount; i++) {
-            Thread t = new Thread(() -> {
-                try {
-                    start.await(10, TimeUnit.SECONDS);
-                    String result = cache.getOrLoad(k, ignore -> {
-                        loadCount.incrementAndGet();
-                        return expected;
-                    });
-                    assertSame(expected, result);
-                } catch (AssertionError e) {
-                    failure.compareAndSet(null, e);
-                } catch (Exception e) {
-                    failure.compareAndSet(null, new AssertionError("Unexpected exception", e));
-                }
-            }, "herd-" + i);
-            t.start();
-            threads.add(t);
+
+        Thread loaderThread = startHerdThread("herd-loader", failure, () -> {
+            String result = cache.getOrLoad(k, ignore -> {
+                loadCount.incrementAndGet();
+                loaderStarted.countDown();
+                safeAwait(releaseLoader);
+                return expected;
+            });
+            assertSame(expected, result);
+        });
+        safeAwait(loaderStarted);
+
+        int waiterCount = randomIntBetween(3, 15);
+        List<Thread> waiters = new ArrayList<>(waiterCount);
+        for (int i = 0; i < waiterCount; i++) {
+            waiters.add(startHerdThread("herd-waiter-" + i, failure, () -> {
+                String result = cache.getOrLoad(k, ignore -> {
+                    loadCount.incrementAndGet();
+                    return "should-not-run";
+                });
+                assertSame(expected, result);
+            }));
         }
-        start.countDown();
-        for (Thread t : threads) {
-            t.join(TimeUnit.SECONDS.toMillis(10));
-            assertFalse("Thread " + t.getName() + " did not finish in time", t.isAlive());
+        try {
+            awaitBlockedOnInFlight(waiters);
+        } finally {
+            releaseLoader.countDown();
         }
-        AssertionError err = failure.get();
-        if (err != null) {
-            throw err;
-        }
+
+        List<Thread> all = new ArrayList<>(waiterCount + 1);
+        all.add(loaderThread);
+        all.addAll(waiters);
+        joinHerd(all, failure);
         assertEquals("loader invoked exactly once across all concurrent callers", 1, loadCount.get());
+        assertSame(expected, cache.get(k));
+    }
+
+    public void testThunderingHerdPropagatesLoaderFailureAndClearsInFlight() throws Exception {
+        FooterByteCache.Key k = key("bad.parquet", 1000);
+        RuntimeException boom = new RuntimeException("simulated parse failure");
+        AtomicInteger loadCount = new AtomicInteger();
+        CountDownLatch loaderStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoader = new CountDownLatch(1);
+        AtomicReference<AssertionError> failure = new AtomicReference<>();
+
+        Thread loaderThread = startHerdThread("herd-fail-loader", failure, () -> {
+            ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                loadCount.incrementAndGet();
+                loaderStarted.countDown();
+                safeAwait(releaseLoader);
+                throw boom;
+            }));
+            assertSame(boom, ex.getCause());
+        });
+        safeAwait(loaderStarted);
+
+        int waiterCount = randomIntBetween(3, 15);
+        List<Thread> waiters = new ArrayList<>(waiterCount);
+        for (int i = 0; i < waiterCount; i++) {
+            waiters.add(startHerdThread("herd-fail-waiter-" + i, failure, () -> {
+                ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
+                    loadCount.incrementAndGet();
+                    return "should-not-run";
+                }));
+                assertSame(boom, ex.getCause());
+            }));
+        }
+        try {
+            awaitBlockedOnInFlight(waiters);
+        } finally {
+            releaseLoader.countDown();
+        }
+
+        List<Thread> all = new ArrayList<>(waiterCount + 1);
+        all.add(loaderThread);
+        all.addAll(waiters);
+        joinHerd(all, failure);
+        assertEquals("failed load still coalesced to a single loader invocation", 1, loadCount.get());
+        assertNull("a failed load must not leave a phantom entry behind", cache.get(k));
+
+        AtomicInteger retryCount = new AtomicInteger();
+        String recoveredValue = "recovered";
+        String recovered = cache.getOrLoad(k, ignore -> {
+            retryCount.incrementAndGet();
+            return recoveredValue;
+        });
+        assertEquals("in-flight entry must be cleared so a later call loads again", 1, retryCount.get());
+        assertSame(recoveredValue, recovered);
     }
 
     public void testGetOrLoadPropagatesLoaderException() {
@@ -259,5 +318,52 @@ public class ParsedFooterCacheTests extends ESTestCase {
 
     private static FooterByteCache.Key key(String path, long length) {
         return new FooterByteCache.Key(path, length);
+    }
+
+    private static Thread startHerdThread(String name, AtomicReference<AssertionError> failure, CheckedRunnable<Exception> body) {
+        Thread t = new Thread(() -> {
+            try {
+                body.run();
+            } catch (AssertionError e) {
+                failure.compareAndSet(null, e);
+            } catch (Exception e) {
+                failure.compareAndSet(null, new AssertionError("Unexpected exception", e));
+            }
+        }, name);
+        t.start();
+        return t;
+    }
+
+    /**
+     * Wait until every waiter is parked inside {@code getOrLoad}. Releasing the first load before
+     * that would let a later caller hit the cache and the test would pass even if concurrent
+     * misses were not coalesced.
+     */
+    private static void awaitBlockedOnInFlight(List<Thread> waiters) throws Exception {
+        assertBusy(() -> {
+            for (Thread t : waiters) {
+                Thread.State state = t.getState();
+                if (state == Thread.State.TERMINATED) {
+                    // AssertionError is retried by assertBusy; a finished waiter will never park.
+                    throw new IllegalStateException("waiter " + t.getName() + " finished without joining the in-flight load");
+                }
+                assertEquals(
+                    "waiter " + t.getName() + " should be blocked on the in-flight load, was " + state,
+                    Thread.State.WAITING,
+                    state
+                );
+            }
+        });
+    }
+
+    private static void joinHerd(List<Thread> threads, AtomicReference<AssertionError> failure) throws InterruptedException {
+        for (Thread t : threads) {
+            t.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("Thread " + t.getName() + " did not finish in time", t.isAlive());
+        }
+        AssertionError err = failure.get();
+        if (err != null) {
+            throw err;
+        }
     }
 }

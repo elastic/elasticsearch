@@ -54,7 +54,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            int maxRegexLength
         ) throws IOException;
     }
 
@@ -346,7 +347,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            int maxRegexLength
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
@@ -359,14 +361,14 @@ public abstract class ItemSetMapReduceValueSource {
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
+                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format(), maxRegexLength),
                     ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
                     getField(),
                     (Bytes) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format())
+                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format(), maxRegexLength)
                 );
             }
         }
@@ -396,7 +398,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
-            Optional<LeafReaderContext> unusedCtx
+            Optional<LeafReaderContext> unusedCtx,
+            int unusedMaxRegexLength
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();

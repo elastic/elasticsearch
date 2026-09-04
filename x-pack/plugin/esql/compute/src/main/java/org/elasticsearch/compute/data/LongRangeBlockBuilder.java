@@ -115,6 +115,12 @@ public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements
         throw new UnsupportedOperationException("cancelPositionEntry is not supported by LongRangeBlockBuilder");
     }
 
+    @Override
+    public boolean reopenLastPositionEntry() {
+        // See cancelPositionEntry: the inherited implementation would leave the inner builders behind.
+        throw new UnsupportedOperationException("reopenLastPositionEntry is not supported by LongRangeBlockBuilder");
+    }
+
     public LongRangeBlockBuilder appendLongRange(long from, long to) {
         fromBuilder.appendLong(from);
         toBuilder.appendLong(to);

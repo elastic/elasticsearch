@@ -7,9 +7,19 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -20,6 +30,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -27,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -36,11 +48,15 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,14 +79,21 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
-public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
+public class Knn extends SingleFieldFullTextFunction
+    implements
+        OptionalArgument,
+        VectorFunction,
+        PostOptimizationVerificationAware,
+        ConfigurationFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternary(Knn::new).name("knn");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternaryConfig(Knn::new).name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
+    private final Configuration configuration;
+    private float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
@@ -163,9 +186,10 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, field, query, options, null, null, List.of());
+        this(source, field, query, options, null, null, List.of(), configuration);
     }
 
     public Knn(
@@ -175,11 +199,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         Expression options,
         Integer implicitK,
         QueryBuilder queryBuilder,
-        List<Expression> filterExpressions
+        List<Expression> filterExpressions,
+        Configuration configuration
     ) {
         super(source, field, query, options, expressionList(field, query, options), queryBuilder);
         this.implicitK = implicitK;
         this.filterExpressions = filterExpressions;
+        this.configuration = configuration;
     }
 
     private static List<Expression> expressionList(Expression field, Expression query, Expression options) {
@@ -200,9 +226,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return filterExpressions;
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
-        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration());
     }
 
     public List<Number> queryAsObject() {
@@ -218,11 +248,33 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions(), configuration);
+    }
+
+    @Override
+    public boolean isRuntimeSearch() {
+        if (false == (Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField())) {
+            return false;
+        }
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute == null) {
+            // This isn't a field in the index OR a pushed block loader
+            return true;
+        }
+
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+        return false;
     }
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (isRuntimeSearch()) {
+            return Translatable.NO;
+        }
         Translatable translatable = super.translatable(pushdownPredicates);
         // We need to check whether filter expressions are translatable as well
         for (Expression filterExpression : filterExpressions()) {
@@ -230,6 +282,132 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         }
 
         return translatable;
+    }
+
+    @Override
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
+        super.fieldVerifier(plan, function, field, analysisRegistry, failures);
+        if (false == isRuntimeSearch()) {
+            return;
+        }
+
+        if (false == getRuntimeFieldDataTypes().contains(field.dataType())) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field/expression must resolve to dense_vector type",
+                    field.sourceText(),
+                    field.dataType().typeName()
+                )
+            );
+        }
+        // The query value can only be converted to the field's runtime type once it has been folded down to a
+        // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
+        // postOptimizationPlanVerification runs.
+        if (query() instanceof Literal) {
+            if (query().dataType() != DENSE_VECTOR) {
+                failures.add(
+                    Failure.fail(
+                        query(),
+                        "[KNN] cannot operate on [{}] of type [{}]; a non-index-mapped field must be a dense_vector expression",
+                        query().sourceText(),
+                        query().dataType().typeName()
+                    )
+                );
+            }
+            validateQueryVector(failures);
+        }
+    }
+
+    private void validateQueryVector(Failures failures) {
+        float[] vector = queryAsFloats();
+        float squaredMagnitude = VectorUtil.dotProduct(vector, vector);
+        if (Float.isNaN(squaredMagnitude) || Float.isInfinite(squaredMagnitude)) {
+            failures.add(
+                Failure.fail(query(), "[KNN] cannot operate on [{}]; query vector values are too large or too small.", query().sourceText())
+            );
+        }
+        if (squaredMagnitude == 0.0f) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] cannot operate on [{}]; Cosine similarity does not support (query) vectors with zero magnitude.",
+                    query().sourceText()
+                )
+            );
+        }
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            return super.toEvaluator(toEvaluator);
+        }
+        return evaluatorForRuntimeSearch(toEvaluator);
+    }
+
+    private ExpressionEvaluator.Factory evaluatorForRuntimeSearch(ToEvaluator toEvaluator) {
+        float[] queryVector = queryAsFloats();
+        Float similarityThreshold = similarityThresholdOption();
+        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
+        return new KnnRuntimeFilterEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            queryVector,
+            CosineSimilarity.SIMILARITY_FUNCTION,
+            similarityThreshold,
+            context -> similarityThreshold == null ? null : new float[queryVector.length]
+        );
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ExpressionScoreMapper.ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            return super.toScorer(toScorer);
+        }
+        return scorerForRuntimeSearch(toScorer);
+    }
+
+    private ExpressionEvaluator.Factory scorerForRuntimeSearch(ExpressionScoreMapper.ToScorer toScorer) {
+        float[] queryVector = queryAsFloats();
+        float boost = getBoost();
+        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
+        return new KnnRuntimeScoreEvaluator.Factory(
+            source(),
+            toScorer.toEvaluator().apply(field()),
+            queryVector,
+            CosineSimilarity.SIMILARITY_FUNCTION,
+            boost,
+            context -> new float[queryVector.length]
+        );
+    }
+
+    @Nullable
+    private Float similarityThresholdOption() {
+        if (options() == null) {
+            return null;
+        }
+        Map<String, Object> opts = queryOptions();
+        return (Float) opts.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
+    }
+
+    private float getBoost() {
+        if (options() == null) {
+            return 1.0f;
+        }
+        Map<String, Object> opts = queryOptions();
+        return (Float) opts.getOrDefault(BOOST_FIELD.getPreferredName(), 1.0f);
     }
 
     @Override
@@ -260,16 +438,18 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     private float[] queryAsFloats() {
-        List<Number> queryFolded = queryAsObject();
-        float[] queryAsFloats = new float[queryFolded.size()];
-        for (int i = 0; i < queryFolded.size(); i++) {
-            queryAsFloats[i] = queryFolded.get(i).floatValue();
+        if (cachedQuery == null) {
+            List<Number> queryFolded = queryAsObject();
+            cachedQuery = new float[queryFolded.size()];
+            for (int i = 0; i < queryFolded.size(); i++) {
+                cachedQuery[i] = queryFolded.get(i).floatValue();
+            }
         }
-        return queryAsFloats;
+        return cachedQuery;
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration());
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -310,13 +490,24 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             newChildren.size() > 2 ? newChildren.get(2) : null,
             implicitK(),
             queryBuilder(),
-            filterExpressions()
+            filterExpressions(),
+            configuration()
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
+        return NodeInfo.create(
+            this,
+            Knn::new,
+            field(),
+            query(),
+            options(),
+            implicitK(),
+            queryBuilder(),
+            filterExpressions(),
+            configuration()
+        );
     }
 
     @Override
@@ -334,7 +525,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             ? in.readOptionalNamedWriteable(Expression.class)
             : null;
         Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
-        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
+        Configuration configuration = ((PlanStreamInput) in).configuration();
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions, configuration);
     }
 
     @Override
@@ -353,8 +545,17 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
 
     @Override
     protected Set<DataType> getFieldDataTypes() {
-        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
-        return Set.of(DENSE_VECTOR, TEXT, NULL);
+        if (false == isRuntimeSearch()) {
+            // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
+            return Set.of(DENSE_VECTOR, TEXT, NULL);
+        } else {
+            return getRuntimeFieldDataTypes();
+        }
+    }
+
+    private Set<DataType> getRuntimeFieldDataTypes() {
+        // Knn on runtime field accepts DENSE_VECTOR or NULL
+        return Set.of(DENSE_VECTOR, NULL);
     }
 
     @Override
@@ -381,4 +582,62 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
+    /**
+     * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose
+     * field vector has cosine similarity >= threshold (or always true when no threshold is set),
+     * false for rows below the threshold, and false for rows with a null field vector.
+     */
+    @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
+    static boolean runtimeFilter(
+        @Position int position,
+        FloatBlock fieldBlock,
+        @Fixed float[] queryVector,
+        @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Fixed @Nullable Float similarityThreshold,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
+    ) {
+        if (fieldBlock.isNull(position)) {
+            return false;
+        }
+        int dimensions = fieldBlock.getValueCount(position);
+        if (dimensions != queryVector.length) {
+            throw new IllegalArgumentException("dense_vector dimensions do not match");
+        }
+        if (similarityThreshold == null) {
+            return true;
+        }
+        int first = fieldBlock.getFirstValueIndex(position);
+        for (int i = 0; i < dimensions; i++) {
+            scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        return similarityFunction.calculateSimilarity(scratchVector, queryVector) >= similarityThreshold;
+    }
+
+    /**
+     * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
+     * and applies boost.
+     */
+    @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
+    static double runtimeScore(
+        @Position int position,
+        FloatBlock fieldBlock,
+        @Fixed float[] queryVector,
+        @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Fixed float boost,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
+    ) {
+        if (fieldBlock.isNull(position)) {
+            return 0.0;
+        }
+        int dimensions = fieldBlock.getValueCount(position);
+        if (dimensions != queryVector.length) {
+            throw new IllegalArgumentException("dense_vector dimensions do not match");
+        }
+
+        int first = fieldBlock.getFirstValueIndex(position);
+        for (int i = 0; i < dimensions; i++) {
+            scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        return VectorUtil.normalizeToUnitInterval(similarityFunction.calculateSimilarity(scratchVector, queryVector)) * boost;
+    }
 }

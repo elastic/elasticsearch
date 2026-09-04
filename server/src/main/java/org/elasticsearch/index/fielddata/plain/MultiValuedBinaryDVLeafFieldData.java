@@ -12,10 +12,12 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -28,7 +30,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     private final LeafReader leafReader;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
     private final IndexVersion indexVersion;
-    private final boolean arrayOrder;
+    private final BinaryDocValuesFormat binaryFormat;
 
     protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
@@ -36,7 +38,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
-        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, false);
+        this(fieldName, leafReader, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
     protected MultiValuedBinaryDVLeafFieldData(
@@ -44,14 +46,14 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         LeafReader leafReader,
         ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion,
-        boolean arrayOrder
+        BinaryDocValuesFormat binaryFormat
     ) {
         super();
         this.fieldName = fieldName;
         this.leafReader = leafReader;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexVersion = indexVersion;
-        this.arrayOrder = arrayOrder;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -69,16 +71,17 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            if (arrayOrder) {
+            return switch (binaryFormat) {
+                // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
+                case COLUMNAR_PAYLOAD -> ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
-                return SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
-            }
-            if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
-            }
-            // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
-            // fromMultiValued() handles as a fallback when the .counts field is absent.
-            return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+                case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
+                // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
+                // fromMultiValued() handles as a fallback when the .counts field is absent.
+                case SEPARATE_COUNT -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
+                    ? MultiValuedSortedBinaryDocValues.from(leafReader, fieldName)
+                    : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+            };
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

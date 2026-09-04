@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -39,15 +40,15 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
 
     private final BytesRef term;
 
-    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, boolean arrayOrderInlineNull) {
-        super(fieldName, term::equals, arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermQuery(String fieldName, BytesRef term, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, term::equals, binaryFormat);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
-            return new BinaryDocValuesLengthQuery(fieldName, 0, arrayOrderInlineNull);
+            return new BinaryDocValuesLengthQuery(fieldName, 0, binaryFormat);
         }
         return this;
     }
@@ -58,15 +59,19 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
         if (values == null) {
             return null;
         }
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
-        // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
-        // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
-        if ((countsSkipper == null || countsSkipper.maxValue() <= 1) && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-            DocIdSetIterator iter = direct.tryTermEqualIterator(term);
-            if (iter != null) {
-                return iter;
+        // A payload blob is never a bare term, so the direct comparison below can never apply to one — and there is no
+        // .counts companion to look up on the way to finding that out.
+        if (binaryFormat != BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+            // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
+            // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
+            // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
+            if ((countsSkipper == null || countsSkipper.maxValue() <= 1)
+                && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                DocIdSetIterator iter = direct.tryTermEqualIterator(term);
+                if (iter != null) {
+                    return iter;
+                }
             }
         }
         // Fall back to the scanning two-phase path (handles multi-valued via the counts field).
@@ -92,11 +97,11 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
             return false;
         }
         ScanningBinaryDocValuesTermQuery that = (ScanningBinaryDocValuesTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
+        return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term) && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, term);
+        return Objects.hash(classHash(), fieldName, term, binaryFormat);
     }
 }

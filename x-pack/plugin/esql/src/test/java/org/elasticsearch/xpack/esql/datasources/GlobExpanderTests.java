@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -56,6 +57,32 @@ public class GlobExpanderTests extends ESTestCase {
         return settings;
     }
 
+    private static Map<String, Object> ffw(Object... kv) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("schema_resolution", "first_file_wins");
+        for (int i = 0; i < kv.length; i += 2) {
+            settings.put((String) kv[i], kv[i + 1]);
+        }
+        return settings;
+    }
+
+    private static StubProvider literalProvider(String... paths) {
+        StubProvider provider = new StubProvider(List.of());
+        for (String path : paths) {
+            provider.existingPaths.add(path);
+        }
+        return provider;
+    }
+
+    /** Literal {@code my_schema.parquet} plus a recursive events glob listing. Schema sits outside the glob prefix. */
+    private static StubProvider schemaFileAndEventsProvider() {
+        StubProvider provider = new StubProvider(
+            List.of(entry("s3://bucket/events/2024/a.parquet", 100), entry("s3://bucket/events/2024/z.parquet", 200))
+        );
+        provider.existingPaths.add("s3://bucket/my_schema.parquet");
+        return provider;
+    }
+
     // -- isMultiFile --
 
     public void testIsMultiFileWithGlob() {
@@ -92,6 +119,27 @@ public class GlobExpanderTests extends ESTestCase {
      */
     public void testIsMultiFileIpv6HostWithGlobInPath() {
         assertTrue(GlobExpander.isMultiFile("http://[::1]/logs/2026-*/data.parquet"));
+    }
+
+    /**
+     * Presigned URLs carry a query string whose '?' is a URL structural delimiter, not a glob
+     * metacharacter. An HTTP(S) URL must never be reclassified as a multi-file glob because of it.
+     */
+    public void testHttpQueryStringIsNotAGlob() {
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?v=1.2"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?X-Goog-Signature=abc"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv#frag"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?X-Amz-Signature=xyz"));
+        // Other glob metacharacters in query strings must also be safe after the strip.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?filter=*.csv"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x={a,b}"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x=[1-3]"));
+    }
+
+    public void testHttpQueryStringCommaIsNotAListSeparator() {
+        // A comma inside an HTTP query string (e.g. ?fields=a,b) must not split the URL into a comma list.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?fields=a,b"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?x=a,b,c"));
     }
 
     // -- expandGlob --
@@ -418,6 +466,231 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
         FileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
+    }
+
+    /**
+     * First-file-wins omitted knobs keep declaration order. {@code z,a} is the schema donor {@code z},
+     * not the lex-smallest path — that was the previous FFW default, escaped with {@code file_sort_by: name}.
+     */
+    public void testFfwCommaOmittedKnobsKeepDeclarationOrder() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList omitted = GlobExpander.expandCommaSeparated("s3://bucket/z.parquet,s3://bucket/a.parquet", provider, null, ffw());
+        assertEquals("s3://bucket/z.parquet", omitted.path(0).toString());
+        FileList explicit = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/z.parquet", explicit.path(0).toString());
+    }
+
+    public void testFfwCommaListDescIsLastNamed() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * {@code list}+{@code desc} on glob then literal: apply once on the concat, so the last named
+     * file is the FFW donor. Double-applying (per glob then concat) still picks the literal here;
+     * {@link #testFfwCommaTwoGlobsListDescReversesConcatOnce} is the discriminator.
+     */
+    public void testFfwCommaGlobThenLiteralListDescPicksLiteral() throws IOException {
+        StubProvider provider = new StubProvider(
+            List.of(entry("s3://bucket/events/a.parquet", 100), entry("s3://bucket/events/z.parquet", 200))
+        );
+        provider.existingPaths.add("s3://bucket/_schema.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/events/*.parquet,s3://bucket/_schema.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/_schema.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Dedicated schema file first, then a recursive glob. Omitted FFW knobs keep declaration order:
+     * {@code my_schema.parquet} is the donor and the glob files are still listed.
+     */
+    public void testFfwCommaSchemaFileThenRecursiveGlobKeepsDeclarationOrder() throws IOException {
+        StubProvider provider = schemaFileAndEventsProvider();
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/my_schema.parquet,s3://bucket/events/" + "**/*.parquet",
+            provider,
+            null,
+            ffw()
+        );
+        assertEquals("s3://bucket/my_schema.parquet", result.path(0).toString());
+        assertEquals(3, result.fileCount());
+        assertEquals("s3://bucket/events/2024/a.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/events/2024/z.parquet", result.path(2).toString());
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: reverse the concat once so
+     * {@code my_schema.parquet} is the FFW donor and the glob files remain in the listing.
+     */
+    public void testFfwCommaRecursiveGlobThenSchemaFileListDescPicksSchema() throws IOException {
+        StubProvider provider = schemaFileAndEventsProvider();
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/events/" + "**/*.parquet,s3://bucket/my_schema.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/my_schema.parquet", result.path(0).toString());
+        assertEquals(3, result.fileCount());
+        assertEquals("s3://bucket/events/2024/z.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/events/2024/a.parquet", result.path(2).toString());
+    }
+
+    /**
+     * Two globs, {@code list}+{@code desc}: reverse the concatenated listing once. Distinct extensions
+     * so the stub's prefix-less LIST cannot leak g2 files into g1 via {@code objectName()} fallback.
+     * Double-apply would put {@code g2/c} first (last segment, original order); once puts {@code g2/d}.
+     */
+    public void testFfwCommaTwoGlobsListDescReversesConcatOnce() throws IOException {
+        StubProvider provider = new StubProvider(
+            List.of(
+                entry("s3://bucket/g1/a.csv", 100),
+                entry("s3://bucket/g1/b.csv", 200),
+                entry("s3://bucket/g2/c.parquet", 300),
+                entry("s3://bucket/g2/d.parquet", 400)
+            )
+        );
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/g1/*.csv,s3://bucket/g2/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/g2/d.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/g2/c.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/g1/b.csv", result.path(2).toString());
+        assertEquals("s3://bucket/g1/a.csv", result.path(3).toString());
+    }
+
+    public void testFfwCommaNameAscIsLexSmallest() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A mocked lex LIST (S3/Azure/GCS) under FFW omitted knobs matches {@code name}+{@code asc}:
+     * provider order is already lexicographic, so {@code list} does not change the donor.
+     */
+    public void testFfwS3GlobOmittedKnobsMatchNameAscOnLexListing() throws IOException {
+        List<StorageEntry> lex = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        StubProvider provider = new StubProvider(lex);
+        FileList listAsc = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, ffw());
+        FileList nameAsc = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/data/a.parquet", listAsc.path(0).toString());
+        assertEquals(nameAsc.path(0).toString(), listAsc.path(0).toString());
+    }
+
+    public void testFfwGlobListKeepsProviderOrderWhenNotLex() throws IOException {
+        List<StorageEntry> notLex = List.of(entry("s3://bucket/data/c.parquet", 300), entry("s3://bucket/data/a.parquet", 100));
+        StubProvider provider = new StubProvider(notLex);
+        FileList listAsc = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, ffw());
+        FileList nameAsc = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")
+        );
+        assertEquals("s3://bucket/data/c.parquet", listAsc.path(0).toString());
+        assertEquals("s3://bucket/data/a.parquet", nameAsc.path(0).toString());
+    }
+
+    public void testFfwNameDescPicksLastHiveDate() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/dt=2024-01-01/part.parquet", 100),
+            entry("s3://bucket/data/dt=2026-09-04/part.parquet", 200)
+        );
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/dt=*/*.parquet",
+            new StubProvider(listing),
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/data/dt=2026-09-04/part.parquet", result.path(0).toString());
+    }
+
+    public void testFfwMtimeTiesBreakByNameAsc() throws IOException {
+        Instant same = Instant.ofEpochMilli(1_000);
+        List<StorageEntry> listing = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/z.parquet"), 100, same),
+            new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, same)
+        );
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            new StubProvider(listing),
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "mtime", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/data/a.parquet", result.path(0).toString());
+    }
+
+    public void testFileSortByOnUnionByNameIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expandGlob(
+                "s3://bucket/data/*.parquet",
+                new StubProvider(List.of(entry("s3://bucket/data/a.parquet", 100))),
+                null,
+                Map.of("schema_resolution", "union_by_name", FileOrderConfig.CONFIG_FILE_SORT_BY, "list")
+            )
+        );
+        assertThat(e.getMessage(), containsString(FileOrderConfig.CONFIG_FILE_SORT_BY));
+        assertThat(e.getMessage(), containsString(FileOrderConfig.CONFIG_FILE_ORDER));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testDiscriminatorMovesWhenOnlyOrderFlips() {
+        String pattern = "s3://bucket/data/*.parquet";
+        Map<String, Object> asc = ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "asc");
+        Map<String, Object> desc = ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+        assertNotEquals(
+            "flipping order must miss the listing cache",
+            GlobExpander.listingCacheDiscriminator(pattern, null, asc),
+            GlobExpander.listingCacheDiscriminator(pattern, null, desc)
+        );
+    }
+
+    public void testDiscriminatorSeparatesFfwDefaultFromUbn() {
+        String pattern = "s3://bucket/data/*.parquet";
+        assertNotEquals(
+            "FFW list+asc and UBN name+asc must not share a listing-cache entry",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw()),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
+        );
+        assertEquals(
+            "FFW name+asc is the same listing order as UBN, so the keys match",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of())
+        );
     }
 
     // -- partition-aware glob rewriting --
@@ -1978,5 +2251,25 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals(2, result.fileCount());
+    }
+
+    /**
+     * The cache loader uses {@link GlobExpander#expandAndCompact} which must attach the exclusion text
+     * without emitting it, so a later {@link GlobExpander#replayExclusionWarnings} does not double-warn
+     * on a miss.
+     */
+    public void testExpandAndCompactDefersExclusionWarningUntilReplay() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        String pattern = "s3://bucket/data/*";
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+            + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+
+        FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
+        assertEquals(1, compacted.fileCount());
+        assertEquals(List.of(warning), compacted.exclusionWarnings());
+        ensureNoWarnings();
+
+        GlobExpander.replayExclusionWarnings(compacted);
+        assertWarnings(warning);
     }
 }

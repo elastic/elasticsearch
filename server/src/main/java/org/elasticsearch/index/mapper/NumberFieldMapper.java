@@ -76,7 +76,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinIntsFromDocV
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -526,13 +525,13 @@ public class NumberFieldMapper extends FieldMapper {
                         long sv = HalfFloatPoint.halfFloatToSortableShort(v);
                         return new IndexOrDocValuesQuery(
                             HalfFloatPoint.newExactQuery(field, v),
-                            SortedNumericDocValuesRangeQuery.newRangeQuery(field, sv, sv)
+                            SortedNumericDocValuesField.newSlowRangeQuery(field, sv, sv)
                         );
                     }
                     return HalfFloatPoint.newExactQuery(field, v);
                 } else {
                     long sv = HalfFloatPoint.halfFloatToSortableShort(v);
-                    return SortedNumericDocValuesRangeQuery.newRangeQuery(field, sv, sv);
+                    return SortedNumericDocValuesField.newSlowRangeQuery(field, sv, sv);
                 }
             }
 
@@ -580,7 +579,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (hasPoints) {
                     query = HalfFloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
                             field,
                             HalfFloatPoint.halfFloatToSortableShort(l),
                             HalfFloatPoint.halfFloatToSortableShort(u)
@@ -588,7 +587,7 @@ public class NumberFieldMapper extends FieldMapper {
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                 } else {
-                    query = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(
                         field,
                         HalfFloatPoint.halfFloatToSortableShort(l),
                         HalfFloatPoint.halfFloatToSortableShort(u)
@@ -752,7 +751,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return FloatPoint.newExactQuery(field, v);
                 } else {
                     long sv = NumericUtils.floatToSortableInt(v);
-                    return SortedNumericDocValuesRangeQuery.newRangeQuery(field, sv, sv);
+                    return SortedNumericDocValuesField.newSlowRangeQuery(field, sv, sv);
                 }
             }
 
@@ -798,7 +797,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (hasPoints) {
                     query = FloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
                             field,
                             NumericUtils.floatToSortableInt(l),
                             NumericUtils.floatToSortableInt(u)
@@ -806,7 +805,7 @@ public class NumberFieldMapper extends FieldMapper {
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                 } else {
-                    query = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(
                         field,
                         NumericUtils.floatToSortableInt(l),
                         NumericUtils.floatToSortableInt(u)
@@ -955,7 +954,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return DoublePoint.newExactQuery(field, v);
                 } else {
                     long sv = NumericUtils.doubleToSortableLong(v);
-                    return SortedNumericDocValuesRangeQuery.newRangeQuery(field, sv, sv);
+                    return SortedNumericDocValuesField.newSlowRangeQuery(field, sv, sv);
                 }
             }
 
@@ -982,7 +981,7 @@ public class NumberFieldMapper extends FieldMapper {
                     if (hasPoints) {
                         query = DoublePoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(
                                 field,
                                 NumericUtils.doubleToSortableLong(l),
                                 NumericUtils.doubleToSortableLong(u)
@@ -990,7 +989,7 @@ public class NumberFieldMapper extends FieldMapper {
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(
                             field,
                             NumericUtils.doubleToSortableLong(l),
                             NumericUtils.doubleToSortableLong(u)
@@ -1475,7 +1474,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return IntPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesRangeQuery.newRangeQuery(field, v, v);
+                    return SortedNumericDocValuesField.newSlowRangeQuery(field, v, v);
                 }
             }
 
@@ -1571,17 +1570,17 @@ public class NumberFieldMapper extends FieldMapper {
                     // means range queries work even when doc_values is disabled.
                     query = new TermRangeQuery(field, encodeIntIndexTerm(l), encodeIntIndexTerm(u), true, true);
                     if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                 } else if (hasPoints) {
                     query = IntPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                 } else {
-                    query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                    query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                 }
                 if (hasDocValues && context.indexSortedOnField(field)) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
@@ -1722,7 +1721,7 @@ public class NumberFieldMapper extends FieldMapper {
                 } else if (indexType.hasPoints()) {
                     return LongPoint.newExactQuery(field, v);
                 } else {
-                    return SortedNumericDocValuesRangeQuery.newRangeQuery(field, v, v);
+                    return SortedNumericDocValuesField.newSlowRangeQuery(field, v, v);
                 }
             }
 
@@ -1793,17 +1792,17 @@ public class NumberFieldMapper extends FieldMapper {
                         // means range queries work even when doc_values is disabled.
                         query = new TermRangeQuery(field, encodeLongIndexTerm(l), encodeLongIndexTerm(u), true, true);
                         if (hasDocValues) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else if (hasPoints) {
                         query = LongPoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     }
                     if (hasDocValues && context.indexSortedOnField(field)) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);

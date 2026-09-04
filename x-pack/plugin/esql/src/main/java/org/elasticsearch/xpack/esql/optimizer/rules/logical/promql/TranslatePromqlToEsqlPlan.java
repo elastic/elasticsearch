@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -40,6 +41,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetim
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -55,12 +58,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.Header;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.NamedColumn;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.TimeSeriesColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.Header;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.NamedColumn;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.TimeSeriesColumn;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -79,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
@@ -109,11 +115,11 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findById;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByIdOrName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.findByName;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.resolveColumn;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.toCanonicalName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findById;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByIdOrName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.findByName;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.resolveColumn;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.toCanonicalName;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 
 /**
@@ -295,7 +301,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 var ir = intermediateResults.get(i);
                 LogicalPlan branchPlan = emitNullsFilter(source, ir.plan(), ir.valueColumn());
                 var branchTagExpression = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
-                branchPlans.add(new Eval(source, branchPlan, List.of(branchTagExpression)));
+                LogicalPlan tagged = new Eval(source, branchPlan, List.of(branchTagExpression));
+                // Each branch executes as an independent sub plan whose result pages cross an exchange, and the
+                // consumer assumes their layout matches output() exactly. An Eval below (e.g. the value double-cast)
+                // can name-shadow an existing column: the shadowed attribute leaves output() but its channel stays
+                // in the page. An explicit projection pins the page layout to the branch output (see #158164).
+                branchPlans.add(new Project(source, tagged, tagged.output()));
             }
 
             // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll output,
@@ -383,6 +394,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 case AcrossSeriesReduction reduction -> doTranslateAcrossSeriesReduction(reduction);
                 case HistogramFunctionCall histogramFunction -> doTranslateHistogramFunction(histogramFunction);
                 case ScalarConversionFunction scalar -> doTranslateScalarConvertion(scalar);
+                case MetadataManipulationFunction relabel -> doTranslateMetadataManipulation(relabel);
                 case PromqlFunctionCall functionCall -> doTranslateFunc(functionCall);
                 case ScalarFunction scalarFunction -> doTranslateScalarFunc(scalarFunction);
                 case VectorBinaryOperator binaryOp -> doTranslateBinaryOp(binaryOp);
@@ -596,6 +608,115 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx), child.header());
         }
 
+        /**
+         * Translates a {@code label_replace}/{@code label_join} into a derived label column.
+         * <p>
+         * The child is first collapsed to one row per series (forcing the initial aggregate when it has not happened yet), so
+         * the source labels are materialized as columns to derive from. The destination value is then computed with an
+         * {@link Eval} under the destination's stable id, and exposed as a named column so the enclosing {@code by(...)}
+         * aggregation groups on it exactly as it would on a stored label.
+         * <p>
+         * Because ES|QL treats {@code null} and {@code ""} as distinct grouping keys while Prometheus treats an absent label
+         * and an empty label value alike, every "label absent" outcome is normalized to {@code ""}: an absent source is
+         * coalesced to {@code ""} before matching, and {@code label_replace}'s no-match ({@code null}) is coalesced back to
+         * {@code ""}. All such series therefore fall into the same group, matching Prometheus.
+         */
+        private IntermediateResult doTranslateMetadataManipulation(MetadataManipulationFunction relabel) {
+            IntermediateResult child = doTranslateNode(relabel.child());
+            if (child.kind.constant) {
+                return child;
+            }
+
+            // Collapse to one row per series so the source labels exist as columns; this mirrors the seam in
+            // translateIntermediate that forces the initial per-series aggregate for a not-yet-aggregated subtree.
+            IntermediateResult aggregated = child;
+            if (child.kind.afterInitialAggregation == false) {
+                LogicalPlan plan = emitInitialAggregate(child.plan(), child.header(), child.value());
+                Expression value = collectValueAttribute(plan);
+                aggregated = new IntermediateResult(plan, value, child.pendingFilter(), child.header(), Kind.AFTER_INITIAL_AGGREGATE);
+            }
+
+            Source source = relabel.source();
+            Attribute destination = relabel.destination();
+            Expression destinationValue = relabel.definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
+                ? labelReplaceValue(source, relabel, aggregated.header())
+                : labelJoinValue(source, relabel, aggregated.header());
+
+            Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
+            LogicalPlan withDerived = new Eval(cmd.source(), aggregated.plan(), List.of(derived));
+            Header header = aggregated.header().shadowing(List.of(derived.toAttribute()));
+            return new IntermediateResult(
+                withDerived,
+                aggregated.value(),
+                aggregated.pendingFilter(),
+                header,
+                Kind.AFTER_INITIAL_AGGREGATE
+            );
+        }
+
+        /**
+         * The {@code label_replace} destination value:
+         * {@code COALESCE(RegexExpand(COALESCE(src, ""), regex, repl), existingDst)}.
+         * The inner coalesce feeds the empty string when the source label is absent (so the regex matches against {@code ""}
+         * like Prometheus). The outer coalesce implements Prometheus's no-match semantics: a no-match ({@code null}) leaves
+         * the destination label unchanged, so it falls back to the destination's existing value - the stored label when the
+         * destination overwrites one, or {@code ""} (the "absent" grouping key) when the destination is a new label. A match
+         * with an empty expansion (the delete sentinel) resolves to {@code ""}, joining that same "absent" group.
+         */
+        private Expression labelReplaceValue(Source source, MetadataManipulationFunction relabel, Header header) {
+            List<Expression> params = relabel.parameters();
+            Attribute destination = relabel.destination();
+            String srcLabel = literalString(params.get(2));
+            Expression regex = params.get(3);
+            Expression replacement = params.get(1);
+            Expression src = sourceLabelValue(source, header, srcLabel, destination);
+            Expression extracted = new RegexExpand(source, src, regex, replacement);
+            Expression existingDst = sourceLabelValue(source, header, destination.name(), destination);
+            return new Coalesce(source, extracted, List.of(existingDst));
+        }
+
+        /**
+         * The {@code label_join} destination value: the source label values coalesced to {@code ""} and joined by the
+         * separator. With no source labels the result is {@code ""} - the same "absent" grouping key produced by
+         * {@code label_replace}; a single source label is copied verbatim (no separator). With two or more source labels the
+         * separator is inserted between every value, so even all-empty sources yield the separator run (for example a
+         * {@code "-"} separator over two absent labels produces {@code "-"}), matching Prometheus.
+         */
+        private Expression labelJoinValue(Source source, MetadataManipulationFunction relabel, Header header) {
+            List<Expression> params = relabel.parameters();
+            Attribute destination = relabel.destination();
+            Literal separator = Literal.keyword(source, literalString(params.get(1)));
+
+            List<Expression> parts = new ArrayList<>(2 * params.size() + 1);
+            for (int i = 2; i < params.size(); i++) {
+                if (parts.isEmpty() == false) {
+                    parts.add(separator);
+                }
+                parts.add(sourceLabelValue(source, header, literalString(params.get(i)), destination));
+            }
+
+            return switch (parts.size()) {
+                case 0 -> Literal.keyword(source, "");
+                case 1 -> parts.getFirst();
+                default -> new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
+            };
+        }
+
+        /**
+         * The value of a source label as a non-null string: {@code COALESCE(ToString(label), "")}, or {@code ""} if the
+         * label is absent. {@code destination} is the relabel's derived destination proxy, excluded from the lookup so a
+         * label reference never resolves to the destination that an enclosing {@code by(dst)} pushed down under the same
+         * name (which would create a self-reference).
+         */
+        private Expression sourceLabelValue(Source source, Header header, String labelName, Attribute destination) {
+            Attribute label = header.column(labelName, destination);
+            if (label == null) {
+                return Literal.keyword(source, "");
+            }
+            Expression stringValue = DataType.isString(label.dataType()) ? label : new ToString(source, label, configuration());
+            return new Coalesce(source, stringValue, List.of(Literal.keyword(source, "")));
+        }
+
         /** Translates a scalar function (time(), etc.): an expression over the unchanged source. */
         private IntermediateResult doTranslateScalarFunc(ScalarFunction scalarFunction) {
             var function = scalarFunction.buildEsqlFunction(new PromqlContext(cmd.timestamp(), null, cmd.stepAttribute(), configuration()));
@@ -662,12 +783,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
                 uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
 
+                // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
+                // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
+                // analyzer bound the declared output to the bare attribute instead, and a renamed column would not map.
                 var newAggregates = uniqueAggregates.stream().map(e -> (NamedExpression) e).map(e -> {
-                    Expression inner = e;
                     if (e instanceof Alias a) {
-                        inner = a.child();
+                        return (NamedExpression) new Alias(a.source(), names.next(a.name()), a.child(), a.id());
                     }
-                    return new Alias(e.source(), names.next(e.name()), inner, e.id());
+                    return e;
                 }).toList();
 
                 return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);
@@ -990,6 +1113,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** The first output attribute is always the value column. */
     private static Expression collectValueAttribute(LogicalPlan plan) {
         return plan.output().getFirst().toAttribute();
+    }
+
+    /** The string value of a keyword-literal PromQL function argument. */
+    private static String literalString(Expression literal) {
+        return BytesRefs.toString(((Literal) literal).value());
     }
 
     /** PromQL drops series with missing data: filter out rows whose value is null (null label columns are valid). */

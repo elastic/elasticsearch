@@ -290,25 +290,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
             assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
             assert firstDocID >= 0 : firstDocID;
-
-            // Seek keys are not always complete synthetic ids (Lucene's default Terms#getMax probes
-            // byte-by-byte; checkIndex / random seeks may pass prefixes). Pad short probes with 0x00 so
-            // seekCeil prefix semantics hold, and decode without asserting timestamp >= 0: invalid
-            // high-bit deltas decode negative and the comparisons below correctly advance past this
-            // _tsid. Keep the assert in TsidExtractingIdFieldMapper for real document ids.
-            final boolean needsEscape = Byte.toUnsignedInt(tsid.bytes[tsid.offset]) >= Uid.BASE64_ESCAPE;
-            final int fullLength = (needsEscape ? 1 : 0) + TsidExtractingIdFieldMapper.syntheticIdLength(tsid);
-            BytesRef seekId = id;
-            if (id.length < fullLength) {
-                scratch.setLength(0);
-                scratch.copyBytes(id);
-                scratch.grow(fullLength);
-                while (scratch.length() < fullLength) {
-                    scratch.append((byte) 0);
-                }
-                seekId = scratch.get();
-            }
-            final long timestamp = extractTimestampLenient(seekId);
+            final long timestamp = extractTimestampLenient(id, tsid, scratch);
 
             // Use doc values skipper on timestamp to early exit or skip to the first document matching the timestamp
             int nextDocID;
@@ -406,8 +388,26 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
          * asserting that the result is non-negative. Probe keys from {@link Terms#getMax()} and random
          * seeks are not guaranteed to be well-formed synthetic ids.
          */
-        private static long extractTimestampLenient(BytesRef id) {
-            long delta = ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
+        private static long extractTimestampLenient(BytesRef id, BytesRef tsid, BytesRefBuilder scratch) {
+            // Seek keys are not always complete synthetic ids (Lucene's default Terms#getMax probes
+            // byte-by-byte; checkIndex / random seeks may pass prefixes). Pad short probes with 0x00 so
+            // seekCeil prefix semantics hold, and decode without asserting timestamp >= 0: invalid
+            // high-bit deltas decode negative and the comparisons below correctly advance past this
+            // _tsid. Keep the assert in TsidExtractingIdFieldMapper for real document ids.
+            final boolean needsEscape = Byte.toUnsignedInt(tsid.bytes[tsid.offset]) >= Uid.BASE64_ESCAPE;
+            final int fullLength = (needsEscape ? 1 : 0) + TsidExtractingIdFieldMapper.syntheticIdLength(tsid);
+            BytesRef seekId = id;
+            if (id.length < fullLength) {
+                scratch.setLength(0);
+                scratch.copyBytes(id);
+                scratch.grow(fullLength);
+                while (scratch.length() < fullLength) {
+                    scratch.append((byte) 0);
+                }
+                seekId = scratch.get();
+            }
+
+            long delta = ByteUtils.readLongBE(seekId.bytes, seekId.offset + seekId.length - Long.BYTES - Integer.BYTES);
             return Long.MAX_VALUE - delta;
         }
 

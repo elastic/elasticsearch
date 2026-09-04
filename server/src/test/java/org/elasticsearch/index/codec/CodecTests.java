@@ -55,7 +55,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -97,10 +96,7 @@ public class CodecTests extends ESTestCase {
             assertEquals(mode.toString(), lucene.compoundFormat().getClass(), es.compoundFormat().getClass());
 
             // The one intended difference.
-            assertThat(
-                es.fieldInfosFormat(),
-                instanceOf(CachingFieldInfosFormat.class)
-            );
+            assertThat(es.fieldInfosFormat(), instanceOf(CachingFieldInfosFormat.class));
         }
     }
 

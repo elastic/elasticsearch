@@ -31,8 +31,13 @@ public class IndexLongFieldRangeRamBytesUsedTests extends AbstractAccountableFie
 
     @Override
     protected Accountable createRandomTestInstance() {
-        // Mix of null shards (complete/empty) and non-null arrays of varying length, so a missed array-length term fails.
-        return IndexLongFieldRangeTestUtils.randomSpecificRange();
+        // Mix of null shards (complete) and non-null arrays of varying length, so a missed array-length term fails.
+        // Skip shared sentinels: they deliberately report 0 and are covered by testRamBytesUsedExcludesSharedSentinels.
+        IndexLongFieldRange range;
+        do {
+            range = IndexLongFieldRangeTestUtils.randomSpecificRange();
+        } while (range == IndexLongFieldRange.NO_SHARDS || range == IndexLongFieldRange.EMPTY || range == IndexLongFieldRange.UNKNOWN);
+        return range;
     }
 
     /**

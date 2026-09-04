@@ -9,12 +9,20 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -23,6 +31,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 /**
  * Extended property tests for weighted round-robin distribution, split coalescing,
@@ -203,6 +213,35 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
         assertEquals("Both strategies must assign all splits", splitCount, wrTotal);
     }
 
+    public void testWeightedPlanDistributionNeverAssignsIndexRoleNodes() {
+        DiscoveryNodes mixed = mixedRoleNodes();
+        List<ExternalSplit> splits = createSizedSplits(between(4, 40));
+        ExternalSourceExec source = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data/*.parquet",
+            "parquet",
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "name",
+                    new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            Map.of(),
+            Map.of(),
+            null
+        ).withSplits(splits);
+        AggregateExec plan = new AggregateExec(Source.EMPTY, source, List.of(), List.of(), AggregatorMode.INITIAL, source.output(), null);
+
+        ExternalDistributionPlan distribution = new WeightedRoundRobinStrategy().planDistribution(
+            new ExternalDistributionContext(plan, splits, mixed, QueryPragmas.EMPTY)
+        );
+        assertTrue(distribution.distributed());
+        for (String nodeId : distribution.nodeAssignments().keySet()) {
+            assertFalse("weighted strategy assigned work to an index node: " + nodeId, nodeId.startsWith("index-"));
+        }
+    }
+
     // --- Helpers ---
 
     private static List<ExternalSplit> expandCoalesced(List<ExternalSplit> splits) {
@@ -243,6 +282,19 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
             Map.of(),
             Map.of()
         );
+    }
+
+    private static DiscoveryNodes mixedRoleNodes() {
+        int indexCount = between(1, 3);
+        int searchCount = between(1, 4);
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        for (int i = 0; i < indexCount; i++) {
+            builder.add(DiscoveryNodeUtils.builder("index-" + i).roles(Set.of(INDEX_ROLE)).build());
+        }
+        for (int i = 0; i < searchCount; i++) {
+            builder.add(DiscoveryNodeUtils.builder("search-" + i).roles(Set.of(SEARCH_ROLE)).build());
+        }
+        return builder.build();
     }
 
     private static List<DiscoveryNode> createNodeList(int count) {

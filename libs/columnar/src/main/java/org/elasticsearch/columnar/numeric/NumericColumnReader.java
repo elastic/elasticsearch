@@ -40,10 +40,17 @@ public final class NumericColumnReader {
     private final NumericBlockEncoder encoder;
     private final long[] blockBuffer;
 
+    /** A block holds a power of two values, so the block a value is in and where it sits are shifts. */
+    private final int blockShift;
+    private final int blockMask;
+
     private long cachedBlock = -1;
 
     public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
         this.meta = meta;
+        assert (meta.blockSize() & (meta.blockSize() - 1)) == 0 : "values per block must be a power of two, got " + meta.blockSize();
+        this.blockShift = Integer.numberOfTrailingZeros(meta.blockSize());
+        this.blockMask = meta.blockSize() - 1;
         this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
         this.data = data.clone();
@@ -102,9 +109,9 @@ public final class NumericColumnReader {
 
     /** The value at {@code valueAddress} in {@code [0, numValues)}. */
     public long valueAt(long valueAddress) throws IOException {
-        long block = valueAddress / meta.blockSize();
+        final long block = valueAddress >>> blockShift;
         ensureBlock(block);
-        return blockBuffer[(int) (valueAddress - block * meta.blockSize())];
+        return blockBuffer[(int) (valueAddress & blockMask)];
     }
 
     /** Values per encoding block. */

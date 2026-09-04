@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
@@ -26,20 +27,16 @@ import java.util.List;
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
 
-    private static final List<RuleExecutor.Batch<PhysicalPlan>> RULES = List.of(
-        new Batch<>(
-            "Plan Boundary",
-            Limiter.ONCE,
-            new ProjectAwayColumns(),
-            new ReplaceSampledStatsBySampleAndStats(),
-            new InsertPartialWindowAggregates()
-        )
-    );
-
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+
+    private final AtomicBoolean approximationApplied = new AtomicBoolean();
 
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
+    }
+
+    public boolean approximationApplied() {
+        return approximationApplied.get();
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
@@ -56,6 +53,14 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     @Override
     protected List<RuleExecutor.Batch<PhysicalPlan>> batches() {
-        return RULES;
+        return List.of(
+            new Batch<>(
+                "Plan Boundary",
+                Limiter.ONCE,
+                new ProjectAwayColumns(),
+                new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied.set(true)),
+                new InsertPartialWindowAggregates()
+            )
+        );
     }
 }

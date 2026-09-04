@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.BFloat16Support;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -769,4 +770,29 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
+    @Override
+    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                linearCombination(a[aBase + l], b, l * n, c, cBase, n);
+            }
+        }
+        return c;
+    }
+
+    @Override
+    public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
+        for (int l = 0; l < m; l++) {
+            int aBase = l * k;
+            int bBase = l * n;
+            for (int i = 0; i < k; i++) {
+                ESVectorUtil.linearCombination(aT[aBase + i], b, bBase, c, i * n, n);
+            }
+        }
+        return c;
+    }
 }

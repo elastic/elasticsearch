@@ -2427,4 +2427,14 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             matches[i >>> 6] |= mask << i;
         }
     }
+
+    @Override
+    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        return new float[0];
+    }
+
+    @Override
+    public float[] matrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        return new float[0];
+    }
 }

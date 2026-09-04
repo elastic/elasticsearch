@@ -10,8 +10,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -51,5 +53,19 @@ public class IndexTemplateMetadataRamBytesUsedTests extends AbstractAccountableF
             .putAlias(AliasMetadata.builder("alias").build())
             .build();
         assertThat(large.ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+    }
+
+    /**
+     * Non-tautology check: attaching a mapping must increase the estimate over a patterns-only template.
+     */
+    public void testRamBytesUsedIncludesMappings() throws IOException {
+        IndexTemplateMetadata withoutMapping = IndexTemplateMetadata.builder("t").patterns(List.of("a-*")).build();
+        IndexTemplateMetadata withMapping = IndexTemplateMetadata.builder("t")
+            .patterns(List.of("a-*"))
+            .putMapping("_doc", CompressedXContent.fromJSON("""
+                { "_doc": { "properties": { "field": { "type": "keyword" } } } }
+                """))
+            .build();
+        assertThat(withMapping.ramBytesUsed(), greaterThan(withoutMapping.ramBytesUsed()));
     }
 }

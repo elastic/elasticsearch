@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,6 +70,17 @@ public class ProjectMetadataRamBytesUsedTests extends AbstractAccountableFieldsT
             .put(IndexMetadata.builder("test").settings(settings))
             .build();
         assertThat(withIndex.ramBytesUsed(), greaterThan(empty.ramBytesUsed()));
+    }
+
+    /**
+     * Non-tautology check: adding a template must increase the reported size ({@link IndexTemplateMetadata#ramBytesUsed()} is counted).
+     */
+    public void testRamBytesUsedGrowsWithTemplates() {
+        ProjectMetadata empty = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ProjectMetadata withTemplate = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexTemplateMetadata.builder("t").patterns(List.of("a-*", "b-*")).putAlias(AliasMetadata.builder("alias").build()))
+            .build();
+        assertThat(withTemplate.ramBytesUsed(), greaterThan(empty.ramBytesUsed()));
     }
 
     /**

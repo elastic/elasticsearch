@@ -71,11 +71,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(
-                MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION,
-                multiRequest,
-                new RestToXContentListener<>(channel)
-            );
+            cancellableClient.execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest, new RestToXContentListener<>(channel));
         };
     }
 

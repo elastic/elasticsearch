@@ -177,5 +177,4 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         instance.decRef();
     }
 
-
 }

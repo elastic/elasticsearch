@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CaseShard;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasources.fixtures.DeclaredSchemas;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
@@ -78,6 +79,25 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
 public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCase {
 
     private static final Logger logger = LogManager.getLogger(AbstractExternalSourceSpecTestCase.class);
+
+    /**
+     * This JVM's slice of the crossing, spelled {@code index/count}, one-based. Absent means every case,
+     * which is what a local run and every non-sharded task want; see {@link CaseShard}.
+     */
+    private static final String SHARD_PROPERTY = "tests.vector.shard";
+
+    /**
+     * The most cases one JVM may register. A bound, not a target: it exists so a crossing that outgrows
+     * its shard width fails at registration instead of running out of heap hours later.
+     */
+    private static final String MAX_CASES_PROPERTY = "tests.vector.max_cases";
+
+    /**
+     * Chosen from what has actually run: the largest clean single-JVM crossing on record is ORC's 40,010
+     * cases, and the run that died of heap exhaustion carried roughly 100,000. 20,000 sits well under the
+     * proven-survivable figure, so a shard that trips this bound is over-wide rather than unlucky.
+     */
+    private static final int DEFAULT_MAX_CASES = 20_000;
 
     /** Pattern to match template placeholders like {{employees}} */
     /**
@@ -270,7 +290,58 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         }
         Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
         List<Object[]> loaded = crossWithVectors(dimensions, vectors, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
-        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+        List<Object[]> kept = excluded.isEmpty()
+            ? loaded
+            : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+        return shardAndBound(kept, format, suiteToken);
+    }
+
+    /**
+     * Takes this JVM's shard of the registered cases and refuses to register more than it can survive.
+     *
+     * <p>Applied last, over the rows that would actually run: sharding before the registration filters or
+     * the spec exclusions would hand each shard a different share of the filtered rows and unbalance them
+     * by exactly the per-vector bias {@link CaseShard} exists to avoid.
+     *
+     * <p>The bound fails loudly at registration rather than at run time. A crossing grows whenever a
+     * dimension or a value lands, and the growth is silent -- the declaration gets one more line and the
+     * case count moves by thousands. Without the bound the first symptom is a heap dump several hours into
+     * a nightly, which is how one of these runs was lost; with it, the shard that outgrew its slice says
+     * so in the first second and names the width to raise.
+     */
+    private static List<Object[]> shardAndBound(List<Object[]> cases, String format, String suiteToken) {
+        String requested = System.getProperty(SHARD_PROPERTY);
+        CaseShard shard = requested == null ? CaseShard.ALL : CaseShard.parse(requested);
+        List<Object[]> selected = shard.select(cases);
+        int maxCases = Integer.parseInt(System.getProperty(MAX_CASES_PROPERTY, Integer.toString(DEFAULT_MAX_CASES)));
+        if (selected.size() > maxCases) {
+            throw new IllegalStateException(
+                "suite ["
+                    + suiteToken
+                    + "] format ["
+                    + format
+                    + "] shard ["
+                    + shard
+                    + "] would register "
+                    + selected.size()
+                    + " cases, over the "
+                    + MAX_CASES_PROPERTY
+                    + " bound of "
+                    + maxCases
+                    + "; raise the shard count for this suite in the pipeline that runs it, or raise "
+                    + MAX_CASES_PROPERTY
+                    + " for this task if the JVM can carry it"
+            );
+        }
+        logger.info(
+            "vector crossing: suite [{}] format [{}] shard [{}] registered {} of {} cases",
+            suiteToken,
+            format,
+            shard,
+            selected.size(),
+            cases.size()
+        );
+        return selected;
     }
 
     /**

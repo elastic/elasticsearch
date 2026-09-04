@@ -770,6 +770,70 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testDiscoverSplitRangesAsyncPrefetchesFooterOnMiss() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("age")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 7L);
+            g.add("name", "Alice");
+            g.add("age", 30);
+            return List.of(g);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> sync = reader.discoverSplitRanges(createStorageObject(parquetData));
+
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> future = new PlainActionFuture<>();
+            reader.discoverSplitRangesAsync(asyncObject, probePool, future);
+            List<RangeAwareFormatReader.SplitRange> async = future.actionGet(30, TimeUnit.SECONDS);
+            assertThat("miss path must prefetch the footer tail", asyncReadCount.get(), greaterThanOrEqualTo(1));
+            assertEquals(sync, async);
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    public void testDiscoverSplitRangesAsyncHitsParsedFootersWithZeroGets() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            return List.of(g);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            PlainActionFuture<SourceMetadata> meta = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, meta);
+            meta.actionGet(30, TimeUnit.SECONDS);
+            int getsAfterMetadata = asyncReadCount.get();
+            assertThat(getsAfterMetadata, greaterThanOrEqualTo(1));
+
+            List<RangeAwareFormatReader.SplitRange> syncAfterSeed = reader.discoverSplitRanges(asyncObject);
+            PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> future = new PlainActionFuture<>();
+            reader.discoverSplitRangesAsync(asyncObject, probePool, future);
+            assertEquals(syncAfterSeed, future.actionGet(30, TimeUnit.SECONDS));
+            assertEquals("PARSED_FOOTERS hit must not issue another GET", getsAfterMetadata, asyncReadCount.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
     /**
      * The {@code with*} copy constructors must thread the SAME cache instances into every derived
      * reader. The registry hands out one root reader per format per node, and pushdown/overlay

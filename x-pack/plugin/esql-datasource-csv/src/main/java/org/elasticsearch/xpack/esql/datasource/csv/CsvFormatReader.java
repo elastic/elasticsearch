@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedReader;
@@ -892,7 +892,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         try {
             return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid datetime format [" + value + "]", e);
+            // The pattern is already named in this message, and DateFormatter's own wrapper repeats it
+            // ("Invalid format: [<pattern>]: <reason>"), so take the root cause's reason rather than its message.
+            // Bounded and cycle-guarded: a self-referential or deeply nested cause must not hang the read.
+            Throwable root = e;
+            for (int depth = 0; depth < 10 && root.getCause() != null && root.getCause() != root; depth++) {
+                root = root.getCause();
+            }
+            String reason = root.getMessage() != null ? root.getMessage() : root.getClass().getSimpleName();
+            throw new IllegalArgumentException("Invalid datetime format [" + value + "]: " + reason, e);
         }
     }
 
@@ -1427,7 +1435,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Throws a {@link ParsingException} when the inferred or typed header has duplicate column names.
+     * Throws an {@link ExternalClientException} when the inferred or typed header has duplicate column names.
      * Without this guard the optimizer's {@code PlanConsistencyChecker} would later 500 with a
      * "duplicate output attribute" error that is hard to map back to the CSV input.
      */
@@ -1449,7 +1457,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (String dup : duplicates) {
                 rendered.add("'" + dup + "'");
             }
-            throw new ParsingException(
+            throw new ExternalClientException(
                 "CSV header has duplicate column names {}; if the file has no header row, " + "set header_row=false",
                 rendered.toString()
             );
@@ -1546,14 +1554,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final int MAX_CONSECUTIVE_SAMPLING_FAILURES = 16;
 
     /** Maximum number of distinct error excerpts captured for the failure message. Keeps the
-     *  eventual {@link ParsingException} small. */
+     *  eventual {@link ExternalClientException} small. */
     private static final int MAX_CAPTURED_SAMPLING_ERRORS = 3;
 
     /**
      * Samples rows for schema inference, honouring the given {@link ErrorPolicy} the same way
      * the data-row path does:
      * <ul>
-     *   <li>{@code FAIL_FAST}: throw {@link ParsingException} (HTTP 400) on the first malformed
+     *   <li>{@code FAIL_FAST}: throw {@link ExternalClientException} (HTTP 400) on the first malformed
      *       row, with a capped row excerpt and a hint pointing at {@code skip_row}.</li>
      *   <li>{@code SKIP_ROW} / {@code NULL_FIELD}: skip bad rows, continue sampling, throw if
      *       the budget ({@code max_errors} / {@code max_error_ratio}) is exceeded.</li>
@@ -1669,7 +1677,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (consecutiveFailures >= MAX_CONSECUTIVE_SAMPLING_FAILURES) {
                         // Jackson cannot resync; bail with whatever we have. If we have at least
                         // one row this is a successful (partial) sample; otherwise the empty
-                        // check below converts it to a ParsingException.
+                        // check below converts it to an ExternalClientException.
                         break;
                     }
                 }
@@ -1693,11 +1701,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static ParsingException failFastSamplingError(long row, Throwable cause) {
+    private static ExternalClientException failFastSamplingError(long row, Throwable cause) {
         Exception e = cause instanceof Exception ex ? ex : null;
-        return new ParsingException(
+        return new ExternalClientException(
             e,
-            Source.EMPTY,
             "{}",
             "CSV schema sampling failed at row ["
                 + row
@@ -1707,7 +1714,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
     }
 
-    private static ParsingException budgetExceededSamplingError(
+    private static ExternalClientException budgetExceededSamplingError(
         long errorCount,
         long rowCount,
         ErrorPolicy policy,
@@ -1724,14 +1731,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             .append(policy.maxErrorRatio())
             .append("] ratio; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ParsingException(cause, Source.EMPTY, "{}", details.toString());
+        return new ExternalClientException(cause, "{}", details.toString());
     }
 
-    private static ParsingException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
+    private static ExternalClientException zeroRowsSamplingError(List<String> capturedErrors, Throwable firstCause) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
         StringBuilder details = new StringBuilder("CSV schema inference failed: no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
-        return new ParsingException(cause, Source.EMPTY, "{}", details.toString());
+        return new ExternalClientException(cause, "{}", details.toString());
     }
 
     private static void appendCapturedErrors(StringBuilder details, List<String> capturedErrors) {
@@ -2187,7 +2194,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedColumn = column.trim();
             String[] parts = trimmedColumn.split(":");
             if (parts.length != 2) {
-                throw new ParsingException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
+                throw new ExternalClientException("Invalid CSV schema format: [{}]. Expected 'name:type'", column);
             }
             String name = options.quoting() ? unquoteHeaderName(parts[0], options.quoteChar()) : parts[0].trim();
             String trimmedType = parts[1].trim();
@@ -2221,7 +2228,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "IP" -> DataType.IP;
             case "VERSION", "V" -> DataType.VERSION;
             case "NULL", "N" -> DataType.NULL;
-            default -> throw new ParsingException("illegal data type [{}]", typeName);
+            default -> throw new ExternalClientException("illegal data type [{}]", typeName);
         };
     }
 
@@ -6466,9 +6473,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 String hint = structural
                     ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
                     : "; set error_mode=null_field to null-fill the bad field instead of failing";
-                throw new ParsingException(
+                throw new ExternalClientException(
                     cause,
-                    Source.EMPTY,
                     "{}",
                     "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
                 );
@@ -6528,9 +6534,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
                 // Budget exceeded is a client-data problem (the file has too many bad rows for the
                 // user-configured tolerance), not a server bug — surface as HTTP 400.
-                throw new ParsingException(
+                throw new ExternalClientException(
                     cause,
-                    Source.EMPTY,
                     "CSV error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
                     errorCount,
                     totalRowCount,

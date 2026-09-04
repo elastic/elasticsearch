@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -516,7 +514,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         private IntermediateResult doTranslateHistogramFunction(HistogramFunctionCall function) {
-            IntermediateResult firstPhaseResult = doTranslateNode(function.child());
+            Attribute le = findByName(cmd.child().output(), HistogramFunctionCall.LE_LABEL);
+            Header childDemand = le == null ? headerToPushDown : headerToPushDown.including(List.of(le));
+            IntermediateResult firstPhaseResult = withPushDownHeader(childDemand).doTranslateNode(function.child());
             if (firstPhaseResult.kind.constant) {
                 return firstPhaseResult;
             }
@@ -530,7 +530,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
             // Classic counter-backed histograms need the special treatment below.
             LogicalPlan childPlan = firstPhaseResult.plan();
-            var le = firstPhaseResult.header().column(HistogramFunctionCall.LE_LABEL);
+            le = firstPhaseResult.header().column(HistogramFunctionCall.LE_LABEL);
             if (le == null) {
                 // like prometheus, return warning and drop series w/o `le`
                 HeaderWarning.addWarning(function.functionName() + ": input vector has no le label; no buckets to evaluate");
@@ -541,7 +541,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
             // `le` exists on child plan -> group by `le`
             Header grouping = firstPhaseResult.header().groupedWithout(List.of(le));
-            Header maybeChildHeader = headerToPushDown.requiring(grouping);
+            Header maybeChildHeader = headerToPushDown.requiring(grouping).including(List.of(le));
 
             // check if our parent push-down labels on child plan
             if (maybeChildHeader.success(firstPhaseResult.header()) == false) {
@@ -555,7 +555,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
                 // ?
                 grouping = secondPhaseResult.header().groupedWithout(List.of(le));
-                maybeChildHeader = maybeChildHeader.requiring(grouping);
+                maybeChildHeader = maybeChildHeader.requiring(grouping).including(List.of(le));
 
                 firstPhaseResult = secondPhaseResult;
 
@@ -622,7 +622,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * {@code ""}. All such series therefore fall into the same group, matching Prometheus.
          */
         private IntermediateResult doTranslateMetadataManipulation(MetadataManipulationFunction relabel) {
-            IntermediateResult child = doTranslateNode(relabel.child());
+            IntermediateResult child = withPushDownHeader(metadataChildDemand(relabel)).doTranslateNode(relabel.child());
             if (child.kind.constant) {
                 return child;
             }
@@ -652,6 +652,27 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 header,
                 Kind.AFTER_INITIAL_AGGREGATE
             );
+        }
+
+        /** Labels that must be materialized to evaluate a relabel expression. */
+        private Header metadataChildDemand(MetadataManipulationFunction relabel) {
+            List<String> names = new ArrayList<>();
+            if (relabel.definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE) {
+                names.add(literalString(relabel.parameters().get(2)));
+                // A non-matching replacement preserves the existing destination value.
+                names.add(relabel.destination().name());
+            } else {
+                for (int i = 2; i < relabel.parameters().size(); i++) {
+                    names.add(literalString(relabel.parameters().get(i)));
+                }
+            }
+
+            List<Attribute> labels = new ArrayList<>(names.size());
+            for (String name : names) {
+                Attribute label = findByName(cmd.child().output(), name);
+                labels.add(label != null ? label : new ReferenceAttribute(relabel.source(), null, name, DataType.KEYWORD));
+            }
+            return headerToPushDown.including(labels);
         }
 
         /**
@@ -828,12 +849,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             Expression expr = selector instanceof InstantSelector
                 ? new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, time)
                 : selector.series();
-            List<Attribute> dimensions = input.output()
-                .stream()
-                .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
-                .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
-                .toList();
-            return new IntermediateResult(input, expr, matcher, headerToPushDown.withIdentityGrouping().including(dimensions));
+            return new IntermediateResult(input, expr, matcher, headerToPushDown.withIdentityGrouping());
         }
 
         /**

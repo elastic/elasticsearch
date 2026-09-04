@@ -340,6 +340,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         return true;
     }
 
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return true;
+    }
+
     // === Private helper methods ===
 
     /**

@@ -526,10 +526,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
      */
     private static UnmappedFieldsPattern patternForJoin(String query, TestAnalyzer analyzer) {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
-        );
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
         EsRelation primary = plan.collect(EsRelation.class)
             .stream()
@@ -544,10 +541,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
      */
     private static UnmappedFieldsPattern patternForEnrich(String query, TestAnalyzer analyzer) {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
-        );
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         return patternFor(query, analyzer);
     }
 

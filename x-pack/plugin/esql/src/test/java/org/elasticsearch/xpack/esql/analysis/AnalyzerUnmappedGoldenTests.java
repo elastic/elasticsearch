@@ -1431,10 +1431,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
     public void testLoadAllLookupJoinCoordinator() {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
-        );
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
             FROM partial_mapping_sample_data
             | EVAL lc = language_code::integer
@@ -1451,10 +1448,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
     public void testLoadAllLookupJoinDataNode() {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
-        );
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
             FROM partial_mapping_sample_data
             | EVAL lc = language_code::integer

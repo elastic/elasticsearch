@@ -110,7 +110,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "many_numbers",
         // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
         // index with 0 documents while ref has the full dataset.
-        "cartesian_multipolygons"
+        "cartesian_multipolygons",
+        // Unmapped-source fixtures: all are dynamic:false with only `id` mapped, so everything else in the
+        // document lands in _source / _ignored_source. Strict columnar drops that content at ingest (it
+        // reconstructs _source from doc values), so the ref side surfaces those fields and the cand side
+        // cannot - a legitimate mode difference, not a bug. Same reasoning and same list as
+        // CsvColumnarIT#EXCLUDED_DATASETS, which skips them for the columnar csv-spec run.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data"
     );
 
     /**

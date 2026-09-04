@@ -24,7 +24,11 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -275,6 +279,84 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertReadCpuNanos("parquet");
         assertSplitDiscoveryCpuNanos("parquet");
+    }
+
+    /**
+     * Verifies that successive queries against the same Parquet dataset do not accumulate
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
+     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
+     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
+     * and gets an isolated counter instance.
+     *
+     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
+     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     */
+    public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path dir = createTempDir();
+        // Small row-group size creates multiple splits so the slice-queue path records read_nanos
+        // synchronously before query completion, making it reliably non-zero.
+        writeParquet(dir.resolve("data.parquet"), 2000, 512);
+
+        String dataset = registerDataset("counter_isolation_ds", dir.resolve("data.parquet").toUri().toString(), Map.of());
+        String query = "FROM " + dataset + " | LIMIT 2000";
+
+        int numQueries = 5;
+        long[] readNanos = new long[numQueries];
+        long[] readCpuNanos = new long[numQueries];
+        for (int i = 0; i < numQueries; i++) {
+            lastMetrics = null;
+            try (var ignored = run(syncEsqlQueryRequest(query), TIMEOUT)) {}
+            assertThat("query " + i + ": metrics must be collected", lastMetrics, notNullValue());
+            Long rn = lastMetrics.get(QueryMetricsListener.READ_NANOS);
+            Long rcn = lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS);
+            assertThat("query " + i + ": read_nanos must be non-negative", rn, greaterThan(0L));
+            assertThat("query " + i + ": read_cpu_nanos must be non-negative", rcn, greaterThan(0L));
+            readNanos[i] = rn;
+            readCpuNanos[i] = rcn;
+        }
+
+        // Without the fix: Q_5 ≈ 5 * Q_1 (singleton accumulated all 5 reads).
+        // With the fix: Q_5 ≈ Q_1 (fresh counter per query).
+        // The 3x bound separates these cases while tolerating normal timing noise.
+        long maxAllowedReadNanos = readNanos[0] * 3;
+        assertTrue(
+            "Q_5.read_nanos="
+                + readNanos[numQueries - 1]
+                + " must be < 3 * Q_1.read_nanos="
+                + readNanos[0]
+                + "; a value >= 3x indicates counter accumulation across queries",
+            readNanos[numQueries - 1] < maxAllowedReadNanos
+        );
+        long maxAllowedReadCpuNanos = readCpuNanos[0] * 3;
+        assertTrue(
+            "Q_5.read_cpu_nanos="
+                + readCpuNanos[numQueries - 1]
+                + " must be < 3 * Q_1.read_cpu_nanos="
+                + readCpuNanos[0]
+                + "; a value >= 3x indicates counter accumulation across queries",
+            readCpuNanos[numQueries - 1] < maxAllowedReadCpuNanos
+        );
+
+        // Verify that the registry singleton's counters were never incremented: freshCounters()
+        // creates a new reader per split, leaving the singleton's ParquetReaderCounters at zero.
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() == null) {
+                continue;
+            }
+            FormatReaderRegistry registry = planExecutor.dataSourceModule().formatReaderRegistry();
+            FormatReader singletonReader = registry.findByName("parquet");
+            if (singletonReader == null) {
+                continue;
+            }
+            FormatReaderStatus snap = singletonReader.statusSnapshot();
+            if (snap == null) {
+                continue;
+            }
+            assertEquals("registry singleton read_nanos must be zero on node " + node, 0L, snap.readNanos());
+            assertEquals("registry singleton read_cpu_nanos must be zero on node " + node, 0L, snap.readCpuNanos());
+        }
     }
 
     /**

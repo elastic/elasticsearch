@@ -324,66 +324,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         // Small row-group size creates multiple splits so the slice-queue path records read_nanos
         // synchronously before query completion, making it reliably non-zero.
         writeParquet(dir.resolve("data.parquet"), 2000, 512);
-
         String dataset = registerDataset("counter_isolation_ds", dir.resolve("data.parquet").toUri().toString(), Map.of());
-        String query = "FROM " + dataset + " | LIMIT 2000";
-
-        int numQueries = 5;
-        long[] readNanos = new long[numQueries];
-        long[] readCpuNanos = new long[numQueries];
-        for (int i = 0; i < numQueries; i++) {
-            lastMetrics = null;
-            try (var ignored = run(syncEsqlQueryRequest(query), TIMEOUT)) {}
-            assertThat("query " + i + ": metrics must be collected", lastMetrics, notNullValue());
-            Long rn = lastMetrics.get(QueryMetricsListener.READ_NANOS);
-            Long rcn = lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS);
-            assertThat("query " + i + ": read_nanos must be non-negative", rn, greaterThan(0L));
-            assertThat("query " + i + ": read_cpu_nanos must be non-negative", rcn, greaterThan(0L));
-            readNanos[i] = rn;
-            readCpuNanos[i] = rcn;
-        }
-
-        // Without the fix: Q_5 ≈ 5 * Q_1 (singleton accumulated all 5 reads).
-        // With the fix: Q_5 ≈ Q_1 (fresh counter per query).
-        // The 3x bound separates these cases while tolerating normal timing noise.
-        long maxAllowedReadNanos = readNanos[0] * 3;
-        assertTrue(
-            "Q_5.read_nanos="
-                + readNanos[numQueries - 1]
-                + " must be < 3 * Q_1.read_nanos="
-                + readNanos[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
-            readNanos[numQueries - 1] < maxAllowedReadNanos
-        );
-        long maxAllowedReadCpuNanos = readCpuNanos[0] * 3;
-        assertTrue(
-            "Q_5.read_cpu_nanos="
-                + readCpuNanos[numQueries - 1]
-                + " must be < 3 * Q_1.read_cpu_nanos="
-                + readCpuNanos[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
-            readCpuNanos[numQueries - 1] < maxAllowedReadCpuNanos
-        );
-
-        // Verify that the registry singleton's counters were never incremented: freshCounters()
-        // creates a new reader per split, leaving the singleton's ParquetReaderCounters at zero.
-        for (String node : internalCluster().getNodeNames()) {
-            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
-            if (planExecutor.dataSourceModule() == null) {
-                continue;
-            }
-            FormatReaderRegistry registry = planExecutor.dataSourceModule().formatReaderRegistry();
-            FormatReader singletonReader = registry.findByName("parquet");
-            if (singletonReader == null) {
-                continue;
-            }
-            FormatReaderStatus snap = singletonReader.statusSnapshot();
-            if (snap == null) {
-                continue;
-            }
-            assertEquals("registry singleton read_nanos must be zero on node " + node, 0L, snap.readNanos());
-            assertEquals("registry singleton read_cpu_nanos must be zero on node " + node, 0L, snap.readCpuNanos());
-        }
+        assertCounterIsolatedBetweenQueries("FROM " + dataset + " | LIMIT 2000", "parquet");
     }
 
     /**
@@ -450,24 +392,21 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      */
     private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
         int numQueries = 5;
+        long[] readNanos = new long[numQueries];
         long[] readCpuNanos = new long[numQueries];
         for (int i = 0; i < numQueries; i++) {
             lastMetrics = null;
             try (var ignored = run(syncEsqlQueryRequest(query), TIMEOUT)) {}
             assertThat("query " + i + ": metrics must be collected", lastMetrics, notNullValue());
+            Long rn = lastMetrics.get(QueryMetricsListener.READ_NANOS);
             Long rcn = lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS);
+            assertThat("query " + i + ": read_nanos must be positive", rn, greaterThan(0L));
             assertThat("query " + i + ": read_cpu_nanos must be positive", rcn, greaterThan(0L));
+            readNanos[i] = rn;
             readCpuNanos[i] = rcn;
         }
-        long maxAllowed = readCpuNanos[0] * 3;
-        assertTrue(
-            "Q_5.read_cpu_nanos="
-                + readCpuNanos[numQueries - 1]
-                + " must be < 3 * Q_1.read_cpu_nanos="
-                + readCpuNanos[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
-            readCpuNanos[numQueries - 1] < maxAllowed
-        );
+        assertIsolated("read_nanos", readNanos, numQueries);
+        assertIsolated("read_cpu_nanos", readCpuNanos, numQueries);
         for (String node : internalCluster().getNodeNames()) {
             PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
             if (planExecutor.dataSourceModule() == null) {
@@ -485,6 +424,22 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertEquals("registry singleton read_nanos must be zero on node " + node, 0L, snap.readNanos());
             assertEquals("registry singleton read_cpu_nanos must be zero on node " + node, 0L, snap.readCpuNanos());
         }
+    }
+
+    private static void assertIsolated(String metric, long[] values, int numQueries) {
+        long maxAllowed = values[0] * 3;
+        assertTrue(
+            "Q_5."
+                + metric
+                + "="
+                + values[numQueries - 1]
+                + " must be < 3 * Q_1."
+                + metric
+                + "="
+                + values[0]
+                + "; a value >= 3x indicates counter accumulation across queries",
+            values[numQueries - 1] < maxAllowed
+        );
     }
 
     /** Asserts that {@code split_discovery_cpu_nanos} is populated and does not exceed {@code split_discovery_nanos}. */

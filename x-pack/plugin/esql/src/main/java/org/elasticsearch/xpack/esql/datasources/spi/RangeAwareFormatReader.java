@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Extension of {@link FormatReader} for columnar formats (Parquet, ORC) that support
@@ -63,6 +65,38 @@ public interface RangeAwareFormatReader extends FormatReader {
      * @return list of split ranges with optional per-range statistics
      */
     List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException;
+
+    /**
+     * Asynchronously discovers independently readable byte ranges within a file.
+     * <p>
+     * The default wraps the synchronous {@link #discoverSplitRanges(StorageObject)} on {@code executor}.
+     * Formats whose footer/tail read can be issued without holding an executor thread across the network
+     * round-trip (e.g. Parquet via {@link StorageObject#readBytesAsync}) should override this so Phase-2
+     * fan-out is bounded by in-flight GETs rather than pinned threads. Cache hits should complete with
+     * CPU-only work on {@code executor} and must not issue a GET.
+     */
+    default void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(discoverSplitRanges(object));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Returns split ranges from an already-parsed footer cache, or {@code null} on a miss.
+     * A miss (including formats with no parsed-footer cache) must go through
+     * {@link #discoverSplitRangesAsync}. An empty list is a hit that is not range-splittable.
+     * <p>
+     * Must not I/O. The cache key is {@code (path, length)} from the listing, so the caller can
+     * peek before acquiring a {@link org.elasticsearch.common.util.concurrent.ThrottledIterator}
+     * permit. Phase-2 uses this to keep cache hits off the GET throttle.
+     */
+    default List<SplitRange> cachedSplitRanges(StorageObject object) {
+        return null;
+    }
 
     /**
      * Reads only the row groups / stripes that fall within the given byte range.

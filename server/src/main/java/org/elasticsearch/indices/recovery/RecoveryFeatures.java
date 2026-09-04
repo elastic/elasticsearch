@@ -21,6 +21,12 @@ public class RecoveryFeatures implements FeatureSpecification {
     /// responses.
     private static final NodeFeature RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE = new NodeFeature("indices.recovery.recovery_priority");
 
+    /// Test-only node feature indicating that the `GET /_recovery` and `GET /_cat/recovery` APIs include the locally-retryable failure
+    /// count in their responses.
+    private static final NodeFeature RECOVERY_APIS_INCLUDE_LOCAL_RETRY_COUNT_NODE_FEATURE = new NodeFeature(
+        "indices.recovery.recovery_local_retry_count"
+    );
+
     /// A master must not publish an in-place restore over an open index until every relevant data node supports this feature.
     public static final NodeFeature RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE = new NodeFeature(
         "indices.recovery.restore_over_open_index_recreates_index_service"
@@ -33,6 +39,6 @@ public class RecoveryFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE);
+        return Set.of(RECOVERY_APIS_INCLUDE_PRIORITY_NODE_FEATURE, RECOVERY_APIS_INCLUDE_LOCAL_RETRY_COUNT_NODE_FEATURE);
     }
 }

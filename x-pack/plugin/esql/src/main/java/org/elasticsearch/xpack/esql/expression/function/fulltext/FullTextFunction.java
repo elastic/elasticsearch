@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -75,9 +76,11 @@ import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQue
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -319,7 +322,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)
-                    && (lp instanceof Highlight == false),
+                    && (lp instanceof Highlight == false)
+                    && (lp instanceof TopN == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -369,6 +373,11 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
+        Set<String> inheritedSourceTexts = new HashSet<>();
+        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
+        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
+        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
+        inheritedSourceTexts.add(plan.sourceText());
         condition.forEachDown(typeToken, exp -> {
             plan.forEachDown(LogicalPlan.class, lp -> {
                 // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
@@ -392,7 +401,13 @@ public abstract class FullTextFunction extends Function
                     }
                     String sourceText = lp.sourceText();
                     String errorMessage;
-                    if (lp instanceof UnionAll) {
+                    if (lp instanceof TopN) {
+                        // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
+                        // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
+                        errorMessage = "SORT and LIMIT";
+                    } else if (inheritedSourceTexts.contains(sourceText)) {
+                        // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
+                        // clause instead of its misleading first token.
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;

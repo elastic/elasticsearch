@@ -170,6 +170,8 @@ public class MappedColumnsTests extends ESTestCase {
         assertEquals(2, filtered.docCount());
         // tuples() emits compact IDs 0 and 1 for the two passing docs
         assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("d")), drainBinaryTuples(filtered));
+        // rowFieldCursor() must also emit compact IDs (exercises WindowedBinaryColumn's filtered row path)
+        assertEquals(Map.of(0, new BytesRef("b"), 1, new BytesRef("d")), drainBinaryRowCursor(filtered));
     }
 
     public void testWithFilterBinaryColumnAllPresentStaysDense() {

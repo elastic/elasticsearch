@@ -86,6 +86,19 @@ public interface RangeAwareFormatReader extends FormatReader {
     }
 
     /**
+     * Returns split ranges from an already-parsed footer cache, or {@code null} on a miss.
+     * A miss (including formats with no parsed-footer cache) must go through
+     * {@link #discoverSplitRangesAsync}. An empty list is a hit that is not range-splittable.
+     * <p>
+     * Must not I/O. The cache key is {@code (path, length)} from the listing, so the caller can
+     * peek before acquiring a {@link org.elasticsearch.common.util.concurrent.ThrottledIterator}
+     * permit. Phase-2 uses this to keep cache hits off the GET throttle.
+     */
+    default List<SplitRange> cachedSplitRanges(StorageObject object) {
+        return null;
+    }
+
+    /**
      * Reads only the row groups / stripes that fall within the given byte range.
      * The storage object must represent the full file (not a range-limited view),
      * because columnar formats need access to file-level metadata (e.g. footer).

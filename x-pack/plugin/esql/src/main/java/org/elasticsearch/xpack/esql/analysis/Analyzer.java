@@ -2589,7 +2589,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             Expression queryVector = resolved.queryVector();
 
-            if (queryVector != null && (queryVector.dataType().isNumeric() || queryVector.dataType() == KEYWORD)) {
+            if (queryVector != null
+                && queryVector.resolved()
+                && (queryVector.dataType().isNumeric() || queryVector.dataType() == KEYWORD)) {
                 return new MMR(
                     resolved.source(),
                     resolved.child(),

@@ -2508,6 +2508,11 @@ public class EsqlCapabilities {
         PROMQL_BINARY_COMPARISON_V0,
 
         /**
+         * Support for PromQL group modifiers.
+         */
+        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+
+        /**
          * Support for PromQL time() function.
          */
         PROMQL_TIME,

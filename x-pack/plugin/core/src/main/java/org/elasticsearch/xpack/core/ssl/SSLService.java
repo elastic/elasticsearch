@@ -367,7 +367,7 @@ public class SSLService {
      *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
-    static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
+    public static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;
@@ -810,11 +810,6 @@ public class SSLService {
         @Override
         public SSLConnectionSocketFactory connectionSocketFactory() {
             return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
-        }
-
-        @Override
-        public org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory connectionSocketFactory5() {
-            return ClassicTlsStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
         }
 
         @Override

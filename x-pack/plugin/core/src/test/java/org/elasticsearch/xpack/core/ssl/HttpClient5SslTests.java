@@ -9,17 +9,12 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.Method;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http2.impl.nio.ProtocolNegotiationException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -313,75 +308,6 @@ public class HttpClient5SslTests extends ESTestCase {
             logger.info("Server cipher suites: {}", serverEnabledCiphers);
             logger.info("Client cipher suites: {}", clientCiphers);
             performRequest(httpClient);
-        }
-    }
-
-    public void testConnectionSocketFactory5CustomServerCertificate() throws Exception {
-        final CloseableHttpClient httpClient = buildClassicClient(
-            Settings.builder().put("xpack.http.ssl.certificate_authorities", caCertPath)
-        );
-        performClassicRequest(httpClient);
-    }
-
-    public void testConnectionSocketFactory5FailsWithoutConfiguredCA() throws Exception {
-        final CloseableHttpClient httpClient = buildClassicClient(Settings.builder());
-        final SSLException exception = expectThrows(SSLException.class, () -> performClassicRequest(httpClient));
-        assertThat(
-            exception,
-            throwableWithMessage(either(containsString("certificate_unknown")).or(containsString("PKIX path building failed")))
-        );
-    }
-
-    public void testConnectionSocketFactory5WithVerificationOff() throws Exception {
-        final CloseableHttpClient httpClient = buildClassicClient(Settings.builder().put("xpack.http.ssl.verification_mode", "none"));
-        performClassicRequest(httpClient);
-    }
-
-    public void testConnectionSocketFactory5WithoutHostnameVerification() throws Exception {
-        startServer("server-no-san", false, null, null);
-
-        for (var mode : List.of("certificate", "none")) {
-            final CloseableHttpClient httpClient = buildClassicClient(
-                Settings.builder() //
-                    .put("xpack.http.ssl.certificate_authorities", caCertPath) //
-                    .put("xpack.http.ssl.verification_mode", mode)
-            );
-            performClassicRequest(httpClient);
-        }
-
-        for (var mode : Arrays.asList("full", null)) {
-            final Settings.Builder settings = Settings.builder().put("xpack.http.ssl.certificate_authorities", caCertPath);
-            if (mode != null) {
-                settings.put("xpack.http.ssl.verification_mode", mode);
-            }
-            final CloseableHttpClient httpClient = buildClassicClient(settings);
-            final SSLPeerUnverifiedException exception = expectThrows(
-                SSLPeerUnverifiedException.class,
-                () -> performClassicRequest(httpClient)
-            );
-            assertThat(exception, throwableWithMessage(containsString("subject alternative names")));
-        }
-    }
-
-    private CloseableHttpClient buildClassicClient(final Settings.Builder environmentSettings) {
-        Environment env = newEnvironment(environmentSettings.build());
-        final TestsSSLService sslService = new TestsSSLService(env);
-        final SslProfile profile = sslService.profile("xpack.http.ssl");
-
-        final var connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
-            .setSSLSocketFactory(profile.connectionSocketFactory5())
-            .build();
-        return HttpClients.custom().setConnectionManager(connectionManager).build();
-    }
-
-    private void performClassicRequest(CloseableHttpClient httpClient) throws Exception {
-        if (server == null) {
-            startServer();
-        }
-        server.enqueue(new MockResponse().setResponseCode(200).setBody(responseBody));
-        try (httpClient) {
-            final String body = httpClient.execute(new HttpGet(server.getUri("/")), response -> EntityUtils.toString(response.getEntity()));
-            assertThat(body, equalTo(responseBody));
         }
     }
 

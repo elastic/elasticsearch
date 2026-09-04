@@ -49,11 +49,6 @@ public interface SslProfile {
     SSLIOSessionStrategy ioSessionStrategy();
 
     /**
-     * @return An object that is useful for configuring Apache Http Client v5.x classic (synchronous) API
-     */
-    org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory connectionSocketFactory5();
-
-    /**
      * @return An object that is useful for configuring Apache Http Client v5.x async API
      */
     TlsStrategy clientTlsStrategy();

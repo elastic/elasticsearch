@@ -51,6 +51,8 @@ f1:keyword
 // SORT would crash with "Expected [BYTES_REF] but was [INT]". With the fix, the planner-resolved
 // KEYWORD type is honored across files and SORT succeeds. The KEYWORD sort of "10","20","30","abc","xyz"
 // is lex-ordered: digits sort before letters.
+// file_sort_by=name pins that lex-smallest donor: FFW default is list+asc (provider LIST / readdir),
+// which is not lexicographic on local fixtures.
 // This case is FFW-specific: under UNION_BY_NAME the KEYWORD/INTEGER col0 mismatch has no safe
 // supertype and would (correctly) be rejected as an unmergeable schema.
 multiFileHeaderlessReadSchemaPreventsTypeDrift
@@ -58,7 +60,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_headerless: "{{employees_multifile}}" WITH {"header_row": false, "schema_resolution": "first_file_wins"}
+dataset: employees_multifile_headerless: "{{employees_multifile}}" WITH {"header_row": false, "schema_resolution": "first_file_wins", "file_sort_by": "name"}
 
 FROM employees_multifile_headerless
 | SORT col0 ASC

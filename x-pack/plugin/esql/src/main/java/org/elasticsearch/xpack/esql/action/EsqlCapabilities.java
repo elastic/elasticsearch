@@ -3407,43 +3407,25 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
-         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
-         * {@code keyword} output column without requiring each field to be referenced in the query.
+         * _source and synthetic source with LOAD_ALL
+         * Also, proper column ordering after loading all unmapped fields. This covers KEEP, DROP and EVAL generated columns.
+         * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433
          */
-        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_LOAD_ALL_V2(Build.current().isSnapshot()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, a net-zero projection (e.g. {@code KEEP x | DROP x}) that leaves no columns and
-         * expands no unmapped fields no longer fails with {@code "blocks is empty"}; it returns a zero-column result preserving the row
-         * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
+         * {@code Map.toString()}. Applies to both source modes and to {@code LOAD} as well as {@code LOAD_ALL}.
+         * <p>
+         * Snapshot-gated because changing it for the released {@code LOAD} is a minor breaking change pending
+         * https://github.com/elastic/elasticsearch/issues/158306. To lift the gate, drop the constructor argument; that also makes
+         * {@code DefaultShardContextForUnmappedField#fieldType} and its helpers dead code, so see the TODO on that override in
+         * {@code EsPhysicalOperationProviders} for the clean-up that has to follow.
+         * <p>
+         * Note this must be lifted no later than {@link #OPTIONAL_FIELDS_LOAD_ALL_V2}: both share the block loader this gates, so
+         * graduating {@code LOAD_ALL} while this stays gated would reintroduce #156381 and #156433.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
-
-        /**
-         * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
-
-        /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
-
-        /**
-         * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
-         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
-
-        /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
-         * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
-         * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
-         * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
-         * a stringified {@code "[]"}.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -3584,6 +3566,14 @@ public class EsqlCapabilities {
          * so e.g. {@code quantile(1.0, x)} returned ≈ the minimum instead of the maximum. φ is now scaled by 100.
          */
         FIX_PROMQL_QUANTILE_SCALE,
+
+        /**
+         * PromQL binary operators between aggregates with the same grouping keys fuse into one aggregate. The fuse renamed
+         * the grouping columns along with the value aggregates, so over a {@code labels.*} passthrough index the command
+         * projection could no longer find the declared label by its canonical name and the plan failed verification with
+         * "missing references". Grouping columns now keep their names through the fuse.
+         */
+        FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:

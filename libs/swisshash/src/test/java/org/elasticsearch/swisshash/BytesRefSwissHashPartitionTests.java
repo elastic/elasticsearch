@@ -20,9 +20,9 @@ import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -41,10 +41,6 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         }
     }
 
-    /**
-     * Verifies correctness with the flat (non-paged) partition storage, which is the default for
-     * tables whose total key bytes are at or below {@link BytesRefSwissHash#PAGED_PARTITION_THRESHOLD_BYTES}.
-     */
     public void testPartitionFlat() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
@@ -53,11 +49,6 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    /**
-     * Verifies correctness with the paged partition storage (BytesRefArray per partition), which is
-     * used for tables whose total key bytes exceed {@link BytesRefSwissHash#PAGED_PARTITION_THRESHOLD_BYTES}.
-     * The threshold is set to zero so small test data exercises the paged path.
-     */
     public void testPartitionPaged() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
@@ -126,9 +117,9 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         }
     }
 
-    Set<KeyAndSum> combinePartitions(CircuitBreaker breaker, BytesRefSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
+    Map<BytesRef, Long> combinePartitions(CircuitBreaker breaker, BytesRefSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {
         int[] mergedIds = null;
-        Set<KeyAndSum> results = new HashSet<>();
+        Map<BytesRef, Long> results = new HashMap<>();
         for (int partition = 0; partition < PartitionedHashTable.NUM_PARTITIONS; partition++) {
             hash.clear();
             agg.clear();
@@ -147,22 +138,23 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 agg.combinePartition(gen.aggs(), partition, mergedIds, numKeys, appendOnly);
                 gen.aggs().releasePartition(breaker, partition);
             }
-            for (var r : emit(hash, agg)) {
-                if (results.add(r) == false) {
-                    fail("key " + r.k1() + ":" + r.k2() + " already exists");
-                }
-            }
+            emit(hash, agg, results);
         }
         return results;
     }
 
-    static Set<KeyAndSum> emit(BytesRefSwissHash hash, SumAgg agg) {
-        Set<KeyAndSum> results = new HashSet<>(hash.size);
+    static Map<BytesRef, Long> emit(BytesRefSwissHash hash, SumAgg agg) {
+        Map<BytesRef, Long> results = new HashMap<>(hash.size);
+        emit(hash, agg, results);
+        return results;
+    }
+
+    private static void emit(BytesRefSwissHash hash, SumAgg agg, Map<BytesRef, Long> into) {
         BytesRef scratch = new BytesRef();
         for (int id = 0; id < hash.size; id++) {
-            BytesRef key = hash.get(id, scratch);
-            results.add(new KeyAndSum(BytesRefSwissHash.hash64(key), key.length, agg.sums[id]));
+            BytesRef key = BytesRef.deepCopyOf(hash.get(id, scratch));
+            Long prev = into.put(key, (long) agg.sums[id]);
+            assert prev == null : "duplicate key across partitions: " + key.utf8ToString();
         }
-        return results;
     }
 }

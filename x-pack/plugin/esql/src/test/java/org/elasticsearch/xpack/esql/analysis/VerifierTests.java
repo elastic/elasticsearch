@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
@@ -4791,6 +4792,22 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
+    public void testBareHighlightRequiresQuery() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "FROM test | HIGHLIGHT",
+            allOf(containsString("HIGHLIGHT requires a query"), not(containsString("preceding full-text WHERE")))
+        );
+    }
+
+    public void testHighlightQueryWithoutOnRequiresFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(defaultAnalyzer()).error(
+            "FROM test | HIGHLIGHT \"fox\"",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
     public void testHighlightRejectsInvalidOptionEnums() {
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
@@ -5051,6 +5068,14 @@ public class VerifierTests extends ESTestCase {
      */
     private static TestAnalyzer supportsHighlight(TestAnalyzer analyzer) {
         return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT);
+    }
+
+    /**
+     * Derived HIGHLIGHT query/fields are rejected below
+     * {@link Highlight#ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, so implicit-form tests must pin that version.
+     */
+    private static TestAnalyzer supportsHighlightImplicit(TestAnalyzer analyzer) {
+        return analyzer.minimumTransportVersion(Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
     }
 
     @Override

@@ -141,7 +141,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
-import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
@@ -257,16 +256,6 @@ public final class EsqlTestUtils {
             "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
             EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
         );
-    }
-
-    public static Highlight soleHighlight(LogicalPlan plan) {
-        List<Highlight> highlights = plan.collect(Highlight.class);
-        assertThat(highlights, hasSize(1));
-        return highlights.getFirst();
-    }
-
-    public static List<String> fieldNames(List<? extends NamedExpression> attrs) {
-        return attrs.stream().map(NamedExpression::name).toList();
     }
 
     public static Equals equalsOf(Expression left, Expression right) {

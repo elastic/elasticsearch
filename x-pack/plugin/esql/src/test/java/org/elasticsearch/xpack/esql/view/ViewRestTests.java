@@ -156,15 +156,17 @@ public class ViewRestTests extends AbstractViewTestCase {
     public void testSystemViewCannotBeDeletedByWildcard() throws Exception {
         final String systemView = systemViewName();
         awaitSystemView(systemView);
-        // A wildcard that expands to the system view must be rejected too, since the guard runs after resolution.
-        IllegalArgumentException error = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(
+        // A wildcard (or _all) that merely sweeps in the system view is a no-op for that view: it is skipped rather than
+        // deleted, and the request succeeds instead of failing, so bulk deletes of user views keep working. Deleting the
+        // system view still requires targeting it explicitly by name (see testSystemViewCannotBeDeletedByName).
+        assertAcked(
+            client().execute(
                 DeleteViewAction.INSTANCE,
                 new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { ".ml-*" })
             ).actionGet(TEST_REQUEST_TIMEOUT)
         );
-        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be deleted"));
+        // The built-in view survives the wildcard delete.
+        awaitSystemView(systemView);
     }
 
     private static String systemViewName() {

@@ -25,7 +25,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteViewAction.Request> {
 
@@ -84,14 +88,26 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
+        // System views can never be deleted. Targeting one explicitly by name is a hard error, but when a system view is
+        // merely swept in by a wildcard or _all we skip it silently instead of failing the whole request, so that bulk
+        // deletions of user views keep working while the built-in views remain in place.
+        Set<String> explicitlyRequested = new HashSet<>(Arrays.asList(request.views()));
+        List<String> viewsToDelete = new ArrayList<>(viewNames.size());
         for (String name : viewNames) {
             if (SystemViews.isSystemView(name)) {
-                // Checked after wildcard resolution so a pattern that expands to a system view is rejected too.
-                listener.onFailure(new IllegalArgumentException("system view [" + name + "] cannot be deleted"));
-                return;
+                if (explicitlyRequested.contains(name)) {
+                    listener.onFailure(new IllegalArgumentException("system view [" + name + "] cannot be deleted"));
+                    return;
+                }
+                continue;
             }
+            viewsToDelete.add(name);
         }
-        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewNames, listener);
+        if (viewsToDelete.isEmpty()) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewsToDelete, listener);
     }
 
     @Override

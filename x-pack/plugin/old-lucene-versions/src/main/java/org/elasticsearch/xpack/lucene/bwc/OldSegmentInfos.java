@@ -79,8 +79,10 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
     public static final int VERSION_74 = 9;
     /** The version that recorded SegmentCommitInfo IDs */
     public static final int VERSION_86 = 10;
+    /** The version that records per-field incremental doc-values overlay generations. */
+    public static final int VERSION_10_6 = 11;
 
-    static final int VERSION_CURRENT = VERSION_86;
+    static final int VERSION_CURRENT = VERSION_10_6;
 
     /** Name of the generation reference file name */
     private static final String OLD_SEGMENTS_GEN = "segments.gen";
@@ -353,6 +355,20 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
                 dvUpdateFiles = Collections.unmodifiableMap(map);
             }
             siPerCommit.setDocValuesUpdatesFiles(dvUpdateFiles);
+            if (format >= VERSION_10_6) {
+                // Read incremental doc-values overlay data (added in Lucene 10.6).
+                // Real archive indices (Lucene 5.x/6.x) never have overlays; for
+                // format-11 segments we read and discard to keep the stream in sync.
+                final int numOverlayFields = CodecUtil.readBEInt(input);
+                for (int i = 0; i < numOverlayFields; i++) {
+                    CodecUtil.readBEInt(input);  // fieldNumber
+                    CodecUtil.readBELong(input); // baseGen
+                    final int numDeltas = CodecUtil.readBEInt(input);
+                    for (int g = 0; g < numDeltas; g++) {
+                        CodecUtil.readBELong(input); // deltaGen
+                    }
+                }
+            }
             infos.add(siPerCommit);
 
             Version segmentVersion = info.getVersion();
@@ -544,6 +560,8 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
                 CodecUtil.writeBEInt(out, e.getKey());
                 out.writeSetOfStrings(e.getValue());
             }
+            // VERSION_10_6+: write empty overlay count (archive indices never have overlays)
+            CodecUtil.writeBEInt(out, 0);
         }
         out.writeMapOfStrings(userData);
         CodecUtil.writeFooter(out);

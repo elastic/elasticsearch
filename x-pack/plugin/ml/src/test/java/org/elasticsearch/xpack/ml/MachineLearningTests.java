@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.PluginTestUtil;
@@ -334,6 +335,80 @@ public class MachineLearningTests extends ESTestCase {
             assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY));
             assertThat(settings, hasItem(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY));
         }
+    }
+
+    public void testCapacityRetryDefaultsShouldBeValid() {
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(30)));
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(Settings.EMPTY), equalTo(TimeValue.timeValueMinutes(10)));
+    }
+
+    public void testCapacityRetryEqualInitialAndMaxDelayShouldBeValid() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "10m")
+            .build();
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings), equalTo(TimeValue.timeValueMinutes(10)));
+        assertThat(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings), equalTo(TimeValue.timeValueMinutes(10)));
+    }
+
+    public void testCapacityRetryInitialDelayBelowNormalMinimumShouldBeRejected() {
+        Settings settings = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "4s").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString("must be >= [5s]"));
+    }
+
+    public void testCapacityRetryMaxDelayBelowNormalCeilingShouldBeRejected() {
+        Settings settings = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "4m").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString("must be >= [5m]"));
+    }
+
+    public void testCapacityRetryInitialDelayGreaterThanMaxDelayShouldBeRejected() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "5m")
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()));
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()));
+    }
+
+    public void testCapacityRetryMaxDelayLessThanInitialDelayShouldBeRejected() {
+        Settings settings = Settings.builder()
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "10m")
+            .put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "5m")
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(settings)
+        );
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()));
+        assertThat(e.getMessage(), containsString(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()));
+    }
+
+    public void testCapacityRetrySettingsAboveJitterSafeMaximumShouldBeRejected() {
+        Settings initialTooLarge = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey(), "50d").build();
+        IllegalArgumentException initialException = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.get(initialTooLarge)
+        );
+        assertThat(initialException.getMessage(), containsString("must be <="));
+
+        Settings maxTooLarge = Settings.builder().put(MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey(), "50d").build();
+        IllegalArgumentException maxException = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.get(maxTooLarge)
+        );
+        assertThat(maxException.getMessage(), containsString("must be <="));
     }
 
     public static class TrialLicensedMachineLearning extends MachineLearning {

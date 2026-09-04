@@ -34,8 +34,10 @@ import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.impl.BufferChunk;
 import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -57,10 +59,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
@@ -79,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -96,6 +101,8 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * {@link RangeAwareFormatReader} implementation for Apache ORC files.
@@ -123,16 +130,39 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     /**
-     * JVM-wide cache of parsed ORC tails ({@link OrcTail}). Singleton — every
-     * {@link OrcFormatReader} instance reads from and writes to the same cache so that producer
-     * threads spawned from different reader instances (e.g. across concurrent queries) still
-     * coalesce footer parses.
+     * Cache of parsed ORC tails ({@link OrcTail}), shared by this reader and every derived copy
+     * ({@link #withPushedFilter}, {@link #withDynamicThreshold}, ...) so that producer threads
+     * spawned from different derived instances still coalesce tail parses. The root instance is
+     * created once per node by the format-reader registry, making this effectively a node-wide
+     * cache without static state.
      */
-    private static final ParsedFooterCache<OrcTail> PARSED_FOOTERS = new ParsedFooterCache<>();
+    private final ParsedFooterCache<OrcTail> parsedFooters;
 
-    /** Clears the parsed-footer cache. Intended for test isolation only. */
-    static void clearParsedFooterCacheForTests() {
-        PARSED_FOOTERS.invalidateAll();
+    /**
+     * Cache of raw footer tail bytes, threaded into every {@link OrcStorageObjectAdapter} this
+     * reader creates so suffix reads across phases hit memory instead of storage. Shares its
+     * lifecycle with {@link #parsedFooters}.
+     */
+    private final FooterByteCache footerBytes;
+
+    /**
+     * Estimates the retained heap weight of a parsed ORC tail for the byte-weighted
+     * {@link ParsedFooterCache}: the serialized tail buffer the {@link OrcTail} holds onto, plus a
+     * fixed per-file overhead and per-stripe and per-type costs for the parsed protobuf structures
+     * (mirroring the Parquet footer weigher's row-group/column model).
+     */
+    static long estimateTailWeightBytes(OrcTail tail) {
+        long stripes = tail.getFooter().getStripesCount();
+        long types = tail.getFooter().getTypesCount();
+        // OrcTail retains the serialized tail buffer alongside the parsed structures, so a file with
+        // large metadata/stripe-statistics sections costs far more than the parsed counts suggest.
+        BufferChunk tailBuffer = tail.getTailBuffer();
+        long serializedBytes = tailBuffer == null ? 0 : tailBuffer.getTotalLength();
+        return 4096 + serializedBytes + stripes * 1024 + types * 512;
+    }
+
+    OrcTail parsedTailForTests(FooterByteCache.Key key) {
+        return parsedFooters.get(key);
     }
 
     private final BlockFactory blockFactory;
@@ -145,8 +175,40 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     /** Physical names of declared-type columns (licensed to narrow toward their target); see {@link #withDeclaredTypeColumns}. */
     private final Set<String> declaredTypeColumns;
 
+    /**
+     * Creates a root reader with footer caches sized from node {@link Settings}. This is the
+     * production entry point used by the format-reader registry, which creates one root reader
+     * per format per node; all derived copies share the root's caches.
+     */
+    public OrcFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(
+            blockFactory,
+            null,
+            null,
+            null,
+            Map.of(),
+            Set.of(),
+            ParsedFooterCache.fromSettings(settings, OrcFormatReader::estimateTailWeightBytes),
+            FooterByteCache.fromSettings(settings)
+        );
+    }
+
+    /**
+     * Creates a reader with default-sized footer caches. Intended for tests; production code
+     * goes through {@link #OrcFormatReader(Settings, BlockFactory)} so operators can size the
+     * caches. Each reader built this way gets fresh caches, giving tests automatic isolation.
+     */
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null, null, null, Map.of(), Set.of());
+        this(
+            blockFactory,
+            null,
+            null,
+            null,
+            Map.of(),
+            Set.of(),
+            ParsedFooterCache.fromSettings(Settings.EMPTY, OrcFormatReader::estimateTailWeightBytes),
+            FooterByteCache.fromSettings(Settings.EMPTY)
+        );
     }
 
     private OrcFormatReader(
@@ -155,7 +217,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         OrcPushedExpressions pushedExpressions,
         DynamicThreshold dynamicThreshold,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        ParsedFooterCache<OrcTail> parsedFooters,
+        FooterByteCache footerBytes
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -163,22 +227,66 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.dynamicThreshold = dynamicThreshold;
         this.declaredDateFormats = declaredDateFormats;
         this.declaredTypeColumns = declaredTypeColumns;
+        this.parsedFooters = parsedFooters;
+        this.footerBytes = footerBytes;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
+        if (pushedFilter == null) {
+            if (this.pushedFilter == null && this.pushedExpressions == null) {
+                return this;
+            }
+            return new OrcFormatReader(
+                blockFactory,
+                null,
+                null,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
+        }
         if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+            return new OrcFormatReader(
+                this.blockFactory,
+                sarg,
+                null,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold, declaredDateFormats, declaredTypeColumns);
+            return new OrcFormatReader(
+                this.blockFactory,
+                null,
+                exprs,
+                dynamicThreshold,
+                declaredDateFormats,
+                declaredTypeColumns,
+                parsedFooters,
+                footerBytes
+            );
         }
         return this;
     }
 
     @Override
     public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
-        return new OrcFormatReader(blockFactory, pushedFilter, pushedExpressions, threshold, declaredDateFormats, declaredTypeColumns);
+        return new OrcFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            threshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
+        );
     }
 
     /**
@@ -198,7 +306,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             dynamicThreshold,
             Map.copyOf(physicalNameToPattern),
-            declaredTypeColumns
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes
         );
     }
 
@@ -220,13 +330,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             pushedExpressions,
             dynamicThreshold,
             declaredDateFormats,
-            Set.copyOf(physicalDeclaredColumns)
+            Set.copyOf(physicalDeclaredColumns),
+            parsedFooters,
+            footerBytes
         );
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         try (Reader reader = openReaderCached(fs, path)) {
             TypeDescription schema = reader.getSchema();
@@ -256,7 +368,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Opens an ORC {@link Reader} using the JVM-wide {@link #PARSED_FOOTERS} cache so that the
+     * Opens an ORC {@link Reader} using the shared {@link #parsedFooters} cache so that the
      * tail (postscript + footer + types + stripe directory) is deserialized at most once per
      * {@code (path, length)} key. On a cache miss the loader parses the tail by opening a reader
      * once and extracting the {@link OrcTail} from its serialized footer buffer; the parsed result
@@ -270,7 +382,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Loads the parsed ORC tail for {@code fs} via the JVM-wide {@link #PARSED_FOOTERS} cache,
+     * Loads the parsed ORC tail for {@code fs} via the shared {@link #parsedFooters} cache,
      * parsing on a cache miss. The first call for a given key opens an ORC reader (which parses
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
@@ -279,7 +391,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
-            OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail = parsedFooters.getOrLoad(fs.cacheKey(), key -> {
                 missed[0] = true;
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
@@ -318,6 +430,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private static SourceStatistics extractStatistics(Reader reader, TypeDescription schema) {
         long rowCount = reader.getNumberOfRows();
         long sizeInBytes = reader.getContentLength();
+        long unitCount = reader.getStripes().size();
         ColumnStatistics[] orcStats = reader.getStatistics();
 
         // Walk every dotted leaf the flattener emits, publishing stats at the same names the
@@ -344,6 +457,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             @Override
             public OptionalLong sizeInBytes() {
                 return OptionalLong.of(sizeInBytes);
+            }
+
+            @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(unitCount);
             }
 
             @Override
@@ -436,7 +554,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         long footerStartNanos = System.nanoTime();
         Reader reader = openReaderCached(fs, path);
@@ -466,7 +584,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             object.path().toString(),
-            resolveErrorPolicy(context.errorPolicy())
+            resolveErrorPolicy(context.errorPolicy()),
+            context.informationalWarningSink()
         );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
@@ -486,7 +605,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         try (Reader reader = openReaderCached(fs, path)) {
             List<StripeInformation> stripes = reader.getStripes();
@@ -564,13 +683,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
         }
-        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         // Tail resolution order, mirroring the parquet reader:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the parsed tail across successive splits of the same file on one
         // thread.
-        // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
+        // 2. parsedFooters: reader-shared cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
         long footerStartNanos = System.nanoTime();
         OrcTail tail;
@@ -612,7 +731,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             object.path().toString(),
-            resolveErrorPolicy(context.errorPolicy())
+            resolveErrorPolicy(context.errorPolicy()),
+            context.informationalWarningSink()
         );
     }
 
@@ -781,6 +901,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     @Override
     public FilterPushdownSupport filterPushdownSupport() {
         return new OrcFilterPushdownSupport();
+    }
+
+    /**
+     * ORC keeps dropping rows for {@code skip_row} with a SearchArgument pushed into it, so it opts into the
+     * pushdown the SPI withholds by default.
+     * <p>
+     * Two properties earn that: the reader has a single decode path — {@code convertToPage} always runs
+     * {@code ColumnarRowDropHelper#filterBlocks} — and it never calls {@code OrcFile.ReaderOptions#setRowFilter},
+     * so a SearchArgument prunes whole stripes and row-index ranges but never individual rows inside a batch.
+     * Batch coordinates therefore stay intact and the positions the coercion reports still address the blocks
+     * the helper compacts. A future row-level ORC predicate path would break both and must revisit this
+     * answer; {@code OrcFormatReaderTests#testDropsRowsUnderPushedFilter} demonstrates the drop under a real
+     * pushed SearchArgument rather than leaving it asserted.
+     */
+    @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        return true;
     }
 
     @Override
@@ -1225,8 +1362,34 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private final String fileLocation;
         /** See {@link #coercionWarnings()}. */
         private SkipWarnings coercionWarnings;
+        /**
+         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
+         * directly via {@code HeaderWarning}. Under the async source this iterator runs on a background
+         * reader thread, so a non-null sink (the source buffer relay) is required for the warnings to
+         * reach the response; see {@link #coercionWarnings()}. Mirrors {@code ParquetFormatReader}.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
+        /**
+         * Per-batch row-drop accumulator for {@code skip_row} mode; {@code null} for other modes.
+         * {@link ColumnarRowDropHelper#beginBatch} is called at the start of each ORC batch in
+         * {@link #convertToPage()}.
+         */
+        @Nullable
+        private final ColumnarRowDropHelper rowDropHelper;
+        /**
+         * Deferred absent-column warning state: non-null when at least one projected attribute has
+         * {@link DataType#NULL} (the {@link #resolveProjection} sentinel for columns absent from
+         * the ORC file's schema). Emitted lazily in {@link #next()} after the first batch is
+         * confirmed loaded, so that stripes pruned to zero rows by the skip table never trigger
+         * warnings for a column that never affected the result.
+         */
+        @Nullable
+        private String[] pendingAbsentWarnings;
+        @Nullable
+        private Consumer<String> pendingAbsentWarnSink;
         /**
          * File-global row number of the first row in the current batch, captured from
          * {@link RecordReader#getRowNumber()} immediately before each {@code nextBatch}. ORC reports
@@ -1248,9 +1411,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Map<String, String> declaredDateFormats,
             Set<String> declaredTypeColumns,
             String fileLocation,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
+            this.warningSink = warningSink;
+            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
@@ -1291,6 +1457,36 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             }
             validatePlannerTypesAgainstFile(fileLocation, declaredTypeColumns);
+
+            // Collect columns absent from the ORC file. resolveProjection uses DataType.NULL as a
+            // sentinel for columns not found in the file schema; those columns are null-filled
+            // silently in convertToPage(). Defer warning to the first batch so stripes pruned to
+            // zero rows by the skip table do not trigger spurious absent-column warnings.
+            if (warningSink != null) {
+                List<String> absent = null;
+                for (int col = 0; col < attributes.size(); col++) {
+                    if (col == rowPositionColumnIndex) {
+                        continue;
+                    }
+                    // DataType.NULL is resolveProjection's sentinel for "column absent from ORC file"
+                    // (convertOrcSchemaToAttributes never produces DataType.NULL from real ORC types).
+                    // Note: unlike Parquet's buildAbsentColumnWarnings, we cannot filter out columns
+                    // whose declared type was DataType.UNSUPPORTED because resolveProjection replaces
+                    // the original declared type with DataType.NULL for absent columns — the original
+                    // type is no longer available here. In practice, UNSUPPORTED-declared columns are
+                    // not projected into the ORC reader, so this edge case is not expected to surface.
+                    if (attributes.get(col).dataType() == DataType.NULL) {
+                        if (absent == null) {
+                            absent = new ArrayList<>();
+                        }
+                        absent.add(attributes.get(col).name());
+                    }
+                }
+                if (absent != null) {
+                    this.pendingAbsentWarnings = absent.toArray(String[]::new);
+                    this.pendingAbsentWarnSink = warningSink;
+                }
+            }
         }
 
         /** Walks {@code path} down the file schema's STRUCT children to the leaf {@link TypeDescription}. */
@@ -1337,7 +1533,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                             "ORC file ["
                                 + fileLocation
                                 + "] has columns whose on-disk type is incompatible with the planner type; "
-                                + "they are returned as null"
+                                + "they are returned as null",
+                            warningSink
                         );
                     }
                     skipWarnings.add(
@@ -1388,6 +1585,19 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return tentative;
         }
 
+        private void emitAbsentColumnWarningsOnce() {
+            Consumer<String> sink = pendingAbsentWarnSink;
+            if (sink == null) {
+                return;
+            }
+            pendingAbsentWarnSink = null;
+            String[] names = pendingAbsentWarnings;
+            pendingAbsentWarnings = null;
+            for (String name : names) {
+                sink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
+            }
+        }
+
         @Override
         public boolean hasNext() {
             if (exhausted) {
@@ -1397,6 +1607,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return true;
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 while (true) {
                     if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
@@ -1424,6 +1635,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
+                if (startCpuNanos >= 0) {
+                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                }
                 counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
@@ -1451,12 +1665,30 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new NoSuchElementException();
             }
             batchReady = false;
-            counters.addRowsEmitted(batch.size);
-            return convertToPage();
+            // Build the page first: if convertToPage() throws (e.g. corrupt data), no data
+            // was produced so the absent-column warning would be misleading. Emit only after
+            // the page is fully built — mirrors ParquetColumnIterator's contract.
+            Page page = convertToPage();
+            if (rowDropHelper != null) {
+                rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
+                try {
+                    rowDropHelper.checkBudget(coercionWarnings());
+                } catch (Exception e) {
+                    page.releaseBlocks();
+                    throw e;
+                }
+            }
+            counters.addRowsEmitted(page.getPositionCount());
+            emitAbsentColumnWarningsOnce();
+            return page;
         }
 
         private Page convertToPage() {
             int rowCount = batch.size;
+            if (rowDropHelper != null) {
+                rowDropHelper.beginBatch(rowCount);
+            }
+            IntConsumer failedSink = rowDropHelper != null ? rowDropHelper::markFailed : null;
             Block[] blocks = new Block[attributes.size()];
 
             for (int col = 0; col < attributes.size(); col++) {
@@ -1517,7 +1749,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                         ancestorNulls,
                         leafTypes[col],
                         declaredFormatters[col],
-                        fieldName
+                        fieldName,
+                        failedSink
                     );
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
@@ -1525,6 +1758,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             }
 
+            // Every slot is populated by the loop above (the ancestor-null shortcut fills its slot before
+            // nulling `vector`), so filterBlocks has no null slots to skip and none are left to backfill —
+            // unlike the Parquet iterators, which leave absent columns null until after the compaction.
+            if (rowDropHelper != null && rowDropHelper.hasFailures()) {
+                blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
+            }
             return new Page(blocks);
         }
 
@@ -1574,7 +1813,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             BitSet ancestorNulls,
             TypeDescription leafType,
             DateFormatter dateFormatter,
-            String columnName
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
         ) {
             // Declared-type coercion beyond the fused pairs: decode the column (or LIST element)
             // at the file's own type with the arms below, then coerce the block to the declared
@@ -1587,7 +1827,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 && dataType != fileType
                 && DeclaredTypeCoercions.fusedInDecode(fileType, dataType, dateFormatter != null) == false
                 && DeclaredTypeCoercions.supports(fileType, dataType)) {
-                Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName);
+                Block physical = createBlockAs(vector, fileType, rowCount, ancestorNulls, leafType, dateFormatter, columnName, null);
                 try {
                     return DeclaredTypeCoercions.castBlock(
                         physical,
@@ -1596,13 +1836,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                         dateFormatter,
                         blockFactory,
                         columnName,
-                        coercionWarnings()
+                        coercionWarnings(),
+                        failedPositionSink
                     );
                 } finally {
                     physical.close();
                 }
             }
-            return createBlockAs(vector, dataType, rowCount, ancestorNulls, leafType, dateFormatter, columnName);
+            return createBlockAs(vector, dataType, rowCount, ancestorNulls, leafType, dateFormatter, columnName, failedPositionSink);
         }
 
         /**
@@ -1616,11 +1857,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return null;
             }
             if (coercionWarnings == null) {
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    ? "their entire row is dropped"
+                    : "they are returned as null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file ["
-                        + fileLocation
-                        + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null"
+                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    warningSink
                 );
             }
             return coercionWarnings;
@@ -1634,7 +1876,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             BitSet ancestorNulls,
             TypeDescription leafType,
             DateFormatter dateFormatter,
-            String columnName
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
         ) {
             if (vector instanceof ListColumnVector listCol) {
                 // LIST<primitive> is unreachable below a STRUCT ancestor today (LIST<STRUCT> is
@@ -1645,7 +1888,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 TypeDescription elementType = leafType != null
                     && leafType.getChildren() != null
                     && leafType.getChildren().isEmpty() == false ? leafType.getChildren().get(0) : null;
-                return createListBlock(listCol, dataType, rowCount, elementType, dateFormatter, columnName);
+                return createListBlock(listCol, dataType, rowCount, elementType, dateFormatter, columnName, failedPositionSink);
             }
             boolean ancestorContributes = ancestorNulls != null && ancestorNulls.isEmpty() == false;
             boolean effectiveNoNulls = vector.noNulls && ancestorContributes == false;
@@ -1696,7 +1939,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     effectiveRepeating,
                     leafType,
                     dateFormatter,
-                    columnName
+                    columnName,
+                    failedPositionSink
                 );
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
@@ -1757,7 +2001,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             int rowCount,
             TypeDescription elementFileType,
             DateFormatter dateFormatter,
-            String columnName
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
         ) {
             return switch (elementType) {
                 case KEYWORD, TEXT -> createListBytesRefBlock(listCol, rowCount);
@@ -1765,7 +2010,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 case LONG -> createListLongBlock(listCol, rowCount);
                 case DOUBLE -> createListDoubleBlock(listCol, rowCount);
                 case BOOLEAN -> createListBooleanBlock(listCol, rowCount);
-                case DATETIME -> createListDatetimeBlock(listCol, rowCount, elementFileType, dateFormatter, columnName);
+                case DATETIME -> createListDatetimeBlock(listCol, rowCount, elementFileType, dateFormatter, columnName, failedPositionSink);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
         }
@@ -1961,12 +2206,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             int rowCount,
             TypeDescription elementFileType,
             DateFormatter dateFormatter,
-            String columnName
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
         ) {
             ColumnVector child = listCol.child;
             // Same discriminator as the flat datetime path: ORC DATE elements store days (scale to
             // millis); integer elements declared `datetime` are already epoch millis (reinterpret).
             long scale = elementFileType == null || elementFileType.getCategory() == TypeDescription.Category.DATE ? MILLIS_PER_DAY : 1L;
+            boolean skipRow = failedPositionSink != null;
             long[] parsed = new long[8];
             try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
@@ -2005,7 +2252,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings()
+                                    coercionWarnings(),
+                                    skipRow
                                 );
                                 failed = true;
                             }
@@ -2018,6 +2266,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     if (failed || count == 0) {
                         // failed: bulk semantics null the whole position (already warned above).
                         // count == 0: empty list or all-null elements — a null position.
+                        if (failed && skipRow) failedPositionSink.accept(i);
                         builder.appendNull();
                         continue;
                     }
@@ -2181,7 +2430,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             boolean effectiveRepeating,
             TypeDescription leafType,
             DateFormatter dateFormatter,
-            String columnName
+            String columnName,
+            @Nullable IntConsumer failedPositionSink
         ) {
             if (vector instanceof TimestampColumnVector tsVector) {
                 if (effectiveRepeating) {
@@ -2242,6 +2492,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 // conversion the text readers apply at parse time. A parse failure follows the
                 // read's error policy through onCoercionFailure: fail_fast propagates, anything
                 // else nulls the cell + warns — the same per-cell outcome as castBlock.
+                boolean skipRow = failedPositionSink != null;
                 try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
                     for (int i = 0; i < rowCount; i++) {
                         int idx = bytesVector.isRepeating ? 0 : i;
@@ -2264,8 +2515,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     DataType.KEYWORD,
                                     DataType.DATETIME,
                                     e,
-                                    coercionWarnings()
+                                    coercionWarnings(),
+                                    skipRow
                                 );
+                                if (skipRow) failedPositionSink.accept(i);
                                 builder.appendNull();
                             }
                         }

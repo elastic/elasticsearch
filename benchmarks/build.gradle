@@ -87,7 +87,6 @@ dependencies {
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
-  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:columnar')
   implementation (testFixtures(project(path: ':libs:simdvec')))
@@ -110,6 +109,10 @@ dependencies {
   nativeLib(project(':libs:native'))
   implementation project(':modules:bitmap')
   implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
+  // Shared benchmark helpers (Utils, ExtraParam) plus the log4j LoggerFactory bootstrap
+  // and the BenchmarkConfigurationFactory that strips %node_name / %cluster_name from
+  // any .properties log4j config on the classpath. See benchmarks/common/build.gradle.
+  implementation project(':benchmarks:common')
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   annotationProcessor project(':benchmarks:processor')
@@ -154,8 +157,17 @@ tasks.named("run").configure {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
   jvmArgs '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
+  // Without this the vectorization providers fall back to their scalar implementations, so a benchmark
+  // over vectorized code measures something the product never runs. Needed on the forked VMs, which are
+  // where the benchmark bodies execute, as well as on the harness that runs them.
+  def vectorArgs = buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21
+    ? ' --add-modules=jdk.incubator.vector'
+    : ''
+  if (vectorArgs) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
   // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
-  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}${vectorArgs}"
 }
 
 tasks.named('test').configure {

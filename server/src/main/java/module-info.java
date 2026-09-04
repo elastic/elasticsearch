@@ -35,6 +35,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
 
     requires hppc;
@@ -507,6 +508,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
             org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
             org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec,
+            org.elasticsearch.index.codec.Elasticsearch96Codec,
             org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
             org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 

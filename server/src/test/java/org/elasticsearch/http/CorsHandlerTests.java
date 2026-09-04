@@ -181,7 +181,7 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS), containsInAnyOrder("Content-Type", "Content-Length"));
         assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
-        assertNotNull(headers.get(CorsHandler.DATE));
+        assertTrue(headers.containsKey(HttpUtils.DATE));
     }
 
     public void testHandleInboundPreflightWithWildcardAllowCredentials() {
@@ -217,7 +217,7 @@ public class CorsHandlerTests extends ESTestCase {
         );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
-        assertNotNull(headers.get(CorsHandler.DATE));
+        assertTrue(headers.containsKey(HttpUtils.DATE));
     }
 
     public void testHandleInboundPreflightWithValidOriginAllowCredentials() {
@@ -253,7 +253,7 @@ public class CorsHandlerTests extends ESTestCase {
         );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
-        assertNotNull(headers.get(CorsHandler.DATE));
+        assertTrue(headers.containsKey(HttpUtils.DATE));
     }
 
     public void testSetResponseNonCorsRequest() {

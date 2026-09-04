@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -83,7 +84,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
           }
         }""";
 
-    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(Settings.EMPTY, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
+        new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+        BytesRefRecycler.NON_RECYCLING_INSTANCE
+    );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();
 
@@ -652,7 +656,7 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             IndexShard replica = newMappedReplicaShard();
 
             ShardBatchIndexer.ReplicaBatchResult result = shardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            // A batch is written as a single contiguous Translog.IndexBatch record, so a NOOP ends the batch where it
+            // A batch is written as a single contiguous IndexOperationBatch.TranslogRecord, so a NOOP ends the batch where it
             // is encountered. With the NOOP at the leading item, nothing is batched and the NOOP plus the remaining
             // items are left to the serial fallback path (which resumes from processedItems).
             assertThat(result.processedItems(), equalTo(0));

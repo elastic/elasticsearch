@@ -1343,7 +1343,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
             PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, phrasePostings.nextDoc());
-            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 1, phrasePostings.nextPosition());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, phrasePostings.nextPosition());
 
             TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
             assertTrue(prefixTerms.seekExact(new BytesRef("foo")));
@@ -1388,7 +1388,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(phraseTerms.seekExact(new BytesRef("foo bar")));
             PostingsEnum phrasePostings = phraseTerms.postings(null, PostingsEnum.POSITIONS);
             assertEquals(0, phrasePostings.nextDoc());
-            assertEquals(11, phrasePostings.nextPosition());
+            assertEquals(12, phrasePostings.nextPosition());
 
             TermsEnum prefixTerms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
             assertTrue(prefixTerms.seekExact(new BytesRef("foo")));

@@ -6,6 +6,7 @@ steps:
         - "libs/simdvec/native/**"
         - "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/nativelibs/**"
         - "libs/native/libraries/build.gradle"
+        - "libs/simdvec/build.gradle"
     env:
       VEC_NATIVE_BUILD: docker
       USE_PROD_DOCKER_CREDENTIALS: "true"

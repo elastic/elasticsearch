@@ -46,10 +46,12 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
             .metadata(updateMetadata(oldClusterState.metadata()))
             .build();
-        terminal.println(
-            Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
-        );
+        if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
+            terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+            );
+        }
 
         confirm(terminal, CONFIRMATION_MSG);
 

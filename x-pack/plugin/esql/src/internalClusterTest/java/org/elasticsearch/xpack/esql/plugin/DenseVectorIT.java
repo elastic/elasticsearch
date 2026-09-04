@@ -247,8 +247,8 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
     }
 
     public void testDenseVectorBatchSizeSetting() throws Exception {
-        // A small batch size splits the query's rows across several inference requests. Every row still returns a vector, so the
-        // setting takes effect on a running cluster without disturbing results across batch boundaries.
+        // A small batch size forces the query's rows across several inference requests, ending in a partial batch. This checks
+        // that batching preserves results: every row still gets its vector, and none is dropped or duplicated at a batch boundary.
         int customBatchSize = between(2, 5);
         updateClusterSettings(Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), customBatchSize));
 

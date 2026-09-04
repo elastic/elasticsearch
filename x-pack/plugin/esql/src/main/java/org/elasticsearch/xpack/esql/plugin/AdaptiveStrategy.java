@@ -24,8 +24,9 @@ import java.util.List;
  * <p>
  * Distributes when the plan contains pipeline breakers (aggregations, TopN)
  * and there are multiple splits, or when the split count exceeds the number
- * of eligible nodes. Stays on the coordinator for LIMIT-only plans, and for a single split when that split is the
- * query's only external read.
+ * of eligible remote workers. Stays on the coordinator for LIMIT-only plans, and for a single split when that split
+ * is the query's only external read. An empty eligible-worker set, including an index-only cluster, returns
+ * {@code LOCAL} so the coordinator runs the scan itself.
  * <p>
  * A single split is placed like any other once the query has several producers reading concurrently. Distributing one
  * split buys no parallelism and costs a transport hop, which is why a lone read stays put, but each producer of a
@@ -48,7 +49,7 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
     }
 
     public AdaptiveStrategy() {
-        this(NodeEligibilityStrategy.DATA_NODES_ONLY);
+        this(NodeEligibilityStrategy.EXTERNAL_WORKER_NODES);
     }
 
     @Override

@@ -292,6 +292,32 @@ public class ResolveDatasetShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
+    public void testNestedViewsOverDatasetWithEmptyShadowResolutionsCollapse() {
+        DatasetShadowRelation dsShadow = new DatasetShadowRelation(EMPTY, "ds", LinkedIndexPattern.Kind.OPTIONAL, "ds");
+        ViewShadowRelation viewShadow1 = new ViewShadowRelation(EMPTY, "v1", LinkedIndexPattern.Kind.OPTIONAL, "v1");
+        ViewShadowRelation viewShadow2 = new ViewShadowRelation(EMPTY, "v2", LinkedIndexPattern.Kind.OPTIONAL, "v2");
+        ViewShadowRelation viewShadow3 = new ViewShadowRelation(EMPTY, "v3", LinkedIndexPattern.Kind.OPTIONAL, "v3");
+        LogicalPlan nestedViews = viewOver(
+            "v3",
+            viewOver("v2", viewOver("v1", unionOf(datasetExternal("ds"), dsShadow), viewShadow1), viewShadow2),
+            viewShadow3
+        );
+
+        var analyzer = datasetExternalAnalyzer().addLenientResolution(dsShadow.linkedIndexPattern(), IndexResolution.empty("ds"))
+            .addLenientResolution(viewShadow1.linkedIndexPattern(), IndexResolution.empty("v1"))
+            .addLenientResolution(viewShadow2.linkedIndexPattern(), IndexResolution.empty("v2"))
+            .addLenientResolution(viewShadow3.linkedIndexPattern(), IndexResolution.empty("v3"))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(nestedViews);
+
+        assertFalse("no union should survive, got: " + plan, containsNode(plan, UnionAll.class));
+        assertFalse("no dataset shadow should survive, got: " + plan, containsNode(plan, DatasetShadowRelation.class));
+        assertFalse("no view shadow should survive, got: " + plan, containsNode(plan, ViewShadowRelation.class));
+        assertEquals("expected exactly one ExternalRelation, got: " + plan, 1, countNodes(plan, ExternalRelation.class));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
     /**
      * Strategy A: when both the dataset external relation and the shadow resolve, they live as separate
      * siblings inside the {@link UnionAll}. No merging.
@@ -464,9 +490,13 @@ public class ResolveDatasetShadowTests extends ESTestCase {
             unionOf(datasetExternal("ds"), dsShadow),
             List.of(new Alias(EMPTY, "marker", Literal.keyword(EMPTY, "x")))
         );
+        return viewOver("v", eval, viewShadow);
+    }
+
+    private static ViewUnionAll viewOver(String name, LogicalPlan body, ViewShadowRelation shadow) {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
-        children.put("v", new NamedSubquery(EMPTY, eval, "v"));
-        children.put("v#shadow", viewShadow);
+        children.put(name, new NamedSubquery(EMPTY, body, name));
+        children.put(name + "#shadow", shadow);
         return new ViewUnionAll(EMPTY, children, List.of());
     }
 

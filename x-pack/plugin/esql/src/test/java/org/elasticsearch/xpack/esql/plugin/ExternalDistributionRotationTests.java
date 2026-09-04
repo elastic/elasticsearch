@@ -176,7 +176,7 @@ public class ExternalDistributionRotationTests extends ESTestCase {
     }
 
     private static List<DiscoveryNode> eligible(DiscoveryNodes nodes) {
-        return NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(nodes);
+        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes);
     }
 
     /** Adds a plan's per-node split counts into {@code totals}, keeping node order stable across plans. */

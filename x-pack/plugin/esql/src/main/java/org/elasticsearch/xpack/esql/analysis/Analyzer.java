@@ -278,9 +278,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveViewShadow(),
-            new ViewCompactionPostIndexResolution(),
             new ResolveDatasetShadow(),
             new StripDatasetShadowRelations(),
+            new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -571,12 +571,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Phase 2 of view compaction. Runs in the Initialize batch right after {@link ResolveTable},
-     * once all reachable {@link UnresolvedRelation}s have been replaced with {@code EsRelation}s
-     * (and once CPS's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
-     * Strips remaining unresolved shadows, flattens nested {@code ViewUnionAll} structures, and
-     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale
-     * behind splitting compaction across the analyzer boundary.
+     * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
+     * must be resolved or stripped while they remain in the plain {@code UnionAll} built by the dataset rewriter; view compaction may
+     * otherwise lift them into a {@code ViewUnionAll}. Strips remaining unresolved view shadows, flattens nested {@code ViewUnionAll}
+     * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
+     * compaction across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
 

@@ -3426,6 +3426,11 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
          */
@@ -3841,6 +3846,13 @@ public class EsqlCapabilities {
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
         KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
+
+        /**
+         * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}
+         * clause after {@code INLINE STATS}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/144831">#144831</a>.
+         */
+        FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS(INLINE_STATS.enabled),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

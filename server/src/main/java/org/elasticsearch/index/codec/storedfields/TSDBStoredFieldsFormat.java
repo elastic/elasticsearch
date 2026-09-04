@@ -106,6 +106,14 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         @Override
+        public void prefetch(int docID) throws IOException {
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.prefetch(docID);
+            }
+            storedFieldsReader.prefetch(docID);
+        }
+
+        @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
             // Some clients of this API expect that the _id is read before other fields,
             // therefore we call first to the bloom filter reader so we can synthesize the _id

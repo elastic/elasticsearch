@@ -3950,11 +3950,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private static FailureStrategy failureStrategy(Exception e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        if (cause instanceof RecoveryCancelledException
-            || cause instanceof AlreadyClosedException
-            || cause instanceof IndexShardClosedException
-            || cause instanceof IndexShardStartedException) {
+        Throwable cause = ExceptionsHelper.unwrap(
+            e,
+            RecoveryCancelledException.class,
+            AlreadyClosedException.class,
+            IndexShardClosedException.class,
+            IndexShardStartedException.class
+        );
+        if (cause != null) {
             return FAIL_SILENT;
         }
         return RETRY;

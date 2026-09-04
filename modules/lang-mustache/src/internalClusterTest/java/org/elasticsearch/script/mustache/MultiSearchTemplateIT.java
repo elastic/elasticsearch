@@ -230,7 +230,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         // can be negative from prior estimation releases, allowing a small render charge to
         // slip under a 1b limit (used + charge ≤ 0 + charge, which may still be ≤ 1).
         final long preCharge = 1_000_000_000L;
-        Collection<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
+        Iterable<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
         for (CircuitBreakerService bs : breakerServices) {
             bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(preCharge);
         }

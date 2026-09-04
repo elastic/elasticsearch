@@ -210,4 +210,81 @@ public class StoragePathTests extends ESTestCase {
         assertEquals("wasbs://c@a.host/data/", prefix.toString());
         assertEquals("c", prefix.userInfo());
     }
+
+    // -- HTTP/HTTPS query string and fragment stripping --
+
+    /**
+     * For http/https, '?' and '#' are structural URL delimiters. path() must return the pure
+     * resource path so that isPattern(), objectName(), and callers that do extension inference
+     * see only the path component. toString() must return the original URL verbatim so that
+     * HTTP clients and URL-keyed caches continue to use the full presigned URL.
+     */
+    public void testHttpQueryStringStrippedFromPath() {
+        StoragePath path = StoragePath.of("https://host/data.csv?X-Goog-Signature=abc123");
+        assertEquals("/data.csv", path.path());
+        assertEquals("https://host/data.csv?X-Goog-Signature=abc123", path.toString());
+    }
+
+    public void testHttpFragmentStrippedFromPath() {
+        StoragePath path = StoragePath.of("https://host/data.csv#fragment");
+        assertEquals("/data.csv", path.path());
+        assertEquals("https://host/data.csv#fragment", path.toString());
+    }
+
+    public void testHttpQueryAndFragmentStrippedFromPath() {
+        StoragePath path = StoragePath.of("https://host/data.csv?sig=xyz#frag");
+        assertEquals("/data.csv", path.path());
+        assertEquals("https://host/data.csv?sig=xyz#frag", path.toString());
+    }
+
+    public void testHttpDottedQueryStringStrippedBeforeExtensionScan() {
+        // A dotted query value like ?v=1.2 must not confuse objectName() — the dot in "1.2"
+        // must not be found by a last-dot scan over the path.
+        StoragePath path = StoragePath.of("https://host/data.csv?v=1.2");
+        assertEquals("/data.csv", path.path());
+        assertEquals("data.csv", path.objectName());
+    }
+
+    public void testHttpDottedQueryStringDeepPath() {
+        // objectName() uses path.lastIndexOf('/') — verify the strip and name extraction are
+        // correct for a multi-segment path, not just a single-segment one.
+        StoragePath path = StoragePath.of("https://host/path/to/data.csv?v=1.2");
+        assertEquals("/path/to/data.csv", path.path());
+        assertEquals("data.csv", path.objectName());
+    }
+
+    public void testHttpQueryStringIsNotAPattern() {
+        // '?' in the query string must not trigger isPattern() — it is not a glob metacharacter here.
+        StoragePath path = StoragePath.of("https://host/data.csv?X-Amz-Signature=abc");
+        assertFalse(path.isPattern());
+    }
+
+    public void testHttpPlainGlobInPathStillAPattern() {
+        // A real glob in the PATH component must still be detected as a pattern.
+        StoragePath path = StoragePath.of("https://host/data/*.csv");
+        assertTrue(path.isPattern());
+    }
+
+    public void testS3QuestionMarkInKeyIsStillAPattern() {
+        // For object-store schemes '?' is a glob metacharacter; the stripping must NOT apply.
+        StoragePath path = StoragePath.of("s3://bucket/data?.csv");
+        assertTrue(path.isPattern());
+    }
+
+    public void testHttpEqualsAndHashCodeUseFullLocation() {
+        // equals/hashCode must use the original location so URL-keyed caches are not corrupted.
+        StoragePath a = StoragePath.of("https://host/data.csv?sig=abc");
+        StoragePath b = StoragePath.of("https://host/data.csv?sig=abc");
+        StoragePath c = StoragePath.of("https://host/data.csv?sig=xyz");
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+    }
+
+    public void testHttpParentDirectoryStripsQueryString() {
+        // parentDirectory() operates on the clean path; the result must not carry the query string of the original URL.
+        StoragePath path = StoragePath.of("https://host/dir/file.csv?sig=x");
+        StoragePath parent = path.parentDirectory();
+        assertEquals("https://host/dir", parent.toString());
+    }
 }

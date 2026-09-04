@@ -1068,6 +1068,25 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     /**
+     * {@code customData} is nested ({@code Map<String, DiffableStringMap>}); lengthening an inner string value must increase the estimate.
+     */
+    public void testRamBytesUsedIncludesDeepCustomData() {
+        Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
+        IndexMetadata withoutCustom = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata withShortCustom = IndexMetadata.builder("test")
+            .settings(settings)
+            .putCustom("my_custom", Map.of("key", "short"))
+            .build();
+        IndexMetadata withLongCustom = IndexMetadata.builder("test")
+            .settings(settings)
+            .putCustom("my_custom", Map.of("key", "x".repeat(256)))
+            .build();
+
+        assertThat(withShortCustom.ramBytesUsed(), greaterThan(withoutCustom.ramBytesUsed()));
+        assertThat(withLongCustom.ramBytesUsed(), greaterThan(withShortCustom.ramBytesUsed()));
+    }
+
+    /**
      * Non-tautology check for a fixed minimal {@link IndexMetadata}: the estimate must exceed an independent lower bound derived from
      * literal string lengths, {@link Settings#estimatedRamBytesUsed()}, and primary-term array length — without replicating
      * {@link IndexMetadata#computeRamBytesUsed()}. A settings-key delta verifies that index-level accounting tracks settings growth.

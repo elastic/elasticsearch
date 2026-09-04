@@ -67,6 +67,7 @@ public final class ParallelHashAggregationOperator implements Operator {
     private final AtomicInteger scheduledOrRunningWorkers = new AtomicInteger();
 
     private final ExchangeBuffer in;
+    private int lastPendingPages = 0;
     private boolean finishCalled = false;
 
     private final AtomicInteger pendingSplits;
@@ -142,11 +143,13 @@ public final class ParallelHashAggregationOperator implements Operator {
         page.allowPassingToDifferentDriver();
         in.addPage(page);
         final int pendingPages = in.size();
-        if (pendingPages >= pagesPerWorker) {
-            final int desiredWorkers = Math.min(Math.ceilDiv(pendingPages, pagesPerWorker), workers.length);
+        // add more workers if the current workers are not fast enough to process pages
+        if (pendingPages - lastPendingPages >= pagesPerWorker / 2) {
+            lastPendingPages = pendingPages;
+            final int desiredWorkers = Math.min(Math.floorDiv(pendingPages, pagesPerWorker), workers.length);
             int extraWorkers = desiredWorkers - scheduledOrRunningWorkers.get();
             if (extraWorkers > 0) {
-                for (int w = 0; extraWorkers > 0 && w < workers.length; w++) {
+                for (int w = 0; extraWorkers > 0 && w < desiredWorkers; w++) {
                     if (scheduleWorker(workers[w])) {
                         --extraWorkers;
                     }
@@ -157,6 +160,8 @@ public final class ParallelHashAggregationOperator implements Operator {
                 blocked = blockedOnWriting;
                 processInputPagesWithMainThread();
             }
+        } else if (lastPendingPages - pendingPages >= pagesPerWorker) {
+            lastPendingPages = pendingPages;
         }
         addInputNanos += (System.nanoTime() - startNanos);
     }

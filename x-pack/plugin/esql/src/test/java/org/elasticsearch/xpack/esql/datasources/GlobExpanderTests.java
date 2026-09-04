@@ -487,6 +487,51 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/a.parquet", result.path(0).toString());
     }
 
+    /**
+     * {@code list}+{@code desc} on glob then literal: apply once on the concat, so the last named
+     * file is the FFW donor. Double-applying (per glob then concat) still picks the literal here;
+     * {@link #testFfwCommaTwoGlobsListDescReversesConcatOnce} is the discriminator.
+     */
+    public void testFfwCommaGlobThenLiteralListDescPicksLiteral() throws IOException {
+        StubProvider provider = new StubProvider(
+            List.of(entry("s3://bucket/events/a.parquet", 100), entry("s3://bucket/events/z.parquet", 200))
+        );
+        provider.existingPaths.add("s3://bucket/_schema.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/events/*.parquet,s3://bucket/_schema.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/_schema.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Two globs, {@code list}+{@code desc}: reverse the concatenated listing once. Distinct extensions
+     * so the stub's prefix-less LIST cannot leak g2 files into g1 via {@code objectName()} fallback.
+     * Double-apply would put {@code g2/c} first (last segment, original order); once puts {@code g2/d}.
+     */
+    public void testFfwCommaTwoGlobsListDescReversesConcatOnce() throws IOException {
+        StubProvider provider = new StubProvider(
+            List.of(
+                entry("s3://bucket/g1/a.csv", 100),
+                entry("s3://bucket/g1/b.csv", 200),
+                entry("s3://bucket/g2/c.parquet", 300),
+                entry("s3://bucket/g2/d.parquet", 400)
+            )
+        );
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/g1/*.csv,s3://bucket/g2/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/g2/d.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/g2/c.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/g1/b.csv", result.path(2).toString());
+        assertEquals("s3://bucket/g1/a.csv", result.path(3).toString());
+    }
+
     public void testFfwCommaNameAscIsLexSmallest() throws IOException {
         StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
         FileList result = GlobExpander.expandCommaSeparated(

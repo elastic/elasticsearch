@@ -810,9 +810,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             e.validationErrors(),
             hasItem(
                 containsString(
-                    "known settings: [error_mode, file_exclusions, format, hive_partitioning, max_error_ratio, "
-                        + "max_errors, max_split_probes, partition_detection, partition_path, schema_resolution, "
-                        + "schema_sample_size, split_probe_window, target_split_size]"
+                    "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
+                        + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
+                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
                 )
             )
         );

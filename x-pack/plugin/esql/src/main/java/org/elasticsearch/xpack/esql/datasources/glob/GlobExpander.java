@@ -637,7 +637,9 @@ public final class GlobExpander {
                     remainingBudget,
                     maxGlobExpansion,
                     nameFilter,
-                    fileOrder
+                    // Discovery order only. fileOrder is applied once on the concatenated list so
+                    // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
+                    FileOrderConfig.DEFAULT
                 );
                 exclusionWarnings.addAll(expanded.exclusionWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

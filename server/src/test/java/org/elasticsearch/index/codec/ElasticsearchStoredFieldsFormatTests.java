@@ -21,6 +21,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat.Mode;
+import org.elasticsearch.index.codec.bwc.ES94TSDBBestCompressionLucene104Codec;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -50,6 +52,28 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
             SegmentInfo si = segmentInfo(dir, Map.of());
             assertNull(si.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY));
             assertEquals(Mode.LUCENE, ElasticsearchStoredFieldsFormat.modeOf(si, Mode.LUCENE));
+        }
+    }
+
+    /**
+     * Segments written before the mode was recorded carry none, and which implementation wrote them depends on the codec name
+     * they carry. Reading one with the wrong implementation would fail, so each codec has to answer for its own name.
+     */
+    public void testCodecsAnswerForSegmentsThatRecordNoMode() throws Exception {
+        try (Directory dir = newDirectory()) {
+            SegmentInfo noMode = segmentInfo(dir, Map.of());
+
+            var elasticsearch96 = (ElasticsearchStoredFieldsFormat) ((TSDBStoredFieldsFormat) new Elasticsearch96Codec()
+                .storedFieldsFormat()).delegate();
+            assertEquals("Elasticsearch96 only ever wrote Lucene stored fields", Mode.LUCENE, elasticsearch96.modeOf(noMode));
+
+            var es94 = (ElasticsearchStoredFieldsFormat) ((TSDBStoredFieldsFormat) new ES94TSDBBestCompressionLucene104Codec()
+                .storedFieldsFormat()).delegate();
+            assertEquals(
+                "ES94TSDBBestCompressionLucene104Codec wrote Zstd",
+                Mode.ZSTD_BEST_COMPRESSION,
+                es94.modeOf(noMode)
+            );
         }
     }
 

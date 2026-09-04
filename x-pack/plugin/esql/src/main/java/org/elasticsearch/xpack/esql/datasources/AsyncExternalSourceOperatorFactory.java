@@ -1696,12 +1696,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 boolean opened = StorageRetryCancellation.callWithCancellation(state.buffer::readCancelled, () -> advanceToNextUnit(state));
                 if (opened == false) {
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state, false);
+                    snapshotFormatReaderStatus(state);
                     l.onResponse(null);
                     return;
                 }
                 // Unit opened; take the split-start snapshot so the buffer baseline is reset for the fresh reader.
-                snapshotFormatReaderStatus(state, true);
+                snapshotFormatReaderReset(state);
+                snapshotFormatReaderStatus(state);
                 // Drain on the consumer pool so the parser workers cannot starve their own consumer.
                 try {
                     producerExecutor.execute(() -> drainCurrentUnit(state, l));
@@ -1735,7 +1736,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
                     // close it before reporting completion so no resources leak on cancellation paths.
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state, false);
+                    snapshotFormatReaderStatus(state);
                     clearCurrentIterator(state);
                     completionListener.onResponse(null);
                 }
@@ -1743,7 +1744,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Finished consuming this unit: capture deltas, count the split as processed,
                     // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state, false);
+                    snapshotFormatReaderStatus(state);
                     state.buffer.incSplitsProcessed();
                     clearCurrentIterator(state);
                     state.currentFileReader = null;   // release; next split sets a new one
@@ -1754,7 +1755,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 case BLOCKED -> {
                     // A listener has been registered on waitForSpace that will re-submit the drain.
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state, false);
+                    snapshotFormatReaderStatus(state);
                 }
             }
         } catch (Exception e) {
@@ -1798,12 +1799,29 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * so the buffer's baseline is reset before the split's first intermediate snapshot.
      * Returns immediately when {@code currentFileReader} is null (no split open).
      */
-    private static void snapshotFormatReaderStatus(ProducerState state, boolean splitStart) {
+    private static void snapshotFormatReaderReset(ProducerState state) {
         if (state.currentFileReader == null) {
             return;
         }
         try {
-            state.buffer.recordFormatReaderStatus(state.currentFileReader.statusSnapshot(), splitStart);
+            state.buffer.resetBufferBaseline();
+            state.buffer.recordFormatReaderStatus(state.currentFileReader.statusSnapshot());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.currentFileReader, e);
+        }
+    }
+
+    /**
+     * Takes an incremental snapshot of the current split's format-reader counters into the buffer,
+     * accumulating the delta since the last snapshot. Returns immediately when {@code currentFileReader}
+     * is null (no split open).
+     */
+    private static void snapshotFormatReaderStatus(ProducerState state) {
+        if (state.currentFileReader == null) {
+            return;
+        }
+        try {
+            state.buffer.recordFormatReaderStatus(state.currentFileReader.statusSnapshot());
         } catch (Exception e) {
             logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.currentFileReader, e);
         }
@@ -2635,9 +2653,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             logger.trace(() -> "telemetry: bytesRead snapshot failed for " + storageObject, e);
         }
         try {
-            // splitStart=true: single-file paths call this exactly once, at completion. The reader was
+            // Single-file paths call this exactly once, at completion. The reader was
             // freshened by Task C (FileSourceFactory) or D3, so its counters started at zero.
-            buffer.recordFormatReaderStatus(reader.statusSnapshot(), true);
+            buffer.resetBufferBaseline();
+            buffer.recordFormatReaderStatus(reader.statusSnapshot());
         } catch (Exception e) {
             logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + reader, e);
         }

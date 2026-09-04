@@ -341,16 +341,17 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());
 
-        // splitStart=true: new split, baseline reset to 0; full snapshot value is the delta.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L), true);
+        // Reset variant: new split, baseline reset to 0; full snapshot value is the delta.
+        buffer.resetBufferBaseline();
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L));
         assertEquals(new NdJsonReaderStatus(3L, 0L, 0L, 0L), buffer.formatReaderStatus());
 
         // Latest snapshot replaces the prior one in formatReaderStatus (latest-split diagnostic view).
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L), false);
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L));
         assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
 
         // Null is a no-op: previous snapshot is retained.
-        buffer.recordFormatReaderStatus(null, false);
+        buffer.recordFormatReaderStatus(null);
         assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
     }
 

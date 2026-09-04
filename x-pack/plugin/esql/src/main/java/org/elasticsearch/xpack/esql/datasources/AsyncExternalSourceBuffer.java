@@ -522,23 +522,23 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Records the latest format-reader counter snapshot from the split currently being processed.
-     * Accumulates the timing delta (since the last call for this split) into this buffer's own counters.
-     * Because each split uses a freshly created reader whose counters start at zero, {@code splitStart=true}
-     * resets the baseline to zero and the snapshot value is the full delta so far. Subsequent calls within
-     * the same split ({@code splitStart=false}, e.g. BLOCKED drain events) add only the incremental increase.
+     * Resets the format-reader baseline to zero at the start of a new split (fresh reader, counters at zero).
+     * Must be followed by {@link #recordFormatReaderStatus(FormatReaderStatus)} to accumulate the snapshot.
+     */
+    public void resetBufferBaseline() {
+        baseReadNanos = 0L;
+        baseReadCpuNanos = 0L;
+    }
+
+    /**
+     * Records an incremental format-reader counter snapshot (mid-split, e.g. at BLOCKED drain events).
+     * Accumulates only the delta since the last snapshot into this buffer's counters.
      * The latest snapshot is also kept for non-timing fields (row groups, footer cache, etc.).
      *
-     * @param snapshot    live snapshot from the reader that processed this split; may be null (no-op)
-     * @param splitStart  true when this is the first snapshot for a new split (fresh reader, baseline=0),
-     *                    false for mid-split snapshots of the same reader
+     * @param snapshot  live snapshot from the reader; may be null (no-op)
      */
-    public void recordFormatReaderStatus(FormatReaderStatus snapshot, boolean splitStart) {
+    public void recordFormatReaderStatus(FormatReaderStatus snapshot) {
         if (snapshot == null) return;
-        if (splitStart) {
-            baseReadNanos = 0L;
-            baseReadCpuNanos = 0L;
-        }
         long deltaNanos = snapshot.readNanos() - baseReadNanos;
         long deltaCpuNanos = snapshot.readCpuNanos() - baseReadCpuNanos;
         if (deltaNanos > 0) accReadNanos.add(deltaNanos);

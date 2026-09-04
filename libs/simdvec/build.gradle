@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
+apply plugin: 'elasticsearch.native-library-build'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -73,4 +74,24 @@ tasks.named('test').configure {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+}
+
+// --- Native library build (libvec) ---
+// Set VEC_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// VEC_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['src/vec/**', 'Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  forwardedEnvironment = ['CLANG_CXX']
+
+  dockerCommand = ['make', 'all']
+  collect = [
+    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+  ]
+
+  hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -148,6 +150,25 @@ public class MultiSearchTemplateResponse extends ActionResponse
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    /**
+     * Merges the {@link DirectoryMetrics} from every successful inner {@link SearchResponse} into a
+     * single aggregate. Used by the REST layer to populate the directory-metrics response header.
+     */
+    public DirectoryMetrics mergeDirectoryMetrics() {
+        assert hasReferences();
+        DirectoryMetrics merged = DirectoryMetrics.EMPTY;
+        for (Item item : items) {
+            if (item == null || item.isFailure() || item.getResponse() == null) {
+                continue;
+            }
+            SearchResponse sr = item.getResponse().getResponse();
+            if (sr != null) {
+                merged = merged.merge(sr.getDirectoryMetrics());
+            }
+        }
+        return merged;
     }
 
     @Override

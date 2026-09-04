@@ -35,7 +35,7 @@ public class ImmutableOpenMapRamBytesUsedTests extends AbstractAccountableFields
     }
 
     @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         ImmutableOpenMap.Builder<String, String> builder = ImmutableOpenMap.builder();
         int entries = randomIntBetween(1, 8);
         for (int i = 0; i < entries; i++) {

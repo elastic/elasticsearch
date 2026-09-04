@@ -35,7 +35,7 @@ public class DiffableStringMapRamBytesUsedTests extends AbstractAccountableField
     }
 
     @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         return new DiffableStringMap(Map.of("key", randomAlphaOfLengthBetween(8, 64), "other", randomAlphaOfLengthBetween(4, 32)));
     }
 

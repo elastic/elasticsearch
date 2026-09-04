@@ -35,7 +35,7 @@ public class IndexRamBytesUsedTests extends AbstractAccountableFieldsTestCase {
     }
 
     @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         return new Index("index-name", UUIDs.randomBase64UUID());
     }
 
@@ -44,6 +44,6 @@ public class IndexRamBytesUsedTests extends AbstractAccountableFieldsTestCase {
      */
     public void testRamBytesUsedGrowsWithStringLengths() {
         Index small = new Index("a", "b");
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+        assertThat(createRandomTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
     }
 }

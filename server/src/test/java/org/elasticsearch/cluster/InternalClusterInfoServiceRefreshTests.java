@@ -46,9 +46,10 @@ import static org.mockito.Mockito.verify;
 public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
 
     public void testEstimatedHeapUsageCollectorSuccessAndFailure() {
+        // We collect the estimated heap usage stats regardless of whether the decider is enabled
         final Settings settings = baseSettingsBuilder().put(
             InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(),
-            true
+            randomBoolean()
         ).build();
 
         try (RefreshTestContext context = RefreshTestContext.create(settings)) {

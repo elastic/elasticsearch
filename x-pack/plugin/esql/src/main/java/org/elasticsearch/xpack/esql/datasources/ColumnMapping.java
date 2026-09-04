@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -341,9 +342,9 @@ public final class ColumnMapping implements Writeable {
      * {@code warnings} feed the per-value failure handling of the shared coercion engine
      * ({@code DeclaredTypeCoercions.castBlock}): with a live sink a value the cast cannot
      * represent (e.g. a pre-epoch or post-2262 instant under DATETIME&rarr;DATE_NANOS) nulls its
-     * cell and emits a response {@code Warning} header naming the column — identical to the
-     * declared-type coercion the readers run; with a {@code null} sink the failure propagates and
-     * fails the page.
+     * cell and hands a warning naming the column to the sink, which ends in the driver's warning
+     * channel and reaches the client from there — identical to the declared-type coercion the
+     * readers run; with a {@code null} sink the failure propagates and fails the page.
      * <p>
      * <b>Known gap — this cast always nulls, never drops.</b> The reconciliation cast is the one coercion site that
      * does <em>not</em> honour {@code error_mode: skip_row}: a value that fails here nulls its cell and the row
@@ -388,6 +389,9 @@ public final class ColumnMapping implements Writeable {
                 }
             }
             return new Page(positions, blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw new RuntimeException("Failed to map page", e);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -57,23 +58,35 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
-     * Computes the {@link UnmappedFieldsPattern} describing which additional (unreferenced and currently unmapped)
-     * {@code _source} fields would survive to the output of {@code plan} if it was in the output of an {@code EsRelation} that is the
-     * plan's only leaf. (Does not cover n-ary plans.)
+     * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
+     * source fields would survive to the output of {@code plan}.
+     * <p>
+     * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
+     * include/exclude patterns they were written with: each one adds a single OR group, while
+     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
+     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
+     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so expanding a
+     * source field of that name would collide with them.
+     * <p>
+     * For {@link Join}, only the left side is recursed into.
+     * Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
+     * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
-        if (plan instanceof InlineStats inlineStats) {
-            // INLINE STATS preserves input rows via a left join with its Aggregate. Walk the input, not the
-            // Aggregate: that node returns NONE so STATS can drop expansion, which must not apply here.
-            UnmappedFieldsPattern fromChild = computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
-            return fromChild.withAdditionalExcludes(Expressions.names(plan.output()));
-        }
         if (plan instanceof Aggregate) {
             return UnmappedFieldsPattern.NONE;
         }
-        UnmappedFieldsPattern fromChild = plan instanceof UnaryPlan unary
-            ? computeUnmappedFieldsToKeep(unary.child())
-            : UnmappedFieldsPattern.ALL;
+        UnmappedFieldsPattern fromChild = switch (plan) {
+            // INLINE STATS preserves input rows via a left join with its Aggregate, which is also its child - so walk the
+            // input, i.e. the grandchild. Recursing into the Aggregate would return NONE, which is right for STATS
+            // (expansion can be dropped) but not here.
+            case InlineStats inlineStats -> computeUnmappedFieldsToKeep(inlineStats.aggregate().child());
+            case UnaryPlan unary -> computeUnmappedFieldsToKeep(unary.child());
+            // Only the left side can carry the $$unmapped_fields column: apply() skips IndexMode.LOOKUP
+            // relations, so the right-hand lookup index never contributes unmapped source fields.
+            case Join join -> computeUnmappedFieldsToKeep(join.left());
+            default -> UnmappedFieldsPattern.ALL;
+        };
         UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
             ? project.unmappedFieldsPattern().intersect(fromChild)
             : fromChild;

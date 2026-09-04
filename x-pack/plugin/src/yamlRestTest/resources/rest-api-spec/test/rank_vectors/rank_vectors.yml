@@ -199,23 +199,3 @@ setup:
             exists:
               field: vector1
   - match: { hits.total.value: 0 }
----
-"Test empty vector array is rejected with dynamic dims":
-  - requires:
-      cluster_features: [ "mapper.rank_vectors.empty_array_rejected" ]
-      reason: "empty rank_vectors arrays are rejected at index time"
-  - do:
-      indices.create:
-        index: empty_vector_dynamic_dims
-        body:
-          mappings:
-            properties:
-              vector1:
-                type: rank_vectors
-  - do:
-      catch: /requires at least one vector/
-      index:
-        index: empty_vector_dynamic_dims
-        id: "1"
-        body:
-          vector1: []

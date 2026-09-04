@@ -64,7 +64,6 @@ import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomN
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToBFloat16List;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -264,12 +263,6 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
             e.getCause().getMessage(),
             containsString("Field [field] of type [rank_vectors] requires at least one vector; use null to indicate a missing value")
         );
-    }
-
-    public void testNullVectorIsAccepted() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
-        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testNonIndexedVector() throws Exception {

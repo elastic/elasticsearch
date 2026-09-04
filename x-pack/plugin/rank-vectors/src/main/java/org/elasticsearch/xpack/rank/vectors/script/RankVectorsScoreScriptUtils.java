@@ -211,14 +211,15 @@ public class RankVectorsScoreScriptUtils {
                 throw new IllegalArgumentException("Cannot calculate bit dot product for non-bit vectors");
             }
             int fieldDims = field.get().getDims();
-            if (fieldDims != queryVector.length * Byte.SIZE && fieldDims != queryVector.length) {
+            // the dimensions of each query vector are checked here, not how many query vectors were provided
+            if (fieldDims != queryVector[0].length * Byte.SIZE && fieldDims != queryVector[0].length) {
                 throw new IllegalArgumentException(
                     "The query vector has an incorrect number of dimensions. Must be ["
                         + fieldDims / 8
                         + "] for bitwise operations, or ["
                         + fieldDims
                         + "] for byte wise operations: provided ["
-                        + queryVector.length
+                        + queryVector[0].length
                         + "]."
                 );
             }

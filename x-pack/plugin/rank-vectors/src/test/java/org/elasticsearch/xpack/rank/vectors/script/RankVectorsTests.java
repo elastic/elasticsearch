@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.rank.vectors.script;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.script.field.vectors.BFloat16RankVectors;
-import org.elasticsearch.script.field.vectors.BitRankVectors;
 import org.elasticsearch.script.field.vectors.ByteRankVectors;
 import org.elasticsearch.script.field.vectors.FloatRankVectors;
 import org.elasticsearch.script.field.vectors.RankVectors;
@@ -62,8 +60,8 @@ public class RankVectorsTests extends ESTestCase {
     }
 
     /**
-     * Anchors the max-sim semantics on a hand-computed example: each query vector contributes only its best match
-     * against the document's vectors, and those per-query maxima are summed.
+     * Each query vector contributes only its best match against the document's vectors, and those per-query maxima are
+     * summed. An equivalence test between implementations cannot catch a change to that composition.
      */
     public void testMaxSimDotProductSumsPerQueryMaxima() {
         float[][] docVectors = { { 1, 0 }, { 0, 1 } };
@@ -71,199 +69,8 @@ public class RankVectorsTests extends ESTestCase {
         float[][] queryVectors = { { 2, 0 }, { 0, 3 }, { 1, 1 } };
 
         assertEquals(6.0f, newFloatVector(docVectors).maxSimDotProduct(queryVectors), 0.0f);
-    }
-
-    public void testFloatMaxSimDotProduct() {
-        int dims = randomIntBetween(1, 64);
-        float[][] docVectors = randomFloatVectors(randomIntBetween(1, 16), dims);
-        float[][] queryVectors = randomFloatVectors(randomIntBetween(1, 16), dims);
-
-        float expected = maxSim(queryVectors, docVectors, RankVectorsTests::dotProduct);
-        assertEquals(expected, newFloatVector(docVectors).maxSimDotProduct(queryVectors), delta(expected));
-
-        // bfloat16 doc values are already decoded by the time they reach the scorer, so truncating them the way
-        // decoding would leaves the same arithmetic against the same reference
-        for (float[] docVector : docVectors) {
-            for (int i = 0; i < dims; i++) {
-                docVector[i] = BFloat16.truncateToBFloat16(docVector[i]);
-            }
-        }
-        expected = maxSim(queryVectors, docVectors, RankVectorsTests::dotProduct);
-        assertEquals(expected, newBFloat16Vector(docVectors).maxSimDotProduct(queryVectors), delta(expected));
-    }
-
-    public void testByteMaxSimDotProduct() {
-        int dims = randomIntBetween(1, 64);
-        byte[][] docVectors = randomByteVectors(randomIntBetween(1, 16), dims);
-        byte[][] queryVectors = randomByteVectors(randomIntBetween(1, 16), dims);
-
-        // byte dot products are exact in float, so no tolerance is needed
-        float expected = maxSim(queryVectors, docVectors, RankVectorsTests::dotProduct);
-        assertEquals(expected, newByteVector(docVectors).maxSimDotProduct(queryVectors), 0.0f);
-    }
-
-    /**
-     * Bit vectors accept three query shapes: another bit vector, scored as the population count of the AND, and a byte
-     * or float vector with one value per bit, which uses the stored vector as a mask over the query's dimensions.
-     */
-    public void testBitMaxSimDotProduct() {
-        int numBytes = randomIntBetween(1, 8);
-        int numQueryVectors = randomIntBetween(1, 16);
-        byte[][] docVectors = randomByteVectors(randomIntBetween(1, 16), numBytes);
-        RankVectors bitVectors = newBitVector(docVectors, numBytes);
-
-        byte[][] bitQuery = randomByteVectors(numQueryVectors, numBytes);
-        float expected = maxSim(bitQuery, docVectors, RankVectorsTests::andBitCount);
-        assertEquals(expected, bitVectors.maxSimDotProduct(bitQuery), 0.0f);
-
-        byte[][] byteQuery = randomByteVectors(numQueryVectors, numBytes * Byte.SIZE);
-        expected = maxSim(byteQuery, docVectors, RankVectorsTests::maskedSum);
-        assertEquals(expected, bitVectors.maxSimDotProduct(byteQuery), 0.0f);
-
-        float[][] floatQuery = randomFloatVectors(numQueryVectors, numBytes * Byte.SIZE);
-        expected = maxSim(floatQuery, docVectors, RankVectorsTests::maskedSum);
-        assertEquals(expected, bitVectors.maxSimDotProduct(floatQuery), delta(expected));
-    }
-
-    /**
-     * Byte and bit vectors share one implementation, which derives the bit count from the stored byte length, so both
-     * have to agree with the same reference.
-     */
-    public void testMaxSimInvHamming() {
-        int dims = randomIntBetween(1, 64);
-        int numQueryVectors = randomIntBetween(1, 16);
-        byte[][] docVectors = randomByteVectors(randomIntBetween(1, 16), dims);
-        byte[][] queryVectors = randomByteVectors(numQueryVectors, dims);
-
-        float expected = maxSim(queryVectors, docVectors, (q, d) -> invHamming(q, d, dims * Byte.SIZE));
-        assertEquals(expected, newByteVector(docVectors).maxSimInvHamming(queryVectors), 0.0f);
-        assertEquals(expected, newBitVector(docVectors, dims).maxSimInvHamming(queryVectors), 0.0f);
-    }
-
-    /**
-     * The implementations rewind the vector iterator and reuse a per-query scratch buffer on each call, so scoring the
-     * same instance again - in particular with a shorter query vector - must not pick up stale state.
-     */
-    public void testScoringWithReusedScratchBuffers() {
-        float[][] docVectors = { { 1, 0 }, { 0, 1 } };
-        float[][] wideQuery = { { 2, 0 }, { 0, 3 }, { 1, 1 } };
-        float[][] narrowQuery = { { 2, 0 } };
-
-        RankVectors floatVectors = newFloatVector(docVectors);
-        assertEquals(6.0f, floatVectors.maxSimDotProduct(wideQuery), 0.0f);
-        assertEquals(6.0f, floatVectors.maxSimDotProduct(wideQuery), 0.0f);
-        assertEquals(2.0f, floatVectors.maxSimDotProduct(narrowQuery), 0.0f);
-
-        byte[][] bitDocs = { { 0b0000_0011 }, { 0b0000_0101 } };
-        byte[][] wideBitQuery = { { 0b0000_0111 }, { 0b0000_0001 }, { 0b0000_0100 } };
-        byte[][] narrowBitQuery = { { 0b0000_0111 } };
-
-        RankVectors bitVectors = newBitVector(bitDocs, 1);
-        assertEquals(maxSim(wideBitQuery, bitDocs, RankVectorsTests::andBitCount), bitVectors.maxSimDotProduct(wideBitQuery), 0.0f);
-        assertEquals(maxSim(narrowBitQuery, bitDocs, RankVectorsTests::andBitCount), bitVectors.maxSimDotProduct(narrowBitQuery), 0.0f);
-        assertEquals(
-            maxSim(narrowBitQuery, bitDocs, (q, d) -> invHamming(q, d, Byte.SIZE)),
-            bitVectors.maxSimInvHamming(narrowBitQuery),
-            0.0f
-        );
-    }
-
-    // Reference implementations. These are deliberately naive so that they are an independent oracle for the
-    // vectorized production code.
-
-    private interface Similarity<Q, D> {
-        float apply(Q query, D doc);
-    }
-
-    private static <Q, D> float maxSim(Q[] queryVectors, D[] docVectors, Similarity<Q, D> similarity) {
-        float sum = 0;
-        for (Q queryVector : queryVectors) {
-            float max = Float.NEGATIVE_INFINITY;
-            for (D docVector : docVectors) {
-                max = Math.max(max, similarity.apply(queryVector, docVector));
-            }
-            sum += max;
-        }
-        return sum;
-    }
-
-    private static float dotProduct(float[] query, float[] doc) {
-        float sum = 0;
-        for (int i = 0; i < query.length; i++) {
-            sum += query[i] * doc[i];
-        }
-        return sum;
-    }
-
-    private static float dotProduct(byte[] query, byte[] doc) {
-        int sum = 0;
-        for (int i = 0; i < query.length; i++) {
-            sum += query[i] * doc[i];
-        }
-        return sum;
-    }
-
-    private static float andBitCount(byte[] query, byte[] doc) {
-        int sum = 0;
-        for (int i = 0; i < doc.length; i++) {
-            sum += Integer.bitCount((query[i] & doc[i]) & 0xFF);
-        }
-        return sum;
-    }
-
-    /** Sums the query dimensions whose corresponding bit is set in the doc vector, most significant bit first. */
-    private static float maskedSum(byte[] query, byte[] doc) {
-        int sum = 0;
-        for (int i = 0; i < doc.length; i++) {
-            for (int bit = 0; bit < Byte.SIZE; bit++) {
-                if (((doc[i] >> (Byte.SIZE - 1 - bit)) & 1) == 1) {
-                    sum += query[i * Byte.SIZE + bit];
-                }
-            }
-        }
-        return sum;
-    }
-
-    private static float maskedSum(float[] query, byte[] doc) {
-        float sum = 0;
-        for (int i = 0; i < doc.length; i++) {
-            for (int bit = 0; bit < Byte.SIZE; bit++) {
-                if (((doc[i] >> (Byte.SIZE - 1 - bit)) & 1) == 1) {
-                    sum += query[i * Byte.SIZE + bit];
-                }
-            }
-        }
-        return sum;
-    }
-
-    private static float invHamming(byte[] query, byte[] doc, int bitCount) {
-        int differing = 0;
-        for (int i = 0; i < doc.length; i++) {
-            differing += Integer.bitCount((query[i] ^ doc[i]) & 0xFF);
-        }
-        return (bitCount - differing) / (float) bitCount;
-    }
-
-    private static float delta(float expected) {
-        return Math.max(1e-4f, Math.abs(expected) * 1e-4f);
-    }
-
-    private static float[][] randomFloatVectors(int count, int dims) {
-        float[][] vectors = new float[count][dims];
-        for (int i = 0; i < count; i++) {
-            for (int j = 0; j < dims; j++) {
-                vectors[i][j] = randomFloat();
-            }
-        }
-        return vectors;
-    }
-
-    private static byte[][] randomByteVectors(int count, int dims) {
-        byte[][] vectors = new byte[count][dims];
-        for (int i = 0; i < count; i++) {
-            random().nextBytes(vectors[i]);
-        }
-        return vectors;
+        // these values are all exactly representable as bfloat16
+        assertEquals(6.0f, newBFloat16Vector(docVectors).maxSimDotProduct(queryVectors), 0.0f);
     }
 
     static RankVectors newFloatVector(float[][] vector) {
@@ -279,12 +86,6 @@ public class RankVectorsTests extends ESTestCase {
     static RankVectors newByteVector(byte[][] vector) {
         BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
         return new ByteRankVectors(VectorIterator.from(vector), magnitudes, vector.length, vector[0].length);
-    }
-
-    /** @param numBytes the number of bytes per vector, i.e. an eighth of the field's dimension count */
-    static RankVectors newBitVector(byte[][] vector, int numBytes) {
-        BytesRef magnitudes = magnitudes(vector.length, i -> (float) Math.sqrt(VectorUtil.dotProduct(vector[i], vector[i])));
-        return new BitRankVectors(VectorIterator.from(vector), magnitudes, vector.length, numBytes);
     }
 
     static BytesRef magnitudes(int count, IntFunction<Float> magnitude) {

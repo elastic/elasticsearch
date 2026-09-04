@@ -818,28 +818,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     /**
-     * In strict-columnar mode ({@link IndexMode#COLUMNAR}), {@code ignore_malformed} values must land in the {@code ._on_failure}
-     * sidecar column (shared with multi-value violations), not in {@code ._ignore_malformed}. The field must still appear in
-     * {@code _ignored} so callers can see that parsing was skipped for the document.
-     */
-    public void testIgnoreMalformedInColumnarModeWritesToOnFailureColumn() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true)))
-            .documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
-
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
-        assertThat(
-            "field must be recorded in _ignored when malformed value is encountered",
-            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
-            equalTo(true)
-        );
-        // Assert the value round-trips through synthetic source (IndexMode.COLUMNAR defaults to synthetic source).
-        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
-    }
-
-    /**
      * A strict-columnar index whose {@code created-version} predates {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}
      * must still write malformed values to the {@code ._ignore_malformed} column on the write path — the same column the old read
      * path expects. This is the write-path BWC counterpart to

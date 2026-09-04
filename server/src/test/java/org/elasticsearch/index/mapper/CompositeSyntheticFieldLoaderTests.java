@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -257,6 +258,66 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
             IgnoreMalformedStoredValues.name("field"),
             layers.get(0).fieldName()
         );
+    }
+
+    public void testAddFallbackLayersUsesOnFailureColumnForCurrentVersionStrictColumnarIndex() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        CompositeSyntheticFieldLoader.addFallbackLayers(
+            layers,
+            "field",
+            IndexVersion.current(),
+            /* ignoreMalformed */ true,
+            /* onFailureEnabled */ false,
+            /* strictColumnar */ true
+        );
+
+        assertEquals("expected exactly one fallback layer for current strict-columnar index", 1, layers.size());
+        assertEquals(
+            "current strict-columnar index must read malformed values from ._on_failure",
+            OnFailureStoredValues.name("field"),
+            layers.get(0).fieldName()
+        );
+    }
+
+    /**
+     * When both {@code ignore_malformed=true} and {@code doc_values.on_failure=ignore} are set on the same field in a
+     * strict-columnar index, the write path routes malformed values to {@code ._on_failure} (not {@code ._ignore_malformed}),
+     * so both constraints share a single sidecar column. The read path must therefore add exactly one on-failure layer —
+     * adding both would cause every value to be emitted twice.
+     */
+    public void testAddFallbackLayersBothFlagsOnInStrictColumnarAddsExactlyOneLayer() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        CompositeSyntheticFieldLoader.addFallbackLayers(
+            layers,
+            "field",
+            IndexVersion.current(),
+            /* ignoreMalformed */ true,
+            /* onFailureEnabled */ true,
+            /* strictColumnar */ true
+        );
+
+        assertEquals("ignoreMalformed+onFailureEnabled in strict-columnar must add exactly one layer", 1, layers.size());
+        assertEquals("the single layer must be ._on_failure", OnFailureStoredValues.name("field"), layers.get(0).fieldName());
+    }
+
+    /**
+     * Outside strict-columnar mode, {@code ignore_malformed} and {@code doc_values.on_failure=ignore} are always independent:
+     * each gets its own sidecar column ({@code ._ignore_malformed} and {@code ._on_failure} respectively).
+     */
+    public void testAddFallbackLayersBothFlagsOnInNonColumnarAddsTwoLayers() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        CompositeSyntheticFieldLoader.addFallbackLayers(
+            layers,
+            "field",
+            IndexVersion.current(),
+            /* ignoreMalformed */ true,
+            /* onFailureEnabled */ true,
+            /* strictColumnar */ false
+        );
+
+        assertEquals("ignoreMalformed+onFailureEnabled outside strict-columnar must add two layers", 2, layers.size());
+        assertEquals("first layer must be ._ignore_malformed", IgnoreMalformedStoredValues.name("field"), layers.get(0).fieldName());
+        assertEquals("second layer must be ._on_failure", OnFailureStoredValues.name("field"), layers.get(1).fieldName());
     }
 
     public void testMergeTwoFieldLoaders() throws IOException {

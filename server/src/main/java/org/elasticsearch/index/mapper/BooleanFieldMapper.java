@@ -735,26 +735,12 @@ public class BooleanFieldMapper extends FieldMapper {
                     (b, value) -> b.value(value == 1)
                 )
             );
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> b.value(value == 1)));
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

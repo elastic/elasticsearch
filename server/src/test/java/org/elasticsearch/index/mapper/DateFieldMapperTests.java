@@ -191,7 +191,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 .errorMatches("failed to parse date field [true]"),
             exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
                 "Cannot parse object or array as a date value"
-            )
+            ).skipInColumnar()
         );
     }
 

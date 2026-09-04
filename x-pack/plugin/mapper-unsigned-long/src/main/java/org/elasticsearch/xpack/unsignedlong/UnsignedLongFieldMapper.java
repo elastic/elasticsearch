@@ -963,14 +963,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -980,14 +973,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     (b, value) -> b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value))
                 )
             );
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

@@ -1173,14 +1173,7 @@ public class IpFieldMapper extends FieldMapper {
                     }
                 }
 
-                CompositeSyntheticFieldLoader.addFallbackLayers(
-                    layers,
-                    fullPath(),
-                    indexSettings.getIndexVersionCreated(),
-                    ignoreMalformed,
-                    onFailureColumnEnabled(),
-                    indexSettings.getMode().isStrictColumnar()
-                );
+                CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

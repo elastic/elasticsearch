@@ -31,7 +31,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -155,19 +155,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
-        private final IndexVersion indexCreatedVersion;
-        private final boolean strictColumnar;
+        private final IndexSettings indexSettings;
 
-        Builder(
-            String name,
-            boolean ignoreMalformedByDefault,
-            boolean coerceByDefault,
-            IndexVersion indexCreatedVersion,
-            boolean strictColumnar
-        ) {
+        Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexSettings indexSettings) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
-            this.strictColumnar = strictColumnar;
+            this.indexSettings = indexSettings;
             this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -205,13 +197,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new FieldMapper.TypeParser(
-        (n, c) -> new Builder(
-            n,
-            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
-            COERCE_SETTING.get(c.getSettings()),
-            c.getIndexSettings().getIndexVersionCreated(),
-            c.getIndexSettings().getMode().isStrictColumnar()
-        ),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings()), c.getIndexSettings()),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -221,8 +207,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
-    private final IndexVersion indexCreatedVersion;
-    private final boolean strictColumnar;
+    private final IndexSettings indexSettings;
 
     ExponentialHistogramFieldMapper(
         String simpleName,
@@ -236,8 +221,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         this.coerce = builder.coerce.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.metricType = builder.metric.getValue();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.strictColumnar = builder.strictColumnar;
+        this.indexSettings = builder.indexSettings;
     }
 
     @Override
@@ -256,8 +240,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion, strictColumnar).metric(metricType)
-            .init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexSettings).metric(metricType).init(this);
     }
 
     @Override
@@ -822,7 +805,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new ExponentialHistogramSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedFallbackLayer(fullPath(), indexCreatedVersion, strictColumnar)
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings)
             )
         );
     }

@@ -281,15 +281,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         private final CheckedConsumer<XContentBuilder, IOException> mapping;
         private final CheckedConsumer<XContentBuilder, IOException> value;
         private final Matcher<String> exceptionMessageMatcher;
+        private final boolean skipInColumnar;
+
+        private ExampleMalformedValue(
+            CheckedConsumer<XContentBuilder, IOException> mapping,
+            CheckedConsumer<XContentBuilder, IOException> value,
+            Matcher<String> exceptionMessageMatcher,
+            boolean skipInColumnar
+        ) {
+            this.mapping = mapping;
+            this.value = value;
+            this.exceptionMessageMatcher = exceptionMessageMatcher;
+            this.skipInColumnar = skipInColumnar;
+        }
 
         private ExampleMalformedValue(
             CheckedConsumer<XContentBuilder, IOException> mapping,
             CheckedConsumer<XContentBuilder, IOException> value,
             Matcher<String> exceptionMessageMatcher
         ) {
-            this.mapping = mapping;
-            this.value = value;
-            this.exceptionMessageMatcher = exceptionMessageMatcher;
+            this(mapping, value, exceptionMessageMatcher, false);
         }
 
         /**
@@ -297,7 +308,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * {@link MapperTestCase#minimalMapping}.
          */
         public ExampleMalformedValue mapping(CheckedConsumer<XContentBuilder, IOException> newMapping) {
-            return new ExampleMalformedValue(newMapping, value, exceptionMessageMatcher);
+            return new ExampleMalformedValue(newMapping, value, exceptionMessageMatcher, skipInColumnar);
         }
 
         /**
@@ -311,7 +322,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * Match the error message in an arbitrary way.
          */
         public ExampleMalformedValue errorMatches(Matcher<String> newMatcher) {
-            return new ExampleMalformedValue(mapping, value, newMatcher);
+            return new ExampleMalformedValue(mapping, value, newMatcher, skipInColumnar);
+        }
+
+        /**
+         * Mark this example as one that should be skipped in strict-columnar index tests.
+         * Use for object-shaped values that are flattened by COLUMNAR's {@code subobjects=DISABLED}
+         * rather than being detected as malformed by the field mapper.
+         */
+        public ExampleMalformedValue skipInColumnar() {
+            return new ExampleMalformedValue(mapping, value, exceptionMessageMatcher, true);
         }
     }
 
@@ -395,6 +415,44 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(fields, empty());
             assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
         }
+    }
+
+    /**
+     * In strict-columnar indices, ignore_malformed values share the per-field {@code ._on_failure} sidecar column with
+     * multi-value violations instead of using the dedicated {@code ._ignore_malformed} column. Verifies the write path
+     * for every malformed example the mapper declares.
+     *
+     * <p>Override {@link #supportsColumnarIgnoreMalformed()} and return {@code false} for field types that do not
+     * support {@link org.elasticsearch.index.IndexMode#COLUMNAR} at all.
+     */
+    public void testIgnoreMalformedInColumnarModeUsesOnFailureColumn() throws IOException {
+        assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
+        assumeTrue("type not supported in columnar index mode", supportsColumnarIgnoreMalformed());
+        for (ExampleMalformedValue example : exampleMalformedValues()) {
+            if (example.skipInColumnar) {
+                // Object-shaped values are flattened by COLUMNAR's subobjects=DISABLED rather than
+                // being detected as malformed by the field mapper, so skip them here.
+                continue;
+            }
+            DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+                example.mapping.accept(b);
+                b.field("ignore_malformed", true);
+            }));
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("field");
+                example.value.accept(b);
+            }));
+            FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+        }
+    }
+
+    /**
+     * Whether this field type can be mapped in a strict-columnar index ({@link org.elasticsearch.index.IndexMode#COLUMNAR}).
+     * Override and return {@code false} with a reason comment for types that {@code IndexMode.COLUMNAR} rejects.
+     */
+    protected boolean supportsColumnarIgnoreMalformed() {
+        return true;
     }
 
     protected void assertIgnoredSourceIsEmpty(ParsedDocument doc) {

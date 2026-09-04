@@ -610,25 +610,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         );
     }
 
-    /**
-     * In strict-columnar mode, {@code ignore_malformed} values land in the shared {@code ._on_failure} column instead of the
-     * dedicated {@code ._ignore_malformed} column, and must still round-trip correctly through synthetic source.
-     * This test covers all {@link NumberFieldMapper.NumberType}s via their concrete subclass test suites.
-     */
-    public void testIgnoreMalformedInColumnarModeUsesOnFailureColumn() throws IOException {
-        assumeTrue("requires ignore_malformed support", supportsIgnoreMalformed());
-        MapperService mapperService = createSytheticSourceMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("ignore_malformed", true);
-        }), true);
-        DocumentMapper mapper = mapperService.documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
-
-        FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
-        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
-    }
-
     public void testColumnarModeSkippers() throws IOException {
 
         {

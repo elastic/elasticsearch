@@ -909,14 +909,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
                 )
             );
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -926,14 +919,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
                 )
             );
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

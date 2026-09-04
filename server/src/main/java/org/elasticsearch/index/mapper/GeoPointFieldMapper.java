@@ -678,13 +678,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     point.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }));
                 if (ignoreMalformed()) {
-                    layers.add(
-                        CompositeSyntheticFieldLoader.malformedFallbackLayer(
-                            fullPath(),
-                            indexSettings.getIndexVersionCreated(),
-                            indexSettings.getMode().isStrictColumnar()
-                        )
-                    );
+                    layers.add(CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

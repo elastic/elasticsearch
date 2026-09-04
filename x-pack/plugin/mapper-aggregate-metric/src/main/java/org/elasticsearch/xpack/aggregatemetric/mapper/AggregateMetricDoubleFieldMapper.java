@@ -900,11 +900,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
-                CompositeSyntheticFieldLoader.malformedFallbackLayer(
-                    fullPath(),
-                    indexSettings.getIndexVersionCreated(),
-                    indexSettings.getMode().isStrictColumnar()
-                )
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings)
             )
         );
     }

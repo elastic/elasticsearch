@@ -2208,25 +2208,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract void writeValue(XContentBuilder builder, long longValue) throws IOException;
 
-        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
-            String fieldName,
-            String fieldSimpleName,
-            boolean ignoreMalformed,
-            IndexVersion indexVersion,
-            boolean onFailureEnabled,
-            boolean strictColumnar
-        ) {
+        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(FieldMapper mapper, IndexSettings indexSettings) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
-            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fieldName,
-                indexVersion,
-                ignoreMalformed,
-                onFailureEnabled,
-                strictColumnar
-            );
-            return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(mapper.fullPath(), NumberType.this::writeValue));
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, mapper, indexSettings);
+            return new CompositeSyntheticFieldLoader(mapper.leafName(), mapper.fullPath(), layers);
         }
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName, boolean readInArrayOrder);
@@ -3159,24 +3145,10 @@ public class NumberFieldMapper extends FieldMapper {
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
-            CompositeSyntheticFieldLoader.addFallbackLayers(
-                layers,
-                fullPath(),
-                indexSettings.getIndexVersionCreated(),
-                ignoreMalformed.value(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(
-                fullPath(),
-                leafName(),
-                ignoreMalformed.value(),
-                indexSettings.getIndexVersionCreated(),
-                onFailureColumnEnabled(),
-                indexSettings.getMode().isStrictColumnar()
-            );
+            return type.syntheticFieldLoader(this, indexSettings);
         }
     }
 

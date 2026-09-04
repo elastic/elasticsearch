@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -234,6 +235,28 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      *
      * <p>The on-failure layer is always appended <em>last</em> so encounter order is preserved.
      *
+     * @param layers         the list to append to
+     * @param mapper         the field mapper owning this synthetic-source loader
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
+     */
+    public static void addFallbackLayers(List<Layer> layers, FieldMapper mapper, IndexSettings indexSettings) {
+        addFallbackLayers(
+            layers,
+            mapper.fullPath(),
+            indexSettings.getIndexVersionCreated(),
+            mapper.ignoreMalformed(),
+            mapper.onFailureColumnEnabled(),
+            indexSettings.getMode().isStrictColumnar()
+        );
+    }
+
+    /**
+     * Appends the appropriate fallback layers to {@code layers} for a field that supports {@code ignore_malformed} and/or
+     * {@code doc_values.on_failure=ignore}.
+     *
+     * <p>Prefer {@link #addFallbackLayers(List, FieldMapper, IndexSettings)} when a {@link FieldMapper} reference is available.
+     * This overload exists for contexts where the mapper object is not reachable (e.g. inside a {@code NumberType} enum method).
+     *
      * @param layers          the list to append to
      * @param fieldName       full field path
      * @param indexVersion    index version, forwarded to the layer constructors and the version gate
@@ -241,7 +264,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * @param onFailureEnabled {@link FieldMapper#onFailureColumnEnabled()} — true when {@code doc_values.on_failure=ignore}
      * @param strictColumnar  whether the index is in a strict-columnar mode
      */
-    public static void addFallbackLayers(
+    static void addFallbackLayers(
         List<Layer> layers,
         String fieldName,
         IndexVersion indexVersion,
@@ -262,9 +285,27 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Returns the synthetic-source layer that reconstructs {@code ignore_malformed} values: the {@code ._on_failure} sidecar
      * column when {@link FallbackPostMapper#malformedUsesOnFailureColumn} applies (strict-columnar index created on or after
      * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), otherwise the {@code ._ignore_malformed} column.
-     * Use this for mappers that construct the layer directly rather than through {@link #addFallbackLayers}.
+     *
+     * @param mapper         the field mapper owning this synthetic-source layer
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
      */
-    public static Layer malformedFallbackLayer(String fieldName, IndexVersion indexVersion, boolean strictColumnar) {
+    public static Layer malformedFallbackLayer(FieldMapper mapper, IndexSettings indexSettings) {
+        return malformedFallbackLayer(
+            mapper.fullPath(),
+            indexSettings.getIndexVersionCreated(),
+            indexSettings.getMode().isStrictColumnar()
+        );
+    }
+
+    /**
+     * Returns the synthetic-source layer that reconstructs {@code ignore_malformed} values: the {@code ._on_failure} sidecar
+     * column when {@link FallbackPostMapper#malformedUsesOnFailureColumn} applies (strict-columnar index created on or after
+     * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), otherwise the {@code ._ignore_malformed} column.
+     *
+     * <p>Prefer {@link #malformedFallbackLayer(FieldMapper, IndexSettings)} when a {@link FieldMapper} reference is available.
+     * This overload exists for contexts where the mapper object is not reachable.
+     */
+    static Layer malformedFallbackLayer(String fieldName, IndexVersion indexVersion, boolean strictColumnar) {
         return FallbackPostMapper.malformedUsesOnFailureColumn(indexVersion, strictColumnar)
             ? onFailureValuesLayer(fieldName, indexVersion)
             : malformedValuesLayer(fieldName, indexVersion);

@@ -115,7 +115,9 @@ import java.util.function.BooleanSupplier;
  * <p>Production Phase-2 ({@link #discoverSplitsAsync}) fans out footer/probe reads with
  * {@link ThrottledIterator} on {@code esql_external_io} and never joins: {@code SEARCH} and
  * {@code GENERIC} must not issue those GETs, and {@code esql_external_io} must not sit in a gather
- * latch. {@link #discoverSplits} remains for tests and other non-pool callers that are allowed to join.
+ * latch. Parsed-footer cache hits ({@link RangeAwareFormatReader#cachedSplitRanges}) skip the
+ * throttle entirely — the permit exists to bound in-flight GETs, not hash lookups.
+ * {@link #discoverSplits} remains for tests and other non-pool callers that are allowed to join.
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -230,9 +232,11 @@ public class FileSplitProvider implements SplitProvider {
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
     /**
-     * Ceiling on concurrent I/O tasks during split discovery, applied separately to the per-file planning pass
-     * (Parquet footer reads, etc.) and to the record-boundary probes that follow it. The two passes run one after
-     * the other, so this bounds in-flight reads at any instant rather than being multiplied between them.
+     * Ceiling on concurrent pinning I/O during leftover split discovery (ORC, probes, {@code file://},
+     * {@code gs}). Native-async Parquet planning uses {@link ExternalSourceSettings#externalIoThreads}
+     * instead. Applied separately to that leftover planning and to the record-boundary probes that
+     * follow it. The two passes run one after the other, so this bounds in-flight pinning reads at any
+     * instant rather than being multiplied between them.
      */
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
 
@@ -489,14 +493,11 @@ public class FileSplitProvider implements SplitProvider {
                 listener,
                 () -> StorageProviderCache.closeLease(hoistedProvider)
             );
-            gatherAsync(tasks, (FileTask task, ActionListener<PlanResult> itemListener) -> {
-                try {
-                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
-                } catch (Exception e) {
-                    itemListener.onFailure(e);
-                }
-            },
-                splitDiscoveryConcurrency(),
+            gatherSkippingCachedFooters(
+                tasks,
+                hoistedProvider,
+                strideBytes,
+                isCancelled,
                 fanOut,
                 ActionListener.<List<PlanResult>>wrap(
                     planResults -> probeDeferredBoundariesAsync(
@@ -664,8 +665,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Installs {@link StorageRetryCancellation} on every task {@code executor} runs so blocking
-     * {@code discoverSplitRanges} (ORC / Parquet parse-on-executor fallback) aborts retry backoff
-     * the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
+     * {@code discoverSplitRanges} leftover paths (ORC, text probes, {@code file://}) abort retry
+     * backoff the same way sync {@link #processFileForSplits} wraps {@link #computeFileSplits}.
      */
     private static Executor withStorageRetryCancellation(Executor executor, BooleanSupplier isCancelled) {
         return command -> executor.execute(() -> StorageRetryCancellation.runWithCancellation(isCancelled, command::run));
@@ -756,6 +757,122 @@ public class FileSplitProvider implements SplitProvider {
                 return next++;
             }
         };
+    }
+
+    /**
+     * Phase-2 fan-out: parsed-footer cache hits skip {@link ThrottledIterator} so they do not occupy
+     * GET permits. Misses (and formats with no cache) keep the existing throttled {@code readBytesAsync}
+     * path. The cache partition is CPU-only (hash lookups, no I/O) and runs inline on the caller —
+     * the same thread that previously ran {@link #gatherAsync} directly.
+     */
+    private void gatherSkippingCachedFooters(
+        List<FileTask> tasks,
+        @Nullable StorageProvider hoistedProvider,
+        long strideBytes,
+        BooleanSupplier isCancelled,
+        Executor fanOut,
+        ActionListener<List<PlanResult>> listener
+    ) {
+        try {
+            int n = tasks.size();
+            PlanResult[] slots = new PlanResult[n];
+            List<FileTask> misses = new ArrayList<>();
+            List<Integer> missAt = new ArrayList<>();
+            runRecordingDiscoveryCpu(() -> {
+                for (int i = 0; i < n; i++) {
+                    if (isCancelled.getAsBoolean()) {
+                        throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+                    }
+                    FileTask task = tasks.get(i);
+                    List<SplitRange> cached = peekCachedSplitRanges(task, hoistedProvider);
+                    if (cached != null) {
+                        if (cached.isEmpty()) {
+                            slots[i] = new PlanResult.Splits(
+                                List.of(
+                                    wholeFileSplit(
+                                        task.filePath(),
+                                        task.fileLength(),
+                                        task.format(),
+                                        task.config(),
+                                        task.partitionValues(),
+                                        task.columnMapping(),
+                                        task.readSchema()
+                                    )
+                                )
+                            );
+                        } else {
+                            slots[i] = planResultFromCachedRanges(task, cached);
+                        }
+                    } else {
+                        misses.add(task);
+                        missAt.add(i);
+                    }
+                }
+            });
+            if (misses.isEmpty()) {
+                listener.onResponse(List.of(slots));
+                return;
+            }
+            gatherAsync(misses, (FileTask task, ActionListener<PlanResult> itemListener) -> {
+                try {
+                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
+                } catch (Exception e) {
+                    itemListener.onFailure(e);
+                }
+            }, planningDiscoveryConcurrency(misses, hoistedProvider), fanOut, ActionListener.wrap(missResults -> {
+                for (int j = 0; j < missResults.size(); j++) {
+                    slots[missAt.get(j)] = missResults.get(j);
+                }
+                listener.onResponse(List.of(slots));
+            }, listener::onFailure));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Listing-seeded {@link StorageObject#length()} plus {@link RangeAwareFormatReader#cachedSplitRanges}.
+     * Any failure is a miss so the throttled path can surface it.
+     */
+    @Nullable
+    private List<SplitRange> peekCachedSplitRanges(FileTask task, @Nullable StorageProvider hoistedProvider) {
+        try {
+            FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+            if (reader instanceof RangeAwareFormatReader rangeReader) {
+                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
+                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                return rangeReader.cachedSplitRanges(object);
+            }
+            return null;
+        } catch (Exception e) {
+            LOGGER.debug(
+                () -> Strings.format(
+                    "Footer cache peek failed for [%s]; falling back to throttled discovery",
+                    task.filePath().objectName()
+                ),
+                e
+            );
+            return null;
+        }
+    }
+
+    private PlanResult planResultFromCachedRanges(FileTask task, List<SplitRange> ranges) {
+        List<ExternalSplit> splits = new ArrayList<>(ranges.size());
+        addRangeAwareSplits(
+            task.filePath(),
+            task.fileLength(),
+            task.format(),
+            task.config(),
+            task.partitionValues(),
+            task.columnMapping(),
+            task.readSchema(),
+            task.reconciledTypes(),
+            task.declaredReadSpec(),
+            task.inferredFileTypes(),
+            ranges,
+            splits
+        );
+        return new PlanResult.Splits(splits);
     }
 
     /**
@@ -1219,26 +1336,59 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * How many split-discovery reads may be in flight at once across the whole query, governing both the per-file
-     * planning pass and the boundary probes that follow it.
+     * How many split-discovery reads may be in flight at once for leftover pinning paths: ORC, text
+     * probes, {@code file://}, and {@code gs}. Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY} and
+     * clamped to the node's blob-store concurrency because a pinning read holds one of those permits
+     * (and an {@code esql_external_io} thread) for as long as its stream is open.
      * <p>
-     * Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY}, and clamped to the node's blob-store concurrency because
-     * a planning read and a probe alike hold one of those permits for as long as their stream is open: asking for
-     * more in flight than there are permits buys a query nothing but a thread parked on the semaphore. The clamp
-     * is per query where the permits are per node and per scheme, so it bounds one query's contribution to that
-     * contention rather than the contention itself, and concurrent queries still queue against each other.
-     * A configured concurrency of {@code 0} disables permit limiting altogether rather than meaning "no
-     * concurrency", so the ceiling applies as-is.
+     * The clamp is per query where the permits are per node and per scheme. A configured concurrency
+     * of {@code 0} disables permit limiting altogether rather than meaning "no concurrency", so the
+     * ceiling applies as-is.
+     * <p>
+     * Parquet planning that {@link StorageObject#readBytesAsyncReleasesExecutor() releases the executor} uses
+     * {@link ExternalSourceSettings#externalIoThreads} instead, via {@link #planningDiscoveryConcurrency}.
+     * Probes and sync {@link BoundedParallelGather} keep this 16-pin ceiling.
      * <p>
      * Production {@link #discoverSplitsAsync} must not join: the caller of Phase-2 is {@code SEARCH} or
-     * {@code esql_external_io}, and neither may sit in a gather latch. Blocking leftover paths (ORC miss,
-     * text probes, {@code file://} default {@code readBytesAsync}) still pin {@code esql_external_io},
-     * which is why this ceiling stays at {@link #MAX_PARALLEL_SPLIT_DISCOVERY} until those paths are
-     * fully async. {@code SEARCH} and {@code GENERIC} must not issue these GETs.
+     * {@code esql_external_io}, and neither may sit in a gather latch. {@code SEARCH} and {@code GENERIC}
+     * must not issue these GETs.
      */
     int splitDiscoveryConcurrency() {
         int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
         return permits > 0 ? Math.min(MAX_PARALLEL_SPLIT_DISCOVERY, permits) : MAX_PARALLEL_SPLIT_DISCOVERY;
+    }
+
+    /**
+     * Planning {@link #gatherAsync} concurrency: when every file is Parquet and
+     * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
+     * {@link StorageProvider#newObject} per distinct scheme,
+     * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
+     * {@link #splitDiscoveryConcurrency()}. Any {@code newObject} failure is conservative (16).
+     * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
+     */
+    private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+        try {
+            Set<String> seenSchemes = new HashSet<>();
+            for (FileTask task : tasks) {
+                if (FormatNameResolver.FORMAT_PARQUET.equals(
+                    FormatNameResolver.resolve(task.config(), task.filePath().objectName())
+                ) == false) {
+                    return splitDiscoveryConcurrency();
+                }
+                String scheme = task.filePath().scheme();
+                if (seenSchemes.add(scheme) == false) {
+                    continue;
+                }
+                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
+                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                if (object.readBytesAsyncReleasesExecutor() == false) {
+                    return splitDiscoveryConcurrency();
+                }
+            }
+            return ExternalSourceSettings.externalIoThreads(settings);
+        } catch (Exception e) {
+            return splitDiscoveryConcurrency();
+        }
     }
 
     /**
@@ -1925,7 +2075,8 @@ public class FileSplitProvider implements SplitProvider {
                     }
                 });
             }, e -> {
-                if (ExceptionsHelper.unwrap(e, IOException.class) != null) {
+                if (ExceptionsHelper.unwrap(e, IllegalArgumentException.class) == null
+                    && ExceptionsHelper.unwrap(e, IOException.class) != null) {
                     LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", task.filePath(), e);
                     listener.onResponse(null);
                 } else {

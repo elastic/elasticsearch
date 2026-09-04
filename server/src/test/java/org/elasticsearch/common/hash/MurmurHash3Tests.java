@@ -57,12 +57,6 @@ public class MurmurHash3Tests extends ESTestCase {
         assertEquals(pair[MurmurHash3.STATE_H2], fused[MurmurHash3.STATE_H2]);
     }
 
-    /**
-     * A stream of {@code n} longs folded pairwise, with an 8-byte tail when {@code n} is odd, must
-     * equal the same longs pushed through {@link BufferedMurmur3Hasher#addLong}. This is the
-     * name-similarity stream shape used by {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator},
-     * where the odd/even tail parity is the easy thing to get wrong.
-     */
     public void testLongStreamWithOptionalTailMatchesBufferedHasher() {
         for (int n = 1; n <= 9; n++) {
             long[] values = new long[n];

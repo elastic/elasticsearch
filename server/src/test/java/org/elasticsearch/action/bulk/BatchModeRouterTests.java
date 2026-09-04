@@ -697,12 +697,6 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
-    /**
-     * A single-shard index uses a passthrough fast path in {@link BatchModeRouter#shardBatches}: the
-     * original batch is returned directly, and the caller (the failure-store redirect pass) may call
-     * {@code shardBatches()} again. The second call must return an empty map — not the same batch
-     * again — because the batch was already handed to the first shard request.
-     */
     public void testSingleShardSecondShardBatchesCallIsANoOp() throws IOException {
         int numDocs = randomIntBetween(1, 10);
         EscfBatch batch = buildBatch(numDocs);
@@ -720,13 +714,6 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
-    /**
-     * When the columnar routing trio throws (e.g. a {@code checkNoRouting} rejection or a
-     * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator} failure), every deferred item
-     * receives the exception via the {@code onItemFailure} callback and the returned grouping is
-     * empty. {@link BatchModeRouter#shardBatches} must then also return empty — the failed routing
-     * left no viable partition map to scatter from.
-     */
     public void testColumnarRoutingFailureReportsAllItemsViaCallback() throws IOException {
         IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
         ProjectMetadata project = projectWithDataStream(md);

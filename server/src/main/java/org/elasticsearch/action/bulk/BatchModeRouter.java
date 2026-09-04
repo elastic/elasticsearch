@@ -31,22 +31,9 @@ import java.util.function.BiConsumer;
 
 /**
  * Per-bulk router: decides each item's destination shard and builds the per-shard {@link SourceBatch}.
- *
- * <p>Two modes, selected in {@link #create}:
- * <ul>
- *   <li><b>Provided batch</b> — caller supplied a pre-built {@link EscfBatch}; items carry source-row
- *       references. Shard assignment is deferred: all rows are collected during the scan, then
- *       assigned in one columnar pass via {@link IndexRouting#indexShard(IndexRequest[], SourceBatch)}.
- *       This handles both cases where the batch already contains {@code _tsid} values (which are
- *       used as-is) and cases where it does not (where {@code indexShard} computes them via
- *       {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}).
- *   <li><b>X-content per-item</b> — items carry inline JSON source. Each item is encoded and routed
- *       immediately by {@link BulkBatchEncoders}.
- * </ul>
- *
- * <p>Call {@link #route} for each item, then {@link #buildGrouping} to get the final
- * {@code Map<ShardId, List<BulkItemRequest>>}. Call {@link #shardBatches} separately for the
- * per-shard source data.
+ * Provided-batch mode maps pre-built {@link EscfBatch} rows to shards and scatters; x-content mode
+ * delegates encoding and routing to {@link BulkBatchEncoders} (TODO: temporary — goes away once all
+ * producers build ESCF at the index-abstraction level).
  */
 final class BatchModeRouter implements Releasable {
 
@@ -262,20 +249,8 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Returns the final per-shard grouping. For provided-batch mode this resolves all deferred shard
-     * assignments in one batch call via the columnar routing trio; for x-content the grouping was
-     * built incrementally during {@link #route} calls. Must be called exactly once, after all
-     * {@link #route} calls.
-     *
-     * <p>When the columnar routing trio throws, the failure is <em>batch-granular</em>: every
-     * deferred item is reported via {@code onItemFailure} with the same exception, and an empty
-     * grouping is returned. True per-item isolation would require
-     * {@link IndexRouting#indexShard(IndexRequest[], SourceBatch)} /
-     * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator} to identify the failing row —
-     * a follow-up improvement.
-     *
-     * @param requestsByShard the grouping map to fill (the same map passed to each {@link #route} call)
-     * @param onItemFailure   called for each deferred item when columnar routing fails as a whole
+     * Returns the per-shard batches. In provided-batch mode returns empty on any call after the
+     * first — the failure-store redirect pass must not re-scatter batches already in flight.
      */
     Map<ShardId, List<BulkItemRequest>> buildGrouping(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,

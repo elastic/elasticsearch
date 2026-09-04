@@ -719,6 +719,34 @@ public class RestoreServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("no longer exists in the cluster state"));
     }
 
+    /**
+     * The caller resolves the destination as open, but it can be closed by a concurrent operation before this cluster-state update is
+     * published (closing keeps the same index UUID, so the exact-identity check still passes). The open-index restore path assumes an
+     * open-to-open transition, so it must reject a destination that is no longer open rather than proceed, and this is enforced at runtime
+     * (not merely asserted) so the guarantee holds in production where assertions are disabled.
+     */
+    public void testRestoreOverOpenIndexRejectsIndexThatIsNoLongerOpen() {
+        final IndexMetadata closedIndexMetadata = IndexMetadata.builder("test-idx")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .state(IndexMetadata.State.CLOSE)
+            .build();
+        final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
+
+        final SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateExistingOpenIndexForRestore(
+                snapshot,
+                ClusterState.EMPTY_STATE,
+                ProjectId.DEFAULT,
+                closedIndexMetadata,
+                closedIndexMetadata,
+                closedIndexMetadata.getIndex(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("no longer open"));
+    }
+
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
         var shards = randomIntBetween(0, 100);
         return new SnapshotInfo(

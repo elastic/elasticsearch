@@ -1401,8 +1401,11 @@ public final class RestoreService implements ClusterStateApplier {
                 "cannot restore over index [" + expectedIndex + "] because it no longer exists in the cluster state"
             );
         }
-        assert currentIndexMetadata.getState() == IndexMetadata.State.OPEN
-            : "open-index restore target is not open: " + currentIndexMetadata.getIndex();
+        // The caller resolved this destination as open, but it could have been closed by a concurrent operation between then and now. The
+        // open-index restore path assumes an open-to-open transition, so we reject rather than proceed if the index is no longer open.
+        if (currentIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            throw new SnapshotRestoreException(snapshot, "cannot restore over index [" + expectedIndex + "] because it is no longer open");
+        }
         if (partial) {
             throw new SnapshotRestoreException(
                 snapshot,

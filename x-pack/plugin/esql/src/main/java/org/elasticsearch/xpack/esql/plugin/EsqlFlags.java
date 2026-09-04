@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -51,11 +50,12 @@ public class EsqlFlags {
 
     /**
      * Enables coordinator-driven remote fetch for deferred TopN fields after node-level reduction.
-     * Defaults to on in snapshot builds and off in release builds. An explicit value wins over the default.
+     * Off by default; enable with {@code esql.query.remote_fetch_topn.enabled}. An explicit value
+     * wins over the default.
      */
     public static final Setting<Boolean> ESQL_REMOTE_FETCH_TOPN = Setting.boolSetting(
         "esql.query.remote_fetch_topn.enabled",
-        Build.current().isSnapshot(),
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

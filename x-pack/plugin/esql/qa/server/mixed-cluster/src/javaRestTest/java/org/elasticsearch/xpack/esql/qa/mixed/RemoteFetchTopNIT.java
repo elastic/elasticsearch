@@ -21,7 +21,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -32,7 +31,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RemoteFetchTopNIT extends ESRestTestCase {
@@ -49,7 +47,6 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     public void testRemoteFetchTopNFallsBackWhenAnyDataNodeIsOld() throws Exception {
-        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
         assertTrue(
             "the current version must support remote-fetch TopN",
             TransportVersion.current().supports(REMOTE_FETCH_TOPN_TRANSPORT_VERSION)

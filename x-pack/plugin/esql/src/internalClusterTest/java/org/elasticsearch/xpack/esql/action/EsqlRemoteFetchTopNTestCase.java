@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
 import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.HashSet;
 import java.util.List;
@@ -38,9 +37,12 @@ import static org.hamcrest.Matchers.not;
 public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestCase {
     private String indexName;
 
-    @BeforeClass
-    public static void checkRemoteFetchTopNSetting() {
-        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true)
+            .build();
     }
 
     @Before

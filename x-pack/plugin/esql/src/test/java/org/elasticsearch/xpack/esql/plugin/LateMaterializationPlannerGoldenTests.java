@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plugin;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
@@ -371,7 +370,6 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     }
 
     private void runRemoteFetchGoldenTest(String query) {
-        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
         builder(query).stages(STAGES)
             .searchStats(unindexedStats())
             .flags(EsqlFlags.withRemoteFetchTopN(true))

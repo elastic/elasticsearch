@@ -139,7 +139,23 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteFetchTopNIsDisabledForCrossClusterSearch() throws Exception {
-        assumeTrue("test requires remote fetch topn setting", EsqlFlags.ESQL_REMOTE_FETCH_TOPN.get(Settings.EMPTY));
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true))
+            .get();
+        try {
+            testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting();
+        } finally {
+            client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey()))
+                .get();
+        }
+    }
+
+    private void testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting() throws Exception {
         setupTwoClusters();
         QueryPragmas pragmas = new QueryPragmas(
             Settings.builder()

@@ -767,3 +767,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
   method: testDiscoverSplitsAsyncAgreesWithSyncForRangeAwareFiles
   issue: https://github.com/elastic/elasticsearch/issues/158515
+- class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
+  method: testMultiFileParallelDiscoveryAccumulatesCpuNanos
+  issue: https://github.com/elastic/elasticsearch/issues/158461

@@ -845,7 +845,7 @@ c:long
 // Basic: unmapped _source fields expand alongside lookup-index fields. language_code (unmapped, keyword) serves as the join key
 // and therefore becomes a real query column — it is excluded from the blob and does not reappear as an expanded column.
 lookupJoinExpandsUnmappedFields
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -862,7 +862,7 @@ FROM partial_mapping_sample_data
 
 // Coordinator LOOKUP JOIN: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
 lookupJoinCoordinatorExpandsUnmappedFields
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -881,7 +881,7 @@ FROM partial_mapping_sample_data
 // restricts it so only unmapped_message (which contains "message") expands — other unmapped fields are excluded.
 // message_type is added by the join after the KEEP.
 lookupJoinKeepWildcardBeforeJoin
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -898,7 +898,7 @@ FROM partial_mapping_sample_data
 ;
 
 lookupJoinDropWildcardBeforeJoin
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -917,7 +917,7 @@ FROM partial_mapping_sample_data
 // ambiguity with the lookup's language_code field. The ON expression references lc_expr (an unmapped-source value)
 // and the lookup's language_code via an explicit == expression. The remaining unmapped fields expand via the blob.
 lookupJoinOnExpressionWithUnmappedField
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 required_capability: lookup_join_on_boolean_expression
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -939,7 +939,7 @@ FROM partial_mapping_sample_data
 // Sorting on a lookup-index field (language_name) after the join forces join execution on data nodes
 // rather than on the coordinator, exercising the LateMaterializationPlanner code path on data nodes.
 lookupJoinThenSortLimit
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -956,7 +956,7 @@ FROM partial_mapping_sample_data
 
 // KEEP wildcard applied _after_ the join: can select both lookup-index fields and expanded unmapped source fields.
 lookupJoinKeepWildcardAfterJoin
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -974,7 +974,7 @@ language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapp
 
 // DROP wildcard applied _after_ the join: removes expanded unmapped source fields from the output.
 lookupJoinDropWildcardAfterJoin
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -992,7 +992,7 @@ FROM partial_mapping_sample_data
 // Lookup index field shadows an unmapped source field of the same name: the blob must not emit a second language_code column.
 // Joining on the mapped message field; language_code comes from the lookup and replaces the unmapped _source language_code.
 lookupJoinLookupFieldShadowsUnmappedField
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1011,7 +1011,7 @@ FROM partial_mapping_sample_data
 // Match field is unmapped and absent from _source: it is null for every row, so no lookup-table rows match and the
 // added language_code column is null for all rows. The other unmapped source fields still expand from the blob.
 lookupJoinMissingMatchField
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1032,7 +1032,7 @@ FROM partial_mapping_sample_data
 
 enrichExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1052,7 +1052,7 @@ FROM partial_mapping_sample_data
 // the unmapped source field language_code, which still expands from the blob.
 enrichWithNamedOutputExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1072,7 +1072,7 @@ FROM partial_mapping_sample_data
 // so the blob must not produce a second language_code column. Result: language_code holds the language name (string), not "1"/"2".
 enrichWithRenamedOutputShadowsUnmappedField
 skip_flattened_rewrite: enrich_output_type_mismatch
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1090,7 +1090,7 @@ FROM partial_mapping_sample_data
 // ENRICH + LOOKUP JOIN in the same query.
 enrichThenLookupJoin
 skip_flattened_rewrite: enrich_output_type_mismatch
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1111,7 +1111,7 @@ FROM partial_mapping_sample_data
 // Coordinator ENRICH: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
 enrichCoordinatorExpandsUnmappedFields
 skip_flattened_rewrite: enrich_output_type_mismatch
-required_capability: optional_fields_load_all_join_and_enrich
+required_capability: optional_fields_load_all_v2
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

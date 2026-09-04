@@ -523,12 +523,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     /**
      * Like {@link #patternFor(String)}, but for queries involving a LOOKUP JOIN which have two {@link EsRelation}s.
      * Returns the pattern on the non-LOOKUP relation (the primary index).
-     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
      */
     private static UnmappedFieldsPattern patternForJoin(String query, TestAnalyzer analyzer) {
         assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
         );
         LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
         EsRelation primary = plan.collect(EsRelation.class)
@@ -541,12 +541,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     /**
      * Like {@link #patternFor(String, TestAnalyzer)}, but for queries using ENRICH.
-     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
      */
     private static UnmappedFieldsPattern patternForEnrich(String query, TestAnalyzer analyzer) {
         assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
         );
         return patternFor(query, analyzer);
     }

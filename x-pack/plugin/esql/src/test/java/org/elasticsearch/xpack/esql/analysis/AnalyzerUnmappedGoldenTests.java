@@ -1432,8 +1432,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      */
     public void testLoadAllLookupJoinCoordinator() {
         assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
         );
         loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
             FROM partial_mapping_sample_data
@@ -1452,8 +1452,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
      */
     public void testLoadAllLookupJoinDataNode() {
         assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_V2",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()
         );
         loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
             FROM partial_mapping_sample_data

@@ -148,8 +148,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public long ramBytesUsed() {
         long size = BASE_RAM_BYTES_USED;
         size += RamUsageEstimator.sizeOf(name);
-        // version is a boxed Integer referenced from the shallow size; count the boxed instance when present.
-        size += RamUsageEstimator.shallowSizeOf(version);
+        size += RamUsageEstimator.sizeOf(version);
         size += RamUsageEstimator.sizeOfCollection(patterns);
         size += settings.estimatedRamBytesUsed();
         size += MetadataRamEstimators.ramBytesUsedByAccountableMap(mappings);

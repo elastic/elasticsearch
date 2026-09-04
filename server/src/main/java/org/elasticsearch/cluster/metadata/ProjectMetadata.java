@@ -222,7 +222,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     @Override
     public long ramBytesUsed() {
         long size = BASE_RAM_BYTES_USED;
-        size += RamUsageEstimator.shallowSizeOf(id);
+        size += RamUsageEstimator.sizeOfObject(id);
         size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
         size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
         size += MetadataRamEstimators.ramBytesUsedByAccountableMap(templates);

@@ -217,7 +217,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             } catch (CircuitBreakingException cbe) {
                 searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, cbe);
-                long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
+                long subBytes = SERIALISED_BYTES_FAILURE_FALLBACK;
                 circuitBreaker.addWithoutBreaking(subBytes);
                 failureBytesCharged[0] += subBytes;
                 // Release render bytes for already-queued slots — their sources are freed by fillRemainingWithCbe.
@@ -266,7 +266,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                             circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
                             renderBytesCharged[0] -= renderBytesPerItem[slot];
                             items[slot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
-                            long failureBytes = TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
+                            long failureBytes = SERIALISED_BYTES_FAILURE_FALLBACK;
                             try {
                                 circuitBreaker.addEstimateBytesAndMaybeBreak(failureBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
                                 failureBytesCharged[0] += failureBytes;
@@ -286,7 +286,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                             }
                         } else {
                             // Charge breaker BEFORE incRef/setResponse so cleanup is safe if breaker throws.
-                            long responseBytes = TransportMultiSearchAction.estimateActualBytes(item.getResponse());
+                            long responseBytes = 0L;
                             try {
                                 circuitBreaker.addEstimateBytesAndMaybeBreak(responseBytes, MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL);
                             } catch (CircuitBreakingException cbe) {
@@ -334,8 +334,8 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
      *   <li>{@code source.length()} — raw bytes of the retained {@link BytesReference}; counted once
      *       since it is already a byte array view, not expanded into Java objects.</li>
      *   <li>For a real search: {@link #RENDER_HEAP_OVERHEAD_FACTOR} × serialised
-     *       {@link SearchSourceBuilder} size, matching the 2× factor used by
-     *       {@link TransportMultiSearchAction#estimateActualBytes}. The builder is the in-memory
+     *       {@link SearchSourceBuilder} size, using the same 2× heap-overhead factor as
+     *       {@code TransportMultiSearchAction}. The builder is the in-memory
      *       parsed representation of the source and is retained until the inner search executes.</li>
      *   <li>For simulate-only (no builder): {@link #RENDER_HEAP_OVERHEAD_FACTOR} × {@code source.length()}
      *       as a proxy, since there is no builder to serialise.</li>
@@ -421,7 +421,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
             renderBytesCharged[0] -= renderBytesPerItem[slot];
         }
-        long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
+        long subBytes = SERIALISED_BYTES_FAILURE_FALLBACK;
         circuitBreaker.addWithoutBreaking(subBytes);
         failureBytesCharged[0] += subBytes;
         fillRemainingWithCbe(items, searchSlots, fromSearchIdx, cbe);

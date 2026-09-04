@@ -42,6 +42,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * never cross the boundary, whatever the aggregate and wherever the filter sits, and the plans below record that: the
  * decisive line in each is the mode of the top {@code AggregateExec} and the columns on the {@code SourceFanInExec}.
  *
+ * <p>The split is made by the physical planner, so only the physical goldens record it. Each
+ * {@code logical_optimization.expected} shows a single {@code Aggregate} sitting above the {@code SourceFanInUnionAll},
+ * which is the input to that split and not evidence that the aggregate stays on the coordinator.
+ *
  * <p>The branches are two external datasets with an <b>identical</b> schema ({@code emp_no}/{@code salary}/{@code dept}).
  * Identical schemas keep the plans readable: differing ones make union alignment insert {@code Eval} nodes to null-fill
  * the missing columns. A producer is prepared the same way whether it reads an index or an external source, so these
@@ -50,7 +54,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * <p>Data correctness for these shapes (including the heterogeneous index+dataset case) is covered by csv-spec tests;
  * these tests only snapshot the plan. {@code external-heavy-aggregates.csv-spec} is the one that matters most here,
  * since it asserts {@code COUNT_DISTINCT} over two copies of one fixture returns the single-copy distinct count, which
- * holds only if the per-producer sketches are merged rather than added.
+ * holds only if the per-producer sketches are merged rather than added. {@code ExternalDistributedSpecIT} runs that
+ * spec once per distribution strategy, so the merge is checked with the producers placed on different nodes as well as
+ * together on the coordinator.
  */
 public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";

@@ -41,9 +41,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decomposes an {@link Aggregate} whose child is a direct-leaf {@link UnionAll}
- * (heterogeneous FROM) into per-branch partial aggregates combined by a final
- * merge aggregate.
+ * Decomposes an {@link Aggregate} whose child is a direct-leaf {@link UnionAll} into per-branch partial
+ * aggregates combined by a final merge aggregate.
+ *
+ * <p>The branches this applies to are those whose plans are independent of one another: a {@code FROM} listing
+ * explicit subqueries, and the vector set operations PromQL translates into a union. A
+ * {@link SourceFanInUnionAll} is excluded, and {@link #rule} returns such an aggregate untouched: its branches
+ * are producers over one external source, and the physical planner already splits an aggregate above them into
+ * a per-producer stage and a single coordinator merge. Decomposing it here as well would build a second,
+ * redundant merge on top of that one.
  *
  * <p>Two kinds of aggregate are decomposed, via two combine strategies:
  * <ul>
@@ -101,6 +107,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
         if (!(aggregate.child() instanceof UnionAll unionAll)) {
             return aggregate;
         }
+        // Producers over a single external source: the physical planner splits the aggregate across the fan-in itself.
         if (unionAll instanceof SourceFanInUnionAll) {
             return aggregate;
         }

@@ -101,6 +101,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    /**
+     * Executor for Phase-2 split discovery (Parquet/ORC footer fan-out and record-boundary probes).
+     * Production wires {@code esql_external_io}; tests may pass {@code null} and fall back to serial
+     * discovery on the calling thread. Must not be {@code SEARCH} or {@code GENERIC}: those pools must
+     * not issue object-store GETs, and {@code esql_external_io} must not join its own work.
+     */
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**

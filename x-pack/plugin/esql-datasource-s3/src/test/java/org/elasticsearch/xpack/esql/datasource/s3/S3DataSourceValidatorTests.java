@@ -803,8 +803,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
+        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
+        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "known settings: [error_mode, file_exclusions, format, hive_partitioning, max_error_ratio, "
+                        + "max_errors, max_split_probes, partition_detection, partition_path, schema_resolution, "
+                        + "schema_sample_size, split_probe_window, target_split_size]"
+                )
+            )
+        );
     }
 
     public void testUnknownExplicitFormatRejected() {
@@ -876,4 +887,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
+        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
+        // time. A three-element set does reach sorted order, which is why one is not a gate.
+        DataSourceValidator manySchemes = new FileDataSourceValidator(
+            "s3",
+            S3Configuration::fromMap,
+            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
+        );
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+        );
+
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "[resource] must use one of the supported URI schemes "
+                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
+                )
+            )
+        );
+    }
+
 }

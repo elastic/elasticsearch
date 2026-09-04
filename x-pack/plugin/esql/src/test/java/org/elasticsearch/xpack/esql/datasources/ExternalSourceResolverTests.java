@@ -2000,7 +2000,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
 
         // Shadowing the physical 'year' column emits a one-time client warning (summary + one detail).
-        List<String> warnings = drainWarnings();
+        List<String> warnings = resolution.warnings();
         assertEquals(2, warnings.size());
         assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
         assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
@@ -2075,8 +2075,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertNull("[" + strategy + "] " + e.getKey() + ": no cast on the kept column", mapping.cast(0));
             }
 
-            // Every strategy emits the one-time shadow warning; drain so teardown stays clean.
-            List<String> warnings = drainWarnings();
+            // Every strategy emits the one-time shadow warning on the resolution object.
+            List<String> warnings = resolution.warnings();
             assertEquals("[" + strategy + "] summary + one detail", 2, warnings.size());
             assertThat(
                 "[" + strategy + "] detail names the shadowed column",
@@ -2725,6 +2725,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The store's own unavailable message already names the object, so the 503 wrapper must not name it again.
+     * The message-content assertions elsewhere pass either way; only the count discriminates.
+     */
+    public void testTheUnavailableArmNamesThePathOnce() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String path = "s3://b/x.parquet";
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            false,
+            (Throwable) null,
+            "S3 store unavailable reading [{}] (HTTP {})",
+            path,
+            503
+        );
+
+        RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(store));
+
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(mapped));
+        assertEquals(
+            "the object is named once, not once by the store and again by the wrapper",
+            mapped.getMessage().indexOf(path),
+            mapped.getMessage().lastIndexOf(path)
+        );
+    }
+
+    /**
+     * A fault with no arm of its own falls to the terminal 500. The cache wraps loader failures in an
+     * {@code ExecutionException} whose message is the cause's {@code toString()}, so chaining the wrapper puts a JVM
+     * type name in the user's {@code caused_by}. This pins the call site, not just the helper it delegates to.
+     */
+    public void testTheTerminalArmChainsTheCauseNotTheCacheWrapper() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        IllegalStateException original = new IllegalStateException("broken");
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/x.parquet", new ExecutionException(original));
+
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(mapped));
+        assertSame("the cause must be the fault itself, not the cache's wrapper", original, mapped.getCause());
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.lang.")));
+        }
+    }
+
+    /**
      * An IOException buried in the cache's {@code ExecutionException} must be a 400: a missing object or
      * access-denied is the caller's fault regardless of which rail (cacheable vs non-cacheable) the resolution
      * ran on.
@@ -2745,6 +2788,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertThat(mapped.getMessage(), containsString("s3://b/x.parquet"));
         assertThat(mapped.getMessage(), containsString("Object not found"));
+        // The detail already names the object, so the wrapper must not name it a second time. containsString on
+        // each half passes either way; the count is what holds the resolver to ExternalFailures.locate.
+        assertEquals(
+            "the object is named once, not once by the detail and again by the wrapper",
+            mapped.getMessage().indexOf("s3://b/x.parquet"),
+            mapped.getMessage().lastIndexOf("s3://b/x.parquet")
+        );
+        // Chaining the cache wrapper rather than its cause is what puts "java.io.IOException: ..." in caused_by.
+        for (Throwable c = mapped.getCause(); c != null; c = c.getCause()) {
+            assertThat(String.valueOf(c.getMessage()), not(containsString("java.io.")));
+        }
     }
 
     /**
@@ -2877,6 +2931,95 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     // ===== Resolver + Cache integration =====
+
+    /**
+     * Cacheable multi-file resolves must expose per-file footer statistics on {@code FileSchemaInfo}
+     * for both the cold harvest and a warm schema-cache hit. The warm path reconstructs the typed
+     * view from the cached flat {@code _stats.*} map so split discovery can still skip a second
+     * footer open when {@code readableUnitCount} is 1.
+     */
+    public void testCacheableColdResolveCarriesHarvestedStatistics() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        Map<String, Long> rowCountsByPath = Map.of("s3://bucket/data/a.parquet", 11L, "s3://bucket/data/b.parquet", 22L);
+
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        String glob = "s3://bucket/data/*.parquet";
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
+                cacheService
+            );
+            for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
+                Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
+                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f1);
+                ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, cold.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] cold resolve must carry harvested statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
+
+                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+                resolver.resolve(List.of(glob), pathConfigs, f2);
+                ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
+                assertEquals("[" + strategy + "]", 2, warm.schemaMap().size());
+                for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
+                    SourceStatistics stats = e.getValue().statistics();
+                    assertNotNull("[" + strategy + "] warm serve must reconstruct typed statistics for " + e.getKey(), stats);
+                    assertEquals(rowCountsByPath.get(e.getKey().toString()).longValue(), stats.rowCount().getAsLong());
+                    assertEquals(1L, stats.readableUnitCount().orElse(-1));
+                }
+            }
+        }
+    }
+
+    public void testCacheableColdSingleFileResolveCarriesHarvestedStatistics() throws Exception {
+        String path = "s3://bucket/data/single.parquet";
+        StoragePath storagePath = StoragePath.of(path);
+        List<Attribute> schema = List.of(attr("id", DataType.LONG));
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of(), schemasByPath);
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, Map.of(path, 11L)),
+                cacheService
+            );
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f1);
+            SourceStatistics coldStatistics = f1.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(coldStatistics);
+            assertEquals(11L, coldStatistics.rowCount().getAsLong());
+            assertEquals(1L, coldStatistics.readableUnitCount().orElse(-1));
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), f2);
+            SourceStatistics warmStatistics = f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            assertNotNull(warmStatistics);
+            assertEquals(11L, warmStatistics.rowCount().getAsLong());
+            assertEquals(1L, warmStatistics.readableUnitCount().orElse(-1));
+        }
+    }
 
     /**
      * A filtered query must not poison the listing cache for a later unfiltered one. The filter's hints narrow the
@@ -4263,8 +4406,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        return createResolverWithReader(storageProvider, new StubFormatReader(schemasByPath), cacheService);
+    }
 
+    private ExternalSourceResolver createResolverWithReader(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<String> supportedSchemes() {
@@ -4465,19 +4614,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Regression test for elastic/elasticsearch#153780: the Hive-partition shadow-column warning
-     * must reach the client even though the schema reconciliation that detects the collision (and
-     * calls {@code warnOnShadowedColumns}) runs on the resolver's real, forking executor rather than
-     * the calling thread. Every other collision test (e.g. {@link #testPartitionColumnConflictPartitionWins})
-     * uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, which never actually hops threads and so could
-     * not have caught a warning written to the wrong {@link ThreadContext} — exactly the bug this
-     * mirrors {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
+     * must be attached to {@link ExternalSourceResolution} even though the schema reconciliation
+     * that detects the collision (and calls {@code warnOnShadowedColumns}) runs on the resolver's
+     * real, forking executor rather than the calling thread. Every other collision test (e.g.
+     * {@link #testPartitionColumnConflictPartitionWins}) uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE},
+     * which never actually hops threads. This mirrors
+     * {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
      * {@link AsyncStubFormatReader} I/O pool distinct from both the resolver executor and this test thread.
      * <p>
-     * Like that test, the warning must be observed <em>inside</em> the {@code resolve()} completion
-     * callback rather than after {@code future.actionGet()} returns on this test thread: response
-     * headers accumulated under {@code ContextPreservingActionListener}'s restored context are merged
-     * back onto whichever physical thread is running that callback, not onto this (unrelated) test
-     * thread's own {@link ThreadContext} slot.
+     * Warnings live on the resolution object, not on {@link ThreadContext}: a resolve-time
+     * {@code HeaderWarning} flush is discarded when {@code ContextPreservingActionListener} closes.
      */
     public void testShadowWarningReachesCallerAcrossAsyncCompletion() throws Exception {
         List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
@@ -4508,14 +4654,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 threadContext
             );
 
-            AtomicReference<List<String>> observedWarnings = new AtomicReference<>();
             AtomicReference<Thread> completionThread = new AtomicReference<>();
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            // Drain inside the completion callback itself, for the same reason
-            // testResolveRestoresCallerThreadContextAcrossAsyncCompletion asserts there: the restored
-            // context (and the warnings merged into it) is only visible for the duration of this callback.
             ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
-                observedWarnings.set(drainWarnings());
                 completionThread.set(Thread.currentThread());
                 future.onResponse(resolution);
             }, future::onFailure);
@@ -4529,11 +4670,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Thread.currentThread(),
                 completionThread.get()
             );
-            List<String> warnings = observedWarnings.get();
+            List<String> warnings = resolution.warnings();
             assertEquals("summary + one detail", 2, warnings.size());
             assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
             assertThat(
-                "the shadow warning must reach the client even though reconciliation ran off the calling thread",
+                "the shadow warning must ride the resolution object even though reconciliation ran off the calling thread",
                 warnings.get(1),
                 containsString("physical column [year] is shadowed")
             );
@@ -4845,6 +4986,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                         @Override
                         public OptionalLong sizeInBytes() {
                             return OptionalLong.empty();
+                        }
+
+                        @Override
+                        public OptionalLong readableUnitCount() {
+                            return OptionalLong.of(1L);
                         }
 
                         @Override

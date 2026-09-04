@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,9 +54,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchTemplateAction.class);
 
-    private static final String MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[render]";
-    private static final String MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[response]";
-    private static final String MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_MSEARCH + "[failure]";
+    private static final String MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL = "msearch[render]";
+    private static final String MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL = "msearch[response]";
+    private static final String MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL = "msearch[failure]";
 
     /**
      * Heap-overhead factor applied to serialised byte counts.
@@ -127,8 +126,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
         int n = request.requests().size();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[n];
-        // Three separate accumulators — each released under the same label it was charged with so
-        // that ChildMemoryCircuitBreaker's per-category gauge stays balanced.
+        // Three separate accumulators track bytes charged to the circuit breaker per category.
         long[] renderBytesPerItem = new long[n]; // per-slot render charge; released when the slot is finalized
         long[] renderBytesCharged = { 0L };    // running total released by runAfter (remainder after early releases)
         long[] responseBytesCharged = { 0L };  // charged/released under [response] (success hits only)
@@ -137,13 +135,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
         ActionListener<MultiSearchTemplateResponse> breakerReleasingListener = ActionListener.runAfter(listener, () -> {
             if (renderBytesCharged[0] > 0) {
-                circuitBreaker.addWithoutBreaking(-renderBytesCharged[0], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                circuitBreaker.addWithoutBreaking(-renderBytesCharged[0]);
             }
             if (responseBytesCharged[0] > 0) {
-                circuitBreaker.addWithoutBreaking(-responseBytesCharged[0], MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL);
+                circuitBreaker.addWithoutBreaking(-responseBytesCharged[0]);
             }
             if (failureBytesCharged[0] > 0) {
-                circuitBreaker.addWithoutBreaking(-failureBytesCharged[0], MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+                circuitBreaker.addWithoutBreaking(-failureBytesCharged[0]);
             }
         });
         ActionListener<MultiSearchTemplateResponse> safeListener = new ActionListener<>() {
@@ -220,11 +218,11 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, cbe);
                 long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
-                circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+                circuitBreaker.addWithoutBreaking(subBytes);
                 failureBytesCharged[0] += subBytes;
                 // Release render bytes for already-queued slots — their sources are freed by fillRemainingWithCbe.
                 for (int slot : searchSlots) {
-                    circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                    circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
                     renderBytesCharged[0] -= renderBytesPerItem[slot];
                 }
                 // Abort: all search slots queued so far cannot run — replace them with CBE.
@@ -265,7 +263,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                             if (items[slot].getResponse() != null) {
                                 items[slot].getResponse().decRef();
                             }
-                            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
                             renderBytesCharged[0] -= renderBytesPerItem[slot];
                             items[slot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
                             long failureBytes = TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
@@ -294,7 +292,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                             } catch (CircuitBreakingException cbe) {
                                 items[slot].getResponse().decRef();
                                 items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
-                                circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                                circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
                                 renderBytesCharged[0] -= renderBytesPerItem[slot];
                                 abortResponsePhase(
                                     items,
@@ -420,11 +418,11 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     ) {
         for (int j = fromSearchIdx; j < totalItems; j++) {
             int slot = searchSlots.get(j);
-            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot]);
             renderBytesCharged[0] -= renderBytesPerItem[slot];
         }
         long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
-        circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+        circuitBreaker.addWithoutBreaking(subBytes);
         failureBytesCharged[0] += subBytes;
         fillRemainingWithCbe(items, searchSlots, fromSearchIdx, cbe);
     }

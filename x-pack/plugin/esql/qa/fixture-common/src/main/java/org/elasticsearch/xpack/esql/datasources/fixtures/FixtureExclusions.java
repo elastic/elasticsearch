@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -35,12 +34,6 @@ import java.util.stream.Collectors;
 public final class FixtureExclusions {
 
     private static final String RESOURCE = "fixture-exclusions.properties";
-    /**
-     * What a filed issue looks like in a reason. Deliberately narrow: a bare "#123" could be anything,
-     * and the point is that someone can open it.
-     */
-    private static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
-
     private static final FixtureExclusions INSTANCE = load();
 
     /** Kind of exclusion: a defect to fix, or something the suite cannot express at all. */
@@ -283,7 +276,7 @@ public final class FixtureExclusions {
         List<Exclusion> uncited = new ArrayList<>();
         for (Map<SpecCase, Exclusion> bySpec : bySuite.values()) {
             for (Exclusion exclusion : bySpec.values()) {
-                if (exclusion.kind() == Kind.BUG && ISSUE_REFERENCE.matcher(exclusion.reason()).find() == false) {
+                if (exclusion.kind() == Kind.BUG && FixtureDimensions.ISSUE_REFERENCE.matcher(exclusion.reason()).find() == false) {
                     uncited.add(exclusion);
                 }
             }

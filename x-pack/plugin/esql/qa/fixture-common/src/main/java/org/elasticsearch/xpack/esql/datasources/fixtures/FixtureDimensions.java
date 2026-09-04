@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -22,6 +23,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * The dimensions of the external-datasource read path, and which pairs of them interact.
@@ -59,6 +61,82 @@ public final class FixtureDimensions {
     }
 
     /**
+     * Which battery a configuration belongs to.
+     *
+     * <p>Two tiers because the two questions are different. The nightly asks what the reader does across
+     * everything expressible, and has hours to answer. A pull request asks whether this change broke one
+     * of the places defects actually cluster, and has to answer inside the build it runs in -- so its
+     * selection is an argument about yield, and every value in it cites the defect that earned it.
+     *
+     * <p>The strength is the covering-array strength the tier completes to. Every defect the CI selection
+     * is drawn from is reachable by a PAIR of values, so pairwise is what it needs; the nightly keeps
+     * three-way. Neither tier is a subset of the other by construction and neither needs to be: vector
+     * names are derived from the values they carry, so a name means the same configuration in both.
+     */
+    public enum Tier {
+        CI(2),
+        NIGHTLY(3);
+
+        private final int strength;
+
+        Tier(int strength) {
+            this.strength = strength;
+        }
+
+        /** The covering-array strength this tier completes to. */
+        public int strength() {
+            return strength;
+        }
+
+        /** The prefix a {@code tier} declaration writes to place a value in this tier. */
+        String declarationPrefix() {
+            return name().toLowerCase(Locale.ROOT) + ":";
+        }
+
+        /**
+         * The tier a declared reason places its value in, or null when there is no reason or it names no
+         * tier. Null-tolerant because the commonest caller is a lookup that found nothing.
+         */
+        static Tier declaredIn(String reason) {
+            if (reason == null) {
+                return null;
+            }
+            for (Tier tier : values()) {
+                if (reason.startsWith(tier.declarationPrefix())) {
+                    return tier;
+                }
+            }
+            return null;
+        }
+
+        /** The tier a {@code tests.vector.tier} system property names. */
+        public static Tier parse(String name) {
+            for (Tier tier : values()) {
+                if (tier.name().equalsIgnoreCase(name.trim())) {
+                    return tier;
+                }
+            }
+            throw new IllegalArgumentException("unknown tier [" + name + "]; expected one of " + List.of(values()));
+        }
+    }
+
+    /**
+     * What counts as citing a defect, for every part of the contract that demands one.
+     *
+     * <p>One definition rather than one per caller. A {@code bug:} absence, a {@code bug:} exclusion and a
+     * {@code ci:} tier all make the same claim -- a filed issue licenses this cell being where it is --
+     * and there were three patterns for it, two of which disagreed: the audit accepted any
+     * {@code org/repo#N} while the exclusions demanded {@code elastic/<repo>#N}, under a comment claiming
+     * the two matched. A citation that passed one check and failed the other was reachable, and which
+     * check a reason met depended on which class happened to read it.
+     *
+     * <p>Deliberately narrow, which is the stricter of the two it replaces: a bare {@code #123} could be
+     * anything, and the point of the citation is that a reader can open it. Every citation in the
+     * declaration and the exclusions today is {@code elastic/<repo>#N}, so narrowing rejected nothing.
+     */
+    static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
+
+    /**
      * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
      * classpath touches this class -- including code that never asks for a dimension -- so a missing or
      * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
@@ -94,6 +172,7 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> backendByName;
     private final Map<String, Map<String, String>> extensionByName;
     private final Map<String, Map<String, String>> absenceByName;
+    private final Map<String, Map<String, String>> tierByName;
     private final Map<String, Set<String>> valueDisjointByPair;
     private final Map<String, Verdict> verdicts;
 
@@ -114,6 +193,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> backendByName,
         Map<String, Map<String, String>> extensionByName,
         Map<String, Map<String, String>> absenceByName,
+        Map<String, Map<String, String>> tierByName,
         Map<String, Set<String>> valueDisjointByPair,
         Map<String, Verdict> verdicts
     ) {
@@ -133,6 +213,7 @@ public final class FixtureDimensions {
         this.backendByName = Map.copyOf(backendByName);
         this.extensionByName = Map.copyOf(extensionByName);
         this.absenceByName = Map.copyOf(absenceByName);
+        this.tierByName = Map.copyOf(tierByName);
         this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
         this.verdicts = Map.copyOf(verdicts);
     }
@@ -277,6 +358,49 @@ public final class FixtureDimensions {
         Map<String, String> declared = absenceByName.getOrDefault(dimension, Map.of());
         String perFormat = declared.get(value + "." + format);
         return perFormat != null ? perFormat : declared.get(value);
+    }
+
+    /**
+     * The declared reason a value sits in a particular battery, or null when nothing places it.
+     *
+     * <p>A per-format reason wins over a bare one, exactly as absences resolve, so a value can gate every
+     * pull request on the formats where its defects live and stay nightly-only elsewhere.
+     */
+    public String tierReason(String dimension, String value, String format) {
+        Map<String, String> declared = tierByName.getOrDefault(dimension, Map.of());
+        String perFormat = declared.get(value + "." + format);
+        return perFormat != null ? perFormat : declared.get(value);
+    }
+
+    /**
+     * Whether a tier's battery carries this value of this dimension on this format.
+     *
+     * <p>The nightly carries everything. The CI tier carries the format's default -- which every vector
+     * falls back to, so excluding it would leave no baseline to vary from -- plus exactly the values a
+     * {@code ci:} declaration places there.
+     */
+    public boolean tierCarries(String dimension, String value, String format, Tier tier) {
+        if (tier == Tier.NIGHTLY) {
+            return true;
+        }
+        if (value.equals(defaultValue(dimension, format))) {
+            return true;
+        }
+        return Tier.declaredIn(tierReason(dimension, value, format)) == tier;
+    }
+
+    /** Whether every off-default slot of a whole vector is carried by the tier. */
+    private boolean tierCarries(Map<String, String> vector, Tier tier) {
+        if (tier == Tier.NIGHTLY) {
+            return true;
+        }
+        String format = vector.get("format");
+        for (Map.Entry<String, String> slot : vector.entrySet()) {
+            if (slot.getKey().equals("format") == false && tierCarries(slot.getKey(), slot.getValue(), format, tier) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** What a dimension's value is derived from when no constant can express it, or null when one can. */
@@ -425,6 +549,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> backends = new LinkedHashMap<>();
         Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
         Map<String, Map<String, String>> absences = new LinkedHashMap<>();
+        Map<String, Map<String, String>> tiers = new LinkedHashMap<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
         Map<String, Set<String>> valueDisjoint = new LinkedHashMap<>();
         Set<String> disjointWhys = new LinkedHashSet<>();
@@ -498,6 +623,20 @@ public final class FixtureDimensions {
                             );
                         }
                         absences.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
+                    }
+                    // `tier.<v>` and `tier.<v>.<format>`: which battery a value earns a place in. The
+                    // same shape as the absence grammar on purpose -- both answer "why is this cell where
+                    // it is?" -- and the same rule that the reason names its own kind, so a line copied
+                    // from a neighbour and left saying the other tier fails the build instead of quietly
+                    // running in a battery nobody put it in.
+                    case "tier" -> {
+                        String slot = requireQualified(key, tail);
+                        if (Tier.declaredIn(value) == null) {
+                            throw new IllegalStateException(
+                                "tier [" + key + "] must start its reason with [ci:] or [nightly:] but was [" + value + "]"
+                            );
+                        }
+                        tiers.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(slot, value);
                     }
                     default -> throw new IllegalStateException("unknown dimension attribute in [" + key + "]");
                 }
@@ -741,6 +880,65 @@ public final class FixtureDimensions {
                 }
             }
         }
+        for (Map.Entry<String, Map<String, String>> entry : tiers.entrySet()) {
+            String owner = entry.getKey();
+            requireDeclaredDimension(values, owner, "tier");
+            Map<String, String> ownerAbsences = absences.getOrDefault(owner, Map.of());
+            for (Map.Entry<String, String> tiered : entry.getValue().entrySet()) {
+                String slot = tiered.getKey();
+                int at = slot.indexOf('.');
+                String value = at < 0 ? slot : slot.substring(0, at);
+                String format = at < 0 ? null : slot.substring(at + 1);
+                if (values.get(owner).contains(value) == false) {
+                    throw new IllegalStateException("tier [" + owner + "." + slot + "] names a value the dimension does not declare");
+                }
+                if (format != null && declaredFormats.contains(format) == false) {
+                    throw new IllegalStateException("tier [" + owner + "." + slot + "] names an undeclared format");
+                }
+                // A tier on the value every vector falls back to selects nothing: the baseline is in every
+                // battery by construction, so the line reads as a choice while making none.
+                String effectiveDefault = defaults.get(owner);
+                if (format != null) {
+                    effectiveDefault = formatDefaults.getOrDefault(owner, Map.of()).getOrDefault(format, effectiveDefault);
+                }
+                if (value.equals(effectiveDefault)) {
+                    throw new IllegalStateException(
+                        "tier [" + owner + "." + slot + "] is declared on the effective default value, which every tier already carries"
+                    );
+                }
+                // A tier cannot claim a cell the matrix does not run. An absent cell has no bytes, no
+                // directive and no suite, so promoting it announces coverage that cannot exist -- which is
+                // the silent pass this contract exists to prevent, wearing a selection's clothes. A bare
+                // absence covers every format, so a per-format tier has to check both spellings.
+                String absence = ownerAbsences.get(slot);
+                if (absence == null && format != null) {
+                    absence = ownerAbsences.get(value);
+                }
+                if (absence != null) {
+                    throw new IllegalStateException(
+                        "tier ["
+                            + owner
+                            + "."
+                            + slot
+                            + "] places a value in a battery, but the same cell is declared absent ["
+                            + absence
+                            + "]; lift the absence or drop the tier"
+                    );
+                }
+                // Only the CI tier owes a citation. `nightly:` exists to hold a value OUT of the pull-request
+                // battery on one format, and declining to run something needs a mechanism, not a defect.
+                if (Tier.declaredIn(tiered.getValue()) == Tier.CI && ISSUE_REFERENCE.matcher(tiered.getValue()).find() == false) {
+                    throw new IllegalStateException(
+                        "tier ["
+                            + owner
+                            + "."
+                            + slot
+                            + "] puts a value in the battery that gates every pull request but cites no issue; "
+                            + "a CI cell earns its place from a defect that actually reached it"
+                    );
+                }
+            }
+        }
         return new FixtureDimensions(
             names,
             values,
@@ -758,6 +956,7 @@ public final class FixtureDimensions {
             backends,
             extensions,
             absences,
+            tiers,
             normalisedDisjoint,
             verdicts
         );
@@ -923,11 +1122,11 @@ public final class FixtureDimensions {
      * first because every finding so far came from a pair; t=3 after, because it is affordable here and
      * catches the defects that need a third value present to appear.
      *
-     * <p>Additive by construction: nothing the cliques produced is lost, each added vector sits at its
-     * format's baseline with exactly t slots pinned, and running t=2 before t=3 means the cheap
-     * combinations are covered by cheap vectors first.
+     * <p>Additive by construction: nothing the cliques produced is lost, and each added vector sits at
+     * its format's baseline with exactly t slots pinned.
      */
-    private void completeTuples(int t, Set<Map<String, String>> seen, Consumer<Map<String, String>> consumer) {
+    private void completeTuples(Tier tier, Set<Map<String, String>> seen, Consumer<Map<String, String>> consumer) {
+        int t = tier.strength();
         Set<String> covered = new LinkedHashSet<>();
         for (Map<String, String> vector : seen) {
             recordTuples(t, vector, covered);
@@ -941,7 +1140,7 @@ public final class FixtureDimensions {
                     applicable.add(axis);
                 }
             }
-            combine(applicable, t, 0, new ArrayList<>(), chosen -> emitForCombination(format, chosen, seen, covered, consumer, t));
+            combine(applicable, t, 0, new ArrayList<>(), chosen -> emitForCombination(format, chosen, seen, covered, consumer, t, tier));
         }
     }
 
@@ -952,12 +1151,16 @@ public final class FixtureDimensions {
         Set<Map<String, String>> seen,
         Set<String> covered,
         Consumer<Map<String, String>> consumer,
-        int t
+        int t,
+        Tier tier
     ) {
         List<List<String>> choices = new ArrayList<>();
         for (String axis : chosen) {
             List<String> legal = new ArrayList<>();
             for (String value : values(axis)) {
+                if (tierCarries(axis, value, format, tier) == false) {
+                    continue;
+                }
                 if (value.equals(defaultValue(axis, format)) || seamServesAnySeam(axis, value, format)) {
                     legal.add(value);
                 }
@@ -1189,12 +1392,17 @@ public final class FixtureDimensions {
      * despite having a complete fixture tree.
      */
     public List<Map<String, String>> expressibleVectors(String format, Set<Seam> seams) {
+        return expressibleVectors(format, seams, Tier.NIGHTLY);
+    }
+
+    /** The same, restricted to one tier's battery. */
+    public List<Map<String, String>> expressibleVectors(String format, Set<Seam> seams, Tier tier) {
         List<Map<String, String>> out = new ArrayList<>();
         if (FixtureCapabilities.formatIsConsumed(this, format) == false) {
             return out;
         }
         Set<String> rendered = new LinkedHashSet<>();
-        forEachVector(vector -> {
+        forEachVector(tier, vector -> {
             if (format.equals(vector.get("format")) == false) {
                 return;
             }
@@ -1282,41 +1490,41 @@ public final class FixtureDimensions {
      * once memoised. Immutable and derived purely from the declaration, so caching it changes nothing but
      * the clock.
      */
-    private volatile List<Map<String, String>> generated;
+    private final EnumMap<Tier, List<Map<String, String>>> generatedByTier = new EnumMap<>(Tier.class);
 
-    private List<Map<String, String>> generatedVectors() {
-        List<Map<String, String>> local = generated;
-        if (local == null) {
-            synchronized (this) {
-                local = generated;
-                if (local == null) {
-                    List<Map<String, String>> built = new ArrayList<>();
-                    // Frozen per vector, not just the list. List.copyOf makes the LIST immutable while every
-                    // element stays the mutable LinkedHashMap the generator built, and this memo is handed to
-                    // every caller in the JVM for the rest of the run -- one stray put would silently
-                    // reconfigure every later suite. Insertion order is preserved rather than using Map.copyOf:
-                    // render() walks the declared name list so it does not care, but the settings accessors walk
-                    // entrySet and their order reaches the injected directive JSON.
-                    generateVectors(vector -> built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector))));
-                    generated = local = List.copyOf(built);
-                }
-            }
+    private List<Map<String, String>> generatedVectors(Tier tier) {
+        synchronized (generatedByTier) {
+            return generatedByTier.computeIfAbsent(tier, requested -> {
+                List<Map<String, String>> built = new ArrayList<>();
+                // Frozen per vector, not just the list. List.copyOf makes the LIST immutable while every
+                // element stays the mutable LinkedHashMap the generator built, and this memo is handed to
+                // every caller in the JVM for the rest of the run -- one stray put would silently
+                // reconfigure every later suite. Insertion order is preserved rather than using Map.copyOf:
+                // render() walks the declared name list so it does not care, but the settings accessors walk
+                // entrySet and their order reaches the injected directive JSON.
+                generateVectors(requested, vector -> built.add(Collections.unmodifiableMap(new LinkedHashMap<>(vector))));
+                return List.copyOf(built);
+            });
         }
-        return local;
     }
 
+    /** Every vector of the full universe. The nightly tier IS the universe, so this is unrestricted. */
     public void forEachVector(Consumer<Map<String, String>> consumer) {
-        generatedVectors().forEach(consumer);
+        forEachVector(Tier.NIGHTLY, consumer);
     }
 
-    private void generateVectors(Consumer<Map<String, String>> consumer) {
+    public void forEachVector(Tier tier, Consumer<Map<String, String>> consumer) {
+        generatedVectors(tier).forEach(consumer);
+    }
+
+    private void generateVectors(Tier tier, Consumer<Map<String, String>> consumer) {
         Set<Map<String, String>> seen = new LinkedHashSet<>();
         for (Set<String> group : groups()) {
             Set<String> formats = formatsFor(group);
             if (formats.isEmpty()) {
                 continue;
             }
-            for (Map<String, String> assignment : crossProduct(new ArrayList<>(group), formats)) {
+            for (Map<String, String> assignment : crossProduct(new ArrayList<>(group), formats, tier)) {
                 // The baseline has to be filled with THIS format's defaults, not the global ones. A
                 // reader default can be per-extension -- .tsv reads plain where .csv reads quoted -- so a
                 // globally-filled baseline hands every tsv vector an off-default text_mode it never asked
@@ -1328,6 +1536,13 @@ public final class FixtureDimensions {
                     vector.put(d, defaultValue(d, format));
                 }
                 vector.putAll(assignment);
+                // Exactly, per format. The choice lists were restricted to the UNION of what the tier
+                // carries across this group's formats, which is a safe superset -- a value in the battery
+                // on csv and not on tsv survives that filter and has to be dropped here, against the
+                // format this vector actually carries.
+                if (tierCarries(vector, tier) == false) {
+                    continue;
+                }
                 // Before dedup, so the universe count reflects the removal honestly rather than hiding it
                 // behind vectors that happened to collide.
                 if (carriesDisjointValues(vector)) {
@@ -1338,11 +1553,13 @@ public final class FixtureDimensions {
                 }
             }
         }
-        // t=2 first, then 3: cheap combinations get covered by cheap vectors before the expensive pass
-        // runs, so the t=3 pass adds only what pairwise could not reach. t=4 was measured and rejected --
-        // the t<=3 vectors already carry 90.3% of the 215,659 legal 4-tuples, and closing the remaining
-        // 9.7% costs 3.6x the vectors. Strength is not where this matrix is thin; dimensions are.
-        completeTuples(3, seen, consumer);
+        // One completion pass, at the tier's strength. There used to be a t=2 pass before the t=3 one on
+        // the theory that cheap combinations should be covered by cheap vectors first; it was removed as
+        // provably redundant, since every pair a t=2 vector covers is covered by some t=3 vector the
+        // second pass emits anyway. t=4 was measured and rejected -- the t<=3 vectors already carry 90.3%
+        // of the 215,659 legal 4-tuples, and closing the remaining 9.7% costs 3.6x the vectors. Strength
+        // is not where this matrix is thin; dimensions are.
+        completeTuples(tier, seen, consumer);
     }
 
     /**
@@ -1355,11 +1572,36 @@ public final class FixtureDimensions {
         return List.copyOf(out);
     }
 
-    private List<Map<String, String>> crossProduct(List<String> axes, Set<String> formats) {
+    /**
+     * A dimension's values the tier carries on at least ONE of these formats.
+     *
+     * <p>A union, not an intersection, because the cross product here does not yet know which format each
+     * combination will end up on -- a group without {@code format} in it is crossed once and spread over
+     * every applicable format afterwards. Restricting to the union keeps the cross small while staying a
+     * superset; {@code generateVectors} then drops what the vector's own format does not carry. Getting
+     * this backwards would silently delete legal vectors rather than merely generating spare ones.
+     */
+    private List<String> tierValues(String axis, Set<String> formats, Tier tier) {
+        if (tier == Tier.NIGHTLY) {
+            return values(axis);
+        }
+        List<String> carried = new ArrayList<>();
+        for (String value : values(axis)) {
+            for (String format : formats) {
+                if (tierCarries(axis, value, format, tier)) {
+                    carried.add(value);
+                    break;
+                }
+            }
+        }
+        return carried;
+    }
+
+    private List<Map<String, String>> crossProduct(List<String> axes, Set<String> formats, Tier tier) {
         List<Map<String, String>> acc = new ArrayList<>();
         acc.add(new LinkedHashMap<>());
         for (String axis : axes) {
-            List<String> choices = axis.equals("format") ? new ArrayList<>(formats) : values(axis);
+            List<String> choices = axis.equals("format") ? new ArrayList<>(formats) : tierValues(axis, formats, tier);
             List<Map<String, String>> next = new ArrayList<>();
             for (Map<String, String> partial : acc) {
                 for (String choice : choices) {

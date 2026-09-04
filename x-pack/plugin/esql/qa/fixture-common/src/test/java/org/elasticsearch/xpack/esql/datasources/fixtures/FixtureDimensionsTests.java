@@ -41,6 +41,8 @@ public class FixtureDimensionsTests extends ESTestCase {
     private final FixtureDimensions dimensions = FixtureDimensions.get();
 
     private static final Pattern PER_FORMAT_DEFAULT = Pattern.compile("dimension\\.[a-z_]+\\.default\\.(.+)");
+    /** A format-local tier selection: {@code dimension.<n>.tier.<value>.<format>}, four segments deep. */
+    private static final Pattern PER_FORMAT_TIER = Pattern.compile("dimension\\.[a-z_]+\\.tier\\.[a-z_]+\\.(.+)");
 
     /**
      * The pair table must be total. This is the gate that turns "did anyone think about this
@@ -471,6 +473,12 @@ public class FixtureDimensionsTests extends ESTestCase {
      * smaller -- tsv universe than the global (quoted, comma) would. Locality is the property worth
      * pinning. Equality of the total is not true and never was: the assertion that stood here claimed it
      * in prose while only ever counting vectors under one set of defaults, so nothing tested the claim.
+     *
+     * <p>Format-local TIER selections collapse with the defaults they were written against, because they
+     * depend on them: {@code text_mode=quoted} is a selection on tsv only while tsv's default is plain,
+     * and collapsing that default turns the same line into a tier on the baseline, which the parser
+     * rightly refuses. Dropping them changes nothing this test reads -- it compares nightly universes,
+     * and the nightly tier is the whole universe whatever any tier declares.
      */
     public void testAPerFormatDefaultOnlyMovesItsOwnFormatsVectors() {
         FixtureDimensions declared = FixtureDimensions.get();
@@ -480,6 +488,8 @@ public class FixtureDimensionsTests extends ESTestCase {
             Matcher matcher = PER_FORMAT_DEFAULT.matcher(key);
             if (matcher.matches()) {
                 ownDefault.add(matcher.group(1));
+                collapsed.remove(key);
+            } else if (PER_FORMAT_TIER.matcher(key).matches()) {
                 collapsed.remove(key);
             }
         }
@@ -504,6 +514,185 @@ public class FixtureDimensionsTests extends ESTestCase {
      * moves this number, and moving it is how a coverage change announces itself in the diff. Update it
      * when the contract changed on purpose; investigate when it moved and nothing was meant to.
      */
+    /**
+     * The pull-request battery's size, per format, measured rather than argued.
+     *
+     * <p>Pinned because the number is the whole constraint. The tier exists to fit inside a build that
+     * already runs, so a declaration change that doubles it has to be a decision somebody made, not
+     * something noticed later from a timeout. A drop matters just as much: it means a selection stopped
+     * selecting, which reads as a faster build and is actually lost coverage.
+     */
+    public void testTheCiTierVectorCountIsPinnedPerFormat() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, Integer> expected = Map.of("csv", 101, "tsv", 98, "ndjson", 55, "orc", 46, "parquet", 46); // dimension-copy-ok:
+        // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
+        // this line rather than be counted silently into a battery nobody sized.
+        Map<String, Integer> actual = new LinkedHashMap<>();
+        for (String format : d.values("format")) {
+            actual.put(format, ciVectors(d, format).size());
+        }
+        assertThat(actual, equalTo(expected));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(346));
+    }
+
+    /**
+     * The nightly tier IS the universe. Not a near-copy of it: if restricting to a tier could drop a
+     * vector the unrestricted derivation emits, then every count this file pins would depend on which
+     * overload a caller reached for, and the tier axis would have quietly narrowed the exhaustive run.
+     */
+    public void testTheNightlyTierIsTheWholeUniverse() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("format")) {
+            Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
+            assertThat(
+                "nightly must equal the unrestricted derivation for " + format,
+                d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY),
+                equalTo(d.expressibleVectors(format, seams))
+            );
+        }
+    }
+
+    /**
+     * The selection is exactly what the declaration says it is. A vector in the pull-request battery
+     * carries, in every slot, either that format's default or a value declared {@code ci:} -- so a value
+     * cannot reach the battery by riding along in a clique with one that was selected.
+     */
+    public void testTheCiTierCarriesOnlyDefaultsAndDeclaredCiValues() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("format")) {
+            for (Map<String, String> vector : ciVectors(d, format)) {
+                for (Map.Entry<String, String> slot : vector.entrySet()) {
+                    if (slot.getKey().equals("format")) {
+                        continue;
+                    }
+                    String value = slot.getValue();
+                    if (value.equals(d.defaultValue(slot.getKey(), format))) {
+                        continue;
+                    }
+                    String reason = d.tierReason(slot.getKey(), value, format);
+                    assertThat(
+                        "CI vector on " + format + " carries undeclared [" + slot.getKey() + "=" + value + "]",
+                        reason,
+                        notNullValue()
+                    );
+                    assertThat(reason, containsString("ci:"));
+                }
+            }
+        }
+    }
+
+    /** Every format keeps a battery. A format whose CI selection is empty would gate nothing at all. */
+    public void testEveryConsumedFormatHasCiVectors() {
+        FixtureDimensions d = FixtureDimensions.get();
+        for (String format : d.values("format")) {
+            if (FixtureCapabilities.formatIsConsumed(d, format)) {
+                assertThat("format [" + format + "] would gate no pull request", ciVectors(d, format), not(empty()));
+            }
+        }
+    }
+
+    /**
+     * A CI cell earns its place from a defect that reached it. Without the citation the tier is an
+     * opinion, and the argument for running it on every pull request cannot be checked by anyone.
+     */
+    public void testACiTierCitingNoIssueIsRejected() {
+        String[] lines = ArrayUtils.concat(wellFormed(), new String[] { "dimension.error_mode.tier.skip_row = ci: it feels important" });
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("cites no issue"));
+    }
+
+    /**
+     * The citation rule is scoped to CI, and this is the control that proves it. Holding a value OUT of
+     * the pull-request battery is a judgement about cost, not a report of a defect, so demanding an issue
+     * for it would force people to cite something irrelevant.
+     */
+    public void testANightlyTierNeedsNoCitation() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.error_mode.tier.skip_row = nightly: too slow to earn a place on every pull request" }
+        );
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
+        assertThat(parsed.tierReason("error_mode", "skip_row", "csv"), containsString("nightly:"));
+        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(false));
+        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.NIGHTLY), equalTo(true));
+    }
+
+    public void testATierReasonNamingNoTierIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.error_mode.tier.skip_row = elastic/esql-planning#1842 -- no tier named" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("[ci:] or [nightly:]"));
+    }
+
+    /** A tier on the baseline selects nothing: every battery carries the default already. */
+    public void testATierOnTheDefaultValueIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.error_mode.tier.fail_fast = ci: elastic/esql-planning#1842 -- the default" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("effective default value"));
+    }
+
+    /**
+     * The one that matters most. Promoting a cell nobody can run announces coverage that does not exist,
+     * which is worse than declaring the gap -- a green battery reporting a configuration it never built.
+     */
+    public void testATierOnAnAbsentCellIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declared absent"));
+    }
+
+    /** A bare absence covers every format, so a per-format tier cannot slip past it either. */
+    public void testAPerFormatTierOnABarelyAbsentCellIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.error_mode.tier.skip_row.parquet = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("declared absent"));
+    }
+
+    public void testATierOnAnUndeclaredValueIsRejected() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.error_mode.tier.nonesuch = ci: elastic/esql-planning#1842 -- no such value" }
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
+        assertThat(e.getMessage(), containsString("does not declare"));
+    }
+
+    /**
+     * A per-format entry wins, which is the mechanism the text dialects need: a value that is one format's
+     * default and another's variation has to be selectable on the second without being declared on the
+     * first, where it would be rejected as a tier on the baseline.
+     */
+    public void testAPerFormatTierOverridesABareOne() {
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] {
+                "dimension.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path",
+                "dimension.error_mode.tier.skip_row.parquet = nightly: columnar reads never reach the row policy" }
+        );
+        FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
+        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(true));
+        assertThat(parsed.tierCarries("error_mode", "skip_row", "parquet", FixtureDimensions.Tier.CI), equalTo(false));
+    }
+
+    private static List<Map<String, String>> ciVectors(FixtureDimensions d, String format) {
+        return d.expressibleVectors(format, FixtureMatrix.get().seams(format + "-vector"), FixtureDimensions.Tier.CI);
+    }
+
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);

@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Answers one question for every cell of the contract: can a vector carrying this value actually run,
@@ -52,9 +51,6 @@ public final class FixtureContractAudit {
     private FixtureContractAudit() {}
 
     /** One cell's verdict: how it is reachable, or how its absence is licensed, or neither. */
-    /** What a filed issue looks like in a reason -- deliberately narrow, matching FixtureExclusions. */
-    private static final Pattern ISSUE_REFERENCE = Pattern.compile("[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+#\\d+");
-
     record Cell(String dimension, String value, String format, String verdict, boolean violation, String detail) {}
 
     public static void main(String[] args) throws IOException {
@@ -181,7 +177,7 @@ public final class FixtureContractAudit {
                 // Same standard the exclusions are held to: a cell withheld because something is BROKEN must
                 // name the filed issue. Without one there is nothing to delete the entry against, and a
                 // defect-shaped absence decays into an untraceable gap.
-                boolean cited = ISSUE_REFERENCE.matcher(reason).find();
+                boolean cited = FixtureDimensions.ISSUE_REFERENCE.matcher(reason).find();
                 return new Cell(
                     dimension,
                     value,

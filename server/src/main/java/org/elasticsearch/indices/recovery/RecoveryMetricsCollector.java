@@ -131,8 +131,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         );
         shardRecoveryDirectCancellationsElapsedTimeMetric = meterRegistry.registerLongHistogram(
             RECOVERY_DIRECT_CANCELLATIONS_ELAPSED_TIME_METRIC,
-            "For shard recoveries that have been directly cancelled by the master after starting, " +
-                "the elapsed time between starting and cancelling",
+            "For shard recoveries that have been directly cancelled by the master after starting, "
+                + "the elapsed time between starting and cancelling",
             "ms"
         );
         recoveryGateBlockedCurrentMetric = LongGaugeMetric.create(

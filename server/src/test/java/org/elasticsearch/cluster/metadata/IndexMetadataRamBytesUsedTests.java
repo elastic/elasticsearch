@@ -245,10 +245,7 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
      */
     public void testRamBytesUsedIncludesInSyncAllocationIdValues() {
         Settings settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()).build();
-        IndexMetadata withShortIds = IndexMetadata.builder("test")
-            .settings(settings)
-            .putInSyncAllocationIds(0, Set.of("short"))
-            .build();
+        IndexMetadata withShortIds = IndexMetadata.builder("test").settings(settings).putInSyncAllocationIds(0, Set.of("short")).build();
         IndexMetadata withLongIds = IndexMetadata.builder("test")
             .settings(settings)
             .putInSyncAllocationIds(0, Set.of("x".repeat(256)))

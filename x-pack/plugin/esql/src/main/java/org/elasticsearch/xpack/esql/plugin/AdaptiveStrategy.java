@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -18,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Adaptive distribution strategy for external sources.
@@ -105,17 +110,30 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
      * datasets consists of, and every one of them would be read on the coordinator.
      */
     private static boolean reducesRowsWhenDistributed(PhysicalPlan plan) {
-        return ExternalDistributionStrategy.needsGatherBoundary(plan)
-            || plan.anyMatch(
-                node -> node instanceof FragmentExec fragment
-                    && fragment.fragment().anyMatch(inner -> inner instanceof Aggregate || inner instanceof TopN)
-            );
+        return ExternalDistributionStrategy.needsGatherBoundary(plan) || fragmentHolds(plan, AdaptiveStrategy::reducesRows);
+    }
+
+    /**
+     * The pushed-down operators that shrink a producer's output before it crosses the fan-in. A plain {@code Limit} is
+     * absent on purpose: it does reduce rows, but a limit-only read is cheapest where the limit is applied once, which
+     * is what {@link #isLimitOnly} keeps on the coordinator.
+     */
+    private static boolean reducesRows(LogicalPlan node) {
+        return node instanceof Aggregate || node instanceof TopN || node instanceof TopNBy || node instanceof LimitBy;
+    }
+
+    /**
+     * A fan-in producer carries its pushed-down operators as a logical plan inside an unresolved {@link FragmentExec},
+     * so the physical tree alone answers no for every one of them.
+     */
+    private static boolean fragmentHolds(PhysicalPlan plan, Predicate<LogicalPlan> predicate) {
+        return plan.anyMatch(node -> node instanceof FragmentExec fragment && fragment.fragment().anyMatch(predicate));
     }
 
     private static boolean isLimitOnly(PhysicalPlan plan) {
-        boolean hasLimit = plan.anyMatch(n -> n instanceof LimitExec);
+        boolean hasLimit = plan.anyMatch(n -> n instanceof LimitExec) || fragmentHolds(plan, node -> node instanceof Limit);
         boolean hasAgg = plan.anyMatch(n -> n instanceof AggregateExec);
         boolean hasTopN = plan.anyMatch(n -> n instanceof TopNExec);
-        return hasLimit && hasAgg == false && hasTopN == false;
+        return hasLimit && hasAgg == false && hasTopN == false && fragmentHolds(plan, AdaptiveStrategy::reducesRows) == false;
     }
 }

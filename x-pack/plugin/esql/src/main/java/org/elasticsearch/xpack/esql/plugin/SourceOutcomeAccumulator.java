@@ -130,6 +130,11 @@ final class SourceOutcomeAccumulator {
             (key, outcome) -> outcomesByCluster.computeIfAbsent(key.clusterAlias(), ignored -> new ArrayList<>()).add(outcome)
         );
         outcomesByCluster.forEach((clusterAlias, outcomes) -> execInfo.swapCluster(clusterAlias, (key, cluster) -> {
+            if (cluster == null) {
+                // A producer read a cluster that planning never registered, so there is no entry to merge into.
+                // swapCluster would store this back under the alias, and a Cluster cannot be built without one.
+                return null;
+            }
             int totalShards = 0;
             int successfulShards = 0;
             int skippedShards = 0;

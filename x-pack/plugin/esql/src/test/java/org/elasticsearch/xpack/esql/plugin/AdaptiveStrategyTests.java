@@ -184,9 +184,9 @@ public class AdaptiveStrategyTests extends ESTestCase {
     }
 
     /**
-     * A lone split stays put only while it is the query's only read. The four cases below fix where that boundary is:
-     * the sibling count flips the decision, the LIMIT-only and no-pipeline-breaker rules still override it, and the
-     * end result is that a query of many one-split producers spreads instead of piling onto the coordinator.
+     * A lone split stays put only while it is the query's only read. The four cases below bound that boundary from
+     * both sides: the sibling count flips the decision, the LIMIT-only and no-pipeline-breaker rules override it
+     * anyway, and a query of many one-split producers spreads instead of piling onto the coordinator.
      */
     public void testSingleSplitAsOnlyProducerStaysLocal() {
         ExternalDistributionContext context = new ExternalDistributionContext(
@@ -282,7 +282,7 @@ public class AdaptiveStrategyTests extends ESTestCase {
         assertFalse(strategy.planDistribution(context).distributed());
     }
 
-    /** The outcome the change is for: six one-split producers over three nodes read two splits per node, not six on one. */
+    /** The outcome the rotation is for: six one-split producers over three nodes read two splits per node, not six on one. */
     public void testOneSplitProducersSpreadOverNodesInsteadOfStackingOnCoordinator() {
         DiscoveryNodes nodes = createNodes(3);
         Map<String, Integer> perNode = new LinkedHashMap<>();

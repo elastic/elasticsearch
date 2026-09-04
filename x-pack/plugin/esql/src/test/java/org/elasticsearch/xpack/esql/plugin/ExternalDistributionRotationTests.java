@@ -33,19 +33,19 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROL
  * Node selection offset by {@code producerIndex}, which is what keeps the source producers of a fan-in from converging
  * on one node.
  *
- * <p>Each producer discovers its own splits and plans its own distribution with no view of its siblings, and both
- * assignment functions used to begin at the first eligible node: round-robin from index zero, and LPT by resolving the
- * opening all-zero-load tie toward index zero. Every producer therefore placed its first and largest split on the same
- * node, and a query over many small datasets loaded one node in proportion to the number of datasets. Offsetting the
- * start by the producer's own index spreads those first splits without giving up either function's balance, which the
- * invariance cases below pin.
+ * <p>Each producer discovers its own splits and plans its own distribution with no view of its siblings, so the only
+ * thing that can keep them apart is where each one starts. Without an offset both assignment functions start at the
+ * first eligible node: round-robin from index zero, and LPT by resolving the opening all-zero-load tie toward index
+ * zero. Every producer would then place its first and largest split on that one node, loading it in proportion to the
+ * number of datasets. Offsetting the start by the producer's own index spreads those first splits without giving up
+ * either function's balance, which the invariance cases below pin.
  */
 public class ExternalDistributionRotationTests extends ESTestCase {
 
     /**
      * The case the rotation exists for: one split per producer leaves round-robin no room to spread within a producer,
-     * so spreading can only come from where each producer starts. Asserted against the unrotated behaviour to show the
-     * whole load used to land on a single node.
+     * so spreading can only come from where each producer starts. The unrotated overload is asserted alongside it,
+     * since it is what shows the whole load landing on a single node.
      */
     public void testSingleSplitProducersSpreadAcrossNodes() {
         DiscoveryNodes nodes = createNodes(4);

@@ -432,20 +432,18 @@ public class ComputeService {
         };
     }
 
+    /**
+     * Collects splits and places them in one call. Performs object-store IO on the calling thread, so it must not be
+     * called from {@code SEARCH}; the query path collects splits with {@link #collectExternalSplitsAsync} first and
+     * then places them through the {@link CollectedSplits} overload below.
+     */
     ExternalDistributionResult applyExternalDistributionStrategy(
         PhysicalPlan plan,
         Configuration configuration,
         EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled,
-        int producerIndex,
-        int producerCount
+        BooleanSupplier isCancelled
     ) {
-        return applyExternalDistributionStrategy(
-            collectExternalSplits(plan, configuration, execInfo, isCancelled),
-            configuration,
-            producerIndex,
-            producerCount
-        );
+        return applyExternalDistributionStrategy(collectExternalSplits(plan, configuration, execInfo, isCancelled), configuration, 0, 1);
     }
 
     /**
@@ -1883,32 +1881,94 @@ public class ComputeService {
         SourceOutcomeAccumulator sourceOutcomes,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        final ExternalDistributionResult distributionResult;
         long splitDiscoveryStart = System.nanoTime();
         BooleanSupplier preparationCancelled = () -> rootTask.isCancelled() || execInfo.isStopped() || exchangeSource.isFinished();
-        try {
-            PhysicalPlan splitPlan = discoverSplits(producer, configuration, execInfo, preparationCancelled);
-            distributionResult = applyExternalDistributionStrategy(
-                splitPlan,
-                configuration,
-                execInfo,
-                preparationCancelled,
-                producerIndex,
-                producerCount
-            );
-            if (distributionResult.coordinatorSplits().isEmpty() == false || distributionResult.distributionPlan() != null) {
-                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
-            }
-        } catch (TaskCancelledException e) {
-            if (rootTask.isCancelled() == false && (execInfo.isStopped() || exchangeSource.isFinished())) {
-                listener.onResponse(DriverCompletionInfo.EMPTY);
-            } else {
-                listener.onFailure(e);
-            }
+        // A producer runs from a SEARCH task held by sourceProducerRunner, and fragment-path discovery does
+        // footer/probe IO against the object store. Hop that IO to esql_external_io and come back to SEARCH for
+        // the CPU-only placement, the same split as the single-source path in executePlan. Reading in place
+        // would park a SEARCH thread per concurrent producer on object-store latency, and the coordinator
+        // fetches its exchange pages on that same pool.
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
+            ActionListener.wrap(
+                collected -> runOnSearch(
+                    () -> executeSourceProducerAfterDiscovery(
+                        sessionId,
+                        producerIndex,
+                        producerCount,
+                        rootTask,
+                        flags,
+                        collected,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        profileQualifier,
+                        initialClusterStatuses,
+                        exchangeSource,
+                        cancelQueryOnFailure,
+                        sourceOutcomes,
+                        splitDiscoveryStart,
+                        listener
+                    ),
+                    listener
+                ),
+                e -> {
+                    if (e instanceof TaskCancelledException
+                        && rootTask.isCancelled() == false
+                        && (execInfo.isStopped() || exchangeSource.isFinished())) {
+                        listener.onResponse(DriverCompletionInfo.EMPTY);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            ),
+            threadPool.getThreadContext()
+        );
+        if (operatorFactoryRegistry == null) {
+            afterDiscovery.onResponse(new CollectedSplits(producer, List.of()));
             return;
-        } catch (Exception e) {
-            listener.onFailure(e);
+        }
+        if (canSkipSplitDiscovery(producer, formatReaderRegistry)) {
+            recordExternalWarmAggregates(execInfo, producer);
+            afterDiscovery.onResponse(new CollectedSplits(producer, List.of()));
             return;
+        }
+        startSplitDiscovery(
+            producer,
+            configuration,
+            execInfo,
+            preparationCancelled,
+            afterDiscovery.delegateFailureAndWrap(
+                (l, splitPlan) -> collectExternalSplitsAsync(splitPlan, configuration, execInfo, preparationCancelled, l)
+            )
+        );
+    }
+
+    private void executeSourceProducerAfterDiscovery(
+        String sessionId,
+        int producerIndex,
+        int producerCount,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        CollectedSplits collected,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        ExchangeSourceHandler exchangeSource,
+        Runnable cancelQueryOnFailure,
+        SourceOutcomeAccumulator sourceOutcomes,
+        long splitDiscoveryStart,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
+        ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(
+            collected,
+            configuration,
+            producerIndex,
+            producerCount
+        );
+        if (distributionResult.coordinatorSplits().isEmpty() == false || distributionResult.distributionPlan() != null) {
+            execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
         }
 
         if (rootTask.isCancelled()) {

@@ -11,9 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3Http
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
-import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
 
 /**
  * {@link BackendFixture} adapter for {@link DataSourcesS3HttpFixture}. Encapsulates the
@@ -41,7 +39,9 @@ public final class S3BackendFixture implements BackendFixture {
 
     @Override
     public Map<String, Object> dataSourceSettings() {
-        return Map.of("endpoint", fixture.getAddress(), "access_key", ACCESS_KEY, "secret_key", SECRET_KEY);
+        // Read the key pair off the fixture rather than the shared constants: a suite may run two fixtures
+        // with distinct credentials, and each data source must be registered with the keys its own fixture accepts.
+        return Map.of("endpoint", fixture.getAddress(), "access_key", fixture.accessKey(), "secret_key", fixture.secretKey());
     }
 
     @Override

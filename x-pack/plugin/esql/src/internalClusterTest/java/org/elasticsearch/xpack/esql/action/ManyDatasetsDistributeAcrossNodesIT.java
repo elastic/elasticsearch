@@ -85,8 +85,8 @@ public class ManyDatasetsDistributeAcrossNodesIT extends AbstractExternalDataSou
     }
 
     /**
-     * The counterpart: one dataset with one split has no siblings to share the load with, so it is still read in place
-     * rather than paying a hop for no parallelism. Bounds the change to the many-producer case.
+     * The counterpart: one dataset with one split has no siblings to share the load with, so it is read in place
+     * rather than paying a hop for no parallelism. Spreading is confined to the many-producer case.
      */
     public void testLoneSingleSplitDatasetStillReadsOnOneNode() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);

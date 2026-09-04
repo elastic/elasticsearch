@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -297,22 +298,38 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
         final int expectedNodes = nodesWithSplits;
         final ActionListener<DriverCompletionInfo> distributionListener = parentComputeListener.acquireCompute();
+        enum NodeOutcome {
+            SUCCEEDED,
+            FAILED,
+            /** The exchange stopped wanting rows before this node was read from, so it never ran. */
+            NOT_ASKED
+        }
         class DistributionCompletion {
             private final AtomicInteger completedNodes = new AtomicInteger();
-            private final AtomicInteger successfulNodes = new AtomicInteger();
             private final AtomicInteger failedNodes = new AtomicInteger();
             private final AtomicBoolean completed = new AtomicBoolean();
 
+            /**
+             * A node the query never asked for data from, because the exchange has stopped wanting any. Failures close
+             * their exchange sinks, so a finished exchange is not evidence that the query already had enough rows,
+             * which is why this counts as neither a success nor a failure: recording it as a success would decide the
+             * all-nodes-failed question below on the outcome of an unrelated node.
+             */
+            void nodeSkipped() {
+                nodeCompleted();
+            }
+
             void nodeFinished(boolean successful) {
-                if (successful) {
-                    successfulNodes.incrementAndGet();
-                } else {
+                if (successful == false) {
                     failedNodes.incrementAndGet();
                 }
+                nodeCompleted();
+            }
+
+            private void nodeCompleted() {
                 if (completedNodes.incrementAndGet() == expectedNodes && completed.compareAndSet(false, true)) {
-                    // Failures close their exchange sinks, so isFinished() is often already true here.
-                    // That is not evidence the query already had enough rows (a satisfied LIMIT).
-                    if (successfulNodes.get() == 0 && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
+                    boolean allFailed = failedNodes.get() == expectedNodes;
+                    if (allFailed && executionStopped.getAsBoolean() == false && parentTask.isCancelled() == false) {
                         var failure = new IllegalStateException("all [" + failedNodes.get() + "] nodes assigned external splits failed");
                         if (allowPartial && tolerateAllNodesFailure) {
                             allNodesFailureConsumer.accept(failure);
@@ -347,7 +364,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     return;
                 }
                 if (exchangeSource.isFinished()) {
-                    distributionCompletion.nodeFinished(true);
+                    distributionCompletion.nodeSkipped();
                     continue;
                 }
 
@@ -403,11 +420,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 var childSessionId = computeService.newChildSession(sessionId);
                 keepAlive.track();
                 final AtomicBoolean nodeDone = new AtomicBoolean(false);
-                final AtomicBoolean nodeSucceeded = new AtomicBoolean(false);
+                final AtomicReference<NodeOutcome> nodeOutcome = new AtomicReference<>(NodeOutcome.FAILED);
                 final Runnable finishNode = () -> {
                     if (nodeDone.compareAndSet(false, true)) {
                         keepAlive.done();
-                        distributionCompletion.nodeFinished(nodeSucceeded.get());
+                        switch (nodeOutcome.get()) {
+                            case SUCCEEDED -> distributionCompletion.nodeFinished(true);
+                            case FAILED -> distributionCompletion.nodeFinished(false);
+                            case NOT_ASKED -> distributionCompletion.nodeSkipped();
+                        }
                     }
                 };
                 ActionListener<Void> openExchangeSlot = ActionListener.runAfter(parentComputeListener.acquireAvoid(), finishNode);
@@ -416,14 +437,30 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     if (cancelled || exchangeSource.isFinished()) {
                         var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
                         ActionListener<Void> terminalListener = l;
-                        remoteSink.close(ActionListener.wrap(ignored -> {
+                        if (cancelled == false) {
+                            nodeOutcome.set(NodeOutcome.NOT_ASKED);
+                        }
+                        Runnable releaseSlot = () -> {
                             if (cancelled) {
                                 terminalListener.onFailure(new TaskCancelledException(parentTask.getReasonCancelled()));
                             } else {
-                                nodeSucceeded.set(true);
                                 terminalListener.onResponse(null);
                             }
-                        }, terminalListener::onFailure));
+                        };
+                        // The close only releases a sink this node was never read from. Its failure says nothing about
+                        // the rows the query already has, and this slot came from acquireAvoid, so reporting it would
+                        // cancel a query that is either already done or already being cancelled for its own reason.
+                        remoteSink.close(ActionListener.wrap(ignored -> releaseSlot.run(), e -> {
+                            LOGGER.debug(
+                                () -> Strings.format(
+                                    "failed to close the unread external sink on node [%s] for session [%s]",
+                                    node.getName(),
+                                    childSessionId
+                                ),
+                                e
+                            );
+                            releaseSlot.run();
+                        }));
                         return;
                     }
                     final Runnable onGroupFailure;
@@ -451,7 +488,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     final ActionListener<Void> outerL = l;
                     try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
-                            nodeSucceeded.set(true);
+                            nodeOutcome.set(NodeOutcome.SUCCEEDED);
                             profileSlot.onResponse(info);
                         } finally {
                             outerL.onResponse(null);

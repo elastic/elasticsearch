@@ -52,6 +52,12 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return plan instanceof Fork && plan instanceof SourceFanInUnionAll == false;
     }
 
+    /**
+     * Every {@link Fork} in {@code plan} that the user actually wrote, per {@link #isUserWrittenFork}. Callers that
+     * count or reject forks want this rather than {@code plan.collect(Fork.class)}: a multi-source {@code FROM}
+     * expands to a {@link SourceFanInUnionAll}, which is a {@link Fork} subclass but is one resolved source, so
+     * counting it would charge a user a FORK they never asked for.
+     */
     public static List<Fork> collectUserWrittenForks(LogicalPlan plan) {
         List<Fork> forks = new ArrayList<>();
         for (Fork fork : plan.collect(Fork.class)) {

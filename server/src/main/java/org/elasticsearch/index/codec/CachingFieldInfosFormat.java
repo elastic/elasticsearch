@@ -31,12 +31,11 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Shares the field infos a segment read produces, so that a mapping with many fields costs fewer instances.
+ * Shares the field infos a segment read produces.
  *
- * <p>Field names and attribute maps are interned node-wide, which every read does: shards of the same index, and different
- * indices of the same data stream, carry the same names and attribute maps. Whole {@link FieldInfo} instances are shared as
- * well when the segment's directory is a {@link FieldInfoCachingDirectory}, which holds them for one shard; they cannot be
- * shared beyond it, because field numbering is per-IndexWriter and the number is part of the identity.
+ * <p>Names and attribute maps are interned node-wide, so shards of one index and indices of one data stream share them. Whole
+ * {@link FieldInfo} instances are shared as well when the segment's directory is a {@link FieldInfoCachingDirectory}, which
+ * holds them for a single shard: field numbers are assigned per IndexWriter and form part of the identity.
  */
 public final class CachingFieldInfosFormat extends FieldInfosFormat {
 
@@ -82,10 +81,6 @@ public final class CachingFieldInfosFormat extends FieldInfosFormat {
         final FieldInfo[] deduplicated = new FieldInfo[fieldInfos.size()];
         int i = 0;
         for (FieldInfo fi : fieldInfos) {
-            // Node-wide intern of names and attribute maps so that data-stream-style workloads (many shards on one node
-            // sharing the same mapping) share canonical String / Map instances across shards. The per-Directory cache
-            // below only handles the FieldInfo object itself, since field numbering is per-IndexWriter and so
-            // FieldInfo identity cannot cross shard boundaries.
             final String name = FieldMapper.internFieldName(fi.getName());
             final Map<String, String> attrs = internStringStringMap(fi.attributes());
             final FieldInfoKey key = new FieldInfoKey(

@@ -11,6 +11,16 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.tests.analysis.CannedTokenStream;
+import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -177,6 +187,77 @@ public class CachingFieldInfosFormatTests extends ESTestCase {
                 assertNotNull(fi2);
                 assertSame("re-reading the same segment must reuse canonical FieldInfo for [" + fi1.getName() + "]", fi1, fi2);
             }
+        }
+    }
+
+    /**
+     * The field infos this format returns are rebuilt rather than passed through, so every property a segment recorded has to
+     * survive the rebuild, with and without a directory to cache them in.
+     */
+    public void testRebuiltFieldInfosMatchWhatWasRead() throws Exception {
+        for (boolean caching : new boolean[] { false, true }) {
+            try (Directory raw = newDirectory()) {
+                Directory dir = caching ? new FieldInfoCachingDirectory(raw) : raw;
+                indexVariedFields(dir);
+                SegmentCommitInfo sci = SegmentInfos.readLatestCommit(dir).iterator().next();
+                FieldInfos expected = new Lucene104Codec().fieldInfosFormat().read(dir, sci.info, "", IOContext.DEFAULT);
+                FieldInfos actual = newFormat().read(dir, sci.info, "", IOContext.DEFAULT);
+
+                String message = "caching=" + caching;
+                assertEquals(message, expected.size(), actual.size());
+                for (FieldInfo want : expected) {
+                    FieldInfo got = actual.fieldInfo(want.getName());
+                    assertNotNull(message + " field " + want.getName(), got);
+                    assertEquals(message, want.getName(), got.getName());
+                    assertEquals(message, want.number, got.number);
+                    assertEquals(message, want.hasTermVectors(), got.hasTermVectors());
+                    assertEquals(message, want.omitsNorms(), got.omitsNorms());
+                    assertEquals(message, want.hasPayloads(), got.hasPayloads());
+                    assertEquals(message, want.getIndexOptions(), got.getIndexOptions());
+                    assertEquals(message, want.getDocValuesType(), got.getDocValuesType());
+                    assertEquals(message, want.docValuesSkipIndexType(), got.docValuesSkipIndexType());
+                    assertEquals(message, want.getDocValuesGen(), got.getDocValuesGen());
+                    assertEquals(message, want.attributes(), got.attributes());
+                    assertEquals(message, want.getPointDimensionCount(), got.getPointDimensionCount());
+                    assertEquals(message, want.getPointIndexDimensionCount(), got.getPointIndexDimensionCount());
+                    assertEquals(message, want.getPointNumBytes(), got.getPointNumBytes());
+                    assertEquals(message, want.getVectorDimension(), got.getVectorDimension());
+                    assertEquals(message, want.getVectorEncoding(), got.getVectorEncoding());
+                    assertEquals(message, want.getVectorSimilarityFunction(), got.getVectorSimilarityFunction());
+                    assertEquals(message, want.isSoftDeletesField(), got.isSoftDeletesField());
+                    assertEquals(message, want.isParentField(), got.isParentField());
+                }
+            }
+        }
+    }
+
+    /** Exercises the properties a FieldInfo can carry, so that the equivalence check above has something to compare. */
+    private static void indexVariedFields(Directory directory) throws Exception {
+        FieldType withVectorsAndPayloads = new FieldType(TextField.TYPE_NOT_STORED);
+        withVectorsAndPayloads.setStoreTermVectors(true);
+        withVectorsAndPayloads.setStoreTermVectorPositions(true);
+        withVectorsAndPayloads.setStoreTermVectorPayloads(true);
+        withVectorsAndPayloads.setOmitNorms(true);
+        withVectorsAndPayloads.freeze();
+
+        IndexWriterConfig iwc = baseIwc();
+        try (IndexWriter w = new IndexWriter(directory, iwc)) {
+            for (int d = 0; d < 3; d++) {
+                Document doc = new Document();
+                doc.add(new StringField("id", "d" + d, Field.Store.NO));
+                doc.add(new Field("text", "term" + d + " other", withVectorsAndPayloads));
+                // A postings payload, which is what FieldInfo#hasPayloads reflects; term vector payloads are a different flag.
+                Token token = new Token("payloaded", 0, 9);
+                token.setPayload(new BytesRef(new byte[] { 1, 2, 3 }));
+                doc.add(new Field("with_payload", new CannedTokenStream(token), withVectorsAndPayloads));
+                doc.add(new IntPoint("point", d, d + 1));
+                doc.add(new SortedNumericDocValuesField("sorted_numeric", d));
+                doc.add(new SortedSetDocValuesField("sorted_set", new BytesRef("s" + d)));
+                doc.add(new BinaryDocValuesField("binary", new BytesRef("b" + d)));
+                doc.add(new KnnFloatVectorField("vector", new float[] { d, d + 1.0f, d + 2.0f }));
+                w.addDocument(doc);
+            }
+            w.commit();
         }
     }
 

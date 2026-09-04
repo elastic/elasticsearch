@@ -14,8 +14,6 @@ import org.elasticsearch.core.UpdateForV10;
 
 import java.util.Locale;
 
-import static org.apache.lucene.util.automaton.RegExp.DEPRECATED_COMPLEMENT;
-
 /**
  * Regular expression syntax flags. Each flag represents optional syntax support in the regular expression:
  * <ul>
@@ -39,12 +37,12 @@ public enum RegexpFlag {
     INTERSECTION(RegExp.INTERSECTION),
 
     /**
-     * Enables complement expression of the form: {@code ~&lt;expression&gt;}
-     * We use the deprecated support in Lucene 10. Will be removed in Lucene 11
-     * https://github.com/elastic/elasticsearch/issues/113465
+     * Historical Lucene {@code ~&lt;expression&gt;} complement flag. Lucene 11 no longer
+     * supports that operator; the bit is kept so existing {@code flags} values still parse.
      */
+    // TODO: LUCENE11 remove COMPLEMENT from the public regexp flags API
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
-    COMPLEMENT(DEPRECATED_COMPLEMENT),
+    COMPLEMENT(0x0002),
 
     /**
      * Enables empty language expression: {@code #}
@@ -69,7 +67,7 @@ public enum RegexpFlag {
     /**
      * Enables all available option flags
      */
-    ALL(RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT);
+    ALL(RegExp.ALL);
 
     final int value;
 

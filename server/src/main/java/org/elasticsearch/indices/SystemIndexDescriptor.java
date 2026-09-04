@@ -801,13 +801,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourc
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        final Automaton patternAutomaton = new RegExp(patternAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+        final Automaton patternAutomaton = new RegExp(patternAsRegex, RegExp.ALL).toAutomaton();
 
         if (aliasAsRegex == null) {
             return patternAutomaton;
         }
 
-        final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+        final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL).toAutomaton();
 
         return Operations.determinize(Operations.union(patternAutomaton, aliasAutomaton), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }

@@ -1,0 +1,256 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fix_nested_subfield_extraction ]
+      reason: "Nested subfields must be treated as absent at extraction (#154011)"
+
+  # nest_int: item.value is integer under nested (hidden from field caps).
+  # obj_long: item.value is long under a plain object (the planned type).
+  - do:
+      indices.create:
+        index: nest_int
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              item:
+                type: nested
+                properties:
+                  value:
+                    type: integer
+  - do:
+      indices.create:
+        index: obj_long
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              item:
+                properties:
+                  value:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nest_int" } }
+          - { "id": "n0", "item": [ { "value": 100 } ] }
+          - { "index": { "_index": "nest_int" } }
+          - { "id": "n1", "item": [ { "value": 101 } ] }
+          - { "index": { "_index": "obj_long" } }
+          - { "id": "o0", "item": { "value": 1 } }
+          - { "index": { "_index": "obj_long" } }
+          - { "id": "o1", "item": { "value": 2 } }
+
+---
+"columnar extract and TopN: nested integer vs object long":
+  # Pre-fix: sanityCheckBlock INT vs LONG, or ClassCastException on SORT.
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nest_int, obj_long | KEEP id, item.value | SORT id | LIMIT 10'
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "item.value" }
+  - match: { columns.1.type: "long" }
+  - match: { values.0: [ "n0", null ] }
+  - match: { values.1: [ "n1", null ] }
+  - match: { values.2: [ "o0", 1 ] }
+  - match: { values.3: [ "o1", 2 ] }
+
+---
+"aggregation: SUM and COUNT skip nested values":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_int, obj_long | STATS s = SUM(item.value), c = COUNT(item.value), rows = COUNT(*)'
+  - match: { values.0: [ 3, 2, 4 ] }
+
+---
+"WHERE IS NOT NULL keeps only the object-index rows":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_int, obj_long | WHERE item.value IS NOT NULL | STATS c = COUNT(*)'
+  - match: { values.0: [ 2 ] }
+
+---
+"explicit long cast still nullifies the nested shard":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_int, obj_long | STATS s = SUM(item.value::long)'
+  - match: { values.0: [ 3 ] }
+
+---
+"nested-only index does not resolve the nested subfield":
+  - do:
+      catch: '/Unknown column \[item\.value\]/'
+      esql.query:
+        body:
+          query: 'FROM nest_int | KEEP item.value'
+
+---
+"unmapped_fields=load does not re-open the nested type-skew path":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fix_nested_subfield_extraction, optional_fields_fix_load_partially_mapped ]
+      reason: "SET unmapped_fields=load must still nullify nested subfields"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM nest_int, obj_long | STATS s = SUM(item.value), c = COUNT(item.value)'
+  - match: { values.0: [ 3, 2 ] }
+
+---
+"DOUBLE vs LONG nested conflict":
+  # Covers the #155858 signature: element_type [DOUBLE] NOT IN (NULL, LONG)
+  - do:
+      indices.create:
+        index: nest_dbl
+        body:
+          mappings:
+            properties:
+              item:
+                type: nested
+                properties:
+                  value:
+                    type: double
+  - do:
+      indices.create:
+        index: obj_lng
+        body:
+          mappings:
+            properties:
+              item:
+                properties:
+                  value:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nest_dbl" } }
+          - { "item": [ { "value": 1.5 } ] }
+          - { "index": { "_index": "nest_dbl" } }
+          - { "item": [ { "value": 2.5 } ] }
+          - { "index": { "_index": "obj_lng" } }
+          - { "item": { "value": 1 } }
+          - { "index": { "_index": "obj_lng" } }
+          - { "item": { "value": 2 } }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_dbl, obj_lng | STATS s = SUM(item.value), c = COUNT(item.value)'
+  - match: { values.0: [ 3, 2 ] }
+
+---
+"BYTES_REF vs LONG nested conflict":
+  # Covers the #154484 signature: element_type [BYTES_REF] NOT IN (NULL, LONG)
+  - do:
+      indices.create:
+        index: nest_kw
+        body:
+          mappings:
+            properties:
+              item:
+                type: nested
+                properties:
+                  value:
+                    type: keyword
+  - do:
+      indices.create:
+        index: obj_dt
+        body:
+          mappings:
+            properties:
+              item:
+                properties:
+                  value:
+                    type: date
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nest_kw" } }
+          - { "item": [ { "value": "nested-0" } ] }
+          - { "index": { "_index": "nest_kw" } }
+          - { "item": [ { "value": "nested-1" } ] }
+          - { "index": { "_index": "obj_dt" } }
+          - { "item": { "value": "2024-01-01T00:00:00.000Z" } }
+          - { "index": { "_index": "obj_dt" } }
+          - { "item": { "value": "2024-01-02T00:00:00.000Z" } }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_kw, obj_dt | STATS c = COUNT(item.value)'
+  - match: { values.0: [ 2 ] }
+
+---
+"deep path: nested parent with intermediate object":
+  - do:
+      indices.create:
+        index: nest_deep
+        body:
+          mappings:
+            properties:
+              a:
+                type: nested
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: integer
+  - do:
+      indices.create:
+        index: obj_deep
+        body:
+          mappings:
+            properties:
+              a:
+                properties:
+                  b:
+                    properties:
+                      c:
+                        type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nest_deep" } }
+          - { "a": [ { "b": { "c": 99 } } ] }
+          - { "index": { "_index": "nest_deep" } }
+          - { "a": [ { "b": { "c": 98 } } ] }
+          - { "index": { "_index": "obj_deep" } }
+          - { "a": { "b": { "c": 5 } } }
+          - { "index": { "_index": "obj_deep" } }
+          - { "a": { "b": { "c": 7 } } }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_deep, obj_deep | STATS s = SUM(a.b.c), c = COUNT(a.b.c)'
+  - match: { values.0: [ 12, 2 ] }

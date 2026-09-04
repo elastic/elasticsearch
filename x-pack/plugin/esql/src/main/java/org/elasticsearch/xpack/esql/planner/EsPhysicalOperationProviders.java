@@ -870,12 +870,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
-            // Exclude dynamically-resolved flattened sub-keys: fieldType() resolves them to a non-null type, but field caps
-            // does not report them and they must not be extracted (see #154508). Only a dotted name can be such a sub-key,
-            // and for a flat name a non-null fieldType already implies isMappedField(name) == true — so gating the (virtual)
-            // mapped-field probe on the dot keeps flat names (the common case) at a single resolution.
-            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys; skip the redundant probe for flat names
-                && isMappedField(name) == false) {
+            // Exclude fields that field caps hides from the coordinator so the shard does not load a
+            // differently-typed block (see #154508 flattened sub-keys, #154011 nested subfields).
+            // Only a dotted name can be either: a flattened sub-key (fieldType() is non-null but the
+            // key is not in the mapping) or a nested subfield (isMappedField is true, but -nested
+            // filtered it from field caps). Gating the extra probes on the dot keeps flat names
+            // (the common case) at a single resolution.
+            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys or nested subfields
+                && (isMappedField(name) == false || ctx.nestedLookup().getNestedParent(name) != null)) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(

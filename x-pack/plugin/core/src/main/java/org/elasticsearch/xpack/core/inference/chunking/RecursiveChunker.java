@@ -12,6 +12,7 @@ import com.ibm.icu.text.BreakIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -41,8 +42,7 @@ public class RecursiveChunker implements Chunker {
                 input,
                 new ChunkOffset(0, input.length()),
                 recursiveChunkingSettings.getSeparators(),
-                recursiveChunkingSettings.maxChunkSize(),
-                0
+                recursiveChunkingSettings.maxChunkSize()
             );
         } else {
             throw new IllegalArgumentException(
@@ -51,29 +51,71 @@ public class RecursiveChunker implements Chunker {
         }
     }
 
-    private List<ChunkOffset> chunk(String input, ChunkOffset offset, List<String> separators, int maxChunkSize, int separatorIndex) {
-        if (offset.start() == offset.end() || isChunkWithinMaxSize(buildChunkOffsetAndCount(input, offset), maxChunkSize)) {
-            return List.of(offset);
+    /**
+     * Iteratively splits {@code initialOffset} into chunks that each fit within {@code maxChunkSize},
+     * trying separators in list order and falling back to the sentence boundary chunker when all
+     * separators are exhausted.
+     * <p>
+     * An explicit worklist ({@link ArrayDeque}) replaces what was previously a recursive call,
+     * so the JVM call-stack depth is constant regardless of the number of separators.
+     * Chunks that already fit are emitted immediately; only oversized chunks are pushed
+     * back onto the worklist for further splitting with the next separator.
+     * Oversized chunks are pushed in reverse order so that they are popped (and therefore
+     * emitted) in document order.
+     */
+    private List<ChunkOffset> chunk(String input, ChunkOffset initialOffset, List<String> separators, int maxChunkSize) {
+        if (initialOffset.start() == initialOffset.end()) {
+            return List.of(initialOffset);
         }
 
-        if (separatorIndex > separators.size() - 1) {
-            return chunkWithBackupChunker(input, offset, maxChunkSize);
+        var initialChunk = buildChunkOffsetAndCount(input, initialOffset);
+        if (isChunkWithinMaxSize(initialChunk, maxChunkSize)) {
+            return List.of(initialOffset);
         }
 
-        var potentialChunks = mergeChunkOffsetsUpToMaxChunkSize(
-            splitTextBySeparatorRegex(input, offset, separators.get(separatorIndex)),
-            maxChunkSize
-        );
-        var actualChunks = new ArrayList<ChunkOffset>();
-        for (var potentialChunk : potentialChunks) {
-            if (isChunkWithinMaxSize(potentialChunk, maxChunkSize)) {
-                actualChunks.add(potentialChunk.chunkOffset());
-            } else {
-                actualChunks.addAll(chunk(input, potentialChunk.chunkOffset(), separators, maxChunkSize, separatorIndex + 1));
+        var chunks = new ArrayList<ChunkOffset>();
+        var worklist = new ArrayDeque<PendingChunk>();
+        worklist.push(new PendingChunk(initialChunk, 0));
+
+        while (worklist.isEmpty() == false) {
+            var pending = worklist.pop();
+            var chunkOffsetAndCount = pending.chunkOffsetAndCount();
+            var offset = chunkOffsetAndCount.chunkOffset();
+            int separatorIndex = pending.separatorIndex();
+
+            // Emit directly if the chunk is empty or already fits within the limit.
+            if (offset.start() == offset.end() || isChunkWithinMaxSize(chunkOffsetAndCount, maxChunkSize)) {
+                chunks.add(offset);
+                continue;
+            }
+
+            if (separatorIndex >= separators.size()) {
+                chunks.addAll(chunkWithBackupChunker(input, offset, maxChunkSize));
+                continue;
+            }
+
+            var potentialChunks = mergeChunkOffsetsUpToMaxChunkSize(
+                splitTextBySeparatorRegex(input, offset, separators.get(separatorIndex)),
+                maxChunkSize
+            );
+
+            // Emit fit chunks immediately; push oversized chunks in reverse so they pop in document order.
+            for (int i = 0; i < potentialChunks.size(); i++) {
+                var potentialChunk = potentialChunks.get(i);
+                if (isChunkWithinMaxSize(potentialChunk, maxChunkSize)) {
+                    chunks.add(potentialChunk.chunkOffset());
+                } else {
+                    // All remaining chunks from this split need further processing.
+                    // Push them in reverse order so the earliest chunk is popped first.
+                    for (int j = potentialChunks.size() - 1; j >= i; j--) {
+                        worklist.push(new PendingChunk(potentialChunks.get(j), separatorIndex + 1));
+                    }
+                    break;
+                }
             }
         }
 
-        return actualChunks;
+        return chunks;
     }
 
     private boolean isChunkWithinMaxSize(ChunkOffsetAndCount chunkOffsetAndCount, int maxChunkSize) {
@@ -147,4 +189,11 @@ public class RecursiveChunker implements Chunker {
     }
 
     private record ChunkOffsetAndCount(ChunkOffset chunkOffset, int wordCount) {}
+
+    /**
+     * A chunk that still needs to be checked or further split, together with the index of the
+     * next separator to try if it turns out to be too large. The word count is carried alongside
+     * the offset so that fitness checks on pop do not require re-counting.
+     */
+    private record PendingChunk(ChunkOffsetAndCount chunkOffsetAndCount, int separatorIndex) {}
 }

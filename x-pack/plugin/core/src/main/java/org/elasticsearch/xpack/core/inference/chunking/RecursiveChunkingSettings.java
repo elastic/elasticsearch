@@ -31,6 +31,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
     static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    static final int MAX_SEPARATOR_COUNT = 50;
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
@@ -50,10 +51,15 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public RecursiveChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
         separators = in.readCollectionAsList(StreamInput::readString);
+        validateFields(maxChunkSize, separators);
     }
 
     @Override
     public void validate() {
+        validateFields(maxChunkSize, separators);
+    }
+
+    private static void validateFields(int maxChunkSize, List<String> separators) {
         ValidationException validationException = new ValidationException();
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
@@ -64,6 +70,12 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
 
         if (separators != null && separators.isEmpty()) {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+        }
+
+        if (separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SEPARATORS + " list size [" + separators.size() + "] must not exceed [" + MAX_SEPARATOR_COUNT + "]"
+            );
         }
 
         validationException.throwIfValidationErrorsExist();
@@ -111,6 +123,15 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             separators = separatorGroup.getSeparators();
         } else if (separators != null && separators.isEmpty()) {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
+        }
+
+        // This duplicates the check in validateFields() because fromMap() collects all errors
+        // into a single ValidationException before throwing, whereas validateFields() is used
+        // by the StreamInput constructor where the settings are already fully read.
+        if (separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SEPARATORS + " list size [" + separators.size() + "] must not exceed [" + MAX_SEPARATOR_COUNT + "]"
+            );
         }
 
         validationException.throwIfValidationErrorsExist();

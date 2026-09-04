@@ -506,8 +506,10 @@ green      | 3
 knnBeforeMvExpandWithStats
 required_capability: knn_function_v5
 
+// Query [1,120,0] not [0,120,0]: olive [128,128,0] and teal [0,128,128] are equidistant
+// from [0,120,0], and LIMIT 3 is pushed to knn's k, so the third neighbour is a coin flip.
 from colors metadata _score
-| where knn(rgb_vector, [0, 120, 0])
+| where knn(rgb_vector, [1, 120, 0])
 | sort _score desc, color asc
 | limit 3
 | eval x = [1, 2]
@@ -528,7 +530,7 @@ required_capability: fix_full_text_functions_on_renamed_fields
 
 from colors metadata _score
 | rename rgb_vector as vec
-| where knn(vec, [0, 120, 0])
+| where knn(vec, [1, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
 | limit 3
@@ -547,7 +549,7 @@ required_capability: fix_full_text_functions_on_renamed_fields
 from colors metadata _score
 | rename rgb_vector as x
 | rename x as vec
-| where knn(vec, [0, 120, 0])
+| where knn(vec, [1, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
 | limit 3
@@ -566,7 +568,7 @@ required_capability: fix_full_text_functions_on_renamed_fields
 from colors metadata _score
 | eval x = 1
 | rename rgb_vector as vec
-| where knn(vec, [0, 120, 0])
+| where knn(vec, [1, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
 | limit 3
@@ -585,7 +587,7 @@ required_capability: fix_full_text_functions_on_renamed_fields
 from colors metadata _score
 | rename rgb_vector as vec
 | eval x = 1
-| where knn(vec, [0, 120, 0])
+| where knn(vec, [1, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
 | limit 3

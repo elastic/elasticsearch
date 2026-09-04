@@ -7449,12 +7449,12 @@ public class CsvFormatReaderTests extends ESTestCase {
      * Declared and inferred bindings must agree on row-width rejection for both grammars:
      * Jackson ({@code trim_spaces}) and the house escaped tokenizer.
      */
-    public void testDeclaredBindingRowWidthValidationUnderJacksonGrammar() throws Exception {
-        List<Map<String, Object>> jacksonConfigs = List.of(
+    public void testDeclaredBindingRowWidthValidationUnderTrimAndEscapedGrammars() throws Exception {
+        List<Map<String, Object>> grammarConfigs = List.of(
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "trim_spaces", true),
             Map.of("header_row", true, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "mode", "escaped")
         );
-        for (Map<String, Object> config : jacksonConfigs) {
+        for (Map<String, Object> config : grammarConfigs) {
             String desc = "config=" + config;
             // Inference over the same file and the same grammar, as the parity reference.
             // Direct-block off so the read takes the batch route, where jacksonGrammarApplies() picks the tokenizer:

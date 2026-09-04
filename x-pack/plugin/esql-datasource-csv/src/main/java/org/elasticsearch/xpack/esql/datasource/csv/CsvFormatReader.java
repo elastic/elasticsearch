@@ -2809,7 +2809,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         while (true) {
             long scan = CsvTokenizerKernel.scanUnquotedField(record, i, len, delim, esc, true);
             int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
-            fields.add(emitEscapedSplitField(record, i, fieldEnd, delim, esc, trimSpaces, maxFieldChars));
+            fields.add(
+                emitEscapedSplitField(record, i, fieldEnd, delim, esc, trimSpaces, CsvTokenizerKernel.scanHasEscape(scan), maxFieldChars)
+            );
             if (fieldEnd >= len) {
                 break;
             }
@@ -2820,9 +2822,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Raw substring of an escaped-mode field {@code record[start, end)}. Under {@code trim_spaces},
-     * surrounding {@code c <= ' '} is stripped except the delimiter itself and whitespace protected
-     * by an unpaired escape: those are in-field data and must survive trim. The cap governs the
-     * emitted length. C-style decode is left to {@link #decodeFieldValue}.
+     * unescaped {@code c <= ' '} is stripped from both ends (except the delimiter itself). An
+     * unescaped escape char is not padding when it still has a following byte to protect, so a
+     * whitespace escape char (legal in {@link CsvFormatOptions}) is not eaten from the front of a
+     * pair; a trailing lone whitespace escape is padding. When the scan saw no escape the walk is
+     * a two-pointer trim of unescaped {@code c <= ' '} (except the delimiter); otherwise one
+     * forward pass tracks pairing so a long escape-run followed by spaces is linear. The cap
+     * governs the emitted length. C-style decode is left to {@link #decodeFieldValue}.
      */
     private static String emitEscapedSplitField(
         String record,
@@ -2831,17 +2837,43 @@ public class CsvFormatReader implements SegmentableFormatReader {
         char delim,
         char esc,
         boolean trimSpaces,
+        boolean hasEscape,
         int maxFieldChars
     ) {
         if (trimSpaces) {
-            while (start < end && record.charAt(start) <= ' ' && record.charAt(start) != delim) {
-                start++;
-            }
-            while (end > start
-                && record.charAt(end - 1) <= ' '
-                && record.charAt(end - 1) != delim
-                && escapedAt(record, start, end - 1, esc) == false) {
-                end--;
+            if (hasEscape) {
+                boolean inEscape = false;
+                int firstKeep = -1;
+                int lastKeep = -1;
+                for (int i = start; i < end; i++) {
+                    char c = record.charAt(i);
+                    boolean escaped = inEscape;
+                    if (inEscape) {
+                        inEscape = false;
+                    } else if (c == esc) {
+                        inEscape = true;
+                    }
+                    boolean padding = c <= ' ' && c != delim && escaped == false && (c != esc || i + 1 >= end);
+                    if (padding == false) {
+                        if (firstKeep < 0) {
+                            firstKeep = i;
+                        }
+                        lastKeep = i;
+                    }
+                }
+                if (firstKeep < 0) {
+                    end = start;
+                } else {
+                    start = firstKeep;
+                    end = lastKeep + 1;
+                }
+            } else {
+                while (start < end && record.charAt(start) <= ' ' && record.charAt(start) != delim) {
+                    start++;
+                }
+                while (end > start && record.charAt(end - 1) <= ' ' && record.charAt(end - 1) != delim) {
+                    end--;
+                }
             }
         }
         int fieldLen = end - start;
@@ -2849,15 +2881,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             throw new MalformedRowException(fieldSizeExceededDetail(fieldLen, maxFieldChars));
         }
         return record.substring(start, end);
-    }
-
-    /** True when {@code record[pos]} is protected by an unpaired {@code esc} in {@code [fieldStart, pos)}. */
-    private static boolean escapedAt(String record, int fieldStart, int pos, char esc) {
-        int n = 0;
-        for (int i = pos - 1; i >= fieldStart && record.charAt(i) == esc; i--) {
-            n++;
-        }
-        return n % 2 == 1;
     }
 
     /**

@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all, optional_fields_load_all_skips_valueless_fields ]
+          capabilities: [ optional_fields_load_all_v2 ]
       reason: "under SET unmapped_fields=\"load_all\", a source field that is null, [] or [null] everywhere expands into no column"
 
   # dynamic:false keeps every field but id unmapped no matter what the documents write to it, so those are only ever discoverable

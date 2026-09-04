@@ -3428,15 +3428,6 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(Build.current().isSnapshot()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
-         * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
-         * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
-         * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
-         * a stringified {@code "[]"}.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

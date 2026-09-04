@@ -33,7 +33,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected TestBuilder loadAll(String query, String... variants) {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         return builder("SET unmapped_fields=\"LOAD_ALL\"; " + query).nestedPath(ArrayUtils.prepend("load_all", variants));
     }
 
@@ -43,7 +43,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
      * {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION}) are needed to capture physical plan behavior.
      */
     protected TestBuilder loadAll(EnumSet<Stage> stages, String query, String... variants) {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         return super.builder("SET unmapped_fields=\"LOAD_ALL\"; " + query).stages(stages)
             .nestedPath(ArrayUtils.prepend("load_all", variants));
     }

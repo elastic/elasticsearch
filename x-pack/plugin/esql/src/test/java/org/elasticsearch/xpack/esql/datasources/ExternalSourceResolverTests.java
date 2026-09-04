@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -658,6 +659,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertEquals("wide", resolved.metadata().schema().get(0).name());
+    }
+
+    /**
+     * {@code my_schema.parquet, events/**}{@code /*.parquet} under FFW omitted knobs: the named file
+     * is {@code listing.path(0)} and its wide schema is pinned onto every glob file.
+     */
+    public void testFfwSchemaFileThenRecursiveGlobPinsSchemaOnEveryFile() throws Exception {
+        assertFfwDedicatedSchemaFileAndRecursiveGlob(
+            "s3://bucket/my_schema.parquet,s3://bucket/events/**/*.parquet",
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+    }
+
+    /**
+     * {@code events/**}{@code /*.parquet, my_schema.parquet} with {@code list}+{@code desc}: reverse
+     * concat so the last named file is the FFW donor, still pinned onto every glob file.
+     */
+    public void testFfwRecursiveGlobThenSchemaFileListDescPinsSchemaOnEveryFile() throws Exception {
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "list");
+        config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+        assertFfwDedicatedSchemaFileAndRecursiveGlob("s3://bucket/events/**/*.parquet,s3://bucket/my_schema.parquet", config);
     }
 
     public void testFileSortByOnUnionByNameIsRejectedAtResolve() {
@@ -3902,6 +3925,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // always forward the per-path config — no special-casing the empty case.
         resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
+    }
+
+    /**
+     * Resolves a resource (glob or comma list) with listings keyed by each glob segment's
+     * {@link StoragePath#patternPrefix()}. Literals exist via {@code schemasByPath}.
+     */
+    private ExternalSourceResolution resolveResourceWithConfig(
+        String resource,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Map<String, Object> config
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(resource), Map.of(resource, new HashMap<>(config)), future);
+        return future.actionGet();
+    }
+
+    /**
+     * Dedicated {@code my_schema.parquet} outside {@code events/}, plus two glob files whose own
+     * inferred schema is narrower. FFW must take the schema file as {@code path(0)} and pin it.
+     */
+    private void assertFfwDedicatedSchemaFileAndRecursiveGlob(String resource, Map<String, Object> config) throws Exception {
+        List<Attribute> schemaFile = List.of(attr("id", DataType.INTEGER), attr("extra", DataType.KEYWORD));
+        List<Attribute> eventSchema = List.of(attr("id", DataType.INTEGER));
+        String schemaPath = "s3://bucket/my_schema.parquet";
+        String a = "s3://bucket/events/2024/a.parquet";
+        String z = "s3://bucket/events/2024/z.parquet";
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(schemaPath, schemaFile);
+        schemasByPath.put(a, eventSchema);
+        schemasByPath.put(z, eventSchema);
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            StoragePath.of("s3://bucket/events/**/*.parquet").patternPrefix().toString(),
+            List.of(entry(a, 100), entry(z, 200))
+        );
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(resource, schemasByPath, listingsByPrefix, config);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(resource);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertEquals(schemaPath, fileList.path(0).toString());
+        assertEquals(3, fileList.fileCount());
+        assertEquals(List.of("id", "extra"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(3, resolved.schemaMap().size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
+            assertEquals(
+                "every FFW entry carries the dedicated schema file, including " + e.getKey(),
+                schemaFile,
+                e.getValue().fileSchema().attributes()
+            );
+        }
     }
 
     /**

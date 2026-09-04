@@ -74,6 +74,15 @@ public class GlobExpanderTests extends ESTestCase {
         return provider;
     }
 
+    /** Literal {@code my_schema.parquet} plus a recursive events glob listing. Schema sits outside the glob prefix. */
+    private static StubProvider schemaFileAndEventsProvider() {
+        StubProvider provider = new StubProvider(
+            List.of(entry("s3://bucket/events/2024/a.parquet", 100), entry("s3://bucket/events/2024/z.parquet", 200))
+        );
+        provider.existingPaths.add("s3://bucket/my_schema.parquet");
+        return provider;
+    }
+
     // -- isMultiFile --
 
     public void testIsMultiFileWithGlob() {
@@ -504,6 +513,42 @@ public class GlobExpanderTests extends ESTestCase {
             ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
         );
         assertEquals("s3://bucket/_schema.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Dedicated schema file first, then a recursive glob. Omitted FFW knobs keep declaration order:
+     * {@code my_schema.parquet} is the donor and the glob files are still listed.
+     */
+    public void testFfwCommaSchemaFileThenRecursiveGlobKeepsDeclarationOrder() throws IOException {
+        StubProvider provider = schemaFileAndEventsProvider();
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/my_schema.parquet,s3://bucket/events/**/*.parquet",
+            provider,
+            null,
+            ffw()
+        );
+        assertEquals("s3://bucket/my_schema.parquet", result.path(0).toString());
+        assertEquals(3, result.fileCount());
+        assertEquals("s3://bucket/events/2024/a.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/events/2024/z.parquet", result.path(2).toString());
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: reverse the concat once so
+     * {@code my_schema.parquet} is the FFW donor and the glob files remain in the listing.
+     */
+    public void testFfwCommaRecursiveGlobThenSchemaFileListDescPicksSchema() throws IOException {
+        StubProvider provider = schemaFileAndEventsProvider();
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/events/**/*.parquet,s3://bucket/my_schema.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/my_schema.parquet", result.path(0).toString());
+        assertEquals(3, result.fileCount());
+        assertEquals("s3://bucket/events/2024/z.parquet", result.path(1).toString());
+        assertEquals("s3://bucket/events/2024/a.parquet", result.path(2).toString());
     }
 
     /**

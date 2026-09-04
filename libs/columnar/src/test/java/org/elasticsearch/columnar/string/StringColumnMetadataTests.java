@@ -68,7 +68,8 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
                 metadata.iterator(),
                 metadata.numDocsWithField(),
                 metadata.numValues() + 1,
-                plainOf(metadata).values()
+                plainOf(metadata).values(),
+                metadata.valuesSorted()
             );
             assertTrue("more values than documents", several.multiValued());
         });

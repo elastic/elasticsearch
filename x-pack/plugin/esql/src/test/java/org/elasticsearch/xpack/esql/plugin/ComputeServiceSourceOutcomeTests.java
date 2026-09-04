@@ -13,6 +13,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.plugin.SourceOutcomeAccumulator.SourceClusterKey;
 
 import java.util.List;
 
@@ -30,9 +31,9 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testRepeatedProducerAttemptsDoNotMultiplyShardCounts() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey first = new ComputeService.SourceClusterKey("", List.of("first"));
-        ComputeService.SourceClusterKey second = new ComputeService.SourceClusterKey("", List.of("second"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey first = new SourceClusterKey("", List.of("first"));
+        SourceClusterKey second = new SourceClusterKey("", List.of("second"));
 
         outcomes.recordIndexResponse(first, response(5, 5, 0, 0, List.of()));
         outcomes.recordIndexResponse(
@@ -55,14 +56,14 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         ComputeResponse partial = response(5, 3, 0, 2, List.of(new ShardSearchFailure(new IllegalStateException("failed shards"))));
 
         EsqlExecutionInfo firstExecution = executionInfo();
-        ComputeService.SourceOutcomeAccumulator firstOutcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("", List.of("test"));
+        SourceOutcomeAccumulator firstOutcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("", List.of("test"));
         firstOutcomes.recordIndexResponse(source, successful);
         firstOutcomes.recordIndexResponse(source, partial);
         firstOutcomes.applyTo(firstExecution);
 
         EsqlExecutionInfo secondExecution = executionInfo();
-        ComputeService.SourceOutcomeAccumulator secondOutcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator secondOutcomes = new SourceOutcomeAccumulator();
         secondOutcomes.recordIndexResponse(source, partial);
         secondOutcomes.recordIndexResponse(source, successful);
         secondOutcomes.applyTo(secondExecution);
@@ -76,8 +77,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSuccessfulRepeatedAttemptPreventsAllSourcesFailure() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("", List.of("test"));
         IllegalStateException failure = new IllegalStateException("failed shards");
 
         outcomes.recordIndexResponse(source, response(2, 0, 0, 2, List.of(new ShardSearchFailure(failure))));
@@ -88,8 +89,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSkippedRemoteSourceRemainsSkipped() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("", List.of("test"));
 
         outcomes.recordRemoteOutcome(
             source,
@@ -111,8 +112,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         executionInfo.queryProfile().planning().start();
         executionInfo.queryProfile().planning().stop();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("remote", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
 
         outcomes.recordRemoteOutcome(
             source,
@@ -130,10 +131,10 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testFailureBeforeShardResponseFailsAnEmptyQuery() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         IllegalStateException failure = new IllegalStateException("failed before response");
 
-        outcomes.recordIndexFailure(new ComputeService.SourceClusterKey("", List.of("test")), failure);
+        outcomes.recordIndexFailure(new SourceClusterKey("", List.of("test")), failure);
 
         Exception thrown = expectThrows(Exception.class, () -> outcomes.failIfAllSourcesFailed(executionInfo, List.of()));
         assertSame(failure, thrown);
@@ -141,11 +142,11 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testRemoteFailureBeforeShardResponseFailsAnEmptyQuery() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         IllegalStateException failure = new IllegalStateException("failed before response");
 
         outcomes.recordRemoteOutcome(
-            new ComputeService.SourceClusterKey("remote", List.of("test")),
+            new SourceClusterKey("remote", List.of("test")),
             new ClusterComputeHandler.RemoteClusterOutcome.ToleratedFailure(EsqlExecutionInfo.Cluster.Status.SKIPPED, failure, null)
         );
 
@@ -155,10 +156,10 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testPipelineBreakerOutputDoesNotMaskAllSourceFailures() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         IllegalStateException failure = new IllegalStateException("failed shard");
         outcomes.recordIndexResponse(
-            new ComputeService.SourceClusterKey("", List.of("test")),
+            new SourceClusterKey("", List.of("test")),
             response(1, 0, 0, 1, List.of(new ShardSearchFailure(failure)))
         );
 
@@ -168,21 +169,18 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSuccessfulSourceAllowsOtherSourceFailures() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        outcomes.recordIndexFailure(
-            new ComputeService.SourceClusterKey("", List.of("failed")),
-            new IllegalStateException("failed before response")
-        );
-        outcomes.recordIndexResponse(new ComputeService.SourceClusterKey("", List.of("successful")), response(1, 1, 0, 0, List.of()));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        outcomes.recordIndexFailure(new SourceClusterKey("", List.of("failed")), new IllegalStateException("failed before response"));
+        outcomes.recordIndexResponse(new SourceClusterKey("", List.of("successful")), response(1, 1, 0, 0, List.of()));
 
         outcomes.failIfAllSourcesFailed(executionInfo, List.of());
     }
 
     public void testCompletedEmptyIndexAllowsOtherSourceFailures() {
         EsqlExecutionInfo executionInfo = executionInfo();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         outcomes.recordIndexResponse(
-            new ComputeService.SourceClusterKey("", List.of("empty")),
+            new SourceClusterKey("", List.of("empty")),
             randomBoolean() ? response(0, 0, 0, 0, List.of()) : response(3, 0, 3, 0, List.of())
         );
         outcomes.recordExternalFailure(new IllegalStateException("failed external source"));
@@ -192,7 +190,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSuccessfulExternalSourceAllowsOtherExternalSourceFailures() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         outcomes.recordExternalFailure(new IllegalStateException("failed external source"));
         outcomes.recordExternalSuccess();
 
@@ -201,7 +199,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testExternalFailureFailsWithoutSuccessfulSource() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
         IllegalStateException failure = new IllegalStateException("failed external source");
         outcomes.recordExternalFailure(failure);
 
@@ -212,8 +210,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
     public void testSubplanApplyToLeavesClusterRunning() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         executionInfo.startSubPlans(randomBoolean());
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("remote", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
 
         outcomes.recordIndexResponse(source, response(4, 4, 0, 0, List.of()));
         outcomes.applyTo(executionInfo);
@@ -228,7 +226,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
     public void testSubplanApplyToLeavesUnusedClusterRunning() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         executionInfo.startSubPlans(randomBoolean());
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
 
         outcomes.applyTo(executionInfo);
 
@@ -240,7 +238,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testLeftoverRunningClusterIsSuccessfulWithoutInventingShards() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
 
         outcomes.applyTo(executionInfo);
 
@@ -253,7 +251,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
     public void testLeftoverRunningClusterIsPartialWhenStopped() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         executionInfo.markAsStopped();
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
 
         outcomes.applyTo(executionInfo);
 
@@ -265,8 +263,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSkippedSuccessfulRemoteOutcomeDoesNotInventShards() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("remote", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
 
         outcomes.recordRemoteOutcome(
             source,
@@ -282,8 +280,8 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testSkippedRemoteOutcomeMarksClusterSkipped() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
-        ComputeService.SourceClusterKey source = new ComputeService.SourceClusterKey("remote", List.of("test"));
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+        SourceClusterKey source = new SourceClusterKey("remote", List.of("test"));
 
         outcomes.recordRemoteOutcome(
             source,
@@ -299,7 +297,7 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
 
     public void testExternalSuccessIsRecordedWithoutClusterMetadata() {
         EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS);
-        ComputeService.SourceOutcomeAccumulator outcomes = new ComputeService.SourceOutcomeAccumulator();
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
 
         outcomes.recordExternalSuccess();
         outcomes.applyTo(executionInfo);

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
@@ -83,13 +82,16 @@ public interface UserRoleMapper {
                 // null dn fields get the default NULL_PREDICATE
                 model.defineField("dn", dn, new DistinguishedNamePredicate(dn, dnNormalizer));
             }
-            model.defineField(
-                "groups",
-                groups,
-                groups.stream().<Predicate<FieldExpression.FieldValue>>map(g -> new DistinguishedNamePredicate(g, dnNormalizer))
-                    .reduce(Predicate::or)
-                    .orElse(Predicates.never())
-            );
+            var groupPredicates = groups.stream().map(group -> new DistinguishedNamePredicate(group, dnNormalizer)).toList();
+
+            model.defineField("groups", groups, fieldValue -> {
+                for (var predicate : groupPredicates) {
+                    if (predicate.test(fieldValue)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
             model.defineField("realm.name", realm.name());
             return model;

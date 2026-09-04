@@ -523,7 +523,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 final IndexMetadata currentIndexMetadata = project.index(INDEX_NAME);
                 assertThat(currentIndexMetadata.getState(), equalTo(IndexMetadata.State.OPEN));
 
-                // mirrors RestoreService#restoreOverClosedIndex: same index UUID, open, but a new history UUID
+                // mirrors RestoreService#restoreOverExistingIndex: same index UUID, open, but a new history UUID
                 final IndexMetadata restoredIndexMetadata = IndexMetadata.builder(currentIndexMetadata)
                     .settings(
                         Settings.builder()

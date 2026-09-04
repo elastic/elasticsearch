@@ -1918,11 +1918,11 @@ public final class RestoreService implements ClusterStateApplier {
                             openIndexTarget,
                             partial
                         );
-                        indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
+                        indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
                     } else {
                         // Index exists and it's closed - open it in metadata and start recovery
                         validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
-                        indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
+                        indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
                     }
 
                     if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
@@ -2417,7 +2417,7 @@ public final class RestoreService implements ClusterStateApplier {
             .eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
     }
 
-    private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+    private static IndexMetadata.Builder restoreOverExistingIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))

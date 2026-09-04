@@ -218,7 +218,12 @@ $$$index-max-terms-count$$$
 $$$index-max-regex-length$$$
 
 `index.max_regex_length`
-:   The maximum length of value that can be used in `regexp` or `prefix` query, and of the regular expression in the `include` and `exclude` parameters of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and `frequent_item_sets` aggregations. Defaults to `1000`.
+:   The maximum length of value that can be used in the following places:
+
+    * A `regexp` or `prefix` query.
+    * {applies_to}`stack: ga 9.6` The regular expression in the `include` and `exclude` parameters of the `terms`, `significant_terms`, `significant_text`, `rare_terms` and `frequent_item_sets` aggregations.
+
+    Defaults to `1000`.
 
 $$$index-query-default-field$$$
 

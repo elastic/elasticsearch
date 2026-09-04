@@ -80,10 +80,10 @@ import static org.hamcrest.Matchers.empty;
  *
  * <h2>Mapping sanitisation</h2>
  *
- * <p>The {@link ColumnarStrategy} removes mapping runtime fields before creating each index because
- * {@code IndexMode.COLUMNAR.validateMapping} calls {@code validateNoMappingRuntimeFields}. Datasets
- * with {@code store: true} fields (currently only {@code hosts} and {@code hosts_ip_is_kwd}) are
- * excluded in {@link #COLUMNAR_INCOMPATIBLE_DATASETS} rather than silently stripped.</p>
+ * <p>The {@link ColumnarStrategy} sanitises each mapping before creating the index: it removes
+ * the top-level {@code runtime} section (required by {@code validateNoMappingRuntimeFields}),
+ * strips {@code "store": true} from every field (stored fields are not supported in columnar mode),
+ * and applies a few other columnar-mode defaults. See {@link ColumnarStrategy#sanitizeMapping}.</p>
  *
  * <p>Lookup-mode datasets ({@code index.mode: lookup}) are deliberately left alone so that
  * {@code LOOKUP JOIN} tests can still execute with a columnar primary index.
@@ -191,12 +191,7 @@ public class CsvColumnarIT extends CsvIT {
         // the original _source for these fields and rejects index creation with
         // "field [kw] cannot reconstruct _source from doc values".
         "normalized_keyword",
-        "normalized_keyword_unmapped",
-        // mapping-hosts.json has store:true on one field; strict columnar mode rejects store:true
-        // rather than silently ignoring it, so we exclude these datasets instead of stripping the
-        // attribute from the mapping.
-        "hosts",
-        "hosts_ip_is_kwd"
+        "normalized_keyword_unmapped"
     );
 
     public CsvColumnarIT(
@@ -643,7 +638,7 @@ public class CsvColumnarIT extends CsvIT {
                     return settings;
                 }
                 if (COLUMNAR_INCOMPATIBLE_DATASETS.contains(dataset.indexName())) {
-                    // These datasets produce wrong results by design (geo_point precision, store:true,
+                    // These datasets produce wrong results by design (geo_point precision,
                     // keyword normalizers, etc.) and are excluded at generation time. routing_path is
                     // not involved. See COLUMNAR_INCOMPATIBLE_DATASETS for per-dataset reasons.
                     FORCED_STANDARD_DATASETS.add(dataset.indexName());
@@ -699,7 +694,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs three adjustments in a single parse-serialize pass:
+         * <p>Performs four adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -707,6 +702,10 @@ public class CsvColumnarIT extends CsvIT {
          *       runtime fields. The csv-spec fixtures do not currently use mapping runtime fields,
          *       but removing the section defensively ensures this variant stays robust as the
          *       fixtures evolve.</li>
+         *   <li>Strips {@code "store": true} from every field definition.
+         *       Columnar mode rejects stored fields at mapping validation time. Removing the
+         *       attribute is semantically safe: columnar always reconstructs field values from doc
+         *       values, so the stored copy is neither needed nor consulted.</li>
          *   <li>Injects {@code "index": true} into every {@code dense_vector} field that declares
          *       {@code "similarity"} but omits {@code "index"}.
          *       Columnar mode defaults {@code index.mapping.index_disabled_by_default} to
@@ -731,6 +730,7 @@ public class CsvColumnarIT extends CsvIT {
         private static String sanitizeMapping(String mapping) throws IOException {
             Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
             map.remove("runtime");
+            stripStoreTrue(map);
             fixDenseVectorIndexDefault(map);
             fixTextNormsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -796,6 +796,19 @@ public class CsvColumnarIT extends CsvIT {
             walkFieldDefs(mappingObject, fieldDef -> {
                 if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
                     fieldDef.put("norms", true);
+                }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and removes {@code "store": true} from every field
+         * definition. Columnar mode rejects stored fields; removing the attribute is safe because
+         * columnar always reconstructs values from doc values.
+         */
+        private static void stripStoreTrue(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if (Boolean.TRUE.equals(fieldDef.get("store"))) {
+                    fieldDef.remove("store");
                 }
             });
         }

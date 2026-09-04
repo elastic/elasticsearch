@@ -33,7 +33,7 @@ public class IndexVersionRamBytesUsedTests extends AbstractAccountableFieldsTest
     }
 
     @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         return new IndexVersion(randomIntBetween(1, 1_000_000), Version.LATEST);
     }
 }

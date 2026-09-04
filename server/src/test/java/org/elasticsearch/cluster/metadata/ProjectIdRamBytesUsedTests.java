@@ -34,7 +34,7 @@ public class ProjectIdRamBytesUsedTests extends AbstractAccountableFieldsTestCas
     }
 
     @Override
-    protected Accountable createTestInstance() {
+    protected Accountable createRandomTestInstance() {
         return ProjectId.fromId(randomAlphaOfLengthBetween(8, 32));
     }
 
@@ -43,6 +43,6 @@ public class ProjectIdRamBytesUsedTests extends AbstractAccountableFieldsTestCas
      */
     public void testRamBytesUsedGrowsWithIdLength() {
         ProjectId small = ProjectId.fromId("a");
-        assertThat(createTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
+        assertThat(createRandomTestInstance().ramBytesUsed(), greaterThan(small.ramBytesUsed()));
     }
 }

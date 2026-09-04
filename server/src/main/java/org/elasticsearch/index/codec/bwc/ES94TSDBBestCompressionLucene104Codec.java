@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.bwc;
 
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
@@ -18,7 +18,13 @@ public class ES94TSDBBestCompressionLucene104Codec extends AbstractTSDBSynthetic
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public ES94TSDBBestCompressionLucene104Codec() {
-        this(new Elasticsearch96Codec(Lucene104Codec.Mode.BEST_SPEED, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION));
+        this(
+            new Elasticsearch96Codec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+                ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION
+            )
+        );
     }
 
     public ES94TSDBBestCompressionLucene104Codec(Elasticsearch96Codec delegate) {

@@ -15,9 +15,6 @@ import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
-import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
-import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,8 +43,6 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
-
         var bestSpeedCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -56,28 +51,20 @@ public class CodecService implements CodecProvider {
             bigArrays,
             threadPool
         );
-        if (useSyntheticId) {
-            // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
-            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));
-        } else {
-            codecs.put(DEFAULT_CODEC, bestSpeedCodec);
-        }
+        codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         // We can't remove this now
         codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
 
         var bestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
-            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+            // Segments named Elasticsearch96 that record no mode were written with Lucene stored fields.
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
             threadPool
         );
-        if (useSyntheticId) {
-            codecs.put(BEST_COMPRESSION_CODEC, new ES94TSDBBestCompressionLucene104Codec(bestCompressionCodec));
-        } else {
-            codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
-        }
+        codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
         Codec legacyBestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_COMPRESSION,
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
@@ -122,9 +109,6 @@ public class CodecService implements CodecProvider {
     public String[] availableCodecs() {
         return codecs.keySet().toArray(new String[0]);
     }
-
-
-
 
     /** Adds field infos sharing to a codec that does not provide it, keeping that codec's name. */
     private static final class SharedFieldInfosCodec extends FilterCodec {

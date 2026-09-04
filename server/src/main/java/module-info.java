@@ -509,8 +509,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bwc.Elasticsearch92Lucene103Codec,
             org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec,
             org.elasticsearch.index.codec.Elasticsearch96Codec,
-            org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
-            org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
+            org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec,
+            org.elasticsearch.index.codec.bwc.ES94TSDBBestCompressionLucene104Codec;
 
     provides org.apache.lucene.index.SortFieldProvider
         with

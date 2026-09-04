@@ -42,6 +42,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -788,8 +789,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 new ES93TSDBDefaultCompressionLucene103Codec(
                     new PerFieldMapperCodec(
                         Lucene104Codec.Mode.BEST_SPEED,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
                         mapperService,
                         BigArrays.NON_RECYCLING_INSTANCE,
                         null

@@ -38,7 +38,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -283,18 +283,14 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testTSDBDefault() throws Exception {
-        // Both values every run: which shape the default codec takes depends on this, and a randomBoolean() would only
-        // exercise one of them per seed.
+        // Synthetic ids no longer get a codec of their own: the same codec covers them, differing per field and in what it
+        // validates. Both values run every time, since a randomBoolean() would only exercise one of them per seed.
         for (boolean syntheticIdEnabled : new boolean[] { false, true }) {
-            CodecService codecService = createCodecService(syntheticIdEnabled);
-            Codec codec = codecService.codec("default");
-            assertTrue("syntheticId=" + syntheticIdEnabled, codec.fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat);
-            if (syntheticIdEnabled) {
-                // The TSDB codec deduplicates in its own right, so CodecService hands it back unwrapped.
-                assertThat(codec, instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
-            } else {
-                assertThat(codec, not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class)));
-            }
+            Codec codec = createCodecService(syntheticIdEnabled).codec("default");
+            String message = "syntheticId=" + syntheticIdEnabled;
+            assertThat(message, codec, instanceOf(PerFieldMapperCodec.class));
+            assertEquals(message, "Elasticsearch96", codec.getName());
+            assertThat(message, codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
         }
     }
 

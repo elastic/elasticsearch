@@ -34,7 +34,9 @@ import org.elasticsearch.simdvec.internal.Int8VectorScorer;
 import org.elasticsearch.simdvec.internal.Int8VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92NativeInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.NativeBBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.NativeBinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
@@ -105,7 +107,9 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
-        return new PanamaVectorScorerFactory().newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        return new ESNextAshBBQVectorsScorer(NativeBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     @Override

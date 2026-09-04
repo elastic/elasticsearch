@@ -13,6 +13,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -378,27 +381,35 @@ public class ComputeService {
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
-        int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
-        return externalCoalesceFloor(effectiveConcurrency, eligibleNodes);
+        return externalCoalesceFloor(effectiveConcurrency, clusterService.state().nodes());
     }
 
     /**
      * The minimum number of coalesced groups to keep for an external scan, so read parallelism is not collapsed
      * to a single unit. It is the per-node driver cap ({@code task_concurrency}) times the number of eligible
-     * data nodes: after distribution each node receives about {@code task_concurrency} groups and runs that many
-     * scan drivers. {@link SplitCoalescer} clamps the result to the input split count. The value is held at or
-     * above one (a degenerate {@code task_concurrency} of zero or below still leaves the scan coalescible) and at
-     * or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
+     * remote workers: after distribution each worker receives about {@code task_concurrency} groups and runs that
+     * many scan drivers. Index nodes contribute no remote external-scan capacity, so they are omitted. On an
+     * index-only cluster the eligible-worker count is zero and is normalised to one, which holds the floor at
+     * {@code task_concurrency}: the scan is about to run on the coordinator alone, and that one node still fills
+     * {@code task_concurrency} scan drivers. Normalising the product instead would drop the floor to one and leave
+     * the coordinator with fewer groups than it has drivers. {@link SplitCoalescer} clamps the result to the input
+     * split count. The value is held at or above one (a degenerate {@code task_concurrency} of zero or below still
+     * leaves the scan coalescible) and at or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
      *
-     * <p>Deliberately counts the whole cluster even for a scan that ends up staying local: coalescing runs before
-     * the distribution decision, and the group count is itself an input to that decision
-     * ({@code AdaptiveStrategy} weighs splits against nodes). A local scan therefore gets more groups than its one
-     * node can occupy. That overshoot is harmless — the groups become slices in a shared queue and the driver count
-     * is still capped at {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a
-     * distributable scan unable to fill the cluster.
+     * <p>Deliberately counts the whole eligible cluster even for a scan that ends up staying local: coalescing
+     * runs before the distribution decision, and the group count is itself an input to that decision
+     * ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote workers exist, a local scan
+     * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
+     * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
+     * undershooting would leave a distributable scan unable to fill the cluster.
      */
+    static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
+        int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();
+        return externalCoalesceFloor(taskConcurrency, eligibleNodeCount);
+    }
+
     static int externalCoalesceFloor(int taskConcurrency, int eligibleNodeCount) {
-        long floor = (long) taskConcurrency * eligibleNodeCount;
+        long floor = (long) taskConcurrency * Math.max(1, eligibleNodeCount);
         return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
@@ -457,6 +468,20 @@ public class ComputeService {
             return new ExternalDistributionResult(resolvedPlan, distributionPlan, List.of());
         }
 
+        return localExternalScanResult(resolvedPlan, externalSplits, clusterService.localNode().getId());
+    }
+
+    /**
+     * Coordinator-local placement after a strategy returned {@code LOCAL}. A gather-boundary plan
+     * with more than one split is self-assigned on the coordinator so the exchange stays in place;
+     * everything else is collapsed onto local drivers. The coordinator is not added to the worker
+     * list to reach this path -- {@code LOCAL} already means "run here".
+     */
+    static ExternalDistributionResult localExternalScanResult(
+        PhysicalPlan resolvedPlan,
+        List<ExternalSplit> externalSplits,
+        String localNodeId
+    ) {
         // Staying local but a gather is required: preserve the exchange and run the partial-aggregation stage on the local
         // (coordinator) node via the same path the distributed modes use, so the parallel per-group drivers are gathered into a
         // single final aggregation. Collapsing here instead would drop the gather boundary and emit one row per split group.
@@ -466,14 +491,54 @@ public class ComputeService {
         if (externalSplits.size() > 1
             && ExternalDistributionStrategy.needsGatherBoundary(resolvedPlan)
             && hasCollapsibleExternalExchange(resolvedPlan)) {
-            ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(
-                Map.of(clusterService.localNode().getId(), externalSplits),
-                true
-            );
+            ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(Map.of(localNodeId, externalSplits), true);
             return new ExternalDistributionResult(resolvedPlan, localNodePlan, List.of());
         }
 
         return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, externalSplits);
+    }
+
+    static boolean hasNonEmptyExternalSplits(ExternalDistributionResult result) {
+        return result.coordinatorSplits().isEmpty() == false || result.distributionPlan() != null;
+    }
+
+    /**
+     * Whether a non-empty external scan reads on the coordinator rather than on remote workers. Both
+     * coordinator-local shapes count: splits collapsed onto local drivers, and the gather-boundary
+     * self-assignment that keeps the exchange in place but still reads here.
+     */
+    static boolean runsExternalScanLocally(ExternalDistributionResult result, String localNodeId) {
+        if (result.coordinatorSplits().isEmpty() == false) {
+            return true;
+        }
+        ExternalDistributionPlan plan = result.distributionPlan();
+        return plan != null && plan.nodeAssignments().keySet().equals(Set.of(localNodeId));
+    }
+
+    /**
+     * Logs at most once per top-level request when an index node reads an external scan itself. An index node
+     * that coordinates and hands the scan to eligible workers is the normal split-role path and is not logged;
+     * this fires whenever the selected placement keeps the read on the coordinator, including an explicit or
+     * adaptive local placement and the fallback when no worker is eligible. Such execution is allowed -- this is
+     * visibility for a transition-state routing choice, not a placement violation.
+     */
+    static void warnIndexCoordinatorOnce(DiscoveryNode localNode, AtomicBoolean alreadyWarned) {
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) && alreadyWarned.compareAndSet(false, true)) {
+            LOGGER.warn(
+                "index node [{}] is running an external ES|QL scan locally; this is expected only as a transition state",
+                localNode.getId()
+            );
+        }
+    }
+
+    static Runnable newIndexCoordinatorWarningCallback(DiscoveryNode localNode) {
+        // Only an index node can ever warn, and the role set is fixed for the lifetime of the node. Skipping the
+        // per-request state for every other node keeps the callback off the allocation path of the common query.
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false) {
+            return () -> {};
+        }
+        AtomicBoolean alreadyWarned = new AtomicBoolean();
+        return () -> warnIndexCoordinatorOnce(localNode, alreadyWarned);
     }
 
     /** Bundles the (possibly rewritten) plan produced by split discovery with the splits collected from it. */
@@ -922,6 +987,8 @@ public class ComputeService {
             initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
         }
 
+        Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
+
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
             executePlan(
@@ -936,7 +1003,8 @@ public class ComputeService {
                 listener,
                 null,
                 initialClusterStatuses,
-                planTimeProfile
+                planTimeProfile,
+                warnIndexCoordinatorOnce
             );
             return;
         }
@@ -1004,7 +1072,8 @@ public class ComputeService {
                 execInfo,
                 queryPragmas,
                 mainExchangeSource,
-                initialClusterStatuses
+                initialClusterStatuses,
+                warnIndexCoordinatorOnce
             );
             subPlansExecutor.execute(branchParallelDegree);
         }
@@ -1027,6 +1096,7 @@ public class ComputeService {
         final QueryPragmas queryPragmas;
         final ExchangeSourceHandler mainExchangeSource;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
+        final Runnable warnIndexCoordinatorOnce;
         final AtomicInteger nextId = new AtomicInteger();
         final AtomicInteger completedSubPlanCount = new AtomicInteger();
         final Releasable emptySinkRef;
@@ -1042,7 +1112,8 @@ public class ComputeService {
             EsqlExecutionInfo execInfo,
             QueryPragmas queryPragmas,
             ExchangeSourceHandler mainExchangeSource,
-            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
+            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+            Runnable warnIndexCoordinatorOnce
         ) {
             this.subplans = subplans;
             // Pre-acquire all subplan listeners upfront so that the ComputeListener's ref count
@@ -1061,6 +1132,7 @@ public class ComputeService {
             this.queryPragmas = queryPragmas;
             this.mainExchangeSource = mainExchangeSource;
             this.initialClusterStatuses = initialClusterStatuses;
+            this.warnIndexCoordinatorOnce = warnIndexCoordinatorOnce;
             this.emptySinkRef = Releasables.releaseOnce(mainExchangeSource.addEmptySink());
         }
 
@@ -1111,7 +1183,8 @@ public class ComputeService {
                 }),
                 () -> exchangeSink.createExchangeSink(() -> {}),
                 initialClusterStatuses,
-                configuration.profile() ? new PlanTimeProfile() : null
+                configuration.profile() ? new PlanTimeProfile() : null,
+                warnIndexCoordinatorOnce
             );
         }
 
@@ -1138,7 +1211,8 @@ public class ComputeService {
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce
     ) {
         final long splitDiscoveryStart = System.nanoTime();
         ActionListener<CollectedSplits> afterDiscovery = ActionListener.wrap(
@@ -1156,6 +1230,7 @@ public class ComputeService {
                     exchangeSinkSupplier,
                     initialClusterStatuses,
                     planTimeProfile,
+                    warnIndexCoordinatorOnce,
                     splitDiscoveryStart
                 ),
                 listener
@@ -1223,6 +1298,7 @@ public class ComputeService {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart
     ) {
         final ExternalDistributionResult distributionResult;
@@ -1232,8 +1308,10 @@ public class ComputeService {
             // this timer before the hop: start and completion would be different threads.
             long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
             distributionResult = applyExternalDistributionStrategy(collected, configuration);
-            if (execInfo != null
-                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+            if (runsExternalScanLocally(distributionResult, clusterService.localNode().getId())) {
+                warnIndexCoordinatorOnce.run();
+            }
+            if (execInfo != null && hasNonEmptyExternalSplits(distributionResult)) {
                 if (splitDiscoveryCpuStart >= 0) {
                     execInfo.queryProfile().addSplitDiscoveryCpuNanos(ThreadCpuTimer.elapsedNanos(splitDiscoveryCpuStart));
                 }

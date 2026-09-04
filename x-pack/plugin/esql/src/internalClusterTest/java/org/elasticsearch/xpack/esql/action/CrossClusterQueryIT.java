@@ -574,7 +574,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
 
         // ensure cross-cluster searches have overall took time and correct per-cluster details in EsqlExecutionInfo
-        try (EsqlQueryResponse resp = runQuery("FROM logs-*,cluster-a:* | LIMIT 0", requestIncludeMeta)) {
+        try (EsqlQueryResponse resp = runQuery("FROM logs-*,cluster-a:*,cluster-a:-.ml-anomalies | LIMIT 0", requestIncludeMeta)) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
@@ -585,7 +585,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("*"));
+            assertThat(remoteCluster.getIndexExpression(), equalTo("*,-.ml-anomalies"));
             assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertClusterInfoSuccess(remoteCluster, 0);
 

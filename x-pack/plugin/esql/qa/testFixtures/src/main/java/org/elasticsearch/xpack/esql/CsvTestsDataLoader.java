@@ -374,7 +374,9 @@ public class CsvTestsDataLoader {
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
         new TestDataset("trim_test"),
-        new TestDataset(".ml-anomalies-shared", "mapping-ml-anomalies-shared.json", ".ml-anomalies-shared.csv")
+        new TestDataset(".ml-anomalies-shared", "mapping-ml-anomalies-shared.json", ".ml-anomalies-shared.csv").withSetting(
+            "ml-anomalies-shared-settings.json"
+        )
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

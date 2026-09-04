@@ -349,6 +349,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The subquery's {@code FROM employees, employees_alt} expands to one source with two dataset producers, so it
+     * lands under the outer subquery's union and cannot be combined with it. The user wrote a single subquery here, so
+     * the failure names the pattern that expands rather than reporting an unsupported nesting of subqueries.
+     */
     public void testIndexInMainMultipleDatasetInSubqueryRejected() {
         createRealEmployees();
         registerEmployees();
@@ -358,7 +363,11 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "Nested subqueries are not supported");
+        assertCauseMessageContains(
+            ex,
+            "a pattern that expands to multiple sources, [FROM employees, employees_alt], cannot be combined "
+                + "with subqueries; replace it with a single source in the FROM command"
+        );
     }
 
     // With basic(WHERE/STATS/KEEP/EVAL) processing command in subqueries or main query

@@ -744,7 +744,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             ParquetMetadata seeded = reader.parsedFooterForTests(key);
             assertNotNull("async tail parse must seed the parsed-footer cache", seeded);
             // Cache-sharing copy so footer_cache_misses starts at 0 while the caches carry over.
-            ParquetFormatReader phase2 = reader.copySharingCachesForTests();
+            ParquetFormatReader phase2 = reader.freshCounters();
             phase2.discoverSplitRanges(asyncObject);
             assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, phase2.parsedFooterForTests(key));
             assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
@@ -1117,7 +1117,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 metadataAsyncDirect(phase1, file);
             }
             assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
-            ParquetFormatReader phase2 = phase1.copySharingCachesForTests();
+            ParquetFormatReader phase2 = phase1.freshCounters();
             for (StorageObject file : files) {
                 phase2.discoverSplitRanges(file);
             }
@@ -1205,7 +1205,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1Last, file);
         }
-        ParquetFormatReader lastWindow = phase1Last.copySharingCachesForTests();
+        ParquetFormatReader lastWindow = phase1Last.freshCounters();
         for (int i = n - window; i < n; i++) {
             lastWindow.discoverSplitRanges(files.get(i));
         }
@@ -1216,7 +1216,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1First, file);
         }
-        ParquetFormatReader firstWindow = phase1First.copySharingCachesForTests();
+        ParquetFormatReader firstWindow = phase1First.freshCounters();
         for (int i = 0; i < window; i++) {
             firstWindow.discoverSplitRanges(files.get(i));
         }

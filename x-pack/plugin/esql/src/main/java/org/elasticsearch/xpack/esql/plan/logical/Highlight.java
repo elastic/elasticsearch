@@ -316,7 +316,7 @@ public class Highlight extends UnaryPlan
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
         if (query == null) {
-            failures.add(fail(this, "HIGHLIGHT requires a query"));
+            failures.add(fail(this, "HIGHLIGHT requires a query or a preceding full-text WHERE"));
         } else if (fields.isEmpty()) {
             failures.add(fail(this, "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"));
         }

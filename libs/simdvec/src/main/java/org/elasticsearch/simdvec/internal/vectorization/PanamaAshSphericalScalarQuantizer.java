@@ -41,30 +41,19 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
 
     @Override
     protected float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+        // on smaller vector sizes, the JVM is better at auto-vectorizing the scalar impl
+        // On AVX512, the vector code + mask gets us significant speedups
+        if (PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE <= 256) {
+            return super.quantizeExact1Bit(z, zOffset, out, outOffset, d);
+        }
         IntVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f).reinterpretAsInts();
         IntVector signBit = IntVector.broadcast(INTEGER_SPECIES, 0x80000000);
 
         int i = 0;
-        int sectionLength = FLOAT_SPECIES.length() * 4;
-        int limit = (d / sectionLength) * sectionLength;
-        for (; i < limit; i += sectionLength) {
-            IntVector vec0 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).reinterpretAsInts();
-            IntVector vec1 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length()).reinterpretAsInts();
-            IntVector vec2 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 2).reinterpretAsInts();
-            IntVector vec3 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 3).reinterpretAsInts();
-            // Use the sign bit from vec, but the rest of the value from halfConst
-            IntVector result0 = halfConst.or(vec0.and(signBit));
-            IntVector result1 = halfConst.or(vec1.and(signBit));
-            IntVector result2 = halfConst.or(vec2.and(signBit));
-            IntVector result3 = halfConst.or(vec3.and(signBit));
-            result0.reinterpretAsFloats().intoArray(out, outOffset + i);
-            result1.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length());
-            result2.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length() * 2);
-            result3.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length() * 3);
-        }
-        limit = FLOAT_SPECIES.loopBound(d);
+        int limit = FLOAT_SPECIES.loopBound(d);
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             IntVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).reinterpretAsInts();
+            // Use the sign bit from vec, but the rest of the value from halfConst
             IntVector result = halfConst.or(vec.and(signBit));
             result.reinterpretAsFloats().intoArray(out, outOffset + i);
         }
@@ -85,6 +74,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
 
+        // manually unrolling splits up the data dependency on the single acc value
         int sectionLength = FLOAT_SPECIES.length() * 4;
         if (absZF.length >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
@@ -125,35 +115,15 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
 
     @Override
     protected void set2BitOutput(float threshold, float[] z, int zOffset, float[] out, int outOffset, int d) {
+        final int limit = FLOAT_SPECIES.loopBound(d);
         FloatVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f);
         IntVector oneHalfConst = FloatVector.broadcast(FLOAT_SPECIES, 1.5f).reinterpretAsInts();
         IntVector signBit = IntVector.broadcast(INTEGER_SPECIES, 0x80000000);
 
         int i = 0;
-        int sectionLength = FLOAT_SPECIES.length() * 4;
-        int limit = (d / sectionLength) * sectionLength;
-        for (; i < limit; i += sectionLength) {
-            FloatVector vec0 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i);
-            FloatVector vec1 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length());
-            FloatVector vec2 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 2);
-            FloatVector vec3 = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i + FLOAT_SPECIES.length() * 3);
-            // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
-            VectorMask<Integer> nextLevel0 = vec0.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
-            VectorMask<Integer> nextLevel1 = vec1.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
-            VectorMask<Integer> nextLevel2 = vec2.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
-            VectorMask<Integer> nextLevel3 = vec3.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
-            IntVector result0 = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel0).or(vec0.reinterpretAsInts().and(signBit));
-            IntVector result1 = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel1).or(vec1.reinterpretAsInts().and(signBit));
-            IntVector result2 = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel2).or(vec2.reinterpretAsInts().and(signBit));
-            IntVector result3 = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel3).or(vec3.reinterpretAsInts().and(signBit));
-            result0.reinterpretAsFloats().intoArray(out, outOffset + i);
-            result1.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length());
-            result2.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length() * 2);
-            result3.reinterpretAsFloats().intoArray(out, outOffset + i + FLOAT_SPECIES.length() * 3);
-        }
-        limit = FLOAT_SPECIES.loopBound(d);
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i);
+            // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
             VectorMask<Integer> nextLevel = vec.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
             IntVector result = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel).or(vec.reinterpretAsInts().and(signBit));
             result.reinterpretAsFloats().intoArray(out, outOffset + i);
@@ -161,6 +131,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         if (i < d) {
             var mask = FLOAT_SPECIES.indexInRange(i, d);
             FloatVector vec = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask);
+            // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
             VectorMask<Integer> nextLevel = vec.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
             IntVector result = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel).or(vec.reinterpretAsInts().and(signBit));
             result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);

@@ -783,12 +783,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
                 uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
 
+                // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
+                // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
+                // analyzer bound the declared output to the bare attribute instead, and a renamed column would not map.
                 var newAggregates = uniqueAggregates.stream().map(e -> (NamedExpression) e).map(e -> {
-                    Expression inner = e;
                     if (e instanceof Alias a) {
-                        inner = a.child();
+                        return (NamedExpression) new Alias(a.source(), names.next(a.name()), a.child(), a.id());
                     }
-                    return new Alias(e.source(), names.next(e.name()), inner, e.id());
+                    return e;
                 }).toList();
 
                 return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);

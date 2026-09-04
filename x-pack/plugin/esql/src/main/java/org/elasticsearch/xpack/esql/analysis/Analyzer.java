@@ -278,9 +278,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveViewShadow(),
-            new ViewCompactionPostIndexResolution(),
             new ResolveDatasetShadow(),
             new StripDatasetShadowRelations(),
+            new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -538,8 +538,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * instances and may resolve differently (e.g. one comes back empty because of the
      * exclusions, the other resolves to a remote index). This rule:
      * <ul>
-     *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#linkedIndexPattern()}, replaces the shadow with an
+     *   <li>If a valid {@link IndexResolution} that matched at least one linked index is present
+     *       for the shadow's {@link ViewShadowRelation#linkedIndexPattern()}, replaces the shadow with an
      *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
      *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
      *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
@@ -551,9 +551,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
             IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
-            if (resolution == null || resolution.isValid() == false) {
-                // No remote index found (or lookup didn't run yet) — leave the shadow alone for
-                // ViewCompactionPostIndexResolution to strip.
+            if (resolution == null || resolution.matchedAnyIndex() == false) {
+                // No remote index found: the resolution is missing, invalid, or valid but matched
+                // nothing. Leave the shadow alone for ViewCompactionPostIndexResolution to strip.
                 return shadow;
             }
             EsIndex esIndex = resolution.get();
@@ -571,12 +571,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Phase 2 of view compaction. Runs in the Initialize batch right after {@link ResolveTable},
-     * once all reachable {@link UnresolvedRelation}s have been replaced with {@code EsRelation}s
-     * (and once CPS's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
-     * Strips remaining unresolved shadows, flattens nested {@code ViewUnionAll} structures, and
-     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale
-     * behind splitting compaction across the analyzer boundary.
+     * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
+     * must be resolved or stripped while they remain in the plain {@code UnionAll} built by the dataset rewriter; view compaction may
+     * otherwise lift them into a {@code ViewUnionAll}. Strips remaining unresolved view shadows, flattens nested {@code ViewUnionAll}
+     * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
+     * compaction across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -597,8 +596,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * dataset/view of the same name has already failed the query on the detect rail before this rule runs;
      * a linked index of the same name produces a valid resolution here. This rule:
      * <ul>
-     *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link DatasetShadowRelation#linkedIndexPattern()}, replaces the shadow with an
+     *   <li>If a valid {@link IndexResolution} that matched at least one linked index is present
+     *       for the shadow's {@link DatasetShadowRelation#linkedIndexPattern()}, replaces the shadow with an
      *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
      *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
      *   <li>Otherwise leaves the shadow unresolved. {@link StripDatasetShadowRelations} (which runs
@@ -610,9 +609,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(DatasetShadowRelation shadow, AnalyzerContext context) {
             IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
-            if (resolution == null || resolution.isValid() == false) {
-                // No linked index found (or lookup didn't run yet) — leave the shadow alone for
-                // StripDatasetShadowRelations to remove.
+            if (resolution == null || resolution.matchedAnyIndex() == false) {
+                // No linked index found: the resolution is missing, invalid, or valid but matched
+                // nothing. Leave the shadow alone for StripDatasetShadowRelations to remove.
                 return shadow;
             }
             EsIndex esIndex = resolution.get();

@@ -84,15 +84,12 @@ import java.util.function.Consumer;
  *                         readers do one check.
  * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
  *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
- *                         should fall back to emitting warnings directly via {@link
- *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
- *                         the read runs on the request/driver thread. Callers that dispatch reads to a
- *                         background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set
- *                         this to a sink — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning},
- *                         preserving these warnings' pre-existing behavior of never flipping the response's
- *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
- *                         the one warning that does) — so the warning is relayed back and re-emitted on
- *                         the correct thread instead of being silently dropped.
+ *                         leaves sink-only informational warnings disabled; {@link SkipWarnings}-based
+ *                         paths use their legacy direct {@link org.elasticsearch.common.logging.HeaderWarning}
+ *                         fallback on the invoking thread. This is retained for standalone tests and benchmarks.
+ *                         Driver-associated production reads must provide an explicit structured or buffered
+ *                         sink; merely running on the driver thread is insufficient because ES|QL transports
+ *                         compute warnings through {@code DriverCompletionInfo.warnings}.
  * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
  *                         {@code null} for every read that owns the file's start, and for formats that do
  *                         not name their columns in a header. Set only for a read that cannot see the
@@ -330,8 +327,8 @@ public record FormatReadContext(
         }
 
         /**
-         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
-         * direct-to-HeaderWarning emission.
+         * See {@link FormatReadContext#informationalWarningSink()}; {@code null} disables sink-only
+         * warnings and retains legacy direct-header behavior for {@link SkipWarnings}-based paths.
          */
         public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
             this.informationalWarningSink = informationalWarningSink;

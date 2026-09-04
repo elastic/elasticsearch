@@ -196,14 +196,14 @@ public final class Federation {
         }
     }
 
+    private static final String NOT_AVAILABLE_MESSAGE = "external data sources are not available";
+
     /**
      * The {@code 400} raised when external-source work reaches a node that does not have federation available,
      * either at the data node's external-request entry point or at the operator-build backstop. The message
      * deliberately omits the property and setting names so it reads as a plain "feature not present" error
      * rather than a configuration hint.
      */
-    private static final String NOT_AVAILABLE_MESSAGE = "external data sources are not available";
-
     public static ElasticsearchStatusException notAvailableException() {
         return new ElasticsearchStatusException(NOT_AVAILABLE_MESSAGE, RestStatus.BAD_REQUEST);
     }

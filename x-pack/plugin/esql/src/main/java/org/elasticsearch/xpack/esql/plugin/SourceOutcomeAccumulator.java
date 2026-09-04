@@ -141,11 +141,20 @@ final class SourceOutcomeAccumulator {
                 failures.addAll(outcome.failures());
             }
             Long remoteTook = remoteTookNanos.get(clusterAlias);
-            TimeValue took = remoteTook == null
-                ? execInfo.queryProfile().total().timeSinceStarted()
-                : TimeValue.timeValueNanos(execInfo.queryProfile().planning().timeTook().nanos() + remoteTook);
+            TimeValue took;
+            if (remoteTook == null) {
+                took = execInfo.queryProfile().total().timeSinceStarted();
+            } else if (cluster.getTook() != null) {
+                // A subplan execute already charged this cluster and remoteTook does not include it, so add
+                // to what is there. Mirrors ClusterComputeHandler#updateExecutionInfo.
+                took = TimeValue.timeValueNanos(cluster.getTook().nanos() + remoteTook);
+            } else {
+                took = TimeValue.timeValueNanos(execInfo.queryProfile().planning().timeTook().nanos() + remoteTook);
+            }
             var builder = new EsqlExecutionInfo.Cluster.Builder(cluster).setTook(took).addFailures(failures);
-            if (hasResponse || skippedFailure) {
+            // An INLINE STATS subplan's counts are not the definitive ones; the main plan sets those. Same
+            // condition ClusterComputeHandler#updateExecutionInfo uses, so the two rails cannot disagree.
+            if ((hasResponse || skippedFailure) && (execInfo.isMainPlan() || execInfo.isSubqueryJoinSubPlan())) {
                 builder.setTotalShards(totalShards)
                     .setSuccessfulShards(successfulShards)
                     .setSkippedShards(skippedShards)
@@ -188,9 +197,14 @@ final class SourceOutcomeAccumulator {
         indexOutcomes.merge(key, outcome, IndexProducerOutcome::merge);
     }
 
+    /**
+     * Keeps the longest of the producers that read this cluster rather than their total. A fan-in can point
+     * several producers at one cluster and they run concurrently, so their {@code took} values overlap;
+     * summing them would report a cluster as taking longer than the query that waited on it.
+     */
     private void recordRemoteTook(SourceClusterKey key, ComputeResponse response) {
         if (response != null && response.getTook() != null) {
-            remoteTookNanos.merge(key.clusterAlias(), response.getTook().nanos(), Long::sum);
+            remoteTookNanos.merge(key.clusterAlias(), response.getTook().nanos(), Long::max);
         }
     }
 

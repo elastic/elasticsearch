@@ -43,7 +43,7 @@ public final class ForkApproximation implements ApproximationDriver {
     private boolean sourceCountDone;
 
     ForkApproximation(LogicalPlan logicalPlan, ApproximationVerifier.QueryProperties queryProperties, ApproximationSettings settings) {
-        List<Fork> forks = Fork.collectUserWrittenForks(logicalPlan);
+        List<Fork> forks = Fork.collectQueryBranchingForks(logicalPlan);
         assert forks.size() == 1;
         branches = new ArrayList<>();
         for (LogicalPlan child : forks.getFirst().children()) {

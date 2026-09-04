@@ -45,23 +45,27 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     public static final int MAX_BRANCHES = 8;
 
     /**
-     * User {@code FORK} or a relational union. Dataset source expansion is a
-     * {@link Fork} subclass but is not a user FORK command.
+     * A {@link Fork} that branches the query: a user {@code FORK}, a subquery {@link UnionAll}, or a
+     * {@link ViewUnionAll}. Excludes {@link SourceFanInUnionAll}, which is a {@link Fork} subclass only because it
+     * reuses the n-ary shape: it is one resolved {@code FROM} expanded into its sources, not a branch of the query.
+     * <p>
+     * A {@link ViewUnionAll} is not user-written, but it does branch the query, so it counts here. Callers that want
+     * only what the user typed as {@code FORK}, such as {@code FeatureMetric.FORK}, exclude it separately.
      */
-    public static boolean isUserWrittenFork(LogicalPlan plan) {
+    public static boolean isQueryBranchingFork(LogicalPlan plan) {
         return plan instanceof Fork && plan instanceof SourceFanInUnionAll == false;
     }
 
     /**
-     * Every {@link Fork} in {@code plan} that the user actually wrote, per {@link #isUserWrittenFork}. Callers that
+     * Every {@link Fork} in {@code plan} that branches the query, per {@link #isQueryBranchingFork}. Callers that
      * count or reject forks want this rather than {@code plan.collect(Fork.class)}: a multi-source {@code FROM}
      * expands to a {@link SourceFanInUnionAll}, which is a {@link Fork} subclass but is one resolved source, so
      * counting it would charge a user a FORK they never asked for.
      */
-    public static List<Fork> collectUserWrittenForks(LogicalPlan plan) {
+    public static List<Fork> collectQueryBranchingForks(LogicalPlan plan) {
         List<Fork> forks = new ArrayList<>();
         for (Fork fork : plan.collect(Fork.class)) {
-            if (isUserWrittenFork(fork)) {
+            if (isQueryBranchingFork(fork)) {
                 forks.add(fork);
             }
         }

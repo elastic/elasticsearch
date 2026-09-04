@@ -288,7 +288,7 @@ public class ApproximationVerifier {
         });
 
         // Check whether there's a FORK.
-        List<Fork> forks = Fork.collectUserWrittenForks(logicalPlan);
+        List<Fork> forks = Fork.collectQueryBranchingForks(logicalPlan);
         if (forks.isEmpty()) {
             // When there's no FORK, verify this logical plan.
             return verifyBranchOrThrow(logicalPlan);
@@ -330,7 +330,7 @@ public class ApproximationVerifier {
                     int branchIndexFinal = branchIndex;
                     LogicalPlan branch = logicalPlan.transformDown(
                         Fork.class,
-                        f -> Fork.isUserWrittenFork(f) ? f.children().get(branchIndexFinal) : f
+                        f -> Fork.isQueryBranchingFork(f) ? f.children().get(branchIndexFinal) : f
                     );
                     try {
                         branchProperties.add(verifyBranchOrThrow(branch));

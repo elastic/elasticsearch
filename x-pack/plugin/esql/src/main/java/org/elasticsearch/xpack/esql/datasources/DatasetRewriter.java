@@ -272,6 +272,19 @@ public final class DatasetRewriter {
                     leaves.add(unwrapped);
                 }
             }
+            // Each nested fan-in passed the cap for its own FROM, but composing them produces one resolved
+            // source whose producer count is their sum, so it has to clear the cap again here.
+            if (SourceFanInUnionAll.exceedsMaxProducers(leaves.size())) {
+                throw new VerificationException(
+                    "FROM ["
+                        + union.sourceText()
+                        + "] resolved through view expansion to "
+                        + leaves.size()
+                        + " sources, exceeding the current limit of "
+                        + SourceFanInUnionAll.MAX_PRODUCERS
+                        + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+                );
+            }
             return unionForExpandedFrom(union.source(), leaves, union.output());
         });
     }

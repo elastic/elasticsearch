@@ -330,7 +330,7 @@ public class ApproximationPlan {
         // When rewriting the query, don't rewrite any such plans.
         Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
         if (queryProperties.forkBranchProperties() != null) {
-            List<Fork> forks = Fork.collectUserWrittenForks(logicalPlan);
+            List<Fork> forks = Fork.collectQueryBranchingForks(logicalPlan);
             assert forks.size() == 1;
             Fork fork = forks.getFirst();
             assert fork.children().size() == queryProperties.forkBranchProperties().size();
@@ -1005,7 +1005,7 @@ public class ApproximationPlan {
      */
     public static LogicalPlan substituteSampleProbabilityInForkBranch(LogicalPlan logicalPlan, double sampleProbability, int branchIndex) {
         logicalPlan = logicalPlan.transformUp(Fork.class, fork -> {
-            if (Fork.isUserWrittenFork(fork) == false) {
+            if (Fork.isQueryBranchingFork(fork) == false) {
                 return fork;
             }
             List<LogicalPlan> children = new ArrayList<>(fork.children());

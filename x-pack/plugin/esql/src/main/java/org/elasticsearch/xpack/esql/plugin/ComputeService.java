@@ -2133,6 +2133,15 @@ public class ComputeService {
         }
     }
 
+    /**
+     * Warning text for an external source failure the query chose to tolerate. An external producer has no
+     * {@code EsqlExecutionInfo.Cluster} entry to carry failures, so this is the only place the cause of the
+     * missing rows reaches the caller.
+     */
+    private static String toleratedExternalFailureWarning(Exception e) {
+        return "external source failed, results may be incomplete: " + ExceptionsHelper.unwrapCause(e).getMessage();
+    }
+
     private void executeLocalSourceProducer(
         String sessionId,
         int producerIndex,
@@ -2156,9 +2165,18 @@ public class ComputeService {
         AtomicReference<DriverCompletionInfo> computeInfo = new AtomicReference<>();
         AtomicBoolean sinkFinished = new AtomicBoolean();
         AtomicBoolean published = new AtomicBoolean();
+        // A tolerated producer failure loses rows that the drivers never saw, so nothing in the completion
+        // info records the loss. Carry it here and flag the published info, which is what the coordinator
+        // ORs into the response's is_partial. An external producer has no EsqlExecutionInfo.Cluster entry to
+        // hang the failure off, so the warning is the only place the cause reaches the user.
+        AtomicBoolean externalPartial = new AtomicBoolean();
+        List<String> toleratedFailures = Collections.synchronizedList(new ArrayList<>());
         Runnable publishIfReady = () -> {
             DriverCompletionInfo info = computeInfo.get();
             if (info != null && sinkFinished.get() && published.compareAndSet(false, true)) {
+                if (externalPartial.get()) {
+                    info = info.withPartial().withAdditionalWarnings(toleratedFailures);
+                }
                 listener.onResponse(info);
             }
         };
@@ -2173,6 +2191,8 @@ public class ComputeService {
             @Override
             public void onFailure(Exception e) {
                 sourceOutcomes.recordExternalFailure(e);
+                externalPartial.set(true);
+                toleratedFailures.add(toleratedExternalFailureWarning(e));
                 sinkFinished.set(true);
                 publishIfReady.run();
             }
@@ -2198,6 +2218,8 @@ public class ComputeService {
                 exchangeService.finishSinkHandler(producerSessionId, e);
                 if (failFast == false && EsqlCCSUtils.canAllowPartial(e)) {
                     sourceOutcomes.recordExternalFailure(e);
+                    externalPartial.set(true);
+                    toleratedFailures.add(toleratedExternalFailureWarning(e));
                     computeInfo.set(DriverCompletionInfo.EMPTY);
                     publishIfReady.run();
                 } else {

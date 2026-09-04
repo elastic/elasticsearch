@@ -108,7 +108,11 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         assertThat(cluster.getSuccessfulShards(), equalTo(0));
     }
 
-    public void testRemoteTimingAccumulatesProducerResponses() {
+    /**
+     * Producers of one fan-in run concurrently, so two of them against the same cluster overlap in wall clock.
+     * Their total would report the cluster as taking longer than the query that waited on it.
+     */
+    public void testRemoteTimingTakesTheLongestProducerNotTheirTotal() {
         EsqlExecutionInfo executionInfo = executionInfo("remote");
         executionInfo.queryProfile().planning().start();
         executionInfo.queryProfile().planning().stop();
@@ -125,8 +129,31 @@ public class ComputeServiceSourceOutcomeTests extends ESTestCase {
         );
         outcomes.applyTo(executionInfo);
 
-        long expectedNanos = executionInfo.queryProfile().planning().timeTook().nanos() + TimeValue.timeValueMillis(12).nanos();
+        long expectedNanos = executionInfo.queryProfile().planning().timeTook().nanos() + TimeValue.timeValueMillis(7).nanos();
         assertThat(executionInfo.getCluster("remote").getTook().nanos(), equalTo(expectedNanos));
+    }
+
+    /**
+     * Separate executes against one cluster (an INLINE STATS or IN-subquery subplan, then the main plan) are
+     * sequential, so their times add. Mirrors {@code ClusterComputeHandler#updateExecutionInfo}.
+     */
+    public void testRemoteTimingAddsToTookLeftByAnEarlierExecute() {
+        EsqlExecutionInfo executionInfo = executionInfo("remote");
+        executionInfo.queryProfile().planning().start();
+        executionInfo.queryProfile().planning().stop();
+        executionInfo.swapCluster(
+            "remote",
+            (key, cluster) -> new EsqlExecutionInfo.Cluster.Builder(cluster).setTook(TimeValue.timeValueMillis(4)).build()
+        );
+        SourceOutcomeAccumulator outcomes = new SourceOutcomeAccumulator();
+
+        outcomes.recordRemoteOutcome(
+            new SourceClusterKey("remote", List.of("test")),
+            new ClusterComputeHandler.RemoteClusterOutcome.Success(response(TimeValue.timeValueMillis(7), 1, 1, 0, 0, List.of()))
+        );
+        outcomes.applyTo(executionInfo);
+
+        assertThat(executionInfo.getCluster("remote").getTook().nanos(), equalTo(TimeValue.timeValueMillis(11).nanos()));
     }
 
     public void testFailureBeforeShardResponseFailsAnEmptyQuery() {

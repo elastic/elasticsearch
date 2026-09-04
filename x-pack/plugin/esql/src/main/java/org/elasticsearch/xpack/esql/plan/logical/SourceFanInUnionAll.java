@@ -32,6 +32,15 @@ public class SourceFanInUnionAll extends UnionAll {
      * {@link Fork#checkBranchCount} catches any tree that reaches post-analysis over the cap, including one
      * assembled by flattening.
      * <p>
+     * The bound is per resolved {@code FROM}, not per plan, and two things sit outside the pre-analysis half
+     * of it. Cross-project shadows are appended after the rewrite-time check, so a shadow that matches a
+     * remote namesake becomes a real producer that only {@link Fork#checkBranchCount} counts; a {@code FROM}
+     * naming more than half the cap in exact dataset names can therefore be rejected post-analysis for a
+     * count the user did not write. And a user {@code FORK} copies the pipeline into every branch, so each
+     * branch carries its own fan-in: the plan-wide producer count reaches {@link Fork#MAX_BRANCHES} times
+     * this number, and the per-source costs below are paid that many times. Peak concurrency is unaffected,
+     * since one throttle is shared across the whole session.
+     * <p>
      * The number bounds plan size and resolution work, not execution concurrency: the
      * {@code branch_parallel_degree} pragma throttles how many producers run at once regardless of how many
      * exist. What scales with the producer count is one plan optimized and mapped per source, one schema
@@ -70,8 +79,11 @@ public class SourceFanInUnionAll extends UnionAll {
     }
 
     /**
-     * Lifts nested {@link SourceFanInUnionAll} children into this node so a view whose body is
-     * already a multi-source {@code FROM} can be composed with another source.
+     * Normalizes nested {@link SourceFanInUnionAll} children away so no caller can build a fan-in of
+     * fan-ins: the producers of one resolved {@code FROM} are always this node's direct children. The
+     * composition that would otherwise nest one, a view whose body is already a multi-source
+     * {@code FROM} placed alongside another source, is unwrapped by
+     * {@code DatasetRewriter.flattenViewUnionAllWithSourceFanIn} before it reaches this constructor.
      */
     static List<LogicalPlan> flattenSourceFanInChildren(List<LogicalPlan> children) {
         boolean needsFlatten = false;

@@ -1626,13 +1626,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return indexSettings.getMode().isStrictColumnar()
+        // TIME_SERIES is accepted by the mode gate, but every keyword field in a TSDB index resolves to
+        // DocValuesDiskFormat.SORTED_SET (see Builder#diskFormat), which supportsColumnarDocValues() does
+        // not accept yet — so TSDB keywords still fall back to the row path until SORTED_SET emission lands.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && supportsColumnarDocValues()
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && normalizerName == null
-            && fieldType().isDimension() == false;
+            && (fieldType().isDimension() == false || writeDimensionRouting == false);
     }
 
     /**

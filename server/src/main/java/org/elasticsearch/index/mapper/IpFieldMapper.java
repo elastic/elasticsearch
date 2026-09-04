@@ -823,15 +823,18 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar mode, binary doc values only (no SortedSet ordinals).
-        return indexSettings.getMode().isStrictColumnar()
+        // Columnar support requires binary doc values only (no SortedSet ordinals). TIME_SERIES is accepted
+        // by the mode gate, but every ip field in a TSDB index resolves to IndexType.skippers() — SORTED_SET
+        // doc values with a RANGE skip index (see Builder#indexType) — which supportsColumnarDocValues() does
+        // not accept yet, so TSDB ip fields still fall back to the row path until SORTED_SET emission lands.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && supportsColumnarDocValues()
             && fieldType().indexType.hasPoints() == false
             && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && fieldType().isDimension() == false
+            && (fieldType().isDimension() == false || writeDimensionRouting == false)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

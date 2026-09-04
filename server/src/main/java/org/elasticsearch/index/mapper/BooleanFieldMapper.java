@@ -773,7 +773,7 @@ public class BooleanFieldMapper extends FieldMapper {
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && fieldType().isDimension() == false
+            && (fieldType().isDimension() == false || writeDimensionRouting == false)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

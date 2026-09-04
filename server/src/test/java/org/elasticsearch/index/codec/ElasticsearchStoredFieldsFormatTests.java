@@ -69,11 +69,7 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
 
             var es94 = (ElasticsearchStoredFieldsFormat) ((TSDBStoredFieldsFormat) new ES94TSDBBestCompressionLucene104Codec()
                 .storedFieldsFormat()).delegate();
-            assertEquals(
-                "ES94TSDBBestCompressionLucene104Codec wrote Zstd",
-                Mode.ZSTD_BEST_COMPRESSION,
-                es94.modeOf(noMode)
-            );
+            assertEquals("ES94TSDBBestCompressionLucene104Codec wrote Zstd", Mode.ZSTD_BEST_COMPRESSION, es94.modeOf(noMode));
         }
     }
 
@@ -98,7 +94,10 @@ public class ElasticsearchStoredFieldsFormatTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             SegmentInfo si = segmentInfo(dir, Map.of(ElasticsearchStoredFieldsFormat.MODE_KEY, Mode.ZSTD_BEST_COMPRESSION.name()));
             var format = new ElasticsearchStoredFieldsFormat(Mode.LUCENE, Mode.LUCENE, new Lucene104Codec().storedFieldsFormat());
-            var e = expectThrows(IllegalStateException.class, () -> format.fieldsWriter(dir, si, org.apache.lucene.store.IOContext.DEFAULT));
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> format.fieldsWriter(dir, si, org.apache.lucene.store.IOContext.DEFAULT)
+            );
             assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("cannot also write it as [LUCENE]"));
         }
     }

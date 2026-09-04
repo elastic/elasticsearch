@@ -18,7 +18,13 @@ public class ES94TSDBBestCompressionLucene104Codec extends AbstractTSDBSynthetic
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public ES94TSDBBestCompressionLucene104Codec() {
-        this(new Elasticsearch96Codec(Lucene104Codec.Mode.BEST_SPEED, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION, ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION));
+        this(
+            new Elasticsearch96Codec(
+                Lucene104Codec.Mode.BEST_SPEED,
+                ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+                ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION
+            )
+        );
     }
 
     public ES94TSDBBestCompressionLucene104Codec(Elasticsearch96Codec delegate) {

@@ -46,14 +46,14 @@ public final class ValidatingFieldInfosFormat extends FieldInfosFormat {
      *                                  settings decide
      */
     public ValidatingFieldInfosFormat(FieldInfosFormat delegate, boolean requireSyntheticIdOnWrite) {
-    this.delegate = delegate;
-    this.requireSyntheticIdOnWrite = requireSyntheticIdOnWrite;
+        this.delegate = delegate;
+        this.requireSyntheticIdOnWrite = requireSyntheticIdOnWrite;
     }
 
     /** Whether {@code fieldInfos} says the segment has a synthetic id, which is what makes the rest of the check apply. */
     private static boolean hasSyntheticId(FieldInfos fieldInfos) {
-    var idFieldInfo = fieldInfos.fieldInfo(SYNTHETIC_ID);
-    return idFieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes());
+        var idFieldInfo = fieldInfos.fieldInfo(SYNTHETIC_ID);
+        return idFieldInfo != null && SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes());
     }
 
     private void ensureSyntheticIdFields(FieldInfos fieldInfos) {
@@ -126,4 +126,4 @@ public final class ValidatingFieldInfosFormat extends FieldInfosFormat {
         }
         return fieldInfos;
     }
-    }
+}

@@ -9,13 +9,12 @@
 
 package org.elasticsearch.index.codec.bwc;
 
-import org.elasticsearch.index.codec.ElasticsearchFieldInfosFormat;
 import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -23,6 +22,7 @@ import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.ElasticsearchFieldInfosFormat;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 

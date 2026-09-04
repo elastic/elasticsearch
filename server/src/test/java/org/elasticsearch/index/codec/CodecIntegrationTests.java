@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index.codec;
 
-import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 

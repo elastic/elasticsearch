@@ -85,9 +85,7 @@ public abstract class ElasticsearchCodec extends FilterCodec {
         this.delegatePostingsFormat = perField(delegate.postingsFormat(), PerFieldPostingsFormat.class, name);
         this.delegateDocValuesFormat = perField(delegate.docValuesFormat(), PerFieldDocValuesFormat.class, name);
         this.delegateKnnVectorsFormat = perField(delegate.knnVectorsFormat(), PerFieldKnnVectorsFormat.class, name);
-        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(
-            new ValidatingFieldInfosFormat(delegate.fieldInfosFormat(), syntheticId)
-        );
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(new ValidatingFieldInfosFormat(delegate.fieldInfosFormat(), syntheticId));
         // TSDBStoredFieldsFormat adds a reader for synthetic ids, and only for segments whose _id says it has one; writes go
         // straight to the format underneath. Segments without a synthetic id are unaffected either way.
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(

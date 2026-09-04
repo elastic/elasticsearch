@@ -74,9 +74,7 @@ public class XPerFieldDocValuesFormatDuelTests extends ESTestCase {
     }
 
     private static void index(Directory dir, Codec codec) throws Exception {
-        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec)
-            .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setUseCompoundFile(false);
+        IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE).setUseCompoundFile(false);
         try (IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < NUM_DOCS; i++) {
                 Document doc = new Document();

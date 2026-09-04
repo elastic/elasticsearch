@@ -276,6 +276,8 @@ The following settings apply to all file-based data sources:
 | `split_probe_window` | `256kb` | The number of bytes a search for a record boundary can read while dividing files into splits. A dataset with records that are larger than this value is cut into fewer splits than the `target_split_size`. In this case, reads occur with less parallelism because a search that does not reach the end of a record finds no boundary to split at. Raise the value for a dataset with long records, within the budget in the note that follows. The setting applies to NDJSON and to CSV and TSV without quoting or escaping. Quoted or escaped records cannot be searched at a fixed offset, so those files are scanned sequentially and bounded by `external_max_record_size`, as it is dividing a split further across the threads of one node. Values below about `136kb` are read in full by every search, since finishing a window that small costs less than opening another connection. |
 | `max_split_probes` | `1000` | The maximum number of record-boundary searches a query can perform, which bounds how many splits its files are cut into. A searched file yields one split more than the searches spent on it. A file too small to search is read as a single whole-file split. A scan asking for more splits than this setting value is read at a wider split size than `target_split_size` requests. Raise it to get the requested split size on a very large scan. The highest accepted value is `10000`. |
 | `file_exclusions` {applies_to}`stack: experimental 9.6+` | `["**/_*", "**/.*", "**/_temporary/**", "**/_delta_log/**"]` | Patterns naming objects to drop from wildcard discovery, written in the same [pattern language](esql-data-federation-patterns.md) as `resource` and matched against the object's path relative to the listing prefix. The default skips file names beginning with `_` or `.` and the contents of `_temporary` and `_delta_log` directories. Refer to [excluding non-data objects](#excluding-non-data-objects). |
+| `file_sort_by` {applies_to}`stack: experimental 9.6+` | `list` (when `first_file_wins`) | What to order files by before taking the first-file-wins schema. Valid values: `"list"`, `"name"`, `"mtime"`. Only valid with `"schema_resolution": "first_file_wins"`. Refer to [first-file-wins file order](#first-file-wins-file-order). |
+| `file_order` {applies_to}`stack: experimental 9.6+` | `asc` (when `first_file_wins`) | Sort direction for `file_sort_by`. Valid values: `"asc"`, `"desc"`. Always applied; `"list"` + `"desc"` reverses declaration or listing order. Only valid with `"schema_resolution": "first_file_wins"`. |
 
 :::{note}
 `max_split_probes` and `split_probe_window` are independent. The first defines how many record-boundary searches a query runs. The second defines how many bytes each one reads. Their product is the bytes a query can read while searching, which cannot exceed 4 GB. With the default values, it is 1000 searches of `256kb`, or around 250 MB. Size the window from the dataset's longest record and the count from the number of splits the scan needs. Lower one of them if the pair is rejected. The budget covers searches at fixed offsets: a sequentially scanned file (quoted or escaped CSV and TSV) is bounded by `external_max_record_size` rather than by either key.
@@ -418,8 +420,141 @@ Because federated data does not live in {{es}}, the system discovers schemas bef
 When a dataset spans multiple files, the files might have different schemas. Set `schema_resolution` in the dataset's `settings` object to choose a strategy:
 
 - `union_by_name` (default): Merges schemas from all files by column name. Types are widened where possible: when two files disagree with no common type, the column falls back to `keyword` and the response carries a warning suggesting `strict` if you want the conflict to fail instead. `union_by_name` never fails on a type conflict. This is safer when files can vary, at the cost of reading and merging more file metadata.
-- `first_file_wins`: Uses the first file alphabetically to define the schema and assumes later files match it. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions.
+- `first_file_wins`: After files are discovered, they are ordered and the schema is taken from **the first file in that order**. Later files are assumed to match. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. Those settings are rejected on `union_by_name` and `strict`.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
+
+### First-file-wins file order
+
+```{applies_to}
+stack: experimental 9.6+
+```
+
+`file_sort_by` and `file_order` apply only when `schema_resolution` is `first_file_wins`. The dataset API and query `WITH` clause reject them on `union_by_name` and `strict`.
+
+After files are discovered (glob, comma list, or mix), they are ordered, then the schema is taken from **the first file in that order**.
+
+| Setting | Default (when FFW) | Values | Meaning |
+| --- | --- | --- | --- |
+| `file_sort_by` | `list` | `list`, `name`, `mtime` | What to order files by. |
+| `file_order` | `asc` | `asc`, `desc` | Direction. Always applied. `list` + `desc` reverses declaration / listing order. |
+
+Default is `list` + `asc`: keep discovery / **declaration** order, then take the first file. A comma-separated `resource` therefore uses the first name you wrote. On S3 (and Azure/GCS) a glob's LIST is already lexicographic by key, so the default matches historical `name` + `asc` for those globs. It does **not** re-sort a comma list; that is the difference from previous FFW.
+
+`mtime` is the object-store LastModified (or local file mtime). Files with no mtime sort as oldest. Equal mtimes break ties by `name` ascending. There is no created-time key; S3 listings do not provide one.
+
+This is not query row order. `LIMIT` does not mean "rows from the first file."
+
+#### First / last declared file (`file_sort_by: list`)
+
+Comma-separated `resource` keeps your list order under the default (`list` + `asc`). Use that to pin a schema file without scanning every footer.
+
+**First named file is the schema** (wide file first). Knobs may be omitted; they default to `list` + `asc`:
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/_schema.parquet,s3://logs/events/**/*.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins"
+  }
+}
+```
+
+`_schema.parquet` may be empty of rows as long as its footer (or CSV header) has the full column set. Later files are read as that schema.
+
+**Last named file is the schema** (append the wide file):
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/**/*.parquet,s3://logs/_schema.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins",
+    "file_sort_by": "list",
+    "file_order": "desc"
+  }
+}
+```
+
+On a **glob only**, omitted knobs (`list` + `asc`) mean provider order. S3 ListObjects is already lexicographic by key, so this matches `name` + `asc`. A local directory is not sorted; for a stable donor there set `file_sort_by` to `name`.
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/**/*.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins"
+  }
+}
+```
+
+#### Lexicographic path (`file_sort_by: name`)
+
+Client-sort by path. Same donor as the default on an S3 glob; **required** when a comma list must ignore declaration order, or when a local glob must not follow `readdir`.
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/**/*.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins",
+    "file_sort_by": "name",
+    "file_order": "asc"
+  }
+}
+```
+
+Newest ISO date in a Hive path (`dt=2024-01-01` ... `dt=2026-09-04`), without trusting mtime:
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/dt=*/*.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins",
+    "file_sort_by": "name",
+    "file_order": "desc"
+  }
+}
+```
+
+#### Newest / oldest object (`file_sort_by: mtime`)
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/**/*.parquet",
+  "settings": {
+    "schema_resolution": "first_file_wins",
+    "file_sort_by": "mtime",
+    "file_order": "desc"
+  }
+}
+```
+
+Use when the newest **overwrite** should win. A copy into another prefix gets a new LastModified; prefer `name` + `desc` when the path already encodes time.
+
+#### Rejected combinations
+
+```console
+PUT /_query/dataset/logs
+{
+  "data_source": "prod_s3",
+  "resource": "s3://logs/events/**/*.parquet",
+  "settings": {
+    "schema_resolution": "union_by_name",
+    "file_sort_by": "list"
+  }
+}
+```
+
+Fails. `file_sort_by` and `file_order` are not used with `union_by_name` or `strict`. Union-by-name already merges every file; file order does not change the column set or types. Dedicated types/renames stay on the dataset `mappings` block.
 
 ## Next steps
 

@@ -86,7 +86,8 @@ public class FooterByteCache {
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
          * using its path string as the canonical identifier. All callers should prefer this factory
          * over constructing {@code Key} directly so that path canonicalization happens in one place.
-         * {@code length} must be the full file size ({@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}),
+         * {@code length} must be the full file size
+         * ({@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}),
          * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {

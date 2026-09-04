@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -1141,26 +1143,32 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         final long splitDiscoveryStart = System.nanoTime();
-        ActionListener<CollectedSplits> afterDiscovery = ActionListener.wrap(
-            collected -> runOnSearch(
-                () -> executePlanAfterDiscovery(
-                    sessionId,
-                    rootTask,
-                    flags,
-                    collected,
-                    configuration,
-                    foldContext,
-                    execInfo,
-                    profileQualifier,
-                    listener,
-                    exchangeSinkSupplier,
-                    initialClusterStatuses,
-                    planTimeProfile,
-                    splitDiscoveryStart
+        // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
+        // threads. Those completions have no security user; SEARCH's executor would then
+        // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
+            ActionListener.wrap(
+                collected -> runOnSearch(
+                    () -> executePlanAfterDiscovery(
+                        sessionId,
+                        rootTask,
+                        flags,
+                        collected,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        profileQualifier,
+                        listener,
+                        exchangeSinkSupplier,
+                        initialClusterStatuses,
+                        planTimeProfile,
+                        splitDiscoveryStart
+                    ),
+                    listener
                 ),
-                listener
+                listener::onFailure
             ),
-            listener::onFailure
+            threadPool.getThreadContext()
         );
         // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
         if (operatorFactoryRegistry == null) {
@@ -1184,8 +1192,22 @@ public class ComputeService {
     }
 
     /**
+     * Snapshots {@code threadContext} now and restores it when {@code listener} is invoked.
+     * Phase-2 discovery completes on SDK/Netty threads that never had the inbound user;
+     * restoring here means {@link #runOnSearch} submits to SEARCH with that user installed
+     * so the SEARCH executor preserves it instead of an empty SDK context.
+     */
+    static <T> ActionListener<T> restoreContextOnCompletion(ActionListener<T> listener, ThreadContext threadContext) {
+        return ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+    }
+
+    /**
      * Runs {@code cpuWork} on {@code SEARCH}. Already-SEARCH callers run inline (no hop). Object-store IO
      * must already have finished: this hop is CPU only, not a wait for discovery.
+     * <p>
+     * The SEARCH executor snapshots {@link ThreadContext} at {@code execute} time. Callers hopping
+     * from a non-ES thread must restore the inbound context first ({@link #restoreContextOnCompletion});
+     * otherwise SEARCH preserves an empty context into {@code runCompute}.
      */
     static void runOnSearch(Executor searchExecutor, Runnable cpuWork, ActionListener<?> failureListener) {
         Runnable guarded = () -> {

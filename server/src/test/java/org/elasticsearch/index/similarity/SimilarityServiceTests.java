@@ -9,8 +9,8 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.FieldStats;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +61,7 @@ public class SimilarityServiceTests extends ESTestCase {
             }
 
             @Override
-            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
                 return new SimScorer() {
 
                     @Override
@@ -86,7 +86,7 @@ public class SimilarityServiceTests extends ESTestCase {
             }
 
             @Override
-            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
                 return new SimScorer() {
 
                     @Override
@@ -111,7 +111,7 @@ public class SimilarityServiceTests extends ESTestCase {
             }
 
             @Override
-            public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+            public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
                 return new SimScorer() {
 
                     @Override

@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -69,8 +69,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             1,
             newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
         );
-        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
-        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(0).termsStatistics(new Term[0], new TermStats[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStats[0]);
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
@@ -169,8 +169,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             1,
             newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
         );
-        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
-        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(0).termsStatistics(new Term[0], new TermStats[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStats[0]);
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
@@ -254,8 +254,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             1,
             newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
         );
-        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
-        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(0).termsStatistics(new Term[0], new TermStats[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStats[0]);
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
@@ -351,8 +351,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             1,
             newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
         );
-        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
-        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(0).termsStatistics(new Term[0], new TermStats[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStats[0]);
         results.get(0).knnResults(List.of());
         results.get(0).searchTimedOut(true);
         results.get(1).knnResults(List.of());

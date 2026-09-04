@@ -10,8 +10,8 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.FieldStats;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,10 +32,10 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private static final TransportVersion DFS_SEARCH_TIMED_OUT = TransportVersion.fromName("dfs_search_timed_out");
 
     private static final Term[] EMPTY_TERMS = new Term[0];
-    private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
+    private static final TermStats[] EMPTY_TERM_STATS = new TermStats[0];
     private Term[] terms;
-    private TermStatistics[] termStatistics;
-    private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private TermStats[] termStatistics;
+    private Map<String, FieldStats> fieldStatistics = new HashMap<>();
     private List<DfsKnnResults> knnResults;
     private int maxDoc;
     private boolean searchTimedOut;
@@ -80,13 +80,13 @@ public final class DfsSearchResult extends SearchPhaseResult {
         return maxDoc;
     }
 
-    public DfsSearchResult termsStatistics(Term[] terms, TermStatistics[] termStatistics) {
+    public DfsSearchResult termsStatistics(Term[] terms, TermStats[] termStatistics) {
         this.terms = terms;
         this.termStatistics = termStatistics;
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(Map<String, CollectionStatistics> fieldStatistics) {
+    public DfsSearchResult fieldStatistics(Map<String, FieldStats> fieldStatistics) {
         this.fieldStatistics = fieldStatistics;
         return this;
     }
@@ -113,11 +113,11 @@ public final class DfsSearchResult extends SearchPhaseResult {
         return terms;
     }
 
-    public TermStatistics[] termStatistics() {
+    public TermStats[] termStatistics() {
         return termStatistics;
     }
 
-    public Map<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, FieldStats> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -148,7 +148,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeDirectoryMetrics(out);
     }
 
-    public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, Map<String, FieldStats> fieldStatistics) throws IOException {
         out.writeMap(fieldStatistics, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
             o.writeVLong(statistics.maxDoc());
@@ -159,11 +159,11 @@ public final class DfsSearchResult extends SearchPhaseResult {
         });
     }
 
-    public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
+    public static void writeTermStats(StreamOutput out, TermStats[] termStatistics) throws IOException {
         out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
-    public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
+    public static void writeSingleTermStats(StreamOutput out, TermStats termStatistic) throws IOException {
         if (termStatistic != null) {
             assert termStatistic.docFreq() > 0;
             out.writeVLong(termStatistic.docFreq());
@@ -174,9 +174,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    static Map<String, FieldStats> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>(numFieldStatistics);
+        Map<String, FieldStats> fieldStatistics = new HashMap<>(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
@@ -185,19 +185,19 @@ public final class DfsSearchResult extends SearchPhaseResult {
             final long docCount = in.readVLong();
             final long sumTotalTermFreq = in.readVLong();
             final long sumDocFreq = in.readVLong();
-            CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
+            FieldStats stats = new FieldStats(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
         return fieldStatistics;
     }
 
-    static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
+    static TermStats[] readTermStats(StreamInput in, Term[] terms) throws IOException {
         int termsStatsSize = in.readVInt();
-        final TermStatistics[] termStatistics;
+        final TermStats[] termStatistics;
         if (termsStatsSize == 0) {
             termStatistics = EMPTY_TERM_STATS;
         } else {
-            termStatistics = new TermStatistics[termsStatsSize];
+            termStatistics = new TermStats[termsStatsSize];
             assert terms.length == termsStatsSize;
             for (int i = 0; i < termStatistics.length; i++) {
                 BytesRef term = terms[i].bytes();
@@ -207,7 +207,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
                 if (docFreq == 0) {
                     continue;
                 }
-                termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
+                termStatistics[i] = new TermStats(term, docFreq, totalTermFreq);
             }
         }
         return termStatistics;

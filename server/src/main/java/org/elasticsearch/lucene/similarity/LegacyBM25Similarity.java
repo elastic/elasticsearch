@@ -18,8 +18,8 @@
 package org.elasticsearch.lucene.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.FieldStats;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 
@@ -68,7 +68,7 @@ public final class LegacyBM25Similarity extends Similarity {
     }
 
     @Override
-    public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+    public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
         return bm25Similarity.scorer(boost * (1 + bm25Similarity.getK1()), collectionStats, termStats);
     }
 

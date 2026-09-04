@@ -57,7 +57,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.TotalHits;
@@ -477,7 +477,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 // Set DFS stats with intentionally different docFreq and totalTermFreq
                 long dfsDocFreq = 10;
                 long dfsTotalTermFreq = 25;
-                TermStatistics termStats = new TermStatistics(new BytesRef("foo"), dfsDocFreq, dfsTotalTermFreq);
+                TermStats termStats = new TermStats(new BytesRef("foo"), dfsDocFreq, dfsTotalTermFreq);
                 AggregatedDfs aggregatedDfs = new AggregatedDfs(Map.of(fooTerm, termStats), Map.of(), 100);
                 searcher.setAggregatedDfs(aggregatedDfs);
 

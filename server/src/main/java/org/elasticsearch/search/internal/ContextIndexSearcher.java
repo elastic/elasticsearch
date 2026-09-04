@@ -14,7 +14,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -31,7 +31,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
@@ -624,33 +624,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
-        TermStatistics termStatistics = termStatisticsFromDfs(term);
+    public TermStats termStats(Term term, int docFreq, long totalTermFreq) throws IOException {
+        TermStats termStatistics = termStatisticsFromDfs(term);
 
         if (termStatistics == null) {
             // we don't have stats for this - dfs might be disabled pr this might be a must_not clauses etc.
             // that doesn't allow extract terms on the query
-            return super.termStatistics(term, docFreq, totalTermFreq);
+            return super.termStats(term, docFreq, totalTermFreq);
         }
         return termStatistics;
     }
 
     @Override
-    public CollectionStatistics collectionStatistics(String field) throws IOException {
+    public FieldStats fieldStats(String field) throws IOException {
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.collectionStatistics(field);
+            return super.fieldStats(field);
         }
-        CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
+        FieldStats collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
         if (collectionStatistics == null) {
             // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
-            return super.collectionStatistics(field);
+            return super.fieldStats(field);
         }
         return collectionStatistics;
     }
 
     public long docFreq(Term term, long docFreq) throws IOException {
-        TermStatistics termStatistics = termStatisticsFromDfs(term);
+        TermStats termStatistics = termStatisticsFromDfs(term);
 
         if (termStatistics == null) {
             return docFreq;
@@ -659,7 +659,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public long totalTermFreq(Term term, long totalTermFreq) throws IOException {
-        TermStatistics termStatistics = termStatisticsFromDfs(term);
+        TermStats termStatistics = termStatisticsFromDfs(term);
 
         if (termStatistics == null) {
             return totalTermFreq;
@@ -667,7 +667,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return termStatistics.totalTermFreq();
     }
 
-    private TermStatistics termStatisticsFromDfs(Term term) {
+    private TermStats termStatisticsFromDfs(Term term) {
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
             return null;

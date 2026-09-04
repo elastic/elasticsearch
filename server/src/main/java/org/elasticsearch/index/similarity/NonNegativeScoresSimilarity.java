@@ -10,9 +10,9 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.Similarity;
 
 /**
@@ -55,7 +55,7 @@ public final class NonNegativeScoresSimilarity extends Similarity {
     }
 
     @Override
-    public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+    public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
         final SimScorer inScorer = in.scorer(boost, collectionStats, termStats);
         return new SimScorer() {
 

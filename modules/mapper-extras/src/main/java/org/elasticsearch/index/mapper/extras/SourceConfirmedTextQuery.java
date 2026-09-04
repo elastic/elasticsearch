@@ -19,7 +19,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -35,7 +35,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
@@ -137,7 +137,8 @@ public final class SourceConfirmedTextQuery extends Query {
             return 1L;
         }
 
-        public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+        @Override
+        public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
             return new SimScorer() {
                 @Override
                 public float score(float freq, long norm) {
@@ -227,16 +228,16 @@ public final class SourceConfirmedTextQuery extends Query {
             throw new IllegalStateException("Query " + in + " doesn't have any term");
         }
         final String field = terms.iterator().next().field();
-        final CollectionStatistics collectionStatistics = searcher.collectionStatistics(field);
+        final FieldStats fieldStats = searcher.fieldStats(field);
         final SimScorer simScorer;
         final Weight approximationWeight;
-        if (collectionStatistics == null) {
+        if (fieldStats == null) {
             // field does not exist in the index
             simScorer = null;
             approximationWeight = null;
         } else {
             final Map<Term, TermStates> termStates = new HashMap<>();
-            final List<TermStatistics> termStats = new ArrayList<>();
+            final List<TermStats> termStats = new ArrayList<>();
             for (Term term : terms) {
                 TermStates ts = termStates.computeIfAbsent(term, t -> {
                     try {
@@ -247,14 +248,14 @@ public final class SourceConfirmedTextQuery extends Query {
                 });
                 if (scoreMode.needsScores()) {
                     if (ts.docFreq() > 0) {
-                        termStats.add(searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq()));
+                        termStats.add(searcher.termStats(term, ts.docFreq(), ts.totalTermFreq()));
                     }
                 } else {
-                    termStats.add(new TermStatistics(term.bytes(), 1, 1L));
+                    termStats.add(new TermStats(term.bytes(), 1, 1L));
                 }
             }
             if (termStats.size() > 0) {
-                simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
+                simScorer = searcher.getSimilarity().scorer(boost, fieldStats, termStats.toArray(TermStats[]::new));
                 approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } else {
                 simScorer = null;

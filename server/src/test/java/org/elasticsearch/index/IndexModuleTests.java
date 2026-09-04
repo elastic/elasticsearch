@@ -13,9 +13,9 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
@@ -892,7 +892,7 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+        public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
             return delegate.scorer(boost, collectionStats, termStats);
         }
     }

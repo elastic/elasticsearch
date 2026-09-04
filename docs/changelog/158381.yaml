@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158381
+summary: Fix incorrect results with COUNT(mv_field) on not indexed numeric/date
+type: bug

@@ -75,6 +75,16 @@ public interface StorageObject {
     /** Returns the object size in bytes. */
     long length() throws IOException;
 
+    /**
+     * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
+     * ({@code offset}/{@code length} splits) must return the underlying object's full size, not
+     * the view span, so split discovery and execution share one {@code (path, fileLength)} entry.
+     */
+    default long lengthForFooterCacheKey() throws IOException {
+        return length();
+    }
+
     /** Returns the last modification time, or null if not available. */
     Instant lastModified() throws IOException;
 
@@ -346,6 +356,18 @@ public interface StorageObject {
      * @return true if {@link #readBytesAsync} has a native implementation, false if it uses the default sync wrapper
      */
     default boolean supportsNativeAsync() {
+        return false;
+    }
+
+    /**
+     * Whether {@link #readBytesAsync} returns the {@code executor} thread before the GET completes.
+     * The default implementation submits blocking I/O on {@code executor} and returns {@code false}.
+     * Native clients that complete on their own I/O pool (S3, Azure, HTTP) return {@code true}.
+     * GCS overrides {@code readBytesAsync} but still blocks {@code executor}, so it returns
+     * {@code false} even though {@link #supportsNativeAsync()} is {@code true} for read-path
+     * parallel chunks.
+     */
+    default boolean readBytesAsyncReleasesExecutor() {
         return false;
     }
 

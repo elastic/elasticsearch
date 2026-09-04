@@ -94,6 +94,27 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(GlobExpander.isMultiFile("http://[::1]/logs/2026-*/data.parquet"));
     }
 
+    /**
+     * Presigned URLs carry a query string whose '?' is a URL structural delimiter, not a glob
+     * metacharacter. An HTTP(S) URL must never be reclassified as a multi-file glob because of it.
+     */
+    public void testHttpQueryStringIsNotAGlob() {
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?v=1.2"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?X-Goog-Signature=abc"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv#frag"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?X-Amz-Signature=xyz"));
+        // Other glob metacharacters in query strings must also be safe after the strip.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?filter=*.csv"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x={a,b}"));
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?x=[1-3]"));
+    }
+
+    public void testHttpQueryStringCommaIsNotAListSeparator() {
+        // A comma inside an HTTP query string (e.g. ?fields=a,b) must not split the URL into a comma list.
+        assertFalse(GlobExpander.isMultiFile("https://host/data.csv?fields=a,b"));
+        assertFalse(GlobExpander.isMultiFile("http://host/data.parquet?x=a,b,c"));
+    }
+
     // -- expandGlob --
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
@@ -1978,5 +1999,25 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expandGlob("s3://bucket/data/**", new StubProvider(listing), null, HIVE_OFF);
 
         assertEquals(2, result.fileCount());
+    }
+
+    /**
+     * The cache loader uses {@link GlobExpander#expandAndCompact} which must attach the exclusion text
+     * without emitting it, so a later {@link GlobExpander#replayExclusionWarnings} does not double-warn
+     * on a miss.
+     */
+    public void testExpandAndCompactDefersExclusionWarningUntilReplay() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        String pattern = "s3://bucket/data/*";
+        String warning = "1 of 2 objects matching the resource under [s3://bucket/data/] was excluded by the [file_exclusions] "
+            + "dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+
+        FileList compacted = GlobExpander.expandAndCompact(pattern, new StubProvider(listing), null, HIVE_OFF, StoragePath.of(pattern));
+        assertEquals(1, compacted.fileCount());
+        assertEquals(List.of(warning), compacted.exclusionWarnings());
+        ensureNoWarnings();
+
+        GlobExpander.replayExclusionWarnings(compacted);
+        assertWarnings(warning);
     }
 }

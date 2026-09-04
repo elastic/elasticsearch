@@ -398,12 +398,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder.endObject();
     }
 
-    @Override
-    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
-        if (patchLoader == null) {
-            return null;
-        }
+    /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */
+    SourceLoader.SyntheticVectorsLoader wrapSyntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader patchLoader) {
         return context -> {
             var leaf = patchLoader.leaf(context);
             if (leaf == null) {

@@ -143,7 +143,7 @@ public final class GlobExpander {
     ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
-        return hasTopLevelComma(path)
+        return isTopLevelCommaList(path)
             ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
             : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
     }
@@ -241,21 +241,30 @@ public final class GlobExpander {
      * IPv6 host literals in URL authorities (e.g. {@code http://[::1]/data/*.parquet}) use bracket
      * notation per RFC 3986 §3.2.2. Those brackets are parsed as part of the authority, not the
      * path, so they are not treated as glob character-class syntax.
+     *
+     * For {@code http}/{@code https}, commas are never treated as list separators — the scheme does
+     * not support glob expansion or multi-resource lists. {@link StoragePath} strips the query string
+     * from the path for those schemes, so metacharacters in the query are invisible to
+     * {@link StoragePath#isPattern()}.
      */
     public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
-        if (hasTopLevelComma(path)) {
-            return true;
-        }
-        // Only scan the path component for glob metacharacters, not the full URL string.
-        // This prevents IPv6 bracket notation in the authority from being mistaken for
-        // a glob character class.
         try {
-            return StoragePath.of(path).isPattern();
+            StoragePath sp = StoragePath.of(path);
+            // For http/https the query string is stripped by StoragePath.of(), so isPattern()
+            // sees only the resource path. Commas and glob metacharacters in the query are
+            // structural URL delimiters, not list separators or wildcards.
+            if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+                return sp.isPattern();
+            }
+            return hasTopLevelComma(path) || sp.isPattern();
         } catch (IllegalArgumentException e) {
             // Not a parseable URL; fall back to scanning the whole string
+            if (hasTopLevelComma(path)) {
+                return true;
+            }
             for (char c : StoragePath.GLOB_METACHARACTERS) {
                 if (path.indexOf(c) >= 0) {
                     return true;
@@ -724,7 +733,7 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         PartitionConfig partitionConfig
     ) {
-        if (hasTopLevelComma(path) == false) {
+        if (isTopLevelCommaList(path) == false) {
             return effectivePattern(path, hints, partitionConfig);
         }
         List<String> segments = commaSegments(path);
@@ -791,6 +800,24 @@ public final class GlobExpander {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether {@code path} is a comma-separated list of resources (as opposed to a single glob or literal).
+     * For {@code http}/{@code https}, commas are never treated as list separators — the scheme does not
+     * support glob expansion or multi-resource lists. For all other schemes, delegates to
+     * {@link #hasTopLevelComma}.
+     */
+    private static boolean isTopLevelCommaList(String path) {
+        try {
+            StoragePath sp = StoragePath.of(path);
+            if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
+                return false;
+            }
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL — treat as non-HTTP and fall through
+        }
+        return hasTopLevelComma(path);
     }
 
     /**

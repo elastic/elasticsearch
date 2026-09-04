@@ -113,48 +113,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
      * <p>{@code count} is the companion {@code .counts} value, and is ignored for a columnar payload, which carries
      * its own count and writes no companion — so a caller that has no count in hand can pass anything for it.
      *
-     * <p>Returns {@code null} for a columnar payload holding no non-null slot. The other formats never write a blob
-     * for such a document, so they have nothing to be asked about and always return a key.
+     * <p>Returns {@code null} for a columnar payload holding no non-null slot — an empty array, or one holding nothing
+     * but nulls. The other formats never write a blob for such a document, so they have nothing to be asked about and
+     * always return a key; the payload describes them, and handing its bytes back would sort the document on its own
+     * framing.
      */
     @Nullable
     public static BytesRef decodeExtreme(BytesRef raw, long count, boolean maxMode, BinaryDocValuesFormat format) throws IOException {
         return switch (format) {
-            case COLUMNAR_PAYLOAD -> decodeColumnarPayloadExtreme(raw, maxMode);
+            case COLUMNAR_PAYLOAD -> new StringBinaryPayload.Decoder().extreme(raw, maxMode);
             // count=1 (or a lone slot): raw bytes are the sort key in either encoding, no decoding needed.
             case ARRAY_ORDER_INLINE_NULL -> count <= 1
                 ? raw
                 : MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.decodeExtreme(raw, (int) count, maxMode);
             case SEPARATE_COUNT -> count <= 1 ? raw : MultiValuedBinaryDocValuesField.SeparateCount.decodeExtreme(raw, maxMode);
         };
-    }
-
-    /**
-     * Decodes the extreme non-null value from a columnar payload, whose slot count travels in the blob.
-     *
-     * <p>Returns {@code null} when the document has no non-null value — an empty array, or one holding nothing but nulls. Unlike the
-     * other encodings, which write no blob at all for those, the payload describes them, so this is the only place that can tell the
-     * caller there is nothing to sort on. Handing back the raw payload instead would sort such a document on its framing bytes.
-     */
-    @Nullable
-    public static BytesRef decodeColumnarPayloadExtreme(BytesRef raw, boolean maxMode) throws IOException {
-        return decodeColumnarPayloadExtreme(raw, maxMode, new StringBinaryPayload.Decoder());
-    }
-
-    /** As {@link #decodeColumnarPayloadExtreme(BytesRef, boolean)}, with a decoder the caller reuses across documents. */
-    @Nullable
-    private static BytesRef decodeColumnarPayloadExtreme(BytesRef raw, boolean maxMode, StringBinaryPayload.Decoder decoder)
-        throws IOException {
-        BytesRef extreme = null;
-        for (int slot = decoder.reset(raw); slot > 0; slot--) {
-            final BytesRef value = decoder.next();
-            // clone, not deepCopyOf: the decoder reuses one BytesRef across slots so the winner cannot be held onto,
-            // but the bytes behind it are raw's own and outlive this call. The result is a view into raw, which is
-            // what the other decoders return too.
-            if (value != null && (extreme == null || (maxMode ? value.compareTo(extreme) > 0 : value.compareTo(extreme) < 0))) {
-                extreme = value.clone();
-            }
-        }
-        return extreme;
     }
 
     /**
@@ -216,7 +189,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
         /** Decodes the sort key of the document {@code in} is positioned on, reporting whether it has one at all. */
         private boolean decodeSortKey() throws IOException {
-            sortKey = decodeColumnarPayloadExtreme(in.binaryValue(), maxMode, decoder);
+            sortKey = decoder.extreme(in.binaryValue(), maxMode);
             return sortKey != null;
         }
     }

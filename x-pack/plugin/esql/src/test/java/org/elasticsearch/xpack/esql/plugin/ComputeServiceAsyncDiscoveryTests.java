@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +69,74 @@ public class ComputeServiceAsyncDiscoveryTests extends ESTestCase {
             assertTrue("SEARCH inbound must run post-discovery CPU inline", sameThread.get());
         } finally {
             search.shutdownNow();
+        }
+    }
+
+    /**
+     * SEARCH's executor snapshots {@link ThreadContext} at {@code execute} time. Completing
+     * discovery on an IO thread without restoring the inbound context would submit an empty
+     * snapshot; {@code restoreContextOnCompletion} restores the user before that hop.
+     */
+    public void testAfterDiscoveryRestoresInboundContextOntoSearch() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("es-security-user", "elastic");
+        ExecutorService search = Executors.newFixedThreadPool(1, EsExecutors.daemonThreadFactory("test", ThreadPool.Names.SEARCH));
+        ExecutorService io = Executors.newFixedThreadPool(
+            1,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        // Mimic EsThreadPoolExecutor: preserve whatever context is installed at submit time.
+        Executor searchPreserving = command -> search.execute(threadContext.preserveContext(command));
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        AtomicReference<String> seenUser = new AtomicReference<>();
+        ActionListener<Void> afterDiscovery = ComputeService.restoreContextOnCompletion(
+            ActionListener.wrap(ignored -> ComputeService.runOnSearch(searchPreserving, () -> {
+                seenUser.set(threadContext.getHeader("es-security-user"));
+                done.onResponse(null);
+            }, done), done::onFailure),
+            threadContext
+        );
+        try {
+            io.submit(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    assertNull("SDK/Netty thread has no inbound user", threadContext.getHeader("es-security-user"));
+                    afterDiscovery.onResponse(null);
+                }
+            }).get(10, TimeUnit.SECONDS);
+            done.actionGet(30, TimeUnit.SECONDS);
+            assertEquals("elastic", seenUser.get());
+        } finally {
+            search.shutdownNow();
+            io.shutdownNow();
+        }
+    }
+
+    /** Failure from the IO hop must also run with the inbound user, not an empty SDK context. */
+    public void testAfterDiscoveryFailureRestoresInboundContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("es-security-user", "elastic");
+        ExecutorService io = Executors.newFixedThreadPool(
+            1,
+            EsExecutors.daemonThreadFactory("test", EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME)
+        );
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        AtomicReference<String> seenUser = new AtomicReference<>();
+        ActionListener<Void> afterDiscovery = ComputeService.restoreContextOnCompletion(ActionListener.wrap(ignored -> {
+            done.onFailure(new IllegalStateException("success path must not run"));
+        }, e -> {
+            seenUser.set(threadContext.getHeader("es-security-user"));
+            done.onResponse(null);
+        }), threadContext);
+        try {
+            io.submit(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    afterDiscovery.onFailure(new RuntimeException("discovery failed"));
+                }
+            }).get(10, TimeUnit.SECONDS);
+            done.actionGet(30, TimeUnit.SECONDS);
+            assertEquals("elastic", seenUser.get());
+        } finally {
+            io.shutdownNow();
         }
     }
 }

@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The payload format on its own, away from any column: the shape the mapper writes for a columnar field and the
@@ -141,6 +142,76 @@ public class StringBinaryPayloadTests extends ESTestCase {
         }
     }
 
+    /** The extreme is whichever non-null slot sorts first or last, wherever in the payload it sits. */
+    public void testExtremeFindsTheEndsOfThePayload() throws IOException {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        // The winner first, last, and in the middle, so a scan that dropped either end of the payload would be caught.
+        assertExtreme(decoder, slots(new BytesRef("a"), new BytesRef("m"), new BytesRef("z")), "a", "z");
+        assertExtreme(decoder, slots(new BytesRef("z"), new BytesRef("a"), new BytesRef("m")), "a", "z");
+        assertExtreme(decoder, slots(new BytesRef("m"), new BytesRef("z"), new BytesRef("a")), "a", "z");
+        // A lone slot is both ends of the payload.
+        assertExtreme(decoder, slots(new BytesRef("only")), "only", "only");
+        // A value held by several slots wins once, and ties do not shift which one it is.
+        assertExtreme(decoder, slots(new BytesRef("b"), new BytesRef("b"), new BytesRef("a"), new BytesRef("b")), "a", "b");
+        // An empty value is a value, and sorts ahead of every other one.
+        assertExtreme(decoder, slots(new BytesRef("b"), new BytesRef(""), new BytesRef("a")), "", "b");
+    }
+
+    /** Nulls are not values, so they are stepped over whichever end of the payload they sit at. */
+    public void testExtremeSkipsNullSlots() throws IOException {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        assertExtreme(decoder, slots(null, new BytesRef("b"), null, new BytesRef("a"), null), "a", "b");
+        assertExtreme(decoder, slots(null, new BytesRef("only"), null), "only", "only");
+    }
+
+    /**
+     * A document whose slots are all null. The other encodings write no blob at all for one, so the payload is the only shape that can
+     * be asked and has to answer that there is no key — at either end, however many nulls it frames.
+     */
+    public void testExtremeOfAnAllNullPayload() throws IOException {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        assertNoExtreme(decoder, "a lone null slot", encode(slots((BytesRef) null)));
+        for (int nulls = 2; nulls <= 30; nulls++) {
+            final List<BytesRef> allNull = new ArrayList<>();
+            for (int i = 0; i < nulls; i++) {
+                allNull.add(null);
+            }
+            assertNoExtreme(decoder, nulls + " null slots", encode(allNull));
+        }
+        // A decoder that has just found a value must not carry it into the next document, which has none.
+        assertExtreme(decoder, slots(new BytesRef("a"), null), "a", "a");
+        assertNoExtreme(decoder, "all nulls after a value", encode(slots(null, null)));
+    }
+
+    /**
+     * A document holding no slot at all, the other shape with nothing to sort on. Handing back its bytes would sort the document on
+     * its own framing.
+     */
+    public void testExtremeOfAPayloadWithNoSlots() throws IOException {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        assertNoExtreme(decoder, "no slots at all", encode(List.of()));
+        assertNoExtreme(decoder, "the empty payload", StringBinaryPayload.EMPTY);
+    }
+
+    /** Against the slots themselves over random payloads, on one decoder reused across them as a caller reuses it. */
+    public void testExtremeAgreesWithTheSlots() throws IOException {
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+        for (int iter = 0; iter < 200; iter++) {
+            final List<BytesRef> slots = new ArrayList<>();
+            for (int i = 0; i < between(1, 30); i++) {
+                slots.add(randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 60)));
+            }
+            final BytesRef payload = encode(slots);
+            final List<BytesRef> values = slots.stream().filter(Objects::nonNull).sorted().toList();
+            if (values.isEmpty()) {
+                assertNoExtreme(decoder, "nothing but nulls", payload);
+                continue;
+            }
+            assertEquals("minimum", values.get(0), decoder.extreme(payload, false));
+            assertEquals("maximum", values.get(values.size() - 1), decoder.extreme(payload, true));
+        }
+    }
+
     /** An empty array is a count of zero and nothing after it, which no other shape produces. */
     public void testRoundTripsNoSlots() throws IOException {
         assertRoundTrip(List.of());
@@ -156,6 +227,20 @@ public class StringBinaryPayloadTests extends ESTestCase {
         for (int i = 0; i < slots.size(); i++) {
             assertEquals("slot " + i, slots.get(i), decoder.next());
         }
+    }
+
+    /** Both ends of one payload, so a decoder that leaked state between the two calls would not agree with either. */
+    private static void assertExtreme(StringBinaryPayload.Decoder decoder, List<BytesRef> slots, String min, String max)
+        throws IOException {
+        final BytesRef payload = encode(slots);
+        assertEquals("minimum of " + slots, new BytesRef(min), decoder.extreme(payload, false));
+        assertEquals("maximum of " + slots, new BytesRef(max), decoder.extreme(payload, true));
+    }
+
+    /** Neither end of a payload with no value exists, so both modes have to report it rather than one of them by luck. */
+    private static void assertNoExtreme(StringBinaryPayload.Decoder decoder, String label, BytesRef payload) throws IOException {
+        assertNull("minimum of " + label, decoder.extreme(payload, false));
+        assertNull("maximum of " + label, decoder.extreme(payload, true));
     }
 
     private static List<BytesRef> slots(BytesRef... slots) {

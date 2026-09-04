@@ -4119,11 +4119,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
         ensureGreen(indexName);
 
-        // Short start-split retry window so recovery fails quickly once IndexShardNotStartedException keeps coming back.
+        // Keep the existing primary on sourceNode once the second index node joins
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+
+        // We don't care about the retries so use short start-split retry window to make test run faster
         var shortStartSplitRetry = Settings.builder()
             .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueMillis(100))
             .build();
-        // Start the target node after the index is allocated so the source primary stays on sourceNode.
         String targetNode = startIndexNode(shortStartSplitRetry);
         ensureStableCluster(3);
 
@@ -4155,6 +4160,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 }
             });
 
+        // Safety guard that sourceNode is still responsible for receiving the START_SPLIT_ACTION_NAME request
+        var primaryNodeId = clusterService().state().routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        assertThat(clusterService().state().nodes().get(primaryNodeId).getName(), equalTo(sourceNode));
+
         client(sourceNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
         // IndexShardNotStartedException is retried by SplitTargetService until START_SPLIT_RETRY_TIMEOUT,
@@ -4162,7 +4171,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(shardFailedReceived);
         assertThat(
             getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, getTelemetryPlugin(targetNode)),
-            greaterThanOrEqualTo(1L)
+            equalTo(1L)
         );
         assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, getTelemetryPlugin(targetNode)), equalTo(0L));
 

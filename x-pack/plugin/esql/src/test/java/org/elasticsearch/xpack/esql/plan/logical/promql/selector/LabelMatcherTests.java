@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -192,8 +191,9 @@ public class LabelMatcherTests extends ESTestCase {
 
     public void testMultiValueInvalidRegexIsReported() {
         LabelMatcher matcher = new LabelMatcher("host", List.of("server-.*", "web-("), Matcher.REG);
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, matcher::automaton);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
         assertThat(e.getMessage(), containsString("Cannot parse regex web-("));
+        assertNotNull("the Lucene parse error is kept as the cause", e.getCause());
     }
 
     /**

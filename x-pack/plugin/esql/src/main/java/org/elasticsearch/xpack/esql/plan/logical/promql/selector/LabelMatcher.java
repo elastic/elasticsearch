@@ -12,7 +12,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -148,11 +147,12 @@ public class LabelMatcher implements NodeStringRenderable {
         return automaton;
     }
 
+    /** A bad pattern is the user's, so both failures are client errors; QlIllegalArgumentException would be a 500. */
     private static Automaton regexAutomaton(String regex) {
         try {
             return new RegExp(regex).toAutomaton();
         } catch (IllegalArgumentException ex) {
-            throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", regex);
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
         } catch (StackOverflowError e) {
             // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
             throw new IllegalArgumentException("Regex [" + regex + "] is too deeply nested");

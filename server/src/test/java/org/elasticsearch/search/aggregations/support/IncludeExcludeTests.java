@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -424,6 +425,17 @@ public class IncludeExcludeTests extends ESTestCase {
         );
         assertTrue(filter.accept(new BytesRef(regex)));
         assertFalse(filter.accept(new BytesRef("b")));
+    }
+
+    public void testTooComplexRegexIsAClientError() {
+        // Exponential state blow-up under determinization, well within the length limit.
+        IncludeExclude inexcl = new IncludeExclude("(a|b)*a(a|b){30}", null, null, null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH)
+        );
+        assertThat(e.getMessage(), containsString("too complex to determinize"));
+        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     /**

@@ -23,6 +23,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -522,19 +523,33 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
         checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
         try {
-            Automaton a = include != null ? compile(include) : Automata.makeAnyString();
+            Automaton a = include != null ? compile(include, INCLUDE_FIELD) : Automata.makeAnyString();
             if (exclude != null) {
-                a = Operations.minus(a, compile(exclude), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                a = Operations.minus(a, compile(exclude, EXCLUDE_FIELD), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             }
             return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        } catch (StackOverflowError e) {
-            // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
-            throw new IllegalArgumentException("The regex used in the [include] or [exclude] of an aggregation is too deeply nested");
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "The regex used in the [include] or [exclude] of an aggregation is too complex to determinize",
+                e
+            );
         }
     }
 
-    private static Automaton compile(String regex) {
-        return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+    private static Automaton compile(String regex, ParseField field) {
+        try {
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+        } catch (StackOverflowError e) {
+            // Lucene's parser and toAutomaton() both recurse on nesting; outside the aggregation-build guards this Error is fatal.
+            throw new IllegalArgumentException(
+                "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too deeply nested"
+            );
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too complex to determinize",
+                e
+            );
+        }
     }
 
     private static void checkRegexLength(@Nullable String regex, ParseField field, int maxRegexLength) {

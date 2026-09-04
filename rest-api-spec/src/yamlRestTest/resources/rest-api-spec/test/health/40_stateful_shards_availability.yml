@@ -110,7 +110,7 @@ teardown:
   - match: { indicators.shards_availability.impacts.0.severity: 1 }
   - match: { indicators.shards_availability.impacts.0.impact_areas.0: "ingest" }
   - match: { indicators.shards_availability.impacts.0.impact_areas.1: "search" }
-  - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_cluster_index]. Searches might return incomplete results." }
+  - match: { indicators.shards_availability.impacts.0.description: "Cannot add data to 1 index [${_project_id_prefix_}red_index]. Searches might return incomplete results." }
 
   - is_true: indicators.shards_availability.diagnosis
   - contains:
@@ -121,7 +121,7 @@ teardown:
         help_url: "https://ela.st/fix-cluster-allocation"
         affected_resources:
           indices:
-            - "${_project_id_prefix_}red_cluster_index"
+            - "${_project_id_prefix_}red_index"
 
 ---
 "Yellow when all replicas are unassigned on a stateful cluster":

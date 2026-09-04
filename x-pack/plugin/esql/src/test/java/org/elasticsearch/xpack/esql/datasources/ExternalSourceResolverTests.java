@@ -2655,13 +2655,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("Glob pattern matched no files"));
         assertThat(e.getMessage(), containsString("s3://bucket/vpcflow/*"));
-        // "matched no files" on a prefix that visibly holds a file is the least actionable error this path can
-        // produce. The exclusion warning is what turns it into something the user can act on: the object was found
-        // and then dropped, and here is the rule that dropped it.
-        assertWarnings(
-            "1 of 1 objects matching the resource under [s3://bucket/vpcflow/] was excluded by the "
-                + "[file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]"
-        );
+        // The exclusion notice is buffered but not delivered: notices ride the ExternalSourceResolution, and a
+        // failed resolve produces none. A resolve-time HeaderWarning write would be discarded (#153780).
     }
 
     /**
@@ -3303,8 +3298,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, first);
             ExternalSourceResolution res1 = first.actionGet();
             assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().exclusionWarnings());
-            assertWarnings(warning);
+            assertEquals(List.of(warning), res1.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals("the exclusion notice rides the resolution object", List.of(warning), res1.warnings());
             int listCallsAfterFirst = countingProvider.listCallCount.get();
             assertTrue("first resolve must list", listCallsAfterFirst > 0);
 
@@ -3312,9 +3307,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.resolve(List.of(glob), pathConfigs, second);
             ExternalSourceResolution res2 = second.actionGet();
             assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().exclusionWarnings());
+            assertEquals(List.of(warning), res2.resolvedSource(glob).fileList().listingWarnings());
             assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
-            assertWarnings(warning);
+            assertEquals("a cached listing must replay the notice onto the resolution object", List.of(warning), res2.warnings());
         }
     }
 

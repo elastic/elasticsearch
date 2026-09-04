@@ -221,7 +221,7 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals(1, values.size());
         assertEquals("x\ty", values.get(0).get(0)); // tab inside quotes is data — quoting is on
         assertEquals("z", values.get(0).get(1));
-        drainWarnings(); // escaped+quote emits the expected decode-disabled config warning; clear it
+        assertTrue("the decode-disabled notice rides on the metadata, not on this thread's headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -331,30 +331,39 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the
-     * whole-field {@code \N} null marker emits a one-time response {@code Warning} header nudging
-     * toward {@code mode: escaped}. The query author reads the response, so the channel is a Warning
-     * header, not a DEBUG log they would never see. If the hint scan is dropped, no header is emitted
-     * and this fails.
+     * Tripwire for the hint: a non-decoding mode ({@code plain} here) whose sample carries the whole-field {@code \N}
+     * null marker nudges toward {@code mode: escaped}. The hint is raised at resolve time (schema inference) and at
+     * read time (first-split inference). Neither runs on a thread whose response headers reach the client, so the
+     * former rides on the metadata and the latter goes to the read context's sink; nothing may land on this thread's
+     * headers.
      */
     public void testPlainNullMarkerEmitsWarning() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\t\\N\nid1\tplain note\n");
-        assertNullMarkerWarning(drainWarnings());
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        StorageObject object = new InMemoryStorageObject("id0\t\\N\nid1\tplain note\n".getBytes(StandardCharsets.UTF_8));
+
+        assertNullMarkerWarning(reader.metadata(object).warnings());
+
+        assertNullMarkerWarning(readAllCollectingWarnings(reader, object));
+        assertTrue("the hint must never land on this thread's response headers", drainWarnings().isEmpty());
     }
 
     /**
-     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted,
-     * which hands the escape char to Jackson and drops the C-style decode. The data scan can't catch
-     * this (Jackson rewrites {@code \N} to {@code N} before the sample exists), so the resolver emits a
-     * deterministic config-time response warning. Building the reader is enough to trigger it.
+     * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted, which hands the
+     * escape char to Jackson and drops the C-style decode. The data scan can't catch this (Jackson rewrites
+     * {@code \N} to {@code N} before the sample exists), so the notice is decided when the config is parsed and
+     * surfaced with the metadata, never as a header on this thread.
      */
-    public void testEscapedPlusQuoteWarnsDecodeDisabled() {
-        tsvReader(Map.of("mode", "escaped", "quote", "\""));
-        List<String> warnings = drainWarnings();
+    public void testEscapedPlusQuoteWarnsDecodeDisabled() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "escaped", "quote", "\""));
+        StorageObject object = new InMemoryStorageObject("a:keyword\tb:keyword\nx\ty\n".getBytes(StandardCharsets.UTF_8));
+
+        List<String> warnings = reader.metadata(object).warnings();
+
         assertTrue(
             "expected a config-time decode-disabled warning, got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
         );
+        assertTrue("the notice must never land on this thread's response headers", drainWarnings().isEmpty());
     }
 
     /**
@@ -364,9 +373,17 @@ public class CsvModeReadTests extends ESTestCase {
      * with no quote (already decoding). No response warning of any kind should accumulate.
      */
     public void testNoWarningForCleanWindowsPathOrEscapedMode() throws IOException {
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tclean\nid1\talso clean\n");
-        readAll(tsvReader(Map.of("mode", "plain", "header_row", false)), "id0\tC:\\temp\nid1\tC:\\Users\n");
-        readAll(tsvReader(Map.of("mode", "escaped", "header_row", false)), "id0\t\\N\nid1\tvalue\n");
+        CsvFormatReader plain = tsvReader(Map.of("mode", "plain", "header_row", false));
+        CsvFormatReader escaped = tsvReader(Map.of("mode", "escaped", "header_row", false));
+        for (var readerAndContent : List.of(
+            Map.entry(plain, "id0\tclean\nid1\talso clean\n"),
+            Map.entry(plain, "id0\tC:\\temp\nid1\tC:\\Users\n"),
+            Map.entry(escaped, "id0\t\\N\nid1\tvalue\n")
+        )) {
+            StorageObject object = new InMemoryStorageObject(readerAndContent.getValue().getBytes(StandardCharsets.UTF_8));
+            assertTrue("no resolve-time notice expected", readerAndContent.getKey().metadata(object).warnings().isEmpty());
+            assertTrue("no read-time notice expected", readAllCollectingWarnings(readerAndContent.getKey(), object).isEmpty());
+        }
         assertTrue("no response warning expected", drainWarnings().isEmpty());
     }
 
@@ -480,9 +497,7 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     private static void assertNullMarkerWarning(List<String> warnings) {
-        // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
-        // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.
-        // Also assert the directed action and a location field are present.
+        // Match on a slice of the message and assert the directed action and a location field are present.
         assertTrue(
             "expected an undecoded null-marker response warning, got: " + warnings,
             warnings.stream()
@@ -559,6 +574,18 @@ public class CsvModeReadTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
+    }
+
+    /** Reads {@code object} to exhaustion with a capturing informational sink and returns what the read sent to it. */
+    private static List<String> readAllCollectingWarnings(CsvFormatReader reader, StorageObject object) throws IOException {
+        List<String> sink = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(sink::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+        return sink;
     }
 
     /** Reads every page and renders each value as a string ({@code null} stays null). */

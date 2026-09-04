@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * The dedicated metadata namespace, shared by every {@link PartitionDetector}: standard metadata
@@ -52,7 +53,7 @@ final class ReservedPartitionNames {
      * Emit one {@code Warning} response header per renamed key (none when {@code renamed} is
      * empty). Callers pass the ORIGINAL key names that {@link #surface(String)} renamed.
      */
-    static void warnRenamed(List<String> renamed) {
+    static void warnRenamed(List<String> renamed, Consumer<String> warningSink) {
         if (renamed.isEmpty()) {
             return;
         }
@@ -60,7 +61,8 @@ final class ReservedPartitionNames {
             "Partition columns shadowing reserved metadata names were renamed;"
                 + " reference them by the "
                 + RESERVED_RENAME_PREFIX
-                + "* name."
+                + "* name.",
+            warningSink
         );
         for (String key : renamed) {
             warnings.add("partition column [" + key + "] surfaced as [" + RESERVED_RENAME_PREFIX + key + "]");

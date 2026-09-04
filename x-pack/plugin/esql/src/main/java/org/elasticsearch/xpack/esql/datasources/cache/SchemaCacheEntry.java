@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -34,7 +35,8 @@ public record SchemaCacheEntry(
     String location,
     Map<String, Object> safeMetadata,
     Map<String, Object> connectorConfig,
-    long cachedAtMillis
+    long cachedAtMillis,
+    List<String> warnings
 ) {
     public SchemaCacheEntry {
         if (columnNames.length != columnTypes.length
@@ -44,6 +46,7 @@ public record SchemaCacheEntry(
         }
         safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
         connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
+        warnings = warnings != null ? List.copyOf(warnings) : List.of();
     }
 
     /**
@@ -61,7 +64,8 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            cachedAtMillis
+            cachedAtMillis,
+            warnings
         );
     }
 
@@ -71,6 +75,18 @@ public record SchemaCacheEntry(
         String location,
         Map<String, Object> metadata,
         Map<String, Object> connectorConfig
+    ) {
+        return from(schema, sourceType, location, metadata, connectorConfig, List.of());
+    }
+
+    /** @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one. */
+    public static SchemaCacheEntry from(
+        List<Attribute> schema,
+        String sourceType,
+        String location,
+        Map<String, Object> metadata,
+        Map<String, Object> connectorConfig,
+        List<String> warnings
     ) {
         int size = schema.size();
         String[] names = new String[size];
@@ -93,7 +109,8 @@ public record SchemaCacheEntry(
             location,
             metadata,
             connectorConfig,
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            warnings
         );
     }
 
@@ -122,15 +139,14 @@ public record SchemaCacheEntry(
         Map<String, Object> enrichedMeta = meta.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
             .orElse(meta.sourceMetadata());
-        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings());
     }
 
     public long estimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         for (String name : columnNames) {
-            // per-String: ~40B object overhead + char data
-            bytes += 40 + (name != null ? name.length() * (long) Character.BYTES : 0);
+            bytes += estimatedStringBytes(name);
         }
         // enum references stored as pointers
         bytes += columnTypes.length * (long) Long.BYTES;
@@ -138,6 +154,9 @@ public record SchemaCacheEntry(
         bytes += columnSynthetics.length;
         bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
+        for (String warning : warnings) {
+            bytes += estimatedStringBytes(warning);
+        }
         // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
         // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
         // many-striped file doesn't under-count against the cache budget
@@ -150,4 +169,15 @@ public record SchemaCacheEntry(
         bytes += connectorConfig.size() * 100L;
         return bytes;
     }
+
+    /**
+     * Cache weight of one String: about 40 bytes for the {@code String} object and its backing array headers on a 64-bit
+     * JVM with compressed references, plus two bytes per character. Both parts round up on purpose (compact Latin-1
+     * strings use one byte per character); this feeds a cache budget, where over-counting evicts a little early and
+     * under-counting lets the cache outgrow its budget. Shared by every cached value that holds Strings.
+     */
+    static long estimatedStringBytes(@Nullable String s) {
+        return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
+    }
+
 }

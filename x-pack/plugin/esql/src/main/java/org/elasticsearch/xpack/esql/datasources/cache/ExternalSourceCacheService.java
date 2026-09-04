@@ -288,7 +288,8 @@ public class ExternalSourceCacheService implements Closeable {
             location,
             Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount),
             Map.of(),
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            List.of()
         );
         datasetAggregateCache.put(key, entry);
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.WarningSinks;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -2769,7 +2770,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
         // Detect partitions the way production does, so the fixture exercises the real typing and
         // percent-decoding rather than the on-disk spelling a hand-built PartitionMetadata would carry.
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

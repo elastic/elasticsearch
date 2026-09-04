@@ -25,7 +25,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
@@ -40,7 +40,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
 
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
@@ -55,7 +55,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/2023/12/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
         assertTrue(result.isEmpty());
     }
 
@@ -68,7 +68,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
         assertFalse(result.isEmpty());
         // Template detector extracts the last segment before filename positionally
         assertEquals("year=2024", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/year=2024/file.parquet")).get("year"));
@@ -104,7 +104,7 @@ public class AutoPartitionDetectorTests extends ESTestCase {
             entry("s3://bucket/data/year=2023/file2.parquet")
         );
 
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, WarningSinks.FAILING);
         assertFalse(result.isEmpty());
         // Hive should be detected first, so the column should be "year" not "col"
         assertTrue(result.partitionColumns().containsKey("year"));

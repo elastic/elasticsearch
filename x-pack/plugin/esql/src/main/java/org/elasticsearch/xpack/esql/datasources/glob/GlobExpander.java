@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -38,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
@@ -72,7 +72,7 @@ public final class GlobExpander {
     /**
      * Expands a glob/comma pattern and compresses the result into a compact representation
      * (DictionaryFileList or DirectoryGroupedFileList). This is the primary entry point for the resolver.
-     * Does not emit {@code file_exclusions} headers; callers must {@link #replayExclusionWarnings(FileList)}.
+     * Notices raised while listing ride on the returned {@link FileList#listingWarnings()}; nothing is emitted here.
      */
     public static FileList expandAndCompact(
         String path,
@@ -125,13 +125,11 @@ public final class GlobExpander {
         int maxGlobExpansion
     ) throws IOException {
         FileList listing = expandWithoutReplay(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-        replayExclusionWarnings(listing);
         return listing;
     }
 
     /**
      * Expands without emitting {@code file_exclusions} headers. The listing cache loader uses this so a miss
-     * does not warn twice when the caller {@link #replayExclusionWarnings(FileList) replays} after get.
      */
     private static FileList expandWithoutReplay(
         String path,
@@ -146,17 +144,6 @@ public final class GlobExpander {
         return isTopLevelCommaList(path)
             ? doExpandCommaSeparated(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter)
             : expandGlobWithRewriteFallback(path, provider, hints, partitionConfig, maxDiscoveredFiles, maxGlobExpansion, nameFilter);
-    }
-
-    /**
-     * Emits each {@code file_exclusions} warning stored on {@code listing}. Cache hits and misses both go through
-     * here so a warm listing still produces the same headers as a cold expand.
-     */
-    public static void replayExclusionWarnings(FileList listing) {
-        List<String> warnings = listing.exclusionWarnings();
-        for (int i = 0; i < warnings.size(); i++) {
-            HeaderWarning.addWarning(warnings.get(i));
-        }
     }
 
     /**
@@ -294,7 +281,6 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             nameFilter
         );
-        replayExclusionWarnings(listing);
         return listing;
     }
 
@@ -316,7 +302,6 @@ public final class GlobExpander {
             maxGlobExpansion,
             nameFilter
         );
-        replayExclusionWarnings(listing);
         return listing;
     }
 
@@ -344,8 +329,9 @@ public final class GlobExpander {
             var obj = provider.newObject(storagePath);
             if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
-                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig);
-                return new GenericFileList(List.of(entry), pattern, partitionMetadata);
+                List<String> notices = new ArrayList<>();
+                PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), partitionConfig, notices::add);
+                return new GenericFileList(List.of(entry), pattern, partitionMetadata, notices);
             }
             return FileList.EMPTY;
         }
@@ -379,8 +365,9 @@ public final class GlobExpander {
                 return FileList.EMPTY;
             }
             matched.sort(Comparator.comparing(e -> e.path().toString()));
-            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
-            return new GenericFileList(matched, pattern, partitionMetadata);
+            List<String> notices = new ArrayList<>();
+            PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
+            return new GenericFileList(matched, pattern, partitionMetadata, notices);
         }
 
         boolean recursive = matcher.needsRecursion();
@@ -438,9 +425,10 @@ public final class GlobExpander {
             }
         }
 
-        List<String> exclusionWarnings = excludedCount > 0
-            ? List.of(exclusionWarning(excludedCount, matched.size(), prefixStr, excludedExample, excludedExampleEntry))
-            : List.of();
+        List<String> listingWarnings = new ArrayList<>();
+        if (excludedCount > 0) {
+            listingWarnings.add(exclusionWarning(excludedCount, matched.size(), prefixStr, excludedExample, excludedExampleEntry));
+        }
 
         // Apply file metadata filters from WHERE clause hints (e.g., _file.modified > X, _file.size > Y).
         // This prunes files at listing time — before any data is read.
@@ -451,14 +439,14 @@ public final class GlobExpander {
         if (matched.isEmpty()) {
             // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
             // prefixes still need the exclusion text on a cacheable empty listing.
-            return exclusionWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, exclusionWarnings);
+            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings);
         }
 
         matched.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig);
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
-        return new GenericFileList(matched, pattern, partitionMetadata, exclusionWarnings);
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings);
     }
 
     /**
@@ -503,7 +491,7 @@ public final class GlobExpander {
      * The partition columns a listing carries, decided entirely by the resolved {@link PartitionConfig}. One input,
      * one decision: no separate enable flag and no raw settings map alongside it.
      */
-    static PartitionMetadata detectPartitions(List<StorageEntry> files, PartitionConfig partitionConfig) {
+    static PartitionMetadata detectPartitions(List<StorageEntry> files, PartitionConfig partitionConfig, Consumer<String> warningSink) {
         if (PartitionConfig.Strategy.NONE == partitionConfig.strategy()) {
             return null;
         }
@@ -511,7 +499,7 @@ public final class GlobExpander {
         if (detector == null) {
             return null;
         }
-        PartitionMetadata result = detector.detect(files);
+        PartitionMetadata result = detector.detect(files, warningSink);
         if (result == null || result.isEmpty()) {
             return null;
         }
@@ -547,7 +535,6 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             ExclusionConfig.fromConfig(config).compile()
         );
-        replayExclusionWarnings(listing);
         return listing;
     }
 
@@ -568,7 +555,6 @@ public final class GlobExpander {
             maxGlobExpansion,
             ExclusionConfig.fromConfig(config).compile()
         );
-        replayExclusionWarnings(listing);
         return listing;
     }
 
@@ -585,7 +571,7 @@ public final class GlobExpander {
         Check.notNull(provider, "provider cannot be null");
 
         List<StorageEntry> allEntries = new ArrayList<>();
-        List<String> exclusionWarnings = new ArrayList<>();
+        List<String> listingWarnings = new ArrayList<>();
 
         for (String trimmed : commaSegments(pathList)) {
             StoragePath segmentPath = StoragePath.of(trimmed);
@@ -602,7 +588,7 @@ public final class GlobExpander {
                     maxGlobExpansion,
                     nameFilter
                 );
-                exclusionWarnings.addAll(expanded.exclusionWarnings());
+                listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
                     allEntries.addAll(g.files());
                 }
@@ -616,14 +602,14 @@ public final class GlobExpander {
         }
 
         if (allEntries.isEmpty()) {
-            return exclusionWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pathList, null, exclusionWarnings);
+            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pathList, null, listingWarnings);
         }
 
         allEntries.sort(Comparator.comparing(e -> e.path().toString()));
 
-        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig);
+        PartitionMetadata partitionMetadata = detectPartitions(allEntries, partitionConfig, listingWarnings::add);
 
-        return new GenericFileList(allEntries, pathList, partitionMetadata, exclusionWarnings);
+        return new GenericFileList(allEntries, pathList, partitionMetadata, listingWarnings);
     }
 
     /**

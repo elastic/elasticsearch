@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,13 +66,12 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files) {
+    public PartitionMetadata detect(List<StorageEntry> files, Consumer<String> warningSink) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
-        // Warn at detection time (not construction) so the header lands on the resolving request's
-        // thread context, mirroring the Hive detector.
-        ReservedPartitionNames.warnRenamed(renamedColumns);
+        // Warn at detection time (not construction), mirroring the Hive detector.
+        ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
 
         int segmentCount = columnNames.size();
 

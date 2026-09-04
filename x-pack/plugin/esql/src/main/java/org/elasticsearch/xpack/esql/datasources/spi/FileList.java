@@ -173,12 +173,12 @@ public interface FileList {
      * {@code file_exclusions} warnings produced while this listing was built. Empty when nothing was
      * dropped. Cached listings carry these so a cache hit can emit the same headers as a cold expand.
      */
-    default List<String> exclusionWarnings() {
+    default List<String> listingWarnings() {
         return List.of();
     }
 
-    default long exclusionWarningBytes() {
-        List<String> warnings = exclusionWarnings();
+    default long listingWarningBytes() {
+        List<String> warnings = listingWarnings();
         long bytes = 0;
         for (int i = 0; i < warnings.size(); i++) {
             bytes += 40 + warnings.get(i).length() * (long) Character.BYTES;

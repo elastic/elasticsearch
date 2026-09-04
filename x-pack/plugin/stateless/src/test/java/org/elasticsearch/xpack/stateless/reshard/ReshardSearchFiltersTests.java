@@ -482,19 +482,19 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             }
         }
 
-        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2)
-            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.HANDOFF)
-            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.SPLIT);
-        var indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), reshardingMetadata.shardCountAfter(), 0))
+        var originalIndexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(originalIndexMetadata.getNumberOfShards(), 2)
+            .transitionSplitTargetToNewState(testShardId(1), IndexReshardingState.Split.TargetShardState.HANDOFF);
+        var indexMetadata = IndexMetadata.builder(originalIndexMetadata)
             .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
             .build();
         var mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(false);
 
-        try (DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), testShardId(0))) {
-            for (int shard = 0; shard < 2; shard++) {
-                var shardId = testShardId(shard);
+        for (int shard = 0; shard < 2; shard++) {
+            var shardId = testShardId(shard);
+            try (DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId)) {
                 reshardSearchFilters.warmReaderCacheAfterResharding(
                     shardId,
                     indexMetadata,
@@ -504,20 +504,33 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 );
 
                 var afterWarm = cache().usageStats();
-                var filteredReader = reshardSearchFilters.maybeWrapDirectoryReader(
-                    reader,
-                    shardId,
-                    SplitShardCountSummary.forSearch(indexMetadata, shard),
-                    indexMetadata,
-                    mapperService
-                );
-                filteredReader.leaves().forEach(leaf -> leaf.reader().getLiveDocs());
-                var afterFilter = cache().usageStats();
+                var query = new ShardSplittingQuery(indexMetadata, shard, mapperService.hasNested());
+                for (var leaf : reader.leaves()) {
+                    cache().getBitSet(query, leaf);
+                }
+                var afterAccess = cache().usageStats();
 
-                assertEquals(afterWarm.get("misses"), afterFilter.get("misses"));
-                assertTrue((long) afterFilter.get("hits") > (long) afterWarm.get("hits"));
+                assertEquals(afterWarm.get("misses"), afterAccess.get("misses"));
+                assertTrue((long) afterAccess.get("hits") > (long) afterWarm.get("hits"));
             }
         }
+    }
+
+    public void testDoesNotWarmSourceBeforeTargetHandoff() {
+        var originalIndexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(originalIndexMetadata.getNumberOfShards(), 2);
+        assertEquals(IndexReshardingState.Split.SourceShardState.SOURCE, reshardingMetadata.getSplit().getSourceShardState(0));
+        assertEquals(IndexReshardingState.Split.TargetShardState.CLONE, reshardingMetadata.getSplit().getTargetShardState(1));
+
+        var indexMetadata = IndexMetadata.builder(originalIndexMetadata)
+            .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
+            .build();
+
+        reshardSearchFilters.warmReaderCacheAfterResharding(testShardId(0), indexMetadata, mock(MapperService.class), Runnable::run, () -> {
+            fail("searcher supplier must not be invoked");
+            return null;
+        });
     }
 
     public void testDoesNotWarmWithoutSplit() {
@@ -699,5 +712,4 @@ public class ReshardSearchFiltersTests extends ESTestCase {
     private ShardId testShardId(int shardNumber) {
         return new ShardId(new Index("index", "_na_"), shardNumber);
     }
-
 }

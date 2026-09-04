@@ -46,6 +46,7 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -193,6 +194,7 @@ import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.ma
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -5488,6 +5490,58 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
             assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
         });
+    }
+
+    /// An index request with an immediate refresh waits while its target shard is in HANDOFF. If the index is deleted meanwhile, the
+    /// request must receive a terminal response rather than remain pending after cancellation.
+    public void testIndexRequestDuringHandoffIsAnsweredWhenIndexIsDeleted() throws Exception {
+        startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+        final Index index = resolveIndex(indexName);
+        final var routingAfterSplit = postSplitRouting(clusterService().state(), index, 2);
+        final String targetDocumentId = makeIdThatRoutesToShard(routingAfterSplit, 1);
+
+        final CountDownLatch splitAttempted = new CountDownLatch(1);
+        final CountDownLatch releaseSplit = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)
+                && MasterNodeRequestHelper.unwrapTermOverride(request) instanceof SplitStateRequest splitStateRequest
+                && splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                splitAttempted.countDown();
+                safeAwait(releaseSplit);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        safeAwait(splitAttempted);
+
+        final var reshardIndexService = internalCluster().getInstance(ReshardIndexService.class, indexNode);
+        try {
+            final var indexRequest = prepareIndex(indexName).setId(targetDocumentId)
+                .setSource("field", "value")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .execute();
+
+            // The write reaches the target in HANDOFF, but its refresh waits for SPLIT, which is where the delete has to unblock it.
+            assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), contains(new ShardId(index, 1))));
+            assertFalse(indexRequest.isDone());
+
+            assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
+            assertBusy(() -> assertTrue("index request was never answered after the index was deleted", indexRequest.isDone()));
+        } finally {
+            releaseSplit.countDown();
+        }
+
+        // Answering the request is not enough: a leftover tracker entry leaves the closed IndexShard pinned.
+        assertBusy(() -> assertThat(reshardIndexService.getShardsTrackingSplitCompletion(), empty()));
     }
 
     private static Set<String> getIndexUUIDsInObjectStore() {

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -352,7 +351,15 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                     observedConcurrency.set(request.maxConcurrentSearchRequests());
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
                     for (int i = 0; i < items.length; i++) {
-                        SearchResponse sr = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                        SearchResponse sr = SearchResponseUtils.emptyWithTotalHits(
+                            null,
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        );
                         items[i] = new MultiSearchResponse.Item(sr, null);
                     }
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
@@ -597,7 +604,18 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
                     for (int i = 0; i < items.length; i++) {
-                        items[i] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
+                        items[i] = new MultiSearchResponse.Item(
+                            SearchResponseUtils.emptyWithTotalHits(
+                                null,
+                                1,
+                                1,
+                                0,
+                                0,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            ),
+                            null
+                        );
                     }
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
                     try {
@@ -711,8 +729,30 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                     assertThat("only slots 0 and 2 reach multiSearch", request.requests().size(), equalTo(2));
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[2];
-                    items[0] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
-                    items[1] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
+                    items[0] = new MultiSearchResponse.Item(
+                        SearchResponseUtils.emptyWithTotalHits(
+                            null,
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        ),
+                        null
+                    );
+                    items[1] = new MultiSearchResponse.Item(
+                        SearchResponseUtils.emptyWithTotalHits(
+                            null,
+                            1,
+                            1,
+                            0,
+                            0,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        ),
+                        null
+                    );
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
                     try {
                         listener.onResponse(response);
@@ -783,7 +823,18 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                     multiSearchCalls.incrementAndGet();
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
                     for (int i = 0; i < items.length; i++) {
-                        items[i] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
+                        items[i] = new MultiSearchResponse.Item(
+                            SearchResponseUtils.emptyWithTotalHits(
+                                null,
+                                1,
+                                1,
+                                0,
+                                0,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            ),
+                            null
+                        );
                     }
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
                     try {
@@ -846,7 +897,18 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                     observedParentTask.set(request.getParentTask());
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
                     for (int i = 0; i < items.length; i++) {
-                        items[i] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
+                        items[i] = new MultiSearchResponse.Item(
+                            SearchResponseUtils.emptyWithTotalHits(
+                                null,
+                                1,
+                                1,
+                                0,
+                                0,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            ),
+                            null
+                        );
                     }
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
                     try {
@@ -968,7 +1030,18 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
                 public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
                     MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
                     for (int i = 0; i < items.length; i++) {
-                        items[i] = new MultiSearchResponse.Item(SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY), null);
+                        items[i] = new MultiSearchResponse.Item(
+                            SearchResponseUtils.emptyWithTotalHits(
+                                null,
+                                1,
+                                1,
+                                0,
+                                0,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            ),
+                            null
+                        );
                     }
                     MultiSearchResponse response = new MultiSearchResponse(items, 1L);
                     try {

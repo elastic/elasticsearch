@@ -656,9 +656,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             final Directory objectDir = newDirectory();
             final IndexReader objectReader;
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), objectDir)) {
-                writer.addDocument(
-                    List.of(new LongField("item.value", 7L, Field.Store.NO), new StringField("id", "obj", Field.Store.NO))
-                );
+                writer.addDocument(List.of(new LongField("item.value", 7L, Field.Store.NO), new StringField("id", "obj", Field.Store.NO)));
                 objectReader = writer.getReader();
             }
             toClose.add(objectReader);

@@ -101,6 +101,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      */
     static final long FLAT_PARTITION_THRESHOLD_BYTES = 400L * 1024 * 1024;
 
+    /** Overrides {@link #FLAT_PARTITION_THRESHOLD_BYTES} in tests; ignored when negative. */
+    static long flatPartitionThresholdBytesForTest = -1;
+
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
             throw new AssertionError("bad constants");
@@ -928,7 +931,10 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         int batchStart = 0;
         assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
         final long totalKeyBytes = bytesRefs.totalBytes();
-        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= FLAT_PARTITION_THRESHOLD_BYTES
+        final long flatThreshold = flatPartitionThresholdBytesForTest >= 0
+            ? flatPartitionThresholdBytesForTest
+            : FLAT_PARTITION_THRESHOLD_BYTES;
+        final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= flatThreshold
             ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes)
             : new PagedBytesRefPartitionedHashKeys(bigArrays, size, totalKeyBytes);
         final int[] partitionOffsets = partitionedKeys.partitionCounts;

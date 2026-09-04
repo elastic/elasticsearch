@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
 
@@ -40,10 +41,42 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         }
     }
 
-    public void testPartition() {
+    /**
+     * Verifies correctness with the flat (non-paged) partition storage, which is the default for
+     * tables whose total key bytes are at or below {@link BytesRefSwissHash#FLAT_PARTITION_THRESHOLD_BYTES}.
+     */
+    public void testPartitionFlat() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class);
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Verifies correctness with the paged partition storage (BytesRefArray per partition), which is
+     * used for tables whose total key bytes exceed {@link BytesRefSwissHash#FLAT_PARTITION_THRESHOLD_BYTES}.
+     * The threshold is overridden to zero so small test data exercises the paged path.
+     */
+    public void testPartitionPaged() {
+        BytesRefSwissHash.flatPartitionThresholdBytesForTest = 0;
+        try {
+            var recycler = new BytesRefSwissHashTests.TestRecycler();
+            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+            runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class);
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            BytesRefSwissHash.flatPartitionThresholdBytesForTest = -1;
+        }
+    }
+
+    private void runPartitionTest(
+        BytesRefSwissHashTests.TestRecycler recycler,
+        BigArrays bigArrays,
+        CircuitBreaker breaker,
+        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType
+    ) {
         final int partitionSize = randomIntBetween(128, 10 * 1024);
         var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays);
         SumAgg agg1 = new SumAgg(breaker);
@@ -70,13 +103,17 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 addInput(hash2, agg2, keys, values);
 
                 if (hash2.size() >= partitionSize) {
-                    gens.add(partition(breaker, hash2, hash2.size, agg2));
+                    PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                    assertThat(gen.keys(), instanceOf(expectedType));
+                    gens.add(gen);
                     hash2.clear();
                     agg2.clear();
                 }
             }
             if (hash2.size > 0) {
-                gens.add(partition(breaker, hash2, hash2.size, agg2));
+                PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                assertThat(gen.keys(), instanceOf(expectedType));
+                gens.add(gen);
                 hash2.clear();
                 agg2.clear();
             }
@@ -91,7 +128,6 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
             Releasables.close(hash1, hash2, agg1, agg2);
             gens.forEach(g -> g.release(breaker));
         }
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     Set<KeyAndSum> combinePartitions(CircuitBreaker breaker, BytesRefSwissHash hash, SumAgg agg, List<PartitionedKeyAndAggs> gens) {

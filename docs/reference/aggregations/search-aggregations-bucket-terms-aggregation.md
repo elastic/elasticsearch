@@ -492,7 +492,7 @@ GET /_search
 }
 ```
 
-In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
+In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`. The length of each regular expression is limited by the [`index.max_regex_length`](/reference/elasticsearch/index-settings/index-modules.md#index-max-regex-length) index setting.
 
 The syntax is the same as [regexp queries](/reference/query-languages/query-dsl/regexp-syntax.md).
 

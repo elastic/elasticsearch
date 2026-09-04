@@ -33,6 +33,12 @@ public class ParsedFooterCacheTests extends ESTestCase {
     /** Weighs each String at 1 KiB so byte budgets translate to predictable entry counts. */
     private static final long ENTRY_WEIGHT = 1024;
 
+    /**
+     * Longer than {@code assertBusy}'s 10s default. The first load is held open until waiters park;
+     * if this latch timed out first the future would complete and waiters would look TERMINATED.
+     */
+    private static final TimeValue LOADER_HOLD_TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private ParsedFooterCache<String> cache;
 
     @Before
@@ -153,7 +159,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
             String result = cache.getOrLoad(k, ignore -> {
                 loadCount.incrementAndGet();
                 loaderStarted.countDown();
-                safeAwait(releaseLoader);
+                safeAwait(releaseLoader, LOADER_HOLD_TIMEOUT);
                 return expected;
             });
             assertSame(expected, result);
@@ -172,15 +178,10 @@ public class ParsedFooterCacheTests extends ESTestCase {
             }));
         }
         try {
-            awaitBlockedOnInFlight(waiters);
+            awaitBlockedOnInFlight(waiters, failure);
         } finally {
-            releaseLoader.countDown();
+            releaseAndJoinHerd(releaseLoader, loaderThread, waiters, failure);
         }
-
-        List<Thread> all = new ArrayList<>(waiterCount + 1);
-        all.add(loaderThread);
-        all.addAll(waiters);
-        joinHerd(all, failure);
         assertEquals("loader invoked exactly once across all concurrent callers", 1, loadCount.get());
         assertSame(expected, cache.get(k));
     }
@@ -197,7 +198,7 @@ public class ParsedFooterCacheTests extends ESTestCase {
             ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> {
                 loadCount.incrementAndGet();
                 loaderStarted.countDown();
-                safeAwait(releaseLoader);
+                safeAwait(releaseLoader, LOADER_HOLD_TIMEOUT);
                 throw boom;
             }));
             assertSame(boom, ex.getCause());
@@ -216,15 +217,10 @@ public class ParsedFooterCacheTests extends ESTestCase {
             }));
         }
         try {
-            awaitBlockedOnInFlight(waiters);
+            awaitBlockedOnInFlight(waiters, failure);
         } finally {
-            releaseLoader.countDown();
+            releaseAndJoinHerd(releaseLoader, loaderThread, waiters, failure);
         }
-
-        List<Thread> all = new ArrayList<>(waiterCount + 1);
-        all.add(loaderThread);
-        all.addAll(waiters);
-        joinHerd(all, failure);
         assertEquals("failed load still coalesced to a single loader invocation", 1, loadCount.get());
         assertNull("a failed load must not leave a phantom entry behind", cache.get(k));
 
@@ -339,13 +335,16 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * that would let a later caller hit the cache and the test would pass even if concurrent
      * misses were not coalesced.
      */
-    private static void awaitBlockedOnInFlight(List<Thread> waiters) throws Exception {
+    private static void awaitBlockedOnInFlight(List<Thread> waiters, AtomicReference<AssertionError> failure) throws Exception {
         assertBusy(() -> {
             for (Thread t : waiters) {
                 Thread.State state = t.getState();
                 if (state == Thread.State.TERMINATED) {
-                    // AssertionError is retried by assertBusy; a finished waiter will never park.
-                    throw new IllegalStateException("waiter " + t.getName() + " finished without joining the in-flight load");
+                    // IllegalStateException is not retried by assertBusy; a finished waiter will never park.
+                    throw new IllegalStateException(
+                        "waiter " + t.getName() + " finished without joining the in-flight load",
+                        failure.get()
+                    );
                 }
                 assertEquals(
                     "waiter " + t.getName() + " should be blocked on the in-flight load, was " + state,
@@ -354,6 +353,19 @@ public class ParsedFooterCacheTests extends ESTestCase {
                 );
             }
         });
+    }
+
+    private static void releaseAndJoinHerd(
+        CountDownLatch releaseLoader,
+        Thread loaderThread,
+        List<Thread> waiters,
+        AtomicReference<AssertionError> failure
+    ) throws InterruptedException {
+        releaseLoader.countDown();
+        List<Thread> all = new ArrayList<>(waiters.size() + 1);
+        all.add(loaderThread);
+        all.addAll(waiters);
+        joinHerd(all, failure);
     }
 
     private static void joinHerd(List<Thread> threads, AtomicReference<AssertionError> failure) throws InterruptedException {

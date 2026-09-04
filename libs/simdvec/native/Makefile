@@ -35,12 +35,19 @@ CLANG_CXX ?= clang++-21
 # Derive the LLVM tool version suffix from CLANG_CXX (clang++-21 -> -21, clang++ -> empty)
 LLVM_SUFFIX := $(patsubst clang++%,%,$(firstword $(CLANG_CXX)))
 
-# Darwin cross-compilation: -nostdinc blocks host (glibc) headers, then we
-# add our minimal C++ std headers (tinystd) and clang builtins.
+# Darwin cross-compilation. The sysroot is assembled from Apple's open-source
+# distributions plus upstream libc++ headers and baked into the toolchain image; see
+# darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc) headers, then the three
+# -isystem paths are added in this order deliberately: libc++ must come before the clang
+# resource directory (otherwise libc++'s <cstddef> cannot find its own <stddef.h>), and the
+# resource directory before the sysroot so clang supplies the target headers (arm_neon.h,
+# arm_sve.h, stdarg.h).
+MACOS_SYSROOT ?= /opt/darwin-sysroot
 CLANG_RESOURCE = $(shell $(CLANG_CXX) -print-resource-dir)
 CLANG       = $(CLANG_CXX) --target=arm64-apple-macos14 -Winline -nostdinc \
-                -isystem src/vec/headers/darwin/tinystd \
-                -isystem $(CLANG_RESOURCE)/include
+                -isystem $(MACOS_SYSROOT)/usr/include/c++/v1 \
+                -isystem $(CLANG_RESOURCE)/include \
+                -isystem $(MACOS_SYSROOT)/usr/include
 CLANG_LINK  = $(CLANG_CXX) --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
 CXX_ARM     = $(CLANG_CXX) --target=aarch64-linux-gnu -Winline
 CXX_X64     = $(CLANG_CXX) --target=x86_64-linux-gnu -Winline
@@ -84,7 +91,7 @@ SO_X64 = $(OUT_DIR_AMD64)/libvec.so
 # On Linux, overrides CXX_ARM/CXX_X64 to drop the cross-compilation target.
 # Ob both, we use the system strip instead of llvm-strip.
 
-.PHONY: all clean local install
+.PHONY: all clean local local-install
 
 ifeq ($(shell uname -s),Darwin)
   LOCAL_PLATFORM = darwin-aarch64
@@ -110,11 +117,14 @@ else
   local: $(SO_X64)
 endif
 
-# Build and copy to the platform directory used by Gradle tests.
-INSTALL_DIR = ../../native/libraries/build/platform/$(LOCAL_PLATFORM)
-install: local
-	mkdir -p $(INSTALL_DIR)
-	cp $(LOCAL_OUTPUT) $(INSTALL_DIR)/$(notdir $(LOCAL_OUTPUT))
+# Build and copy to a specified destination directory (used by the Gradle task).
+# The Makefile remains the single source of truth for the platform→path mapping.
+local-install: local
+ifndef DEST
+	$(error DEST must be set, e.g. make local-install DEST=/path/to/output)
+endif
+	mkdir -p $(DEST)/$(LOCAL_PLATFORM)
+	cp $(LOCAL_OUTPUT) $(DEST)/$(LOCAL_PLATFORM)/$(notdir $(LOCAL_OUTPUT))
 
 # --- all: cross-compile all three targets (inside Docker) ---
 

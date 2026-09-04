@@ -203,11 +203,142 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             gate.release();
 
             // Expect the failed recovery to remove the shard locally and not recreate it
-            assertBusy(() -> assertNull(
-                internalCluster().getInstance(IndicesService.class, node)
-                    .indexServiceSafe(resolveIndex(indexName))
-                    .getShardOrNull(0)
-            ));
+            assertBusy(
+                () -> assertNull(
+                    internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName)).getShardOrNull(0)
+                )
+            );
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterCancellationOfRecoveryFromExistingStore() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            indicesAdmin().prepareOpen(indexName).execute();
+            gate.await();
+
+            cancelRecovery(indexName, node);
+            gate.release();
+
+            // Expect the failed recovery to remove the shard locally and not recreate it
+            assertBusy(
+                () -> assertNull(
+                    internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName)).getShardOrNull(0)
+                )
+            );
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            // EXISTING_STORE inactive primaries are RED (see ClusterShardHealth#getInactivePrimaryHealth)
+            assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterCancellationOfRecoveryFromLocalShard() throws Exception {
+        String node = internalCluster().startNode();
+        final var sourceIndexName = randomIndexName();
+        final var targetIndexName = randomIndexName();
+
+        createIndex(sourceIndexName, indexSettings(1, 0).build());
+        indexDoc(sourceIndexName, "1", "f", randomAlphaOfLength(10));
+        flush(sourceIndexName);
+        ensureGreen(sourceIndexName);
+
+        // Required for clone
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
+            gate.await();
+
+            cancelRecovery(targetIndexName, node);
+            gate.release();
+
+            // Expect the failed recovery to remove the target shard locally and not recreate it
+            assertBusy(
+                () -> assertNull(
+                    internalCluster().getInstance(IndicesService.class, node)
+                        .indexServiceSafe(resolveIndex(targetIndexName))
+                        .getShardOrNull(0)
+                )
+            );
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, targetIndexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterCancellationOfRecoveryFromSnapshot() throws Exception {
+        String node = internalCluster().startNode();
+        final var indexName = randomIndexName();
+        final var repoName = "test-repo";
+
+        createIndex(indexName, indexSettings(1, 0).build());
+        indexDoc(indexName, "1", "f", randomAlphaOfLength(10));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            RetryRecoveryTestPlugin.reset();
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
+            gate.await();
+
+            cancelRecovery(indexName, node);
+            gate.release();
+
+            // Expect the failed recovery to remove the shard locally and not recreate it
+            assertBusy(
+                () -> assertNull(
+                    internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName)).getShardOrNull(0)
+                )
+            );
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
             assertThat(
                 clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),

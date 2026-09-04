@@ -12,7 +12,9 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -176,6 +180,39 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             ensureGreen(indexName);
             assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(2));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterCancellationOfRecoveryFromEmptyStore() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            gate.await();
+
+            cancelRecovery(indexName, node);
+            gate.release();
+
+            // Expect the failed recovery to remove the shard locally and not recreate it
+            assertBusy(() -> assertNull(
+                internalCluster().getInstance(IndicesService.class, node)
+                    .indexServiceSafe(resolveIndex(indexName))
+                    .getShardOrNull(0)
+            ));
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
         } finally {
             transportService.clearAllRules();
         }
@@ -516,6 +553,26 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    /// Synchronous direct cancellation of recovery for shard 0 of given index on given node
+    private static void cancelRecovery(String indexName, String node) throws InterruptedException, ExecutionException {
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, node);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+        final var clusterService = internalCluster().getInstance(ClusterService.class, node);
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
+            clusterService.state().version(),
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+    }
+
+    /// Local recovery retries is about preventing the round trip to master on a failed recovery
+    /// (we retry directly on the data node instead).
+    /// Since master would also retry, that could mask potential bugs in the local retry functionality.
+    /// This utility method prevents that by failing the test if master receives a "shard failed" message.
     private static void failTestIfReceiveShardFailure(MockTransportService mockTransportService) {
         mockTransportService.addRequestHandlingBehavior(
             SHARD_FAILED_ACTION_NAME,

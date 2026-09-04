@@ -437,7 +437,7 @@ public class OpenIdConnectAuthenticator {
         try {
             final ContentType contentType = httpResponse.getContentType();
             final String mimeType = contentType == null ? null : contentType.getMimeType();
-            final String contentAsString = httpResponse.getBodyText();
+            final String contentAsString = new String(httpResponse.getBodyBytes(), StandardCharsets.UTF_8);
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace(
                     "Received UserInfo Response from OP with status [{}] and content [{}] ",
@@ -615,7 +615,7 @@ public class OpenIdConnectAuthenticator {
             }
             final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getCode());
             if (RestStatus.OK != responseStatus) {
-                final String json = httpResponse.getBodyText();
+                final String json = new String(httpResponse.getBodyBytes(), StandardCharsets.UTF_8);
                 LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
                 if (RestStatus.BAD_REQUEST == responseStatus) {
                     final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
@@ -630,7 +630,9 @@ public class OpenIdConnectAuthenticator {
                     tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token"));
                 }
             } else {
-                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(httpResponse.getBodyText()));
+                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
+                    JSONObjectUtils.parse(new String(httpResponse.getBodyBytes(), StandardCharsets.UTF_8))
+                );
                 final OIDCTokens oidcTokens = oidcTokenResponse.getOIDCTokens();
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
@@ -957,7 +959,7 @@ public class OpenIdConnectAuthenticator {
                     @Override
                     public void completed(SimpleHttpResponse result) {
                         try {
-                            cachedJwkSet = JWKSet.parse(result.getBodyText());
+                            cachedJwkSet = JWKSet.parse(new String(result.getBodyBytes(), StandardCharsets.UTF_8));
                             reloadFutureRef.set(null);
                             LOGGER.trace("Successfully refreshed and cached remote JWKSet");
                             future.onResponse(null);

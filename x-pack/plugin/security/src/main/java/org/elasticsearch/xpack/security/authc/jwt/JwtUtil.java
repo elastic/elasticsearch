@@ -310,12 +310,15 @@ public class JwtUtil {
             public void completed(final SimpleHttpResponse result) {
                 final int statusCode = result.getCode();
                 if (statusCode == 200) {
+                    final byte[] responseBody = result.getBodyBytes();
+                    if (responseBody == null || responseBody.length == 0) {
+                        listener.onFailure(
+                            new ElasticsearchSecurityException("Get [" + uri + "] returned an empty body.")
+                        );
+                        return;
+                    }
                     listener.onResponse(
-                        new JwksResponse(
-                            result.getBodyBytes(),
-                            firstHeaderValue(result, "Expires"),
-                            firstHeaderValue(result, "Cache-Control")
-                        )
+                        new JwksResponse(responseBody, firstHeaderValue(result, "Expires"), firstHeaderValue(result, "Cache-Control"))
                     );
                 } else {
                     listener.onFailure(

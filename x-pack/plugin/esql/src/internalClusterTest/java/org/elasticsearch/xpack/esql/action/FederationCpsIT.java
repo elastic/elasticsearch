@@ -42,7 +42,8 @@ import static org.hamcrest.Matchers.hasSize;
  * returns a valid-but-empty {@code IndexResolution}. Those shadows must be treated as unmatched and
  * stripped so speculative unions collapse. A surviving union under a view pipeline fails
  * post-optimization with "Nested subqueries are not supported". A surviving union under {@code FORK}
- * is source expansion, not a user subquery, and must still run.
+ * is source expansion, not a user subquery, and must still run. Every level of a view chain
+ * contributes its own shadow, so nesting has to collapse at each level rather than only at the top.
  * <p>
  * CPS is a serverless deployment mode, so {@code serverless.cross_project.enabled} is not a
  * registered node setting in this distribution; {@link CpsSettingPlugin} registers it for the test
@@ -54,9 +55,12 @@ public class FederationCpsIT extends AbstractExternalDataSourceIT {
 
     private static final String DATASET = "employees_cps";
     private static final String VIEW = "employees_cps_view";
+    private static final String NESTED_VIEW_1 = "employees_cps_nested_view_1";
+    private static final String NESTED_VIEW_2 = "employees_cps_nested_view_2";
+    private static final String NESTED_VIEW_3 = "employees_cps_nested_view_3";
 
     private Path csvFixture;
-    private boolean viewCreated;
+    private final List<String> createdViews = new ArrayList<>();
 
     /** Registers the CPS enable flag, which only the serverless distribution registers in production. */
     public static class CpsSettingPlugin extends Plugin {
@@ -90,12 +94,12 @@ public class FederationCpsIT extends AbstractExternalDataSourceIT {
     }
 
     @After
-    public void cleanupView() throws Exception {
-        if (viewCreated) {
-            client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { VIEW }))
+    public void cleanupViews() throws Exception {
+        for (String view : createdViews.reversed()) {
+            client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
                 .get(30, SECONDS);
-            viewCreated = false;
         }
+        createdViews.clear();
     }
 
     /**
@@ -105,13 +109,7 @@ public class FederationCpsIT extends AbstractExternalDataSourceIT {
      */
     public void testPipelineViewOverDatasetWithNoRemoteNamesakes() throws Exception {
         registerDataset(DATASET, csvFixture.toUri().toString(), Map.of("format", "csv"));
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(VIEW, "FROM " + DATASET + " | EVAL marker = 1"))
-            )
-        );
-        viewCreated = true;
+        putView(VIEW, "FROM " + DATASET + " | EVAL marker = 1");
 
         try (var response = run(syncEsqlQueryRequest("FROM " + VIEW + " | SORT emp_no | KEEP emp_no, first_name, marker"), TIMEOUT)) {
             assertThat(
@@ -168,5 +166,54 @@ public class FederationCpsIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(1L));
         }
+    }
+
+    public void testNestedViewsOverEmptyIndexWithNoRemoteNamesakes() throws Exception {
+        String emptyIndex = "employees_cps_empty";
+        String existingIndex = "employees_cps_existing";
+        createIndex(emptyIndex);
+        prepareIndex(existingIndex).setSource("emp_no", 4, "first_name", "Dave").get();
+        refresh(existingIndex);
+        putNestedViews(emptyIndex);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + existingIndex + "," + NESTED_VIEW_3 + " | SORT emp_no | KEEP emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(4L, "Dave"))));
+        }
+    }
+
+    public void testNestedViewsOverDatasetWithNoRemoteNamesakes() throws Exception {
+        String existingIndex = "employees_cps_existing";
+        createIndex(existingIndex);
+        registerDataset(DATASET, csvFixture.toUri().toString(), Map.of("format", "csv"));
+        putNestedViews(DATASET);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + existingIndex + "," + NESTED_VIEW_3 + " | SORT emp_no | KEEP emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
+        }
+    }
+
+    /**
+     * A three-deep view chain over {@code source}, so each level adds its own speculative shadow and the
+     * unions have to collapse repeatedly rather than only once.
+     */
+    private void putNestedViews(String source) {
+        putView(NESTED_VIEW_1, "FROM " + source);
+        putView(NESTED_VIEW_2, "FROM " + NESTED_VIEW_1);
+        putView(NESTED_VIEW_3, "FROM " + NESTED_VIEW_2);
+    }
+
+    private void putView(String name, String query) {
+        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))));
+        createdViews.add(name);
     }
 }

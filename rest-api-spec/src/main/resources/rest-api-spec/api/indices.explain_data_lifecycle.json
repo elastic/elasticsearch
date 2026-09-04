@@ -30,6 +30,7 @@
     "params": {
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "indicates if the API should return the default values the system uses for the index's lifecycle"
       },
       "master_timeout": {

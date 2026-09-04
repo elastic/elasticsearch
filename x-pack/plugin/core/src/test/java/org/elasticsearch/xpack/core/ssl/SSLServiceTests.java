@@ -26,7 +26,6 @@ import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -39,11 +38,8 @@ import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -791,18 +787,18 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.alias(), equalTo("testnode_rsa"));
         assertThat(cert.path(), equalTo(jksPath.toString()));
         assertThat(cert.format(), equalTo("jks"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.serialNumber(), equalTo("8bb52d5233d860a0"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2053-09-07T06:38:08Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
         assertThat(cert.alias(), equalTo("testnode_rsa"));
         assertThat(cert.path(), equalTo(p12Path.toString()));
         assertThat(cert.format(), equalTo("PKCS12"));
-        assertThat(cert.serialNumber(), equalTo("b8b96c37e332cccb"));
+        assertThat(cert.serialNumber(), equalTo("8bb52d5233d860a0"));
         assertThat(cert.subjectDn(), equalTo("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2019-09-22T18:52:57.000Z")));
+        assertThat(cert.expiry(), equalTo(ZonedDateTime.parse("2053-09-07T06:38:08Z")));
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         cert = iterator.next();
@@ -877,7 +873,7 @@ public class SSLServiceTests extends ESTestCase {
                 // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
                 // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
                 // truststore trusts all common public CAs so the handshake will succeed
-                privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
+                client.execute(new HttpGet("https://www.elastic.co/")).close();
             }
         }
     }
@@ -895,7 +891,7 @@ public class SSLServiceTests extends ESTestCase {
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
-            privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
+            client.execute(new HttpGet("https://www.elastic.co/")).close();
         }
     }
 
@@ -1042,26 +1038,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
-        try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> HttpAsyncClientBuilder.create()
-                    .setSSLStrategy(sslStrategy)
-                    .build()
-            );
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
-    }
-
-    private static void privilegedConnect(CheckedRunnable<Exception> runnable) throws Exception {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                runnable.run();
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
+        return HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build();
     }
 
     private static final class MockSSLSession implements SSLSession {

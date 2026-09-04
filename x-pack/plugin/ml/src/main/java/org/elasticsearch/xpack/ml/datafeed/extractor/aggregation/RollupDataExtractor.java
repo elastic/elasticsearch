@@ -35,6 +35,10 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor {
             .allowPartialSearchResults(false)
             .source(searchSourceBuilder);
 
+        if (context.queryContext.projectRouting != null) {
+            searchRequest.setProjectRouting(context.queryContext.projectRouting);
+        }
+
         return new RollupSearchAction.RequestBuilder(client, searchRequest);
     }
 }

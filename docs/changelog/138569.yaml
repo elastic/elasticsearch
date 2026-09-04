@@ -1,5 +1,0 @@
-pr: 138569
-summary: Ignore abort-on-cleanup failure in S3 repo
-area: Snapshot/Restore
-type: bug
-issues: []

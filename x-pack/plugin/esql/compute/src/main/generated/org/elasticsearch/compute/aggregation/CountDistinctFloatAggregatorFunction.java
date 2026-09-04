@@ -14,10 +14,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantFloatVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatArrayVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -36,17 +39,12 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
 
   private final int precision;
 
-  public CountDistinctFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, int precision) {
+  CountDistinctFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctFloatAggregatorFunction(driverContext, channels, CountDistinctFloatAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    this.state = CountDistinctFloatAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -73,6 +71,18 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
     FloatBlock vBlock = page.getBlock(channels.get(0));
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock, mask);
       return;
     }
@@ -83,6 +93,18 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
     FloatBlock vBlock = page.getBlock(channels.get(0));
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vBlock);
       return;
     }
@@ -90,6 +112,30 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
   }
 
   private void addRawVector(FloatVector vVector) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
       CountDistinctFloatAggregator.combine(state, vValue);
@@ -97,6 +143,39 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
   }
 
   private void addRawVector(FloatVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == FloatArrayVector.class) {
+      FloatArrayVector specialized = (FloatArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == FloatArrowBufVector.class) {
+      FloatArrowBufVector specialized = (FloatArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantFloatVector.class) {
+      ConstantFloatVector specialized = (ConstantFloatVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        float vValue = specialized.getFloat(valuesPosition);
+        CountDistinctFloatAggregator.combine(state, vValue);
+      }
+      return;
+    }
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
@@ -145,6 +224,15 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block hllUncast = page.getBlock(channels.get(0));
     if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();

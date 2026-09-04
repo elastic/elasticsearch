@@ -17,15 +17,18 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +45,18 @@ public class InboundPipelineTests extends ESTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    private final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+
+    private MockBytesRefRecycler recycler;
+
+    @Before
+    public void createServices() {
+        recycler = new MockBytesRefRecycler();
+    }
+
+    @After
+    public void closeServices() {
+        Releasables.closeExpectNoException(recycler);
+    }
 
     public void testPipelineHandling() throws IOException {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
@@ -121,7 +135,8 @@ public class InboundPipelineTests extends ESTestCase {
                                     compressionScheme,
                                     new TestRequest(value),
                                     threadContext,
-                                    temporaryOutput
+                                    temporaryOutput,
+                                    recycler
                                 );
                                 expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                             } else {
@@ -135,7 +150,8 @@ public class InboundPipelineTests extends ESTestCase {
                                     compressionScheme,
                                     new TestRequest(value),
                                     threadContext,
-                                    temporaryOutput
+                                    temporaryOutput,
+                                    recycler
                                 );
                             }
                         } else {
@@ -149,7 +165,8 @@ public class InboundPipelineTests extends ESTestCase {
                                 compressionScheme,
                                 new TestResponse(value),
                                 threadContext,
-                                temporaryOutput
+                                temporaryOutput,
+                                recycler
                             );
                         }
 
@@ -227,7 +244,8 @@ public class InboundPipelineTests extends ESTestCase {
                 null,
                 isRequest ? new TestRequest(value) : new TestResponse(value),
                 threadContext,
-                streamOutput
+                streamOutput,
+                recycler
             );
 
             try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(message)) {
@@ -268,7 +286,8 @@ public class InboundPipelineTests extends ESTestCase {
                 null,
                 isRequest ? new TestRequest(value) : new TestResponse(value),
                 threadContext,
-                streamOutput
+                streamOutput,
+                recycler
             );
 
             final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);

@@ -30,7 +30,7 @@ public class BlobStoreSnapshotMetrics {
     private final CounterMetric numberOfBlobsUploaded = new CounterMetric();
     private final CounterMetric numberOfBytesUploaded = new CounterMetric();
     private final CounterMetric uploadTimeInMillis = new CounterMetric();
-    private final CounterMetric uploadReadTimeInNanos = new CounterMetric();
+    private final CounterMetric uploadReadTimeInMillis = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsStarted = new CounterMetric();
     private final CounterMetric numberOfShardSnapshotsCompleted = new CounterMetric();
     private final Map<String, Object> metricAttributes;
@@ -68,8 +68,11 @@ public class BlobStoreSnapshotMetrics {
         numberOfBlobsUploaded.inc();
     }
 
-    public void shardSnapshotStarted() {
+    public void shardSnapshotStarted(IndexShardSnapshotStatus status, long currentTimeMillis) {
         snapshotMetrics.shardsStartedCounter().incrementBy(1, metricAttributes);
+        final long creationTimeMillis = status.getCreationTimeMillis();
+        assert creationTimeMillis > 0 : "expected positive creationTimeMillis but got " + creationTimeMillis;
+        snapshotMetrics.shardsQueueTimeHistogram().record((currentTimeMillis - creationTimeMillis) / 1_000d, metricAttributes);
         numberOfShardSnapshotsStarted.inc();
         shardSnapshotsInProgress.inc();
     }
@@ -84,7 +87,7 @@ public class BlobStoreSnapshotMetrics {
 
     public void incrementUploadReadTime(long readTimeInMillis) {
         snapshotMetrics.uploadReadDurationCounter().incrementBy(readTimeInMillis, metricAttributes);
-        uploadReadTimeInNanos.inc(readTimeInMillis);
+        uploadReadTimeInMillis.inc(readTimeInMillis);
     }
 
     public LongWithAttributes getShardSnapshotsInProgress() {
@@ -101,7 +104,7 @@ public class BlobStoreSnapshotMetrics {
             numberOfBlobsUploaded.count(),
             numberOfBytesUploaded.count(),
             uploadTimeInMillis.count(),
-            uploadReadTimeInNanos.count()
+            uploadReadTimeInMillis.count()
         );
     }
 }

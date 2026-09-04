@@ -16,6 +16,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -39,10 +41,9 @@ public class TransportKeepAliveTests extends ESTestCase {
     private TransportKeepAlive keepAlive;
     private CapturingThreadPool threadPool;
 
-    @Override
+    @Before
     @SuppressWarnings("unchecked")
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initKeepAlive() throws Exception {
         pingSender = mock(AsyncBiFunction.class);
         threadPool = new CapturingThreadPool();
         keepAlive = new TransportKeepAlive(threadPool, pingSender);
@@ -57,10 +58,9 @@ public class TransportKeepAliveTests extends ESTestCase {
         }
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdown();
-        super.tearDown();
     }
 
     public void testRegisterNodeConnectionSchedulesKeepAlive() {

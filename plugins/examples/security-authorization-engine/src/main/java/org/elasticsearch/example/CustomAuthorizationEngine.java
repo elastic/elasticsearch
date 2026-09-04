@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -163,6 +165,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void getUserPrivileges(AuthorizationInfo authorizationInfo,
+                                  @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole,
                                   ActionListener<GetUserPrivilegesResponse> listener) {
         if (isSuperuser(authorizationInfo)) {
             listener.onResponse(getUserPrivilegesResponse(true));

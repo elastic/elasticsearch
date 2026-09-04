@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.PluggableAuthenticatorChain;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
@@ -89,12 +90,13 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         action = new TransportGrantApiKeyAction(
             transportService,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             threadContext,
             authenticationService,
             authorizationService,
             apiKeyService,
-            resolver
+            resolver,
+            mock(PluggableAuthenticatorChain.class)
         );
     }
 

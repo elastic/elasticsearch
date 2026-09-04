@@ -12,28 +12,28 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDenseVector}.
+ * {@link ExpressionEvaluator} implementation for {@link ToDenseVector}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDenseVectorFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDenseVectorFromLongEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator l;
+  private final ExpressionEvaluator l;
 
-  public ToDenseVectorFromLongEvaluator(Source source, EvalOperator.ExpressionEvaluator l,
+  public ToDenseVectorFromLongEvaluator(Source source, ExpressionEvaluator l,
       DriverContext driverContext) {
     super(driverContext, source);
     this.l = l;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return l;
   }
 
@@ -109,12 +109,12 @@ public final class ToDenseVectorFromLongEvaluator extends AbstractConvertFunctio
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory l;
+    private final ExpressionEvaluator.Factory l;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory l) {
+    public Factory(Source source, ExpressionEvaluator.Factory l) {
       this.source = source;
       this.l = l;
     }

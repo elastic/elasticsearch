@@ -31,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        final Version targetNodeVersion = randomVersion(random());
-        TransportVersion serializationVersion = TransportVersionUtils.randomVersion(random());
+        final Version targetNodeVersion = randomVersion();
+        TransportVersion serializationVersion = TransportVersionUtils.randomVersion();
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(

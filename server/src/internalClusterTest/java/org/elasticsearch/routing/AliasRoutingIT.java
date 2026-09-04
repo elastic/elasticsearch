@@ -17,7 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
+
+import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -34,8 +38,27 @@ public class AliasRoutingIT extends ESIntegTestCase {
         return 2;
     }
 
+    private boolean routingDocValues;
+
+    @Before
+    public void randomizeRoutingStorage() {
+        routingDocValues = randomBoolean();
+        logger.info("--> using routing doc_values [{}]", routingDocValues);
+    }
+
+    /**
+     * Builds a {@code _routing} mapping that randomly enables {@code doc_values} based on {@link #routingDocValues}.
+     */
+    private XContentBuilder routingMapping() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("_routing");
+        if (routingDocValues) {
+            mapping.field("doc_values", true);
+        }
+        return mapping.endObject().endObject().endObject();
+    }
+
     public void testAliasCrudRouting() throws Exception {
-        createIndex("test");
+        prepareCreate("test").setMapping(routingMapping()).get();
         ensureGreen();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -98,7 +121,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     }
 
     public void testAliasSearchRouting() throws Exception {
-        createIndex("test");
+        prepareCreate("test").setMapping(routingMapping()).get();
         ensureGreen();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -229,8 +252,8 @@ public class AliasRoutingIT extends ESIntegTestCase {
     }
 
     public void testAliasSearchRoutingWithTwoIndices() throws Exception {
-        createIndex("test-a");
-        createIndex("test-b");
+        prepareCreate("test-a").setMapping(routingMapping()).get();
+        prepareCreate("test-b").setMapping(routingMapping()).get();
         ensureGreen();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -299,7 +322,8 @@ public class AliasRoutingIT extends ESIntegTestCase {
     That affected the number of shards that we executed the search on, thus some documents were missing in the search results.
      */
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue2682() throws Exception {
-        createIndex("index", "index_2");
+        prepareCreate("index").setMapping(routingMapping()).get();
+        prepareCreate("index_2").setMapping(routingMapping()).get();
         ensureGreen();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -325,7 +349,8 @@ public class AliasRoutingIT extends ESIntegTestCase {
     As a result, (size * number of hit shards) results were returned and no reduce phase was taking place.
      */
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue3268() throws Exception {
-        createIndex("index", "index_2");
+        prepareCreate("index").setMapping(routingMapping()).get();
+        prepareCreate("index_2").setMapping(routingMapping()).get();
         ensureGreen();
         assertAcked(
             indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -350,7 +375,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     }
 
     public void testIndexingAliasesOverTime() throws Exception {
-        createIndex("test");
+        prepareCreate("test").setMapping(routingMapping()).get();
         ensureGreen();
         logger.info("--> creating alias with routing [3]");
         assertAcked(

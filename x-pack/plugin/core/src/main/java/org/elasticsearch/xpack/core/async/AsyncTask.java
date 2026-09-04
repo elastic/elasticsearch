@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Map;
@@ -15,6 +17,11 @@ import java.util.Map;
  * A task that supports asynchronous execution and provides information necessary for safe temporary storage of results
  */
 public interface AsyncTask {
+    /**
+     * Transport version that added {@code keep_alive} to async task status payloads.
+     */
+    TransportVersion ASYNC_TASK_KEEP_ALIVE_STATUS = TransportVersion.fromName("async_task_keep_alive_status");
+
     /**
      * Returns all of the request contexts headers
      */
@@ -33,7 +40,12 @@ public interface AsyncTask {
     /**
      * Update the expiration time of the (partial) response.
      */
-    void setExpirationTime(long expirationTimeMillis);
+    void setExpirationTime(long expirationTimeMillis, TimeValue keepAlive);
+
+    /**
+     * Returns the currently effective keep-alive for this task.
+     */
+    TimeValue getKeepAlive();
 
     /**
      * Performs necessary checks, cancels the task and calls the runnable upon completion

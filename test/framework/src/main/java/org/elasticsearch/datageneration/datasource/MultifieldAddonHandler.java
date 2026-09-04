@@ -46,8 +46,10 @@ public class MultifieldAddonHandler implements DataSourceHandler {
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
 
         // Need to delegate creation of the same type of field to other handlers. So skip request
-        // if it's for the placeholder name used when creating the child and parent fields.
-        if (request.fieldName().equals(PLACEHOLDER)) {
+        // if it's for the placeholder name used when creating the child and parent fields. We match on contains rather than equals
+        // because columnar-mode specifications rename the placeholder with a prefix before re-dispatching, and re-handling it here would
+        // recurse indefinitely between this handler and the renaming handler.
+        if (request.fieldName().contains(PLACEHOLDER)) {
             return null;
         }
 

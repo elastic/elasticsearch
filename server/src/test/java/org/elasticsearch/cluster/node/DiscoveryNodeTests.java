@@ -23,12 +23,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -137,6 +140,44 @@ public class DiscoveryNodeTests extends ESTestCase {
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
         }
+    }
+
+    public void testDiscoveryNodeIsCoordinatingOnlyWithNoRoles() {
+        runTestDiscoveryNodeIsCoordinatingOnly(noRoles(), true);
+    }
+
+    public void testDiscoveryNodeIsCoordinatingOnlyDefault() {
+        // if the roles setting is not explicitly set, a node is assigned every role that is enabled by default,
+        // so it is never coordinating-only
+        runTestDiscoveryNodeIsCoordinatingOnly(Settings.EMPTY, false);
+    }
+
+    /**
+     * A node holding any role at all is not a coordinating-only node. In particular a dedicated ml or transform node is neither a data,
+     * master nor ingest node, but it does have work of its own to do and must not be treated as coordinating-only.
+     */
+    public void testDiscoveryNodeIsNotCoordinatingOnlyWithAnyRole() {
+        for (Set<DiscoveryNodeRole> roles : List.of(
+            Set.of(DiscoveryNodeRole.ML_ROLE),
+            Set.of(DiscoveryNodeRole.TRANSFORM_ROLE),
+            Set.of(DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE),
+            Set.of(DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            Set.of(DiscoveryNodeRole.TRANSFORM_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+            Set.of(DiscoveryNodeRole.INGEST_ROLE)
+        )) {
+            runTestDiscoveryNodeIsCoordinatingOnly(onlyRoles(roles), false);
+        }
+    }
+
+    private void runTestDiscoveryNodeIsCoordinatingOnly(final Settings settings, final boolean expected) {
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("node")
+            .applySettings(settings)
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+            .build();
+        assertThat(node.getRoles().toString(), node.isCoordinatingOnlyNode(), equalTo(expected));
     }
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {

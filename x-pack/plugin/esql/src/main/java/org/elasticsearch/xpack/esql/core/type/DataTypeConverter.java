@@ -6,15 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneOffset;
@@ -47,6 +45,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong
  */
 public final class DataTypeConverter {
 
+    // Long.MAX_VALUE rounds to 2^63 as a double, which is the exclusive upper bound.
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
+
     private DataTypeConverter() {}
 
     /**
@@ -54,7 +55,7 @@ public final class DataTypeConverter {
      */
     public static Converter converterFor(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
-        if (from == to || (isDateTime(from) && isDateTime(to))) {
+        if (from == to) {
             return DefaultConverter.IDENTITY;
         }
         if (to == NULL || from == NULL) {
@@ -313,7 +314,7 @@ public final class DataTypeConverter {
     }
 
     public static long safeDoubleToLong(double x) {
-        if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
+        if (x >= DOUBLE_TO_LONG_UPPER_BOUND || x < Long.MIN_VALUE) {
             throw new InvalidArgumentException("[{}] out of [long] range", x);
         }
         return Math.round(x);
@@ -349,6 +350,13 @@ public final class DataTypeConverter {
     }
 
     public static BigInteger safeToUnsignedLong(String x) {
+        if (x.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+            throw new InvalidArgumentException(
+                "Numeric value length [{}] exceeds the maximum of [{}]",
+                x.length(),
+                Numbers.MAX_NUMERIC_STRING_LENGTH
+            );
+        }
         BigInteger bi = new BigDecimal(x).toBigInteger();
         if (isUnsignedLong(bi) == false) {
             throw new InvalidArgumentException("[{}] out of [unsigned_long] range", x);
@@ -482,8 +490,6 @@ public final class DataTypeConverter {
         }),
         STRING_TO_VERSION(o -> new Version(o.toString()));
 
-        public static final String NAME = "dtc-def";
-
         private final Function<Object, Object> converter;
 
         DefaultConverter(Function<Object, Object> converter) {
@@ -528,20 +534,6 @@ public final class DataTypeConverter {
                 return null;
             }
             return converter.apply(l);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
-        }
-
-        public static Converter read(StreamInput in) throws IOException {
-            return in.readEnum(DefaultConverter.class);
         }
     }
 

@@ -1,82 +1,341 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-debugging.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Painless debugging [painless-debugging]
 
-## Debug.Explain [_debug_explain]
+## Why debugging in Painless is different
 
-Painless doesn’t have a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) and while it’d be nice for it to have one day, it wouldn’t tell you the whole story around debugging painless scripts embedded in Elasticsearch because the data that the scripts have access to or "context" is so important. For now the best way to debug embedded scripts is by throwing exceptions at choice places. While you can throw your own exceptions (`throw new Exception('whatever')`), Painless’s sandbox prevents you from accessing useful information like the type of an object. So Painless has a utility method, `Debug.explain` which throws the exception for you. For example, you can use [`_explain`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-explain) to explore the context available to a [script query](/reference/query-languages/query-dsl/query-dsl-script-query.md).
+Painless scripts run within specific {{es}} contexts, not as isolated code. Unlike languages with interactive environments, Painless doesn’t provide a [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) because script behavior depends entirely on the execution context and available data structures.
 
-```console
-PUT /hockey/_doc/1?refresh
-{"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
+The context determines available parameters, API restrictions, and expected return types. A debugging approach that works in one context might not be directly applied to another because each context provides different capabilities and data access patterns. Refer to [Painless contexts](https://www.elastic.co/docs/reference/scripting-languages/painless/painless-contexts) to understand what variables and methods are available in each context.
 
-POST /hockey/_explain/1
+## Context matters for debugging
+
+The secure, sandboxed approach used in Painless prevents access to standard Java debugging information. The sandbox restricts scripts from accessing information like object types, which has the effect of preventing traditional Java debugging methods.
+
+Scripts cannot access:
+
+* Object type information through standard Java methods (like [`get_Class()`](https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#getClass--) or [reflection](https://docs.oracle.com/javase/8/docs/technotes/guides/reflection/index.html))  
+* Stack traces beyond Painless script boundaries  
+* Runtime class details for security-sensitive operations
+
+## Debug methods available
+
+Painless scripts do not provide interactive debugging tools or a REPL. The only official method for inspecting objects and their types during script execution is by means of the`Debug.explain(object)`. This method throws an informative exception that reveals the object's type and value. As a result, your script does not complete normally; instead, you an error message is included in the response.
+
+You can use custom exceptions (for example, `throw new RuntimeException(...)`) to signal specific conditions or control execution flow but do not provide detailed object inspection. For comprehensive debugging, always use `Debug.explain()`.
+
+## Debugging walkthrough
+
+This section demonstrates a common debugging scenario using a script that formats the total price as "TOTAL: X" in uppercase. The example shows how to identify an error, debug it using `Debug.explain()`, and apply the fix.
+
+### Step 1: Run the failing script
+
+The following script attempts to create a formatted price string from the [ecommerce dataset](/reference/scripting-languages/painless/painless-context-examples.md). The script appears logical but fails:
+
+```json
+GET /kibana_sample_data_ecommerce/_search
 {
+  "size": 1,
   "query": {
-    "script": {
-      "script": "Debug.explain(doc.goals)"
+    "match_all": {}
+  },
+  "script_fields": {
+    "formatted_total": {
+      "script": {
+        "source": """
+          // This will fail - trying to call toUpperCase() on a number
+          return "TOTAL: " + doc['taxful_total_price'].toUpperCase();
+        """
+      }
     }
   }
 }
 ```
-% TEST[s/_explain\/1/_explain\/1?error_trace=false/ catch:/painless_explain_error/]
-% The test system sends error_trace=true by default for easier debugging so
-% we have to override it to get a normal shaped response
 
-Which shows that the class of `doc.first` is `org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
+### Step 2: Analyze the error
 
-```console-result
+The script fails with this error message:
+
+```json
 {
-   "error": {
-      "type": "script_exception",
-      "to_string": "[1, 9, 27]",
-      "painless_class": "org.elasticsearch.index.fielddata.ScriptDocValues.Longs",
-      "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Longs",
-      ...
-   },
-   "status": 400
-}
-```
-% TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "position": $body.error.position, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
-
-You can use the same trick to see that `_source` is a `LinkedHashMap` in the `_update` API:
-
-```console
-POST /hockey/_update/1
-{
-  "script": "Debug.explain(ctx._source)"
-}
-```
-% TEST[continued s/_update\/1/_update\/1?error_trace=false/ catch:/painless_explain_error/]
-
-The response looks like:
-
-```console-result
-{
-  "error" : {
-    "root_cause": ...,
-    "type": "illegal_argument_exception",
-    "reason": "failed to execute script",
-    "caused_by": {
-      "type": "script_exception",
-      "to_string": "{gp=[26, 82, 1], last=gaudreau, assists=[17, 46, 0], first=johnny, goals=[9, 27, 1]}",
-      "painless_class": "java.util.LinkedHashMap",
-      "java_class": "java.util.LinkedHashMap",
-      ...
-    }
+  "took": 8,
+  "timed_out": false,
+  "_shards": {
+    "total": 3,
+    "successful": 2,
+    "skipped": 0,
+    "failed": 1,
+    "failures": [
+      {
+        "shard": 0,
+        "index": "kibana_sample_data_ecommerce",
+        "node": "Rcc7GqOuTta0MV28FZXE_A",
+        "reason": {
+          "type": "script_exception",
+          "reason": "runtime error",
+          "script_stack": [
+            """return "TOTAL: " + doc['taxful_total_price'].toUpperCase();
+            """,
+            "                                             ^---- HERE"
+          ],
+          "script": " ...",
+          "lang": "painless",
+          "position": {
+            "offset": 62,
+            "start": 14,
+            "end": 90
+          },
+          "caused_by": {
+            "type": "illegal_argument_exception",
+            "reason": "dynamic method [java.lang.Double, toUpperCase/0] not found"
+          }
+        }
+      }
+    ]
   },
-  "status": 400
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": []
+  }
 }
 ```
-% TESTRESPONSE[s/"root_cause": \.\.\./"root_cause": $body.error.root_cause/]
-% TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "position": $body.error.caused_by.position, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
-% TESTRESPONSE[s/"to_string": ".+"/"to_string": $body.error.caused_by.to_string/]
 
-Once you have a class you can go to [*Painless API Reference*](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference.html) to see a list of available methods.
+The error indicates that the script attempts to call `toUpperCase()` on a `Double` object, but this method does not exist for numeric types. While the error message provides information about the problem; use `Debug.explain()` to gain additional clarity about the data type.
 
+### Step 3: Use Debug.explain() to understand the problem
 
+Use `Debug.explain()` to inspect the data type:
+
+```json
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "debug_price_type": {
+      "script": {
+        "source": """
+          Debug.explain(doc['taxful_total_price']);
+          return "Check the error for debugging information.";
+        """
+      }
+    }
+  }
+}
+```
+
+The debugging output reveals the data structure:
+
+```json
+{
+  "took": 9,
+  "timed_out": false,
+  "_shards": {
+    "total": 3,
+    "successful": 2,
+    "skipped": 0,
+    "failed": 1,
+    "failures": [
+      {
+        "shard": 0,
+        "index": "kibana_sample_data_ecommerce",
+        "node": "Rcc7GqOuTta0MV28FZXE_A",
+        "reason": {
+          "type": "script_exception",
+          "reason": "runtime error",
+          "painless_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Doubles",
+          "to_string": "[46.96875]",
+          "java_class": "org.elasticsearch.index.fielddata.ScriptDocValues$Doubles",
+          "script_stack": [
+            """Debug.explain(doc['taxful_total_price']);
+          """,
+            "                                       ^---- HERE"
+          ],
+          "script": " ...",
+          "lang": "painless",
+          "position": {
+            "offset": 46,
+            "start": 11,
+            "end": 62
+          },
+          "caused_by": {
+            "type": "painless_explain_error",
+            "reason": null
+          }
+        }
+      }
+    ]
+  },
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": []
+  }
+}
+```
+
+The output shows that `doc['taxful_total_price']` is an `org.elasticsearch.index.fielddata.ScriptDocValues$Doubles` object with the value `[46.96875]`. This is an {{es}} class for handling numeric field values.   
+To access the actual double value, use `doc['taxful_total_price'].value`.
+
+Check the actual value:
+
+```json
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "debug_price_value": {
+      "script": {
+        "source": """
+          Debug.explain(doc['taxful_total_price'].value);
+          return "Check the error for debugging information.";
+        """
+      }
+    }
+  }
+}
+```
+
+This produces the following output:
+
+```json
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 3,
+    "successful": 2,
+    "skipped": 0,
+    "failed": 1,
+    "failures": [
+      {
+        "shard": 0,
+        "index": "kibana_sample_data_ecommerce",
+        "node": "Rcc7GqOuTta0MV28FZXE_A",
+        "reason": {
+          "type": "script_exception",
+          "reason": "runtime error",
+          "painless_class": "java.lang.Double",
+          "to_string": "46.96875",
+          "java_class": "java.lang.Double",
+          "script_stack": [
+            """Debug.explain(doc['taxful_total_price'].value);
+          """,
+            "                                             ^---- HERE"
+          ],
+          "script": " ...",
+          "lang": "painless",
+          "position": {
+            "offset": 46,
+            "start": 11,
+            "end": 62
+          },
+          "caused_by": {
+            "type": "painless_explain_error",
+            "reason": null
+          }
+        }
+      }
+    ]
+  },
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": []
+  }
+}
+```
+
+The output confirms that `doc['taxful_total_price'].value` is a `java.lang.Double` with the value of `46.96875`. 
+
+This demonstrates the problem: the script attempts to call `toUpperCase()` on a number, which is not supported.
+
+### Step 4: Fix the script
+
+Apply the fix by converting the number to a string first:
+
+```json
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 1,
+  "query": {
+    "match_all": {}
+  },
+  "script_fields": {
+    "formatted_total": {
+      "script": {
+        "source": """
+          // Convert the price to String before applying toUpperCase()
+          return "TOTAL: " + String.valueOf(doc['taxful_total_price'].value).toUpperCase();
+        """
+      }
+    }
+  }
+}
+```
+
+### Step 5: Verify the solution works
+
+The corrected script now executes successfully and returns the expected result:
+
+```json
+{
+  "took": 14,
+  "timed_out": false,
+  "_shards": {
+    "total": 3,
+    "successful": 3,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 4675,
+      "relation": "eq"
+    },
+    "max_score": 1,
+    "hits": [
+      {
+        "_index": "kibana_sample_data_ecommerce",
+        "_id": "z_vDyZgBvpJrRKrKcvig",
+        "_score": 1,
+        "fields": {
+          "formatted_total": [
+            "TOTAL: 46.96875"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+## Notes
+
+* **Data types in Painless**: Numeric fields in {{es}} are represented as Java numeric types (`Double`, `Integer`), not as `String`.   
+* **Field access in Painless**: When accessing a single-valued numeric field like `taxful_total_price`, use `.value` to get the actual numeric value.  
+* **Debug.explain() reveals object details**: Shows both the type of object (`java.lang.Double`) and its actual value (`46.96875`), which is useful for understanding how to work with it.  
+* **Type conversion**: Convert data types appropriately before applying type-specific methods.

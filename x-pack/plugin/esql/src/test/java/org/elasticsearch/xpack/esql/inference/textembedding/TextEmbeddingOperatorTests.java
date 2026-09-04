@@ -7,131 +7,132 @@
 
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 
-public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingFloatResults> {
-    private static final String SIMPLE_INFERENCE_ID = "test_text_embedding";
-    private static final int EMBEDDING_DIMENSION = 384; // Common embedding dimension
-
-    private int inputChannel;
-
-    @Before
-    public void initTextEmbeddingChannels() {
-        inputChannel = between(0, inputsCount - 1);
-    }
+public class TextEmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCase {
 
     @Override
-    protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new TextEmbeddingOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+    protected Operator.OperatorFactory createOperatorFactory(InferenceService inferenceService, int batchSize, boolean tolerateFailures) {
+        return new TextEmbeddingOperator.Factory(
+            inferenceService,
+            SIMPLE_INFERENCE_ID,
+            evaluatorFactory(inputChannel),
+            batchSize,
+            null,
+            Source.EMPTY,
+            tolerateFailures
+        );
     }
 
-    @Override
-    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results, hasSize(input.size()));
+    /**
+     * When failures are tolerated, an inference error does not fail the query: a warning is emitted, the affected rows'
+     * embeddings become null, and processing continues.
+     */
+    public void testToleratedInferenceFailureProducesNullAndWarns() {
+        AtomicBoolean shouldFail = new AtomicBoolean(true);
+        Exception failure = new ElasticsearchException("Inference service unavailable");
+        InferenceService failingService = mockedInferenceService(shouldFail, failure);
 
-        for (int curPage = 0; curPage < input.size(); curPage++) {
-            Page inputPage = input.get(curPage);
-            Page resultPage = results.get(curPage);
+        DriverContext driverContext = driverContext();
+        int inputSize = between(1, 100);
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(simpleInput(runner.context().blockFactory(), inputSize));
 
-            assertEquals(inputPage.getPositionCount(), resultPage.getPositionCount());
-            assertEquals(inputPage.getBlockCount() + 1, resultPage.getBlockCount());
-
-            for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
-                Block inputBlock = inputPage.getBlock(channel);
-                Block resultBlock = resultPage.getBlock(channel);
-                assertBlockContentEquals(inputBlock, resultBlock);
-            }
-
-            assertTextEmbeddingResults(inputPage, resultPage);
-        }
-    }
-
-    private void assertTextEmbeddingResults(Page inputPage, Page resultPage) {
-        BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
-        FloatBlock resultBlock = (FloatBlock) resultPage.getBlock(inputPage.getBlockCount());
-
-        BlockStringReader blockReader = new InferenceOperatorTestCase.BlockStringReader();
-
-        for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
-            if (inputBlock.isNull(curPos)) {
-                assertThat(resultBlock.isNull(curPos), equalTo(true));
-            } else {
-                // Verify that we have an embedding vector at this position
-                assertThat(resultBlock.isNull(curPos), equalTo(false));
-                assertThat(resultBlock.getValueCount(curPos), equalTo(EMBEDDING_DIMENSION));
-
-                // Get the input text to verify our mock embedding generation
-                String inputText = blockReader.readString(inputBlock, curPos);
-
-                // Verify the embedding values match our mock generation pattern
-                int firstValueIndex = resultBlock.getFirstValueIndex(curPos);
-                for (int i = 0; i < EMBEDDING_DIMENSION; i++) {
-                    float expectedValue = generateMockEmbeddingValue(inputText, i);
-                    float actualValue = resultBlock.getFloat(firstValueIndex + i);
-                    assertThat(actualValue, equalTo(expectedValue));
+        List<Page> results = runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true));
+        try {
+            // The query completes instead of throwing, and every embedding output value is null.
+            for (Page resultPage : results) {
+                FloatBlock embeddings = resultPage.getBlock(resultPage.getBlockCount() - 1);
+                for (int pos = 0; pos < resultPage.getPositionCount(); pos++) {
+                    assertThat(embeddings.isNull(pos), equalTo(true));
                 }
             }
+
+            // Every failure here carries the same exception and source location, so the driver's warning set collapses them
+            // into exactly two entries regardless of how many rows failed: the "only first N recorded" header, and one line
+            // for the exception itself.
+            List<String> warnings = collectWarnings(driverContext);
+            assertThat(warnings, hasSize(2));
+            assertThat(warnings, hasItem(matchesRegex(".*evaluation of \\[.*\\] failed, treating result as null.*")));
+            assertThat(warnings, hasItem(containsString("Inference service unavailable")));
+        } finally {
+            results.forEach(Page::releaseBlocks);
         }
     }
 
-    @Override
-    protected DenseEmbeddingFloatResults mockInferenceResult(InferenceAction.Request request) {
-        // For text embedding, we expect one input text per request
-        String inputText = request.getInput().get(0);
+    /**
+     * Tolerating failures does not extend to failures that mean the whole query is in trouble. A cancellation must still fail
+     * the query rather than being turned into a page of nulls, which would look to the caller like a completed result.
+     */
+    public void testFatalInferenceFailureIsNotTolerated() {
+        List<Exception> fatalFailures = List.of(
+            new TaskCancelledException("task cancelled"),
+            new CircuitBreakingException("circuit breaking", CircuitBreaker.Durability.TRANSIENT)
+        );
 
-        // Generate a deterministic mock embedding based on the input text
-        float[] mockEmbedding = generateMockEmbedding(inputText, EMBEDDING_DIMENSION);
+        for (Exception fatal : fatalFailures) {
+            InferenceService failingService = mockedInferenceService(new AtomicBoolean(true), fatal);
 
-        var embeddingResult = new DenseEmbeddingFloatResults.Embedding(mockEmbedding);
-        return new DenseEmbeddingFloatResults(List.of(embeddingResult));
+            var runner = new TestDriverRunner().builder(driverContext());
+            runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+
+            Exception actual = expectThrows(
+                Exception.class,
+                () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
+            );
+            assertThat(actual.getMessage(), containsString(fatal.getMessage()));
+        }
     }
 
-    @Override
-    protected Matcher<String> expectedDescriptionOfSimple() {
-        return expectedToStringOfSimple();
+    /**
+     * A callback rejected by its executor reports the rejection and carries the failure it was delivering as a suppressed
+     * exception rather than as a cause. A cancellation reaching the operator in that shape is still fatal, so the query must
+     * fail rather than tolerate it as a per-row failure.
+     */
+    public void testRejectionCarryingFatalFailureIsNotTolerated() {
+        EsRejectedExecutionException rejection = new EsRejectedExecutionException("rejected execution");
+        rejection.addSuppressed(new TaskCancelledException("task cancelled"));
+
+        InferenceService failingService = mockedInferenceService(new AtomicBoolean(true), rejection);
+
+        DriverContext driverContext = driverContext();
+        var runner = new TestDriverRunner().builder(driverContext);
+        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+
+        Exception actual = expectThrows(
+            Exception.class,
+            () -> runner.run(createOperatorFactory(failingService, InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE, true))
+        );
+        assertThat(actual.getMessage(), containsString("rejected execution"));
+        assertThat(collectWarnings(driverContext), empty());
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
-    }
-
-    /**
-     * Generates a deterministic mock embedding vector based on the input text.
-     * This ensures our tests are repeatable and verifiable.
-     */
-    private float[] generateMockEmbedding(String inputText, int dimension) {
-        float[] embedding = new float[dimension];
-        int textHash = inputText.hashCode();
-
-        for (int i = 0; i < dimension; i++) {
-            embedding[i] = generateMockEmbeddingValue(inputText, i);
-        }
-
-        return embedding;
-    }
-
-    /**
-     * Generates a single embedding value for a specific dimension based on input text.
-     * Uses a deterministic function so tests are repeatable.
-     */
-    private float generateMockEmbeddingValue(String inputText, int dimension) {
-        // Create a deterministic value based on input text and dimension
-        int hash = (inputText.hashCode() + dimension * 31) % 10000;
-        return hash / 10000.0f; // Normalize to [0, 1) range
     }
 }

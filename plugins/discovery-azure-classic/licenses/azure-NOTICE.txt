@@ -1,1 +1,612 @@
- 
+NOTICES AND INFORMATION
+Do Not Translate or Localize
+
+This software incorporates material from third parties. Microsoft makes certain
+open source code available at https://3rdpartysource.microsoft.com, or you may
+send a check or money order for US $5.00, including the product name, the open
+source component name, and version number, to:
+
+Source Code Compliance Team
+Microsoft Corporation
+One Microsoft Way
+Redmond, WA 98052
+USA
+
+Notwithstanding any other terms, you may reverse engineer this software to the
+extent required to debug changes to any libraries licensed under the GNU Lesser
+General Public License.
+
+------------------------------------------------------------------------------
+
+Azure SDK for Java uses third-party libraries or other resources that may be
+distributed under licenses different than the Azure SDK for Java software.
+
+In the event that we accidentally failed to list a required notice, please
+bring it to our attention. Post an issue or email us:
+
+           azjavasdkhelp@microsoft.com
+
+The attached notices are provided for information only.
+
+License notice for Hamcrest
+------------------------------------------------------------------------------
+
+The 3-Clause BSD License
+
+Copyright (c) 2000-2015 www.hamcrest.org
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this list of
+conditions and the following disclaimer. Redistributions in binary form must reproduce
+the above copyright notice, this list of conditions and the following disclaimer in
+the documentation and/or other materials provided with the distribution.
+
+Neither the name of Hamcrest nor the names of its contributors may be used to endorse
+or promote products derived from this software without specific prior written
+permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.
+
+License notice for Slf4j API
+------------------------------------------------------------------------------
+
+ Copyright (c) 2004-2017 QOS.ch
+ All rights reserved.
+
+ Permission is hereby granted, free  of charge, to any person obtaining
+ a  copy  of this  software  and  associated  documentation files  (the
+ "Software"), to  deal in  the Software without  restriction, including
+ without limitation  the rights to  use, copy, modify,  merge, publish,
+ distribute,  sublicense, and/or sell  copies of  the Software,  and to
+ permit persons to whom the Software  is furnished to do so, subject to
+ the following conditions:
+
+ The  above  copyright  notice  and  this permission  notice  shall  be
+ included in all copies or substantial portions of the Software.
+
+ THE  SOFTWARE IS  PROVIDED  "AS  IS", WITHOUT  WARRANTY  OF ANY  KIND,
+ EXPRESS OR  IMPLIED, INCLUDING  BUT NOT LIMITED  TO THE  WARRANTIES OF
+ MERCHANTABILITY,    FITNESS    FOR    A   PARTICULAR    PURPOSE    AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+License notice for Slf4j Simple
+------------------------------------------------------------------------------
+
+ Copyright (c) 2004-2017 QOS.ch
+ All rights reserved.
+
+ Permission is hereby granted, free  of charge, to any person obtaining
+ a  copy  of this  software  and  associated  documentation files  (the
+ "Software"), to  deal in  the Software without  restriction, including
+ without limitation  the rights to  use, copy, modify,  merge, publish,
+ distribute,  sublicense, and/or sell  copies of  the Software,  and to
+ permit persons to whom the Software  is furnished to do so, subject to
+ the following conditions:
+
+ The  above  copyright  notice  and  this permission  notice  shall  be
+ included in all copies or substantial portions of the Software.
+
+ THE  SOFTWARE IS  PROVIDED  "AS  IS", WITHOUT  WARRANTY  OF ANY  KIND,
+ EXPRESS OR  IMPLIED, INCLUDING  BUT NOT LIMITED  TO THE  WARRANTIES OF
+ MERCHANTABILITY,    FITNESS    FOR    A   PARTICULAR    PURPOSE    AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+ OF CONTRACT, TORT OR OTHERWISE,  ARISING FROM, OUT OF OR IN CONNECTION
+ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+License notice for Guava (https://github.com/google/guava)
+------------------------------------------------------------------------------
+
+Copyright (C) 2010 The Guava Authors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+License notice for Netty
+------------------------------------------------------------------------------
+
+Copyright 2014 The Netty Project
+
+The Netty Project licenses this file to you under the Apache License,
+version 2.0 (the "License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at:
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations
+under the License.
+
+License notice for JUG Java Uuid Generator
+------------------------------------------------------------------------------
+
+JUG Java Uuid Generator
+
+Copyright (c) 2002- Tatu Saloranta, tatu.saloranta@iki.fi
+
+Licensed under the License specified in the file LICENSE which is
+included with the source code.
+You may not use this file except in compliance with the License.
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+License notice for Jackson
+------------------------------------------------------------------------------
+
+Copyright (c) 2007 Jackson Project
+
+Jackson-annotations (http://github.com/FasterXML/jackson
+Jackson-core (https://github.com/FasterXML/jackson-core
+jackson-databind (http://github.com/FasterXML/jackson
+Jackson-dataformat-XML (https://github.com/FasterXML/jackson-dataformat-xml)
+Jackson datatype: JSR310 (https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310)
+Jackson module: Afterburner (https://github.com/FasterXML/jackson-modules-base)
+Jackson module: JAXB Annotations (https://github.com/FasterXML/jackson-modules-base)
+Woodstox (https://github.com/FasterXML/woodstox)
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+
+License notice for Metrics Core
+------------------------------------------------------------------------------
+
+Copyright (c) 2010-2013 Coda Hale, Yammer.com, 2014-2020 Dropwizard Team
+
+Metrics Core (https://github.com/dropwizard/metrics)
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+License notice for micrometer-core
+------------------------------------------------------------------------------
+
+Copyright (c) 2017-Present VMware, Inc. All Rights Reserved.
+
+micrometer-core (https://github.com/micrometer-metrics/micrometer)
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+
+License notice for project Reactor
+------------------------------------------------------------------------------
+
+Copyright (c) 2011-2017 Pivotal Software Inc, All Rights Reserved.
+
+Non-Blocking Reactive Foundation for the JVM (https://github.com/reactor/reactor-core)
+reactor-scala-extensions (https://github.com/reactor/reactor-scala-extensions)
+Reactive Streams Netty driver (https://github.com/reactor/reactor-netty)
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+or implied. See the License for the specific language governing permissions and limitations under
+the License.
+
+
+License notice for JavaBeans Activation Framework API
+------------------------------------------------------------------------------
+
+JavaBeans Activation Framework API jar (https://github.com/eclipse-ee4j/jaf/jakarta.activation-api)
+
+Eclipse Distribution License - v 1.0
+Copyright (c) 2007, Eclipse Foundation, Inc. and its licensors.
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation and/or other materials
+provided with the distribution.
+Neither the name of the Eclipse Foundation, Inc. nor the names of its contributors may be used to
+endorse or promote products derived from this software without specific prior written permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License notice for jakarta.xml.bind-api
+------------------------------------------------------------------------------
+
+jakarta.xml.bind-api (https://github.com/eclipse-ee4j/jaxb-api/jakarta.xml.bind-api)
+
+Eclipse Distribution License - v 1.0
+Copyright (c) 2007, Eclipse Foundation, Inc. and its licensors.
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation and/or other materials
+provided with the distribution.
+Neither the name of the Eclipse Foundation, Inc. nor the names of its contributors may be used to
+endorse or promote products derived from this software without specific prior written permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License notice for jakarta.xml.bind-api
+------------------------------------------------------------------------------
+
+Stax2 API (http://github.com/FasterXML/stax2-api)
+Copyright (c) 2008 FasterXML LLC info@fasterxml.com
+
+This source code is licensed under standard BSD license, which is compatible with all Free and Open Software (OSS) licenses.
+
+
+License notice for HdrHistogrami
+------------------------------------------------------------------------------
+HdrHistogram (http://hdrhistogram.github.io/HdrHistogram/)
+
+The code in this repository code was Written by Gil Tene, Michael Barker,
+and Matt Warren, and released to the public domain, as explained at
+http://creativecommons.org/publicdomain/zero/1.0/
+
+For users of this code who wish to consume it under the "BSD" license
+rather than under the public domain or CC0 contribution text mentioned
+above, the code found under this directory is *also* provided under the
+following license (commonly referred to as the BSD 2-Clause License). This
+license does not detract from the above stated release of the code into
+the public domain, and simply represents an additional license granted by
+the Author.
+
+-----------------------------------------------------------------------------
+** Beginning of "BSD 2-Clause License" text. **
+
+ Copyright (c) 2012, 2013, 2014, 2015, 2016 Gil Tene
+ Copyright (c) 2014 Michael Barker
+ Copyright (c) 2014 Matt Warren
+ All rights reserved.
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+ 1. Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+ 2. Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License notice for LatencyUtils
+------------------------------------------------------------------------------
+
+LatencyUtils (http://latencyutils.github.io/LatencyUtils/)
+
+  * This code was Written by Gil Tene of Azul Systems, and released to the
+  * public domain, as explained at http://creativecommons.org/publicdomain/zero/1.0/
+
+ For users of this code who wish to consume it under the "BSD" license
+ rather than under the public domain or CC0 contribution text mentioned
+ above, the code found under this directory is *also* provided under the
+ following license (commonly referred to as the BSD 2-Clause License). This
+ license does not detract from the above stated release of the code into
+ the public domain, and simply represents an additional license granted by
+ the Author.
+
+ -----------------------------------------------------------------------------
+ ** Beginning of "BSD 2-Clause License" text. **
+
+  Copyright (c) 2012, 2013, 2014 Gil Tene
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+  THE POSSIBILITY OF SUCH DAMAGE.
+
+
+License notice for reactive-streams
+------------------------------------------------------------------------------
+
+reactive-streams (http://www.reactive-streams.org/)
+
+Copyright Statement for Contributions to the Reactive Streams Project
+=====================================================================
+
+I hereby represent that all present, past and future contributions I make to
+the Reactive Streams project (which includes all repositories owned by the
+“reactive-streams” github organization) are governed by the Creative Commons
+Zero 1.0 Universal copyright statement, placing my contributions in the public
+domain. This entails that to the extent possible under law I waive all
+copyright and related or neighboring rights to the code or documents I
+contribute. I also represent that I have the authority to perform the above
+waiver with respect to the entirety of my contributions.
+
+The text of the copyright statement is included in the COPYING file at the root
+of the reactive-streams repository at
+https://github.com/reactive-streams/reactive-streams-jvm/blob/master/COPYING.
+
+Underwriting parties:
+
+github name    | Real Name, Email Address used for git commits, Company
+---------------+----------------------------------------------------------------------------
+rkuhn          | Roland Kuhn, rk@rkuhn.info, Typesafe Inc.
+benjchristensen| Ben Christensen, benjchristensen@gmail.com, Netflix Inc.
+viktorklang    | Viktor Klang, viktor.klang@gmail.com, Typesafe Inc.
+smaldini       | Stephane Maldini, stephane.maldini@gmail.com, Pivotal Software Inc.
+savulchik      | Stanislav Savulchik, s.savulchik@gmail.com
+ktoso          | Konrad Malawski, konrad.malawski@project13.pl, Typesafe Inc.
+ouertani       | Slim Ouertani, ouertani@gmail.com
+2m             | Martynas Mickevičius, mmartynas@gmail.com, Typesafe Inc.
+ldaley         | Luke Daley, luke.daley@gradleware.com, Gradleware Inc.
+colinrgodsey   | Colin Godsey, crgodsey@gmail.com, MediaMath Inc.
+davidmoten     | Dave Moten, davidmoten@gmail.com
+briantopping   | Brian Topping, brian.topping@gmail.com, Mauswerks LLC
+rstoyanchev    | Rossen Stoyanchev, rstoyanchev@pivotal.io, Pivotal
+BjornHamels    | Björn Hamels, bjorn@hamels.nl
+JakeWharton    | Jake Wharton, jakewharton@gmail.com
+anthonyvdotbe  | Anthony Vanelverdinghe, anthonyv.be@outlook.com
+seratch        | Kazuhiro Sera, seratch@gmail.com, SmartNews, Inc.
+akarnokd       | David Karnok, akarnokd@gmail.com
+egetman        | Evgeniy Getman, getman.eugene@gmail.com
+patriknw       | Patrik Nordwall, patrik.nordwall@gmail.com, Lightbend Inc
+angelsanz      | Ángel Sanz, angelsanz@users.noreply.github.com
+shenghaiyang   | 盛海洋, shenghaiyang@aliyun.com
+kiiadi         | Kyle Thomson, kylthoms@amazon.com, Amazon.com
+jroper         | James Roper, james@jazzy.id.au, Lightbend Inc.
+olegdokuka     | Oleh Dokuka, shadowgun@.i.ua, Netifi Inc.
+Scottmitch     | Scott Mitchell, scott_mitchell@apple.com, Apple Inc.
+retronym       | Jason Zaugg, jzaugg@gmail.com, Lightbend Inc.
+
+Licensed under Public Domain (CC0)
+
+To the extent possible under law, the person who associated CC0 with
+this code has waived all copyright and related or neighboring
+rights to this code.
+
+You should have received a copy of the CC0 legalcode along with this
+work. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+
+License notice for Bouncy Castle
+------------------------------------------------------------------------------
+
+Copyright (c) 2000 - 2024 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+License notice for Apache Commons
+------------------------------------------------------------------------------
+
+Copyright 2002-2019 The Apache Software Foundation
+
+commons-codec (https://github.com/apache/commons-codec)
+commons-text (https://github.com/apache/commons-text)
+commons-lang (https://github.com/apache/commons-lang)
+commons-collections (https://github.com/apache/commons-collections)
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and limitations under the License.
+
+-------------------------------------------------------------------------------------------------
+
+License notice for GraalVM
+------------------------------------------------------------------------------
+org.graalvm.sdk:graal-sdk - https://github.com/graalvm/native-build-tools/blob/master/common/junit-platform-native/LICENSE
+The Universal Permissive License (UPL), Version 1.0
+
+Subject to the condition set forth below, permission is hereby granted to any person obtaining a copy of this software,
+associated documentation and/or data (collectively the "Software"), free of charge and under any and all copyright rights
+in the Software, and any and all patent rights owned or freely licensable by each licensor hereunder covering either
+(i) the unmodified Software as contributed to or provided by such licensor, or (ii) the Larger Works (as defined below),
+to deal in both
+
+(a) the Software, and
+
+(b) any piece of software and/or hardware listed in the lrgrwrks.txt file if one is included with the Software each a
+"Larger Work" to which the Software is contributed by such licensors), without restriction, including without limitation
+the rights to copy, create derivative works of, display, perform, and distribute the Software and make, use, sell, offer
+for sale, import, export, have made, and have sold the Software and the Larger Work(s), and to sublicense the foregoing
+rights on either these or other terms.
+
+This license is subject to the following condition:
+
+The above copyright notice and either this complete permission notice or at a minimum a reference to the UPL must be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+-------------------------------------------------------------------------------------------------
+
+License notice for JUnit platform native plugin
+------------------------------------------------------------------------------
+org.graalvm.buildtools:junit-platform-native - https://github.com/graalvm/native-build-tools/blob/master/common/junit-platform-native/LICENSE
+
+Copyright (c) 2020, 2021, Oracle and/or its affiliates. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+The Universal Permissive License (UPL), Version 1.0
+
+Subject to the condition set forth below, permission is hereby granted to any
+person obtaining a copy of this software, associated documentation and/or
+data (collectively the "Software"), free of charge and under any and all
+copyright rights in the Software, and any and all patent rights owned or
+freely licensable by each licensor hereunder covering either (i) the
+unmodified Software as contributed to or provided by such licensor, or (ii)
+the Larger Works (as defined below), to deal in both
+
+(a) the Software, and
+
+(b) any piece of software and/or hardware listed in the lrgrwrks.txt file if
+one is included with the Software each a "Larger Work" to which the Software
+is contributed by such licensors),
+
+without restriction, including without limitation the rights to copy, create
+derivative works of, display, perform, and distribute the Software and make,
+use, sell, offer for sale, import, export, have made, and have sold the
+Software and the Larger Work(s), and to sublicense the foregoing rights on
+either these or other terms.
+
+This license is subject to the following condition:
+
+The above copyright notice and either this complete permission notice or at a
+minimum a reference to the UPL must be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------------------------
+
+License notice for OpenTelemetry Java instrumentation
+https://github.com/open-telemetry/opentelemetry-java-instrumentation/
+------------------------------------------------------------------------------
+
+Copyright [2023] [OpenTelemetry]
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-------------------------------------------------------------------------------
+
+License notice for Public Suffix List
+-------------------------------------------------------------------------------
+
+This project includes the file `effective_tld_names.dat`, which is part of the Public Suffix List maintained by Mozilla
+and used under the Mozilla Public License 2.0. See https://publicsuffix.org/ for more information.
+
+This file is licensed under the Mozilla Public License, Version 2.0 (the "License"); you may not use this file except in
+compliance with the License. You may obtain a copy of the License at:
+
+    https://www.mozilla.org/MPL/2.0/
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
+language governing permissions and limitations under the License.

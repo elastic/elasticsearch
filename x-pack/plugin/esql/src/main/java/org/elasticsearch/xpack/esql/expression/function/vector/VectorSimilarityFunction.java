@@ -14,11 +14,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -48,7 +49,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderExpression {
+        BlockLoaderExpression,
+        AnyNullIsNull {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -82,7 +84,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     }
 
     @Override
-    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
         VectorValueProviderFactory leftVectorProviderFactory = getVectorValueProviderFactory(left(), toEvaluator);
         VectorValueProviderFactory rightVectorProviderFactory = getVectorValueProviderFactory(right(), toEvaluator);
         return new SimilarityEvaluatorFactory(
@@ -125,10 +127,10 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         VectorValueProviderFactory rightVectorProviderFactory,
         DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName
-    ) implements EvalOperator.ExpressionEvaluator.Factory {
+    ) implements ExpressionEvaluator.Factory {
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             // TODO check whether to use this custom evaluator or reuse / define an existing one
             return new SimilarityEvaluator(
                 leftVectorProviderFactory.build(context),
@@ -151,7 +153,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         DenseVectorFieldMapper.SimilarityFunction similarityFunction,
         String evaluatorName,
         BlockFactory blockFactory
-    ) implements EvalOperator.ExpressionEvaluator {
+    ) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SimilarityEvaluator.class);
 
@@ -336,7 +338,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
     private static class ExpressionVectorProvider implements VectorValueProvider {
 
-        record Factory(EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory) implements VectorValueProviderFactory {
+        record Factory(ExpressionEvaluator.Factory expressionEvaluatorFactory) implements VectorValueProviderFactory {
             public VectorValueProvider build(DriverContext context) {
                 return new ExpressionVectorProvider(expressionEvaluatorFactory.get(context));
             }
@@ -349,11 +351,11 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ExpressionVectorProvider.class);
 
-        private final EvalOperator.ExpressionEvaluator expressionEvaluator;
+        private final ExpressionEvaluator expressionEvaluator;
         private FloatBlock block;
         private float[] scratch;
 
-        ExpressionVectorProvider(EvalOperator.ExpressionEvaluator expressionEvaluator) {
+        ExpressionVectorProvider(ExpressionEvaluator expressionEvaluator) {
             assert expressionEvaluator != null;
             this.expressionEvaluator = expressionEvaluator;
         }

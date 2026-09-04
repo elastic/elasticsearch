@@ -30,6 +30,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Specialized hash table implementations that map rows to a <strong>set</strong>
@@ -53,7 +54,7 @@ import java.util.List;
  * </p>
  * <p>
  *     The integer ids are assigned to offsets into arrays of aggregation states
- *     so its permissible to have gaps in the ints. But large gaps are a bad
+ *     so it's permissible to have gaps in the ints. But large gaps are a bad
  *     idea because they'll waste space in the aggregations that use these
  *     positions. For example, {@link BooleanBlockHash} assigns {@code 0} to
  *     {@code null}, {@code 1} to {@code false}, and {@code 1} to {@code true}
@@ -91,12 +92,12 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
-     * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
-     * <p>
-     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
-     * </p>
+     * Returns an array of {@link Block}s containing keys.
+     * @param selected The groupIds to include in the results. These are the same
+     *                 groupIds returned by {@link #nonEmpty} and fed into aggregations
+     *                 as part of {@link #add}.
      */
-    public abstract Block[] getKeys();
+    public abstract Block[] getKeys(IntVector selected);
 
     /**
      * The grouping ids that are not empty. We use this because some block hashes reserve
@@ -104,15 +105,26 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
-     * <p>
-     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
-     * </p>
      */
     public abstract IntVector nonEmpty();
+
+    /**
+     * The number of unique keys in the hash.
+     */
+    public abstract int numKeys();
 
     // TODO merge with nonEmpty
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
+
+    /**
+     * A single sort key entry in a composite {@link TopNDef}.
+     *
+     * @param groupingIndex index of the corresponding entry in the {@code GroupSpec} list (0 = first grouping key)
+     * @param asc true if this key sorts ascending, false for descending
+     * @param nullsFirst true if nulls sort before non-null values
+     */
+    public record SortKey(int groupingIndex, boolean asc, boolean nullsFirst) {}
 
     /**
      * Configuration for a BlockHash group spec that is later sorted and limited (Top-N).
@@ -120,12 +132,26 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *     Part of a performance improvement to avoid aggregating groups that will not be used.
      * </p>
      *
-     * @param order The order of this group in the sort, starting at 0
-     * @param asc True if this group will be sorted ascending. False if descending.
-     * @param nullsFirst True if the nulls should be the first elements in the TopN. False if they should be kept last.
-     * @param limit The number of elements to keep, including nulls.
+     * @param sortKeys ordered list of sort specifications; index 0 is the primary (most significant) key
+     * @param limit the maximum number of groups to keep, including any null group
      */
-    public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
+    public record TopNDef(List<SortKey> sortKeys, int limit) {
+        public TopNDef {
+            if (sortKeys.isEmpty()) {
+                throw new IllegalArgumentException("TopNDef requires at least one sort key");
+            }
+        }
+
+        /** Returns the primary (most significant) sort key. */
+        public SortKey primaryKey() {
+            return sortKeys.get(0);
+        }
+
+        /** True when only a single sort key is present. */
+        public boolean isSingleKey() {
+            return sortKeys.size() == 1;
+        }
+    }
 
     /**
      * Configuration for a BlockHash group spec that is doing text categorization.
@@ -163,11 +189,28 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
             GroupSpec group = groups.get(0);
-            if (group.topNDef() != null && group.elementType() == ElementType.LONG) {
+            if (group.topNDef() != null) {
                 TopNDef topNDef = group.topNDef();
-                return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                SortKey primaryKey = topNDef.primaryKey();
+                if (group.elementType() == ElementType.LONG) {
+                    return new LongTopNBlockHash(group.channel(), primaryKey.asc(), primaryKey.nullsFirst(), topNDef.limit(), blockFactory);
+                }
+                if (group.elementType() == ElementType.BYTES_REF) {
+                    return new BytesRefTopNBlockHash(
+                        group.channel(),
+                        primaryKey.asc(),
+                        primaryKey.nullsFirst(),
+                        topNDef.limit(),
+                        blockFactory
+                    );
+                }
             }
             return newForElementType(group.channel(), group.elementType(), blockFactory);
+        }
+        // Multi-key with a pushed TopN hint: route to the composite TopN hash for primary-key pruning.
+        TopNDef multiTopN = groups.stream().map(GroupSpec::topNDef).filter(Objects::nonNull).findFirst().orElse(null);
+        if (multiTopN != null) {
+            return new CompositeTopNBlockHash(groups, multiTopN, blockFactory, emitBatchSize);
         }
         if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
             switch (groups.size()) {
@@ -183,17 +226,24 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                     );
             }
         }
-        if (allowBrokenOptimizations && groups.size() == 2) {
+        if (groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
-            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
-            }
-            if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(blockFactory, g1.channel(), g2.channel(), false, emitBatchSize);
+            if (g1.elementType == ElementType.LONG && g2.elementType == ElementType.INT) {
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, false);
+            } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
+                return new LongIntBlockHash(groups, blockFactory, emitBatchSize, true);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
+                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+            } else if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
+                return new LongBytesRefAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+            }
+            // TODO: wire (LONG, LONG) with adaptive
+            if (allowBrokenOptimizations) {
+                if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
+                    return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
+                }
             }
         }
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
@@ -241,6 +291,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case INT -> new IntBlockHash(channel, blockFactory);
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
+            case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };

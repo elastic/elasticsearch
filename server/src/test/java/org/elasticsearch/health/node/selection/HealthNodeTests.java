@@ -54,7 +54,7 @@ public class HealthNodeTests extends ESTestCase {
         assertThat(HealthNode.findHealthNode(state), nullValue());
     }
 
-    public void testfindHealthNodeNoAssignment() {
+    public void testFindHealthNodeNoAssignment() {
         ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, NO_NODE_FOUND);
         ClusterState state = ClusterStateCreationUtils.state(node1, node1, allNodes)

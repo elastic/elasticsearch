@@ -64,8 +64,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingInfo;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -285,7 +285,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 new DocumentSubsetBitsetCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                rds -> {}
+                rds -> {},
+                List.of()
             )
         );
         userAuthorizedIndices = new String[] {
@@ -405,7 +406,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     fieldPermissionsCache,
                     null,
                     RESTRICTED_INDICES,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure),
+                    List.of(),
+                    false
                 );
             }
             return Void.TYPE;
@@ -438,8 +441,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             settings,
             new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver),
             indexNameExpressionResolver,
-            crossProjectModeDecider,
-            ProjectRoutingResolver.NOOP
+            crossProjectModeDecider
         );
     }
 
@@ -917,7 +919,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .collect(Collectors.toSet());
             assert matchedIndices.isEmpty() == false;
             return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
-        }).toList());
+        }).toList(), null);
 
         final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
 
@@ -1366,8 +1368,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testSearchWithRemoteAndLocalIndices() {
         SearchRequest request = new SearchRequest("remote:indexName", "bar", "bar2");
-        boolean expandToOpenIndices = randomBoolean();
-        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), expandToOpenIndices, randomBoolean()));
+        request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         final ResolvedIndices resolved = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
         assertThat(resolved.getLocal(), containsInAnyOrder("bar"));
         assertThat(resolved.getRemote(), containsInAnyOrder("remote:indexName"));
@@ -1377,7 +1378,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(
             actual.expressions(),
             contains(
-                resolvedIndexExpression("bar", Set.of("bar"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
+                resolvedIndexExpression("bar", Set.of("bar"), SUCCESS),
                 resolvedIndexExpression("bar2", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED)
             )
         );
@@ -2462,6 +2463,20 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { ".hidden-open" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
+        // open + explicit hidden
+        index = randomFrom("h*", "hid*");
+        searchRequest = new SearchRequest(index);
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
+        authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name());
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            TransportSearchAction.TYPE.name(),
+            searchRequest,
+            projectMetadata,
+            authorizedIndices
+        );
+        assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { "hidden-open" });
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
         // closed + hidden, ignore aliases
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
@@ -2488,6 +2503,20 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             authorizedIndices
         );
         assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { ".hidden-closed" });
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+
+        // closed + explicit hidden
+        index = randomFrom("h*", "hid*");
+        searchRequest = new SearchRequest(index);
+        searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true));
+        authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name());
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            TransportSearchAction.TYPE.name(),
+            searchRequest,
+            projectMetadata,
+            authorizedIndices
+        );
+        assertIndicesMatch(searchRequest, index, resolvedIndices.getLocal(), new String[] { "hidden-closed" });
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // allow no indices, do not expand to open or closed, expand hidden, ignore aliases
@@ -3262,6 +3291,73 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testResolveAllWithMissingProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("not_a_project:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var exception = expectThrows(
+            NoMatchingProjectException.class,
+            () -> defaultIndicesResolver.resolveIndicesAndAliases(
+                "indices:/" + randomAlphaOfLength(8),
+                request,
+                projectMetadata,
+                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+                new TargetProjects(
+                    createRandomProjectWithAlias("local"),
+                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("No such project: [not_a_project]"));
+    }
+
+    public void testResolveAllWithExistingProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("P1:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(NO_INDEX_PLACEHOLDER));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+        assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(request.getResolvedIndexExpressions().expressions(), empty());
+    }
+
+    public void testResolveAllWithWildcardProjectAndNoWildcardExpansion() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+
+        var request = new SearchRequest().indices("P*:_all");
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(NO_INDEX_PLACEHOLDER));
+        assertThat(resolvedIndices.getRemote(), emptyIterable());
+        assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getResolvedIndexExpressions(), is(notNullValue()));
+        assertThat(request.getResolvedIndexExpressions().expressions(), empty());
+    }
+
     public void testResolveIndexWithRemotePrefix() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
@@ -3511,6 +3607,216 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testCpsResolveImplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:" + targetIndex, "P2:" + targetIndex));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS, Set.of("P1:" + targetIndex, "P2:" + targetIndex)))
+        );
+    }
+
+    public void testResolveImplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        var targetIndex = randomFrom(".hidden-open", ".hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), empty());
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS)));
+    }
+
+    public void testCpsResolveExplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var targetIndex = randomFrom("hidden-open", "hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:" + targetIndex, "P2:" + targetIndex));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS, Set.of("P1:" + targetIndex, "P2:" + targetIndex)))
+        );
+    }
+
+    public void testResolveExplicitHiddenIndexUsingConcreteExpression() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        var targetIndex = randomFrom("hidden-open", "hidden-closed");
+        var request = new SearchRequest().indices(targetIndex);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+
+        assertThat(resolvedIndices.getLocal(), contains(targetIndex));
+        assertThat(resolvedIndices.getRemote(), empty());
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(resolved.expressions(), contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS)));
+    }
+
+    public void testCpsResolveClosedIndexWithForbidClosed() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var request = new SearchRequest().indices("hidden-closed");
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains("hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:hidden-closed", "P2:hidden-closed"));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    "hidden-closed",
+                    Set.of("hidden-closed"),
+                    CONCRETE_RESOURCE_NOT_VISIBLE,
+                    Set.of("P1:hidden-closed", "P2:hidden-closed")
+                )
+            )
+        );
+    }
+
+    public void testCpsResolveAliasWithIgnoreAliases() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var user = new User("data_stream_test3", "data_stream_test3");
+        var request = new SearchRequest().indices("logs-alias");
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                randomBoolean()
+            )
+        );
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains("logs-alias"));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:logs-alias", "P2:logs-alias"));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    "logs-alias",
+                    Set.of("logs-alias"),
+                    CONCRETE_RESOURCE_NOT_VISIBLE,
+                    Set.of("P1:logs-alias", "P2:logs-alias")
+                )
+            )
+        );
+    }
+
+    public void testCpsResolveThrottledIndex() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        projectMetadata = ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                indexBuilder("bar").settings(
+                    indexSettings(IndexVersion.current(), randomIntBetween(1, 2), randomIntBetween(0, 2)).put("index.frozen", true).build()
+                )
+            )
+            .build();
+        var request = new SearchRequest().indices("bar");
+        var ignoreThrottled = randomBoolean();
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                ignoreThrottled
+            )
+        );
+        var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+
+        assertThat(resolvedIndices.getLocal(), contains("bar"));
+        assertThat(resolvedIndices.getRemote(), empty());
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression("bar", Set.of("bar"), ignoreThrottled ? CONCRETE_RESOURCE_NOT_VISIBLE : SUCCESS))
+        );
+    }
+
     private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {
         assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
@@ -3526,8 +3832,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");
         String org = randomAlphaOfLength(10);
+        String provider = randomAlphaOfLength(10);
+        String region = randomAlphaOfLength(10);
 
-        Map<String, String> tags = Map.of("_id", projectId.id(), "_type", type, "_organization", org, "_alias", alias);
+        Map<String, String> tags = Map.of(
+            "_id",
+            projectId.id(),
+            "_type",
+            type,
+            "_organization",
+            org,
+            "_alias",
+            alias,
+            "_csp",
+            provider,
+            "_region",
+            region
+        );
         ProjectTags projectTags = new ProjectTags(tags);
         return new ProjectRoutingInfo(projectId, type, alias, org, projectTags);
     }
@@ -3595,7 +3916,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     ) {
         return new ResolvedIndexExpression(
             original,
-            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult, null),
+            new ResolvedIndexExpression.LocalExpressions(localExpressions, localIndexResolutionResult),
             remoteExpressions
         );
     }

@@ -12,6 +12,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -19,12 +20,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
@@ -135,6 +138,106 @@ public class APMJvmOptionsTests extends ESTestCase {
         labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
         assertThat(labels, hasSize(2));
         assertThat(labels, containsInAnyOrder("deployment_name=APM_Tracing", "organization_id=_456"));
+    }
+
+    public void testAPMAgentAlwaysAttached() throws Exception {
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder()
+                .put("telemetry.tracing.enabled", false)
+                .put("telemetry.metrics.enabled", false)
+                .put("telemetry.agent.server_url", "https://myurl:443")
+                .build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString(),
+            false,
+            false
+        );
+
+        assertFalse(options.isEmpty());
+
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
+        assertNull(properties.getProperty("disable_metrics"));
+        assertNull(extractDynamicOption(options, "disable_instrumentations"));
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
+    }
+
+    public void testAPMAgentMetricsDisabledWhenOtelMetricsEnabled() throws Exception {
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString(),
+            true,
+            false
+        );
+
+        assertFalse(options.isEmpty());
+
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("0s"));
+        assertThat(properties.getProperty("disable_metrics"), equalTo("*"));
+        assertThat(extractDynamicOption(options, "disable_instrumentations"), equalTo("opentelemetry-metrics"));
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0.001"));
+    }
+
+    public void testAPMAgentTracesDisabledWhenOtelTracesEnabled() throws Exception {
+        Path tempDir = createTempDir();
+        List<String> options = APMJvmOptions.apmJvmOptions(
+            Settings.builder().put("telemetry.agent.server_url", "https://myurl:443").build(),
+            null,
+            createTempDir(),
+            tempDir,
+            installDir.toAbsolutePath().toString(),
+            false,
+            true
+        );
+
+        assertFalse(options.isEmpty());
+
+        assertThat(extractDynamicOption(options, "transaction_sample_rate"), equalTo("0"));
+        Properties properties = extractProperties(options);
+        assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));
+        assertNull(properties.getProperty("disable_metrics"));
+    }
+
+    private static String extractDynamicOption(List<String> options, String key) {
+        String prefix = "-Delastic.apm." + key + "=";
+        for (String option : options) {
+            if (option.startsWith(prefix)) {
+                return option.substring(prefix.length());
+            }
+        }
+        return null;
+    }
+
+    private static Properties extractProperties(List<String> options) throws IOException {
+        Path configPath = findApmConfigPath(options);
+        Properties properties = new Properties();
+        try (InputStream inputStream = Files.newInputStream(configPath)) {
+            properties.load(inputStream);
+        }
+        return properties;
+    }
+
+    private static Path findApmConfigPath(List<String> options) {
+        for (String inputArgument : options) {
+            if (inputArgument.startsWith("-javaagent:")) {
+                int configIndex = inputArgument.lastIndexOf("=c=");
+                if (configIndex > 0) {
+                    final Path apmConfig = PathUtils.get(inputArgument.substring(configIndex + 3));
+                    if (Files.isRegularFile(apmConfig) && apmConfig.getFileName().toString().matches(Node.APM_PROPFILE_REGEX)) {
+                        return apmConfig;
+                    }
+                }
+            }
+        }
+        throw new AssertionError("Expected temp APM config file. Options were: " + options);
     }
 
     private Path makeFakeAgentJar() throws IOException {

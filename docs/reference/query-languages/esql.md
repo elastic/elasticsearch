@@ -23,6 +23,9 @@ You can author {{esql}} queries to find specific events, perform statistical ana
 
 {{esql}} is designed to be easy to read and write, making it accessible for users with varying levels of technical expertise. It is particularly useful for data analysts, security professionals, and developers who need to work with large datasets in Elasticsearch.
 
+::::{include} esql/_snippets/common/query-performance-tip.md
+::::
+
 ## How does it work? [search-analyze-data-esql]
 
 {{esql}} uses pipes (`|`) to manipulate and transform data in a step-by-step fashion. This approach allows you to compose a series of operations, where the output of one operation becomes the input for the next, enabling complex data transformations and analysis.
@@ -49,4 +52,9 @@ You can interact with {{esql}} in two ways:
 
 - **Interactive interfaces**: Work with {{esql}} through Elastic user interfaces including Kibana Discover, Dashboards, Dev Tools, and analysis tools in Elastic Security and Observability.
   - Refer to [Using {{esql}} in {{kib}}](docs-content://explore-analyze/query-filter/languages/esql-kibana.md).
+
+
+## ES|QL circuit breaker settings [esql-circuit-breaker]
+
+The relevant circuit breaker settings can be found in the [Circuit Breakers page](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql).
 

@@ -49,6 +49,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,6 +63,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -72,6 +74,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -116,9 +119,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -165,6 +171,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -172,8 +180,7 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            },
-            mock(SamplingService.class)
+            }
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -193,6 +200,8 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
+                UserAgentParserRegistry.NOOP,
+                IpLocationService.NOOP,
                 FailureStoreMetrics.NOOP,
                 TestProjectResolvers.alwaysThrow(),
                 new FeatureService(List.of()) {
@@ -200,8 +209,7 @@ public class IngestServiceTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                },
-                mock(SamplingService.class)
+                }
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -218,6 +226,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -225,8 +235,7 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            },
-            mock(SamplingService.class)
+            }
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -555,6 +564,291 @@ public class IngestServiceTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testValidatePipelineSizeWithinLimits() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        // Generous limits: nothing should be rejected.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelineSize() {
+        IngestService ingestService = createWithProcessors();
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of());
+        PutPipelineRequest request = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long size = new PipelineConfiguration("_id", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+
+        // Exactly at the limit is allowed.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size), ByteSizeValue.ofMb(1));
+
+        // One byte under the pipeline's size is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofBytes(size - 1), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipeline_size"));
+    }
+
+    public void testValidatePipelineExceedsMaxPipelines() {
+        IngestService ingestService = createWithProcessors();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 3; i++) {
+            existing.put("existing_" + i, getTestPipelineConfiguration("existing_" + i));
+        }
+        var projectId = applyClusterStateWithPipelines(ingestService, existing);
+
+        PutPipelineRequest newPipeline = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, newPipeline, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_pipelines"));
+
+        // Updating an already-existing pipeline does not increase the count, so the limit does not apply to it.
+        PutPipelineRequest updateExisting = putJsonPipelineRequest("existing_0", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        validateSize(ingestService, projectId, updateExisting, 3, ByteSizeValue.ofKb(64), ByteSizeValue.ofMb(1));
+    }
+
+    public void testValidatePipelineExceedsMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration existing = getTestPipelineConfiguration("existing");
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("existing", existing));
+
+        PutPipelineRequest request = putJsonPipelineRequest("_new", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_new", request.getSource(), request.getXContentType()).serializedSizeInBytes();
+        long total = existing.serializedSizeInBytes() + newSize;
+
+        // Exactly at the aggregate limit is allowed.
+        validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total));
+
+        // One byte under the aggregate is rejected.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, request, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(total - 1))
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    public void testValidatePipelineAggregateExcludesReplacedPipeline() {
+        IngestService ingestService = createWithProcessors();
+        // A large existing pipeline that will be replaced by a small one.
+        PipelineConfiguration existing = new PipelineConfiguration(
+            "_id",
+            new BytesArray(String.format(Locale.ROOT, """
+                {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""", "x".repeat(2048))),
+            XContentType.JSON
+        );
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("_id", existing));
+
+        PutPipelineRequest replacement = putJsonPipelineRequest("_id", """
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
+        long newSize = new PipelineConfiguration("_id", replacement.getSource(), replacement.getXContentType()).serializedSizeInBytes();
+        assertThat(newSize, lessThan(existing.serializedSizeInBytes()));
+
+        // The aggregate counts only the replacement, not the (larger) pipeline it supersedes: a limit equal to the new size passes even
+        // though the old pipeline alone was larger.
+        validateSize(ingestService, projectId, replacement, 100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(newSize));
+    }
+
+    /**
+     * A cluster can end up above the aggregate limit without ever violating it -- the limit may be lowered, or the cluster may be upgraded
+     * into a limit that did not exist before. When that happens the operator still has to be able to edit their way back under it, so an
+     * update that does not grow the aggregate is allowed even though the aggregate is already over the limit. Only updates that would push
+     * it further over are rejected.
+     */
+    public void testValidatePipelineAllowsShrinkingWhenAlreadyOverMaxTotalMetadataSize() {
+        IngestService ingestService = createWithProcessors();
+        PipelineConfiguration big = new PipelineConfiguration("big", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        PipelineConfiguration other = new PipelineConfiguration("other", new BytesArray(pipelineJson(2048)), XContentType.JSON);
+        var projectId = applyClusterStateWithPipelines(ingestService, Map.of("big", big, "other", other));
+
+        // A limit well below what is already stored, i.e. the cluster is already over the aggregate limit.
+        long currentTotal = big.serializedSizeInBytes() + other.serializedSizeInBytes();
+        ByteSizeValue maxTotalSize = ByteSizeValue.ofBytes(currentTotal / 2);
+        assertThat(currentTotal, greaterThan(maxTotalSize.getBytes()));
+
+        // Replacing a pipeline with a smaller definition shrinks the aggregate, so it is allowed even though the result is still over the
+        // limit. Without this the operator would be locked out of the very edit that fixes the problem.
+        PutPipelineRequest shrink = putJsonPipelineRequest("big", pipelineJson(0));
+        assertThat(
+            new PipelineConfiguration("big", shrink.getSource(), shrink.getXContentType()).serializedSizeInBytes(),
+            lessThan(big.serializedSizeInBytes())
+        );
+        validateSize(ingestService, projectId, shrink, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // Replacing it with a definition of exactly the same size leaves the aggregate unchanged, so that is allowed too.
+        PutPipelineRequest sameSize = putJsonPipelineRequest("big", pipelineJson(2048));
+        validateSize(ingestService, projectId, sameSize, 100, ByteSizeValue.ofMb(1), maxTotalSize);
+
+        // But growing a pipeline while over the limit pushes the aggregate further over, and is still rejected.
+        PutPipelineRequest grow = putJsonPipelineRequest("big", pipelineJson(4096));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, grow, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+
+        // As is adding a brand new pipeline, however small.
+        PutPipelineRequest create = putJsonPipelineRequest("_new", pipelineJson(0));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateSize(ingestService, projectId, create, 100, ByteSizeValue.ofMb(1), maxTotalSize)
+        );
+        assertThat(e.getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+    }
+
+    /**
+     * The pre-check on the put path runs against the last applied cluster state, so a burst of concurrent puts can all pass it before any
+     * of them is applied. The limits must therefore also be enforced inside the cluster state update, where each task in a batch sees the
+     * result of the one before it. Submitting both puts in a single batch is exactly the shape such a burst takes by the time it reaches
+     * the master, so this reproduces the race deterministically.
+     */
+    public void testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // Room for exactly one pipeline, and both requests were validated against the empty state.
+        var limits = new IngestSettings.PipelineLimits(1, ByteSizeValue.ofMb(1), ByteSizeValue.ofMb(1));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(0)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(0)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        // The second task sees the first task's pipeline, so only one of the two is stored.
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_pipelines"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * As {@link #testMaxPipelinesIsEnforcedAcrossPutsInTheSameBatch}, but for the aggregate size limit -- the one an attacker would push on
+     * to grow the cluster state, since it is the only limit that bounds total heap.
+     */
+    public void testMaxTotalMetadataSizeIsEnforcedAcrossPutsInTheSameBatch() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+
+        // An aggregate limit with room for one padded pipeline but not two.
+        long oneSize = new PipelineConfiguration("first", new BytesArray(pipelineJson(2048)), XContentType.JSON).serializedSizeInBytes();
+        var limits = new IngestSettings.PipelineLimits(100, ByteSizeValue.ofMb(1), ByteSizeValue.ofBytes(oneSize + 512));
+        List<IngestService.PipelineClusterStateUpdateTask> tasks = List.of(
+            putTaskWithLimits(projectId, putJsonPipelineRequest("first", pipelineJson(2048)), limits),
+            putTaskWithLimits(projectId, putJsonPipelineRequest("second", pipelineJson(2048)), limits)
+        );
+
+        List<Exception> failures = new ArrayList<>();
+        ClusterState result = ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            tasks,
+            task -> {},
+            (task, e) -> failures.add(e)
+        );
+
+        assertThat(failures.size(), equalTo(1));
+        assertThat(failures.get(0).getMessage(), containsString("ingest.pipeline.max_total_metadata_size"));
+        IngestMetadata ingestMetadata = result.metadata().getProject(projectId).custom(IngestMetadata.TYPE);
+        assertThat(ingestMetadata.getPipelines().keySet(), containsInAnyOrder("first"));
+    }
+
+    /**
+     * Pipelines applied from file-based state are operator-managed, so they are exempt from the limits -- they must not be able to wedge
+     * cluster bootstrap. This exercises the constructor and the direct {@code execute} call that
+     * {@link org.elasticsearch.action.ingest.ReservedPipelineAction} uses.
+     */
+    public void testReservedPipelinesAreExemptFromLimits() {
+        var projectId = randomProjectIdOrDefault();
+        Map<String, PipelineConfiguration> existing = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            existing.put(
+                "existing_" + i,
+                new PipelineConfiguration("existing_" + i, new BytesArray(pipelineJson(2048)), XContentType.JSON)
+            );
+        }
+
+        var task = new IngestService.PutPipelineClusterStateUpdateTask(projectId, putJsonPipelineRequest("reserved", pipelineJson(2048)));
+        IngestMetadata result = task.execute(new IngestMetadata(existing), List.of());
+
+        // Stored despite counts and sizes that would have failed a limited task.
+        assertThat(result.getPipelines().keySet(), hasItem("reserved"));
+    }
+
+    private static IngestService.PutPipelineClusterStateUpdateTask putTaskWithLimits(
+        ProjectId projectId,
+        PutPipelineRequest request,
+        IngestSettings.PipelineLimits limits
+    ) {
+        return new IngestService.PutPipelineClusterStateUpdateTask(
+            projectId,
+            ActionTestUtils.assertNoFailureListener(t -> {}),
+            request,
+            limits
+        );
+    }
+
+    /**
+     * Runs the put path's size pre-check for a request, measuring the pipeline exactly the way {@link IngestService#putPipeline} does:
+     * off the raw parsed config map, before anything has had a chance to consume it.
+     */
+    private static void validateSize(
+        IngestService ingestService,
+        ProjectId projectId,
+        PutPipelineRequest request,
+        int maxPipelines,
+        ByteSizeValue maxPipelineSize,
+        ByteSizeValue maxTotalSize
+    ) {
+        Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        ingestService.validatePipelineLimits(
+            projectId,
+            request.getId(),
+            PipelineConfiguration.serializedSizeInBytes(request.getId(), config),
+            new IngestSettings.PipelineLimits(maxPipelines, maxPipelineSize, maxTotalSize)
+        );
+    }
+
+    /**
+     * A minimal pipeline definition, padded out to an arbitrary size by the length of its description.
+     */
+    private static String pipelineJson(int descriptionLength) {
+        return String.format(Locale.ROOT, """
+            {"description": "%s", "processors": [{"set" : {"field": "_field", "value": "_value"}}]}""", "x".repeat(descriptionLength));
+    }
+
+    private static ProjectId applyClusterStateWithPipelines(IngestService ingestService, Map<String, PipelineConfiguration> pipelines) {
+        var projectId = randomProjectIdOrDefault();
+        ClusterState previousClusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState clusterState = ClusterState.builder(previousClusterState)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        return projectId;
+    }
+
+    private static PipelineConfiguration getTestPipelineConfiguration(String id) {
+        return new PipelineConfiguration(id, new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
@@ -1241,7 +1535,7 @@ public class IngestServiceTests extends ESTestCase {
             ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
             final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
             ingestService.validatePipeline(ingestInfos, projectId, name, pipelineConfig);
-            assertCriticalWarnings(
+            assertWarnings(
                 "Pipeline name ["
                     + name
                     + "] will be disallowed in a future version for the following reason: must not contain the following characters"
@@ -1399,6 +1693,73 @@ public class IngestServiceTests extends ESTestCase {
             listener
         );
         verifyNoInteractions(failureHandler);
+        verify(listener, times(1)).onResponse(null);
+    }
+
+    public void testExecuteSelfReferenceFailures() {
+        Processor.Factory selfRefProcessor = (factories, tag, description, config, projectId) -> {
+            boolean ingestMetadata = Boolean.TRUE.equals(config.remove("ingest_metadata"));
+            return new FakeProcessor("self_ref", tag, description, ingestDocument -> {
+                Map<String, Object> selfReference = new HashMap<>();
+                selfReference.put("self", selfReference);
+                if (ingestMetadata) {
+                    ingestDocument.getIngestMetadata().put("self", selfReference);
+                } else {
+                    ingestDocument.setFieldValue("self", selfReference);
+                }
+                ingestDocument.doNoSelfReferencesCheck(true);
+            });
+        };
+        IngestService ingestService = createWithProcessors(Map.of("self_ref", selfRefProcessor));
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(
+            projectId,
+            putJsonPipelineRequest("source_self_ref", "{\"processors\": [{\"self_ref\" : {}}]}"),
+            clusterState
+        );
+        clusterState = executePut(
+            projectId,
+            putJsonPipelineRequest("ingest_metadata_self_ref", "{\"processors\": [{\"self_ref\" : {\"ingest_metadata\": true}}]}"),
+            clusterState
+        );
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("source_self_ref").setFinalPipeline("_none"));
+        bulkRequest.add(
+            new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("ingest_metadata_self_ref").setFinalPipeline("_none")
+        );
+        boolean[] failures = new boolean[2];
+        List<String> expectedMessages = List.of(
+            "Iterable object is self-referencing itself (source document)",
+            "Iterable object is self-referencing itself (ingest metadata)"
+        );
+        final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = (slot, e, status) -> {
+            failures[slot] = true;
+            assertThat(e, instanceOf(IngestPipelineException.class));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause().getMessage(), equalTo(expectedMessages.get(slot)));
+            assertThat(status, equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+        };
+        @SuppressWarnings("unchecked")
+        final ActionListener<Void> listener = mock(ActionListener.class);
+        ingestService.executeBulkRequest(
+            projectId,
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            (s) -> null,
+            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+            failureHandler,
+            listener
+        );
+        assertTrue(failures[0]);
+        assertTrue(failures[1]);
         verify(listener, times(1)).onResponse(null);
     }
 
@@ -1927,8 +2288,7 @@ public class IngestServiceTests extends ESTestCase {
                 "set",
                 (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
             ),
-            Predicates.never(),
-            mock(SamplingService.class)
+            Predicates.never()
         );
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
         // given that set -> fail() above, it's a failure if a document executes against this pipeline
@@ -2655,6 +3015,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -2662,8 +3024,7 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            },
-            mock(SamplingService.class)
+            }
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -3163,6 +3524,8 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3171,7 +3534,6 @@ public class IngestServiceTests extends ESTestCase {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
             },
-            mock(SamplingService.class),
             consumer
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
@@ -3434,64 +3796,6 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
-    public void testSampling() {
-        SamplingService samplingService = mock(SamplingService.class);
-        IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config, projectId) -> mockCompoundProcessor()),
-            Predicates.never(),
-            samplingService
-        );
-        when(samplingService.atLeastOneSampleConfigured(any())).thenReturn(true);
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        var projectId = randomProjectIdOrDefault();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        ClusterState previousClusterState = clusterState;
-        clusterState = executePut(projectId, putRequest, clusterState);
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-
-        BulkRequest bulkRequest = new BulkRequest();
-
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_none").setFinalPipeline("_none");
-        bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("_id").setFinalPipeline("_none");
-        bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
-            .source(Map.of())
-            .setPipeline("does_not_exist")
-            .setFinalPipeline("_none");
-        bulkRequest.add(indexRequest3);
-        @SuppressWarnings("unchecked")
-        TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
-        @SuppressWarnings("unchecked")
-        final ActionListener<Void> listener = mock(ActionListener.class);
-
-        Boolean noRedirect = randomBoolean() ? false : null;
-        IndexDocFailureStoreStatus fsStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-
-        ingestService.executeBulkRequest(
-            projectId,
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            (s) -> noRedirect,
-            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
-            failureHandler,
-            listener
-        );
-        verify(failureHandler, times(1)).apply(
-            argThat(item -> item == 2),
-            argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage())),
-            argThat(fsStatus::equals)
-        );
-        verify(listener, times(1)).onResponse(null);
-        // In the case where there is a pipeline, or there is a pipeline failure, there will be an IngestDocument so this verion is called:
-        verify(samplingService, times(2)).maybeSample(any(), any(), any());
-        // When there is no pipeline, we have no IngestDocument, and the maybeSample that does not require an IngestDocument is called:
-        verify(samplingService, times(1)).maybeSample(any(), any());
-    }
-
     private static Tuple<String, Object> randomMapEntry() {
         return tuple(randomAlphaOfLength(5), randomObject());
     }
@@ -3525,21 +3829,16 @@ public class IngestServiceTests extends ESTestCase {
         });
         processors.put("remove", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
-            return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {
-            };
+            return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {};
         });
         return createWithProcessors(processors);
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        return createWithProcessors(processors, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals, mock(SamplingService.class));
+        return createWithProcessors(processors, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals);
     }
 
-    private static IngestService createWithProcessors(
-        Map<String, Processor.Factory> processors,
-        Predicate<NodeFeature> featureTest,
-        SamplingService samplingService
-    ) {
+    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors, Predicate<NodeFeature> featureTest) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -3558,6 +3857,8 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3565,8 +3866,7 @@ public class IngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return featureTest.test(feature);
                 }
-            },
-            samplingService
+            }
         );
         if (randomBoolean()) {
             /*
@@ -3688,6 +3988,7 @@ public class IngestServiceTests extends ESTestCase {
                 projectId,
                 ActionTestUtils.assertNoFailureListener(t -> {}),
                 request,
+                null, // these tests are not exercising the pipeline limits
                 instantSource
             )
         );

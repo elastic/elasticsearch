@@ -133,3 +133,11 @@ emp_no:integer  | job_positions:keyword
 10013           | Reporting Analyst
 10026           | Reporting Analyst
 ;
+
+
+simpleFilterUnicode-Ignore
+row name = "Σtart" | where name =~ "σtart";
+
+name:keyword
+Σtart
+;

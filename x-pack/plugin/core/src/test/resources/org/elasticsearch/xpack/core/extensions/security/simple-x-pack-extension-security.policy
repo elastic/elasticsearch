@@ -1,4 +1,0 @@
-grant {
-  // needed to waste paper
-  permission java.lang.RuntimePermission "queuePrintJob";
-};

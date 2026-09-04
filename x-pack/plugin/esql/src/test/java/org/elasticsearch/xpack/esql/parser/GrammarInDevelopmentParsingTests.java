@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
@@ -28,6 +29,11 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | match foo", "match");
     }
 
+    public void testDevelopmentLambda() throws Exception {
+        // outside of dev mode, `->` lexes as ARROW but the lambda parser rule is predicate-guarded
+        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
@@ -36,10 +42,10 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     private EsqlParser parser() {
-        assumeTrue(" requires snapshot builds", new EsqlConfig().isDevVersion());
+        assumeTrue(" requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
 
         // manually disable dev mode (make it production)
-        EsqlConfig config = new EsqlConfig(false);
+        EsqlConfig config = new EsqlConfig(false, TEST_FUNCTION_REGISTRY);
         return new EsqlParser(config);
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -1044,7 +1045,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
         // main statement
         UnresolvedRelation mainRelation = as(children.get(0), UnresolvedRelation.class);
         assertEquals(unquoteIndexPattern(indexPattern1), mainRelation.indexPattern().indexPattern());
-        List<Attribute> metadata = mainRelation.metadataFields();
+        List<NamedExpression> metadata = mainRelation.metadataFields();
         assertEquals(1, metadata.size());
         MetadataAttribute metadataAttribute = as(metadata.get(0), MetadataAttribute.class);
         assertEquals("_index", metadataAttribute.name());

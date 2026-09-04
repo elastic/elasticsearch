@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramTests extends ExponentialHistogramTestCase {
 
-    public void testDefaultBucketImplementation() {
+    public void testDefaultBucketImplementations() {
         try (
             ReleasableExponentialHistogram delegate = ExponentialHistogram.builder(0, breaker())
                 .setPositiveBucket(0, 2)
@@ -53,8 +53,46 @@ public class ExponentialHistogramTests extends ExponentialHistogramTestCase {
                 }
             };
             assertThat(bucketsWithDefaultImplementation.bucketCount(), equalTo(3));
-        }
 
+            BucketIterator reverse = bucketsWithDefaultImplementation.reverseIterator();
+            assertThat(reverse.hasNext(), equalTo(true));
+            assertThat(reverse.peekIndex(), equalTo(20L));
+            assertThat(reverse.peekCount(), equalTo(30L));
+            reverse.advance();
+            assertThat(reverse.hasNext(), equalTo(true));
+            assertThat(reverse.peekIndex(), equalTo(10L));
+            assertThat(reverse.peekCount(), equalTo(20L));
+            reverse.advance();
+            assertThat(reverse.hasNext(), equalTo(true));
+            assertThat(reverse.peekIndex(), equalTo(0L));
+            assertThat(reverse.peekCount(), equalTo(2L));
+            reverse.advance();
+            assertThat(reverse.hasNext(), equalTo(false));
+        }
+    }
+
+    public void testDefaultBucketImplementationsOnEmtpy() {
+        ExponentialHistogram.Buckets bucketsWithDefaultImplementation = new ExponentialHistogram.Buckets() {
+            @Override
+            public CopyableBucketIterator iterator() {
+                return ExponentialHistogram.empty().positiveBuckets().iterator();
+            }
+
+            @Override
+            public OptionalLong maxBucketIndex() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long valueCount() {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        assertThat(bucketsWithDefaultImplementation.bucketCount(), equalTo(0));
+
+        BucketIterator reverse = bucketsWithDefaultImplementation.reverseIterator();
+        assertThat(reverse.hasNext(), equalTo(false));
     }
 
 }

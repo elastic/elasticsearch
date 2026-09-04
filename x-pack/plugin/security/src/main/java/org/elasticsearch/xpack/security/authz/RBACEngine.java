@@ -20,7 +20,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
@@ -146,7 +148,8 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
         TransportClearScrollAction.NAME,
         "indices:data/read/sql/close_cursor",
-        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+        SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
 
     private final Settings settings;
@@ -281,7 +284,6 @@ public class RBACEngine implements AuthorizationEngine {
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case TransportBulkAction.NAME:
-            case SimulateBulkAction.NAME:
             case TransportIndexAction.NAME:
             case TransportDeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:
@@ -295,7 +297,11 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
             case "indices:data/write/reindex":
+            case "indices:data/write/reindex/resume":
             case "indices:data/write/otlp/metrics":
+            case "indices:data/write/otlp/traces":
+            case "indices:data/write/otlp/logs":
+            case "indices:data/write/prometheus/remote_write":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
             case "indices:data/read/esql":
@@ -733,21 +739,25 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+    public void getUserPrivileges(
+        AuthorizationInfo authorizationInfo,
+        RoleReference.ApiKeyRoleType unwrapLimitedRole,
+        ActionListener<GetUserPrivilegesResponse> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         } else {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final Role role = getEffectiveRole((RBACAuthorizationInfo) authorizationInfo, unwrapLimitedRole);
             final GetUserPrivilegesResponse getUserPrivilegesResponse;
             try {
                 getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
             } catch (UnsupportedOperationException e) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                            + "Please use the Get API key information API https://ela.st/es-api-get-api-key",
+                        "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                            + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key",
                         e
                     )
                 );
@@ -755,6 +765,22 @@ public class RBACEngine implements AuthorizationEngine {
             }
             listener.onResponse(getUserPrivilegesResponse);
         }
+    }
+
+    private static Role getEffectiveRole(
+        RBACAuthorizationInfo authorizationInfo,
+        @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole
+    ) {
+        Role role = authorizationInfo.getRole();
+        if (unwrapLimitedRole != null) {
+            while (role instanceof LimitedRole limitedRole) {
+                role = switch (unwrapLimitedRole) {
+                    case ASSIGNED -> limitedRole.getBaseRole();
+                    case LIMITED_BY -> limitedRole.getLimitedByRole();
+                };
+            }
+        }
+        return role;
     }
 
     @Override

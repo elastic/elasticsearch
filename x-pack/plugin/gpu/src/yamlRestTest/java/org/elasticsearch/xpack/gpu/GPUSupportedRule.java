@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.gpu;
 
-import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.junit.rules.TestRule;
@@ -19,7 +19,7 @@ public class GPUSupportedRule implements TestRule {
 
     @Override
     public Statement apply(Statement base, Description description) {
-        if (GPUSupport.isSupported() == false) {
+        if (CuVSGPUSupport.instance().isSupported() == false) {
             return new Statement() {
                 @Override
                 public void evaluate() {

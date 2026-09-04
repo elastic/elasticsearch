@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +18,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetServiceAccountCredentialsRequest extends LegacyActionRequest {
+public class GetServiceAccountCredentialsRequest extends UntypedActionRequest {
 
     private final String namespace;
     private final String serviceName;

@@ -99,11 +99,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeTransportServices() throws Exception {
         for (TransportService transportService : transportServices) {
             transportService.close();
         }
-        super.tearDown();
     }
 
     @AfterClass
@@ -126,7 +125,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.randomCompatibleVersion(random()),
+            TransportVersionUtils.randomCompatibleVersion(),
             new VersionInformation(
                 VersionUtils.randomVersionBetween(Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,

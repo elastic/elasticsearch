@@ -122,8 +122,11 @@ public final class IngestDocument {
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
-            deepCopyMap(other.ingestMetadata)
+            new IngestCtxMap(
+                deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
+                other.ctxMap.getMetadata().clone()
+            ),
+            deepCopyMap(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -140,9 +143,9 @@ public final class IngestDocument {
      * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
      * general purpose method.
      */
-    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
-        CollectionUtils.ensureNoSelfReferences(source, null);
-        return source;
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> map, String hint) {
+        CollectionUtils.ensureNoSelfReferences(map, hint);
+        return map;
     }
 
     /**
@@ -244,14 +247,45 @@ public final class IngestDocument {
      */
     public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
         Object object = getFieldValue(path, Object.class, ignoreMissing);
-        if (object == null) {
+        return getFieldValueAsBytes(path, object);
+    }
+
+    /**
+     * Returns the value contained in the field value as a byte array.
+     * If the field value is a string, a base64 decode operation will happen.
+     * If the field value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
+     * @return the byte array of the field value
+     * @throws IllegalArgumentException if the field value is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path, Object fieldValue) {
+        if (fieldValue == null) {
             return null;
-        } else if (object instanceof byte[] bytes) {
+        } else if (fieldValue instanceof byte[] bytes) {
             return bytes;
-        } else if (object instanceof String string) {
+        } else if (fieldValue instanceof String string) {
             return Base64.getDecoder().decode(string);
         } else {
-            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, object));
+            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
+        }
+    }
+
+    /**
+     * Returns the raw in-memory size in bytes of a value that {@link #getFieldValueAsBytes(String, Object)} accepts, before any decoding.
+     * @param path The path within the document in dot-notation. Only used for the error if the field value is not of the expected type.
+     * @param fieldValue the resolved field value
+     * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
+     * @throws IllegalArgumentException if the field value is not of the expected type.
+     */
+    public int getFieldValueRawBytesLength(String path, Object fieldValue) {
+        if (fieldValue == null) {
+            return 0;
+        } else if (fieldValue instanceof byte[] bytes) {
+            return bytes.length;
+        } else if (fieldValue instanceof String string) {
+            return string.length(); // one base64 character is assumed to be one byte
+        } else {
+            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, fieldValue));
         }
     }
 
@@ -1060,6 +1094,11 @@ public final class IngestDocument {
         return this.ingestMetadata;
     }
 
+    void ensureNoSelfReferences() {
+        CollectionUtils.ensureNoSelfReferences(ctxMap.getSource(), "source document");
+        CollectionUtils.ensureNoSelfReferences(ingestMetadata, "ingest metadata");
+    }
+
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
         return (Map<K, V>) deepCopy(source);
@@ -1283,7 +1322,7 @@ public final class IngestDocument {
     }
 
     // Unconditionally deprecate the _type field once V7 BWC support is removed
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

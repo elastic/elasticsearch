@@ -35,10 +35,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
 
     private IndexShardRoutingTable indexShardRoutingTable;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initIndexShardRoutingTable() throws Exception {
         indexShardRoutingTable = randomIndexShardRoutingTable();
     }
 

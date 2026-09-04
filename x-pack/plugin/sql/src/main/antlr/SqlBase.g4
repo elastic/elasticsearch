@@ -505,6 +505,9 @@ ESC_START: '{' (WS)*;
 ESC_END: '}';
 
 // Operators
+LP: '(';
+RP: ')';
+
 EQ  : '=';
 NULLEQ: '<=>';
 NEQ : '<>' | '!=';

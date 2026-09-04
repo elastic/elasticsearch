@@ -21,6 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -104,7 +105,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final SlowLogFields slowLogFields;
+    private final ActionLoggingFields loggingFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -126,14 +127,16 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldsProvider) {
+    IndexingSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
         this.index = indexSettings.getIndex();
 
-        SlowLogContext logContext = new SlowLogContext(indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING));
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING)
+        );
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
 
-        this.slowLogFields = slowLogFieldsProvider.create(logContext);
+        this.loggingFields = slowLogFieldsProvider.create(logContext);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
@@ -184,7 +187,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             Supplier<ESLogMessage> messageProducer = () -> IndexingSlowLogMessage.of(
-                slowLogFields.logFields(),
+                loggingFields.logFields(),
                 index,
                 doc,
                 tookInNanos,
@@ -235,11 +238,13 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+            SourceToParse.Source sourceObject = doc.source();
+            // TODO: Will materialize to original x-content if rows. Consider if we eventually want to optimize this.
+            if (maxSourceCharsToLog == 0 || sourceObject == null || sourceObject.originalBytes().length() == 0) {
                 return map;
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(sourceObject.originalBytes(), reformat, sourceObject.xContentType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb, 0);

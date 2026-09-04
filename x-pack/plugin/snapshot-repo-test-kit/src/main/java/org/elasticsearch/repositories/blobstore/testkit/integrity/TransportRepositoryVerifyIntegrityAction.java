@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -63,7 +63,7 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
         this.executor = executor;
     }
 
-    static class Request extends LegacyActionRequest {
+    static class Request extends UntypedActionRequest {
         private final DiscoveryNode coordinatingNode;
         private final long coordinatingTaskId;
         private final RepositoryVerifyIntegrityParams requestParams;

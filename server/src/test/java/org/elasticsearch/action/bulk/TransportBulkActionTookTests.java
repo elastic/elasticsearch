@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,12 +35,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -56,7 +57,6 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +67,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
@@ -86,21 +85,19 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterService() throws Exception {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         clusterService = createClusterService(threadPool, discoveryNode);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -117,7 +114,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
@@ -270,7 +267,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
                 },
-                mock(SamplingService.class)
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
     }

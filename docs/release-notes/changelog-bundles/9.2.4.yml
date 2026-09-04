@@ -1,6 +1,6 @@
 version: 9.2.4
-released: false
-generated: 2026-01-10T00:28:28.196120045Z
+released: true
+generated: 2026-01-13T17:51:07.414690647Z
 changelogs:
   - pr: 139175
     summary: "ESQL: Prevent circular alias references in `DeduplicateAggs`"

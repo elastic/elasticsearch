@@ -1,0 +1,95 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test-1
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      index:
+        index:  test-1
+        body:   { max: 1, date: "2022-03-29" }
+
+  - do:
+      index:
+        index:  test-1
+        body:   { max: 2, date: "2022-03-28" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Profiling includes shard results and coordinator request metadata":
+  - requires:
+      test_runner_features: "contains"
+
+  - do:
+      async_search.submit:
+        index: test-1
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 30s
+        keep_on_completion: true
+        body:
+          profile: true
+          query:
+            match_all: {}
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - set: { id: id }
+  - match: { is_partial: false }
+  - is_false: is_running
+  - is_true: response.profile
+  - length: { response.profile.shards: 2 }
+
+  # Shard-level profile structure (same shape as synchronous _search profiling)
+  - set:
+      response.profile.shards.0.id: composite_id
+      response.profile.shards.0.node_id: first_node_id
+      response.profile.shards.0.index: first_index
+
+  - is_true: response.profile.shards.0.id
+  - is_true: response.profile.shards.0.node_id
+  - length: { response.profile.shards.0.node_id: 22 }
+  - gte: { response.profile.shards.0.shard_id: 0 }
+  - is_true: response.profile.shards.0.index
+  # Single-cluster REST: "(local)". CCS / RCS common REST: "remote_cluster".
+  - match: { response.profile.shards.0.cluster: "/^\\(local\\)$|^remote_cluster$/" }
+  - contains: { $composite_id: $first_node_id }
+  - contains: { $composite_id: $first_index }
+
+  - gt: { response.profile.shards.0.searches.0.query.0.time_in_nanos: 0 }
+  - length: { response.profile.shards.0.aggregations: 1 }
+
+  # Coordinator request snapshot on the merged profile object (indices are the coordinator SearchRequest#indices()
+  # after any local resolution performed before profiling metadata is captured)
+  - is_true: response.profile.request
+  - length: { response.profile.request.indices: 1 }
+  - match: { response.profile.request.indices.0: "/^(remote_cluster:)?test-1$/" }
+  - match: { response.profile.request.source.profile: true }
+  - is_true: response.profile.request.source.query.match_all
+  - match: { response.profile.request.source.query.match_all.boost: 1.0 }
+
+  # Stored async search should return the same profiling payload as the submit response
+  - do:
+      async_search.get:
+        id: "$id"
+
+  - match: { is_partial: false }
+  - is_true: response.profile
+  - length: { response.profile.shards: 2 }
+  - is_true: response.profile.request
+  - length: { response.profile.request.indices: 1 }
+  - match: { response.profile.request.indices.0: "/^(remote_cluster:)?test-1$/" }
+  - match: { response.profile.request.source.profile: true }
+
+  - do:
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged: true }

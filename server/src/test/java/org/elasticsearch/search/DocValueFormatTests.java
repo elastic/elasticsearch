@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -236,6 +237,28 @@ public class DocValueFormatTests extends ESTestCase {
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo(1415580798601L));
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
+    }
+
+    public void testFormatSortFieldOutputForMissingValues() {
+        DateFormatter formatter = DateFormatter.forPattern(randomFrom(FormatNames.values()).getName());
+        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(
+            formatter,
+            ZoneOffset.ofHours(randomInt(6)),
+            randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
+        );
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
+
+        formatter = DateFormatter.forPattern(FormatNames.EPOCH_MILLIS.getName());
+        dateFormat = new DocValueFormat.DateTime(
+            formatter,
+            ZoneOffset.ofHours(randomInt(6)),
+            randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
+        );
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
     }
 
     public void testBadUtf8() {

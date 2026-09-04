@@ -3,8 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
- *
- * This file was contributed to by generative AI
  */
 
 package org.elasticsearch.xpack.stateless.commits;
@@ -25,5 +23,15 @@ public class BlobLocationTestUtils {
 
     public static BlobFileRanges createBlobFileRanges(long primaryTerm, long generation, long offset, long fileLength) {
         return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength));
+    }
+
+    public static BlobFileRanges createBlobFileRanges(
+        long primaryTerm,
+        long generation,
+        long offset,
+        long fileLength,
+        StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
+        return new BlobFileRanges(createBlobLocation(primaryTerm, generation, offset, fileLength), timestampRange);
     }
 }

@@ -641,7 +641,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexSearcher shardSearcher = newSearcher(directoryReader);
         shardSearcher.setQueryCache(null);
 
-        IndexVersion v = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion v = IndexVersionUtils.randomCompatibleVersion();
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         Query query = fieldType.percolateQuery(

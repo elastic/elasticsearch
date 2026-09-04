@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.search.uhighlight;
 
+import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;
@@ -145,5 +146,46 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         bi.setText(text);
         assertEquals(0, bi.preceding(offset));
         assertEquals(text.length(), bi.following(offset - 1));
+    }
+
+    public void testFirstResetsCachedState() {
+        BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
+        final String text = "This is the first sentence. Here is the second one.";
+        bi.setText(text);
+
+        // Perform a normal preceding/following call first
+        int offset = text.indexOf("second");
+        int start1 = bi.preceding(offset);
+        int end1 = bi.following(offset - 1);
+
+        // Call first() to reset state
+        assertEquals(0, bi.first());
+
+        // preceding/following should work directly after first(), without re-setting text
+        int start2 = bi.preceding(offset);
+        int end2 = bi.following(offset - 1);
+
+        assertEquals(start1, start2);
+        assertEquals(end1, end2);
+    }
+
+    public void testSplittingBreakIteratorAcrossValues() {
+        BreakIterator bounded = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
+        SplittingBreakIterator splitting = new SplittingBreakIterator(bounded, '\u0000');
+
+        // "Hello world." is indices 0..11, \0 at 12, "Foo bar." is indices 13..20
+        final String text = "Hello world.\u0000Foo bar.";
+        splitting.setText(text);
+
+        int offset = text.indexOf("world");
+        assertEquals(0, splitting.preceding(offset + 1));
+        assertEquals(12, splitting.following(offset));
+        assertEquals(12, splitting.preceding(13));
+
+        int secondOffset = text.indexOf("Foo");
+        assertEquals(13, splitting.preceding(secondOffset + 1));
+        assertEquals(text.length(), splitting.following(secondOffset));
+
+        assertEquals(13, splitting.following(12));
     }
 }

@@ -39,7 +39,7 @@ public class GetIndexTemplatesRequest extends LocalClusterStateRequest {
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     public GetIndexTemplatesRequest(StreamInput in) throws IOException {
         super(in);
         names = in.readStringArray();

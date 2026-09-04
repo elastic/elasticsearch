@@ -10,31 +10,30 @@
 package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.foreign.LibraryProvider;
+import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int O_RDONLY = 0;
-    public static final int O_WRONLY = 1;
+    private static final int MCL_CURRENT = 1;
+    private static final int ENOMEM = 12;
+    private static final int O_RDONLY = 0;
+    private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final VectorSimilarityFunctions vectorDistance;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
-    PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
-        super(name, libraryProvider);
-        this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+    PosixNativeAccess(String name, PosixConstants constants) {
+        super(name);
+        this.libc = LibraryProvider.lookupLibrary(PosixCLibrary.class);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
             getMaxThreads(),
@@ -62,15 +61,6 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             logger.warn("unable to retrieve " + description + " [" + libc.strerror(libc.errno()) + "]");
             return ProcessLimits.UNKNOWN;
         }
-    }
-
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
-        if (isNativeVectorLibSupported()) {
-            var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-            return lib;
-        }
-        return null;
     }
 
     @Override
@@ -131,7 +121,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
 
         int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
         if (fd == -1) {
@@ -170,7 +160,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
             return;
         }
 
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
         if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
         } else {
@@ -187,8 +177,8 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
-        return Optional.ofNullable(vectorDistance);
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
+        return PosixMappedSegment.ofShared(fileChannel, mode, position, size);
     }
 
     String rlimitToString(long value) {
@@ -197,33 +187,5 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         } else {
             return Long.toUnsignedString(value);
         }
-    }
-
-    static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
-    }
-
-    /**
-     * Returns true iff the architecture is x64 (amd64) and the OS Linux (the OS we currently support for the native lib).
-     */
-    static boolean isLinuxAmd64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Linux")) && System.getProperty("os.arch").equals("amd64");
-    }
-
-    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
-    static boolean isMacOrLinuxAarch64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
-    }
-
-    /** -Dorg.elasticsearch.nativeaccess.enableVectorLibrary=false to disable.*/
-    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
-    static boolean checkEnableSystemProperty() {
-        return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
 }

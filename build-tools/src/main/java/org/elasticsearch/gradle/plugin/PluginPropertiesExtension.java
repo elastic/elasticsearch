@@ -37,11 +37,17 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
+    /** Node setting keys that must all resolve to true for this plugin's native controller to be spawned. */
+    private List<String> nativeControllerEnabledSettings = new ArrayList<>();
+
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
 
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
+
+    /** The optional deployment target of this plugin. */
+    private String deploymentTarget;
 
     /** A license file that should be included in the built plugin zip. */
     private File licenseFile;
@@ -105,6 +111,14 @@ public class PluginPropertiesExtension {
         this.hasNativeController = hasNativeController;
     }
 
+    public List<String> getNativeControllerEnabledSettings() {
+        return this.nativeControllerEnabledSettings;
+    }
+
+    public void setNativeControllerEnabledSettings(List<String> nativeControllerEnabledSettings) {
+        this.nativeControllerEnabledSettings = nativeControllerEnabledSettings;
+    }
+
     public boolean isLicensed() {
         return isLicensed;
     }
@@ -115,6 +129,14 @@ public class PluginPropertiesExtension {
 
     public boolean isRequiresKeystore() {
         return requiresKeystore;
+    }
+
+    public String getDeploymentTarget() {
+        return deploymentTarget;
+    }
+
+    public void setDeploymentTarget(String deploymentTarget) {
+        this.deploymentTarget = deploymentTarget;
     }
 
     public void setRequiresKeystore(boolean requiresKeystore) {

@@ -57,7 +57,7 @@ public final class StatelessCompoundCommitTestUtils {
                 commitFiles,
                 randomNonZeroPositiveLong(),
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
-                randomNonZeroPositiveLong(),
+                randomHeaderSizeInBytes(),
                 randomInternalFilesReplicatedRanges(),
                 randomCommitFiles(),
                 randomFrom(randomTimestampFieldValueRange(), null)
@@ -71,7 +71,7 @@ public final class StatelessCompoundCommitTestUtils {
                 commitFiles,
                 randomNonZeroPositiveLong(),
                 Set.copyOf(randomNonEmptySubsetOf(commitFiles.keySet())),
-                randomNonZeroPositiveLong(),
+                randomHeaderSizeInBytes(),
                 randomInternalFilesReplicatedRanges(),
                 Map.of(),
                 randomFrom(randomTimestampFieldValueRange(), null)
@@ -85,6 +85,11 @@ public final class StatelessCompoundCommitTestUtils {
 
     public static Long randomNonZeroPositiveLong() {
         return randomLongBetween(1L, Long.MAX_VALUE - 1L);
+    }
+
+    /** Returns a realistic header size in bytes: bounded at {@code Integer.MAX_VALUE} so that blob-offset arithmetic cannot overflow. */
+    public static long randomHeaderSizeInBytes() {
+        return randomLongBetween(1L, Integer.MAX_VALUE);
     }
 
     public static String randomNodeEphemeralId() {
@@ -116,10 +121,10 @@ public final class StatelessCompoundCommitTestUtils {
         }
         int maxNumberOfRanges = randomIntBetween(1, 25);
         var replicatedRanges = new ArrayList<InternalFilesReplicatedRanges.InternalFileReplicatedRange>();
-        long position = randomNonZeroPositiveLong();
-        while (replicatedRanges.size() < maxNumberOfRanges && position < Long.MAX_VALUE) {
-            position = randomLongBetween(position, Long.MAX_VALUE - 1L);
-            short length = (short) Math.min(randomLongBetween(1L, Short.MAX_VALUE), Long.MAX_VALUE - position);
+        long position = randomLongBetween(1L, Long.MAX_VALUE / 2);
+        while (replicatedRanges.size() < maxNumberOfRanges && position <= Long.MAX_VALUE / 2) {
+            position = randomLongBetween(position, Long.MAX_VALUE / 2);
+            short length = (short) randomIntBetween(1, Short.MAX_VALUE);
             replicatedRanges.add(new InternalFilesReplicatedRanges.InternalFileReplicatedRange(position, length));
             position += length;
         }

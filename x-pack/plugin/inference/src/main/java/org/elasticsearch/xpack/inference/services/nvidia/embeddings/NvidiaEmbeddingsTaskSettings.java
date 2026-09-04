@@ -8,24 +8,24 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.TRUNCATE_FIELD_NAME;
@@ -57,7 +57,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE_FIELD_NAME,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException
@@ -65,15 +65,13 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD_NAME,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             Truncation::fromString,
             Truncation.ALL,
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -199,7 +197,12 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

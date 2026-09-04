@@ -98,7 +98,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         int N = randomIntBetween(2, 10);
         for (int attempt = 0; attempt < N; attempt++) {
 
-            BulkByScrollResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote)
+            BulkByPaginatedSearchResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER)).source(sourceIndexInRemote)
                 .destination("test-index-001")
                 .get();
 

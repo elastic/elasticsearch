@@ -1,0 +1,14 @@
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "name": {
+          "type": "keyword"
+        }
+      }
+    },
+    "threat_level": {
+      "type": "keyword"
+    }
+  }
+}

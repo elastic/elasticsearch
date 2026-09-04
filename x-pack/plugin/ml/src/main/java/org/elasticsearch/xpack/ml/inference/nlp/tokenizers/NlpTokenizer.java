@@ -11,6 +11,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ByteLevelBpeTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
@@ -490,6 +491,9 @@ public abstract class NlpTokenizer implements Releasable {
         }
         if (params instanceof MPNetTokenization) {
             return MPNetTokenizer.mpBuilder(vocabulary.get(), params).build();
+        }
+        if (params instanceof ByteLevelBpeTokenization byteLevelBpeTokenization) {
+            return ByteLevelBpeTokenizer.builder(vocabulary.get(), vocabulary.merges(), byteLevelBpeTokenization).build();
         }
         if (params instanceof RobertaTokenization robertaTokenization) {
             return RobertaTokenizer.builder(vocabulary.get(), vocabulary.merges(), robertaTokenization).build();

@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
@@ -118,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));
@@ -254,8 +255,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
-                .getSource(readerContext, 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
             assertThat(fetchedFields.size(), equalTo(5));
@@ -1173,9 +1178,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = SearchHit.unpooled(0);
-        searchHit.addDocumentFields(results, Map.of());
-        assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        SearchHit searchHit = new SearchHit(0);
+        try {
+            searchHit.addDocumentFields(results, Map.of());
+            assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        } finally {
+            searchHit.decRef();
+        }
     }
 
     public void testNestedIOOB() throws IOException {
@@ -1415,6 +1424,27 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
     }
 
+    public void testUnmappedFieldsWildcardWithNonBmpName() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        // name contains U+1D54F (a surrogate pair), so the wildcard pattern's literal portion must match by code point
+        final String objName = "unmapped_\uD835\uDD4F";
+
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(objName)
+            .field("a", "foo")
+            .field("b", "bar")
+            .endObject()
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList(objName + ".*", null, true));
+        assertThat(fields.size(), equalTo(2));
+        assertThat(fields.keySet(), containsInAnyOrder(objName + ".a", objName + ".b"));
+        assertThat(fields.get(objName + ".a").getValue(), equalTo("foo"));
+        assertThat(fields.get(objName + ".b").getValue(), equalTo("bar"));
+    }
+
     public void testLastFormatWins() throws IOException {
         MapperService mapperService = createMapperService();
 
@@ -1544,7 +1574,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             Source source = SourceProvider.fromLookup(
                 mapperService.mappingLookup(),
                 null,
-                mapperService.getMapperMetrics().sourceFieldMetrics()
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
             ).getSource(readerContext, 0);
             Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
@@ -1699,7 +1730,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

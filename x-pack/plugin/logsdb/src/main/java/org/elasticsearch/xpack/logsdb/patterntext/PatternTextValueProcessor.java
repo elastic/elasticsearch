@@ -21,7 +21,13 @@ public class PatternTextValueProcessor {
     private static final Pattern DELIMITER = Pattern.compile("[\\s\\[\\]]");
     public static final int MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE = 8 * 1024;
 
-    public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo, boolean useStoredField) {
+    public record Parts(
+        String template,
+        String templateId,
+        List<String> args,
+        List<Arg.Info> argsInfo,
+        boolean useBinaryDocValuesForRawText
+    ) {
         Parts(String template, List<String> args, List<Arg.Info> argsInfo) {
             this(template, PatternTextValueProcessor.templateId(template), args, argsInfo, false);
         }

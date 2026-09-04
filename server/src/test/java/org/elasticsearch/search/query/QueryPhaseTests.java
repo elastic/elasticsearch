@@ -76,6 +76,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -96,6 +97,8 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,16 +124,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     private IndexReader reader;
     private IndexShard indexShard;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeShardAndDirectory() throws Exception {
         dir = newDirectory();
         indexShard = newShard(true);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeResources() throws Exception {
         if (reader != null) {
             reader.close();
         }
@@ -175,7 +176,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 
@@ -1097,7 +1100,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public ReaderContext readerContext() {
-                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false, 0L);
             }
         }) {
 

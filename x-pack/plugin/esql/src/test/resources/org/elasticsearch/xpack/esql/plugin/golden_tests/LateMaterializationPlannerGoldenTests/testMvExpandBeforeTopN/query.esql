@@ -1,0 +1,5 @@
+FROM employees
+| keep emp_no, job_positions, salary
+| MV_EXPAND job_positions
+| SORT salary
+| LIMIT 20

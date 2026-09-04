@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshActio
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -27,8 +28,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
@@ -94,8 +97,6 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
 
     @Override
     protected ShardIterator shards(ProjectState state, InternalRequest request) {
-        assert DiscoveryNode.isStateless(clusterService.getSettings())
-            : EnsureDocsSearchableAction.TYPE.name() + " should only be used in stateless";
         final var primaryShard = state.routingTable()
             .shardRoutingTable(request.concreteIndex(), request.request().shardId())
             .primaryShard();
@@ -113,14 +114,13 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
         ShardId shardId,
         ActionListener<ActionResponse.Empty> listener
     ) throws IOException {
-        assert DiscoveryNode.isStateless(clusterService.getSettings())
-            : EnsureDocsSearchableAction.TYPE.name() + " should only be used in stateless";
         assert DiscoveryNode.hasRole(clusterService.getSettings(), DiscoveryNodeRole.INDEX_ROLE)
             : EnsureDocsSearchableAction.TYPE.name() + " should only be executed on a stateless indexing node";
         logger.debug("received request with {} docs", request.docIds().length);
         getExecutor(shardId).execute(() -> ActionListener.run(listener, l -> {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
+
             boolean docsFoundInLiveVersionMap = false;
             for (String docId : request.docIds()) {
                 final var docUid = Uid.encodeId(docId);
@@ -137,9 +137,18 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
                 }
             }
 
+            // Now that we performed realtime reads above we should check if they could be stale due to resharding.
+            if (IndexReshardService.isRealtimeReadPossiblyStale(indexShard, request.getSplitShardCountSummary())) {
+                throw new StaleRequestException(indexShard.shardId(), request.getSplitShardCountSummary());
+            }
+
             if (docsFoundInLiveVersionMap) {
                 logger.debug("refreshing index shard [{}] due to mtv_eds", shardId);
-                BasicReplicationRequest refreshRequest = new BasicReplicationRequest(shardId);
+                final var splitShardCountSummary = SplitShardCountSummary.forIndexing(
+                    indexShard.indexSettings().getIndexMetadata(),
+                    shardId.getId()
+                );
+                BasicReplicationRequest refreshRequest = new BasicReplicationRequest(shardId, splitShardCountSummary);
                 refreshRequest.waitForActiveShards(ActiveShardCount.NONE);
                 // We call the transport action (instead of refreshing the index shard) to also update the unpromotable shards.
                 final var originClient = new OriginSettingClient(client, ENSURE_DOCS_SEARCHABLE_ORIGIN);

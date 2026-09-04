@@ -37,10 +37,12 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -382,7 +384,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(indexMetadata2))
             .build();
 
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(RerouteBehavior.class), any())).thenReturn(
+            stateBefore
+        );
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(), any(RerouteBehavior.class), any()))
+            .thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
@@ -826,7 +832,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         DataStream.Builder dataStreamBuilder = DataStream.builder(dataStreamName, indices)
             .setMetadata(Map.of())
-            .setIndexMode(randomFrom(IndexMode.values()));
+            .setIndexMode(randomFrom(IndexMode.availableModes()));
         if (includeFailureStore) {
             List<Index> failureStoreIndices = new ArrayList<>();
             int totalFailureStoreIndices = randomIntBetween(1, 20);
@@ -926,7 +932,8 @@ public class TransportRolloverActionTests extends ESTestCase {
                     primary,
                     primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                    ShardRouting.Role.DEFAULT
+                    ShardRouting.Role.DEFAULT,
+                    ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
                 );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

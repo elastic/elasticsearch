@@ -1,0 +1,2 @@
+FROM view
+| WHERE language_name is not null

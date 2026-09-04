@@ -11,10 +11,6 @@ The *Elastic MySQL connector* is a [connector](/reference/search-connectors/inde
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mysql) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector** [es-connectors-mysql-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-mysql-client-prerequisites]
@@ -202,7 +198,7 @@ This connector has the following known issues:
 
 * **Upgrading from a tech preview connector (8.7 or earlier) to 8.8 will cause the MySQL connector configuration to be invalid.**
 
-    MySQL connectors prior to 8.8 can be missing some configuration fields that are required for the connector to run. If you would like to continue using your MySQL connector after upgrading from 8.7 or earlier, run the script below to fix your connector’s configuration. This will populate the configuration with the missing fields. The auxilliary information needed for the configuration will then be automatically added by by the self-managed connector.
+    MySQL connectors prior to 8.8 can be missing some configuration fields that are required for the connector to run. If you would like to continue using your MySQL connector after upgrading from 8.7 or earlier, run the script below to fix your connector’s configuration. This will populate the configuration with the missing fields. The auxiliary information needed for the configuration will then be automatically added by by the self-managed connector.
 
     ```console
     POST /.elastic-connectors/_update/connector_id

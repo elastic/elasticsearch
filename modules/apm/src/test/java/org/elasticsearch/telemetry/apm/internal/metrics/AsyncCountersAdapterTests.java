@@ -10,7 +10,6 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -102,11 +101,31 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
+    public void testZeroValuedAsyncCountersAreNotRecorded() {
+        LongAsyncCounter longCounter = registry.registerLongAsyncCounter(
+            "es.test.long.total",
+            "desc",
+            "unit",
+            () -> new LongWithAttributes(0L)
+        );
+        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter(
+            "es.test.double.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(0.0)
+        );
+
+        otelMeter.collectMetrics();
+
+        assertThat(otelMeter.getRecorder().getMeasurements(longCounter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleCounter), hasSize(0));
+    }
+
     public void testLongWithInvalidAttribute() {
         registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
-        assertThat(error.getMessage(), containsString("Attribute name [index] is forbidden"));
+        assertThat(error.getMessage(), containsString("Attribute [index] of [es.test.name.total] is forbidden"));
     }
 
     public void testDoubleWithInvalidAttribute() {
@@ -118,7 +137,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         );
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
-        assertThat(error.getMessage(), containsString("Attribute name [es_has_timestamp] is forbidden"));
+        assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
 
     public void testNullRecord() throws Exception {
@@ -141,5 +160,41 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         otelMeter.collectMetrics();
         metrics = otelMeter.getRecorder().getMeasurements(lcounter);
         assertThat(metrics, hasSize(0));
+    }
+
+    public void testLongAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {
+        var counter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
+
+        otelMeter.collectMetrics();
+        var metrics = otelMeter.getRecorder().getMeasurements(counter);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).getLong(), equalTo(42L));
+
+        counter.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(counter);
+        assertThat("OTel SDK does not record anything anymore after the instrument is closed", metrics, hasSize(0));
+
+        assertNull("Instrument is removed from the registry after closing", registry.getLongAsyncCounter(counter.getName()));
+    }
+
+    public void testDoubleAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {
+        var counter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
+
+        otelMeter.collectMetrics();
+        var metrics = otelMeter.getRecorder().getMeasurements(counter);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).getDouble(), equalTo(42.0));
+
+        counter.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(counter);
+        assertThat("OTel SDK does not record anything anymore after the instrument is closed", metrics, hasSize(0));
+
+        assertNull("Instrument is removed from the registry after closing", registry.getDoubleAsyncCounter(counter.getName()));
     }
 }

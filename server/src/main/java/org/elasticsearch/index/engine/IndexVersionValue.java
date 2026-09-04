@@ -18,16 +18,18 @@ final class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
 
-    private final Translog.Location translogLocation;
+    private final Translog.OperationLocation operationLocation;
 
-    IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
+    IndexVersionValue(Translog.OperationLocation operationLocation, long version, long seqNo, long term) {
         super(version, seqNo, term);
-        this.translogLocation = translogLocation;
+        this.operationLocation = operationLocation;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(translogLocation);
+        return RAM_BYTES_USED + (operationLocation != null
+            ? RamUsageEstimator.shallowSizeOf(operationLocation) + RamUsageEstimator.shallowSizeOf(operationLocation.location())
+            : 0L);
     }
 
     @Override
@@ -36,21 +38,21 @@ final class IndexVersionValue extends VersionValue {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         IndexVersionValue that = (IndexVersionValue) o;
-        return Objects.equals(translogLocation, that.translogLocation);
+        return Objects.equals(operationLocation, that.operationLocation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), translogLocation);
+        return Objects.hash(super.hashCode(), operationLocation);
     }
 
     @Override
     public String toString() {
-        return "IndexVersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + ", location=" + translogLocation + '}';
+        return "IndexVersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + ", location=" + operationLocation + '}';
     }
 
     @Override
-    public Translog.Location getLocation() {
-        return translogLocation;
+    public Translog.OperationLocation getOperationLocation() {
+        return operationLocation;
     }
 }

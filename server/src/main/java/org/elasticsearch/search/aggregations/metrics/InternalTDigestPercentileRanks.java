@@ -22,7 +22,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public InternalTDigestPercentileRanks(
         String name,
         double[] cdfValues,
-        TDigestState state,
+        HistogramUnionState state,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -51,7 +51,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+        HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, executionHint, compression);
         return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 
@@ -82,14 +82,14 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     protected AbstractInternalTDigestPercentiles createReduced(
         String name,
         double[] keys,
-        TDigestState merged,
+        HistogramUnionState merged,
         boolean keyed,
         Map<String, Object> metadata
     ) {
         return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
-    public static double percentileRank(TDigestState state, double value) {
+    public static double percentileRank(HistogramUnionState state, double value) {
         double percentileRank = state.cdf(value);
         if (percentileRank < 0) {
             percentileRank = 0;
@@ -102,10 +102,10 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] values;
-        private final TDigestState state;
+        private final HistogramUnionState state;
         private int i;
 
-        public Iter(double[] values, TDigestState state) {
+        public Iter(double[] values, HistogramUnionState state) {
             this.values = values;
             this.state = Objects.requireNonNull(state);
             i = 0;

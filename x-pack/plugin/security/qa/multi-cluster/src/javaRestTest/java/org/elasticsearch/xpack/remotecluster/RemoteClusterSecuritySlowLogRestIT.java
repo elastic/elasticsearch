@@ -117,7 +117,7 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
                   "remote_indices": [
                     {
                       "names": ["slow_log_*"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]
@@ -144,7 +144,7 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
                       "remote_indices": [
                         {
                           "names": ["slow_log_*"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["my_remote_cluster"]
                         }
                       ]
@@ -236,7 +236,7 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
                   "remote_indices": [
                     {
                       "names": ["run_as_*"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

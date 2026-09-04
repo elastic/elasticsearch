@@ -258,9 +258,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 : "transport profile must be consistent between the connection manager and the actual profile";
             transportService.connectionValidator(node)
                 .validate(
-                    RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    RemoteConnectionManager.wrapConnectionWithRemoteInfo(
                         connection,
-                        clusterAlias,
+                        connectionManager.getRemoteConnectionInfo(),
                         connectionManager.getCredentialsManager()
                     ),
                     profile,

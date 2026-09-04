@@ -403,6 +403,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * @return "{nodeId}/{nodeName}"
+     */
+    public String getShortNodeDescription() {
+        return nodeId + "/" + nodeName;
+    }
+
+    /**
      * The node attributes.
      */
     public Map<String, String> getAttributes() {
@@ -445,6 +452,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isDedicatedFrozenNode() {
         return isDedicatedFrozenRoles(getRoles());
+    }
+
+    /**
+     * Returns whether or not this is a coordinating-only node, i.e., a node configured with {@code node.roles: []} whose only function is
+     * to route requests and reduce results.
+     * <p>
+     * This is deliberately defined as an empty role set as per the Elastic documentation.
+     * @return true if the node has no roles at all, false otherwise
+     */
+    public boolean isCoordinatingOnlyNode() {
+        return roles.isEmpty();
     }
 
     /**

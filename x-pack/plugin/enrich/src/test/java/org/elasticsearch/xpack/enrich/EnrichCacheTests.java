@@ -239,13 +239,15 @@ public class EnrichCacheTests extends ESTestCase {
     private SearchResponse convertToSearchResponse(List<Map<String, ?>> searchResponseList) {
         SearchHit[] hitArray = searchResponseList.stream().map(map -> {
             try {
-                return SearchHit.unpooled(0, "id").sourceRef(convertMapToJson(map));
+                return new SearchHit(0, "id").sourceRef(convertMapToJson(map));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }).toArray(SearchHit[]::new);
-        SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
-        return SearchResponseUtils.response(hits).shards(5, 4, 0).build();
+        SearchHits hits = new SearchHits(hitArray, null, 0);
+        SearchResponse response = SearchResponseUtils.response(hits).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to response
+        return response;
     }
 
     private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {

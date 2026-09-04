@@ -46,7 +46,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -411,6 +414,56 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             () -> testExecutor.runPolicyLocally(projectId, task, "my-policy", ".enrich-my-policy-123456789", null)
         );
         assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
+    }
+
+    public void testWaitForTaskUsesEnrichOrigin() throws Exception {
+        String testPolicyName = "test_policy";
+        String testTaskId = randomAlphaOfLength(10) + ":" + randomIntBetween(100, 300);
+
+        AtomicReference<String> capturedOrigin = new AtomicReference<>();
+        CountDownLatch getTaskCalled = new CountDownLatch(1);
+
+        Client client = new NoOpClient(testThreadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                testThreadPool.generic().execute(() -> {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
+                        capturedOrigin.set(testThreadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME));
+                        getTaskCalled.countDown();
+                        listener.onResponse(null);
+                    } else if (InternalExecutePolicyAction.INSTANCE.equals(action)) {
+                        @SuppressWarnings("unchecked")
+                        Response response = (Response) new ExecuteEnrichPolicyAction.Response(new TaskId(testTaskId));
+                        listener.onResponse(response);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                });
+            }
+        };
+
+        final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
+            Settings.EMPTY,
+            null,
+            null,
+            client,
+            testThreadPool,
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
+            new EnrichPolicyLocks(),
+            ESTestCase::randomNonNegativeLong
+        );
+
+        testExecutor.coordinatePolicyExecution(
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName).setWaitForCompletion(false),
+            ActionListener.noop()
+        );
+
+        assertTrue("Expected GetTask to be called", getTaskCalled.await(3, TimeUnit.SECONDS));
+        assertThat(capturedOrigin.get(), equalTo(ENRICH_ORIGIN));
     }
 
     private Client getClient(CountDownLatch latch) {

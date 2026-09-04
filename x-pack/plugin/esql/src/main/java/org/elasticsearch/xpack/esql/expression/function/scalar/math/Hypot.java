@@ -11,7 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -19,6 +20,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -32,15 +36,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 /**
  * Returns the hypotenuse of the numbers given as parameters.
  */
-public class Hypot extends EsqlScalarFunction {
+public class Hypot extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hypot", Hypot::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Hypot.class).binary(Hypot::new).name("hypot");
 
     private final Expression n1;
     private final Expression n2;
 
-    @FunctionInfo(returnType = "double", description = """
-        Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
-        Hypotenuses of infinities are null.""", examples = @Example(file = "math", tag = "hypot"))
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = "double",
+        briefSummary = "Returns the hypotenuse of two numbers.",
+        description = """
+            Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
+            Hypotenuses of infinities are null.""",
+        examples = @Example(file = "math", tag = "hypot")
+    )
     public Hypot(
         Source source,
         @Param(
@@ -114,7 +125,7 @@ public class Hypot extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var n1Eval = Cast.cast(source(), n1.dataType(), DataType.DOUBLE, toEvaluator.apply(n1));
         var n2Eval = Cast.cast(source(), n2.dataType(), DataType.DOUBLE, toEvaluator.apply(n2));
         return new HypotEvaluator.Factory(source(), n1Eval, n2Eval);

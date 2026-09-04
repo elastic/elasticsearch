@@ -33,13 +33,13 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier impl
   @Override
   public SpatialExtentGeoPointDocValuesAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SpatialExtentGeoPointDocValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialExtentGeoPointDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialExtentGeoPointDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentGeoPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialExtentGeoPointDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

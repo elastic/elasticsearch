@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -62,7 +63,8 @@ public class ServiceAccountIT extends ESRestTestCase {
           "email": null,
           "token": {
             "name": "%s",
-            "type": "_service_account_%s"
+            "type": "_service_account_%s",
+            "managed_by": "elasticsearch"
           },
           "metadata": {
             "_elastic_service_account": true
@@ -113,6 +115,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 "monitor",
                 "manage_own_api_key",
                 "read_fleet_secrets",
+                "write_fleet_secrets",
                 "cluster:admin/xpack/connector/*"
               ],
               "indices": [
@@ -141,6 +144,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "privileges": [
                     "read",
                     "write"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".profiling-sq-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "maintenance"
                   ],
                   "allow_restricted_indices": false
                 },
@@ -321,6 +335,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".endpoint-fleetfiles-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "agentless-*"
                   ],
                   "privileges": [
@@ -335,7 +358,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "allow_restricted_indices": false
                 }
               ],
-              "applications": [        {
+              "applications": [
+                {
                   "application" : "kibana-*",
                   "privileges" : [
                     "reserved_fleet-setup"
@@ -343,7 +367,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                   "resources" : [
                     "*"
                   ]
-                }      ],
+                },
+                {
+                  "application" : "apm",
+                  "privileges" : [
+                    "event:write"
+                  ],
+                  "resources" : [
+                    "*"
+                  ]
+                }
+              ],
               "run_as": [],
               "metadata": {},
               "transient_metadata": {
@@ -401,6 +435,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("analysis-common")
+        .module("reindex")
         .module("rest-root")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
@@ -517,24 +552,17 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
-        final boolean securityIndexExists = randomBoolean();
-        if (securityIndexExists) {
-            final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
-            createRoleRequest.setJsonEntity("{\"cluster\":[]}");
-            assertOK(adminClient().performRequest(createRoleRequest));
-        }
+        final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
+        createRoleRequest.setJsonEntity("{\"cluster\":[]}");
+        assertOK(adminClient().performRequest(createRoleRequest));
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN));
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        if (securityIndexExists) {
-            assertThat(
-                e.getMessage(),
-                containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("no such index [.security]"));
-        }
+        assertThat(
+            e.getMessage(),
+            containsString("failed to authenticate service account [elastic/fleet-server] with token name [token1]")
+        );
     }
 
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {
@@ -552,6 +580,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("username"), equalTo("test_admin"));
         assertThat(responseMap.get("authentication_type"), equalTo("token"));
+        assertThat(responseMap.get("token"), equalTo(Map.of("managed_by", "elasticsearch")));
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
@@ -756,6 +785,126 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(List.of(apiKeyId1)));
 
         assertApiKeys(apiKeyId1, "key-1", true, requestOptions);
+    }
+
+    public void testFleetServerApiKeyCanDeleteByQueryFromProfilingQueueAlias() throws IOException {
+        final String concreteIndex = ".profiling-sq-leafframes-v001";
+        final String queueAlias = "profiling-sq-leafframes";
+        final Request createIndexRequest = new Request("PUT", "/" + concreteIndex);
+        createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        createIndexRequest.setJsonEntity(Strings.format("""
+            {
+              "aliases": {
+                "%s": {
+                  "is_write_index": true
+                }
+              }
+            }""", queueAlias));
+        assertOK(adminClient().performRequest(createIndexRequest));
+
+        String legacyApiKeyId = null;
+        String apiKeyId = null;
+        try {
+            final Request indexDocumentRequest = new Request("PUT", "/" + queueAlias + "/_doc/stale?refresh=true");
+            indexDocumentRequest.setJsonEntity("""
+                {
+                  "Time": {
+                    "created": 0
+                  }
+                }""");
+            assertOK(adminClient().performRequest(indexDocumentRequest));
+
+            final Map<String, Object> legacyApiKeyResponse = createProfilingApiKey(false);
+            legacyApiKeyId = (String) legacyApiKeyResponse.get("id");
+            final ResponseException bulkAuthorizationFailure = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(deleteByQueryRequest(queueAlias, encodeApiKey(legacyApiKeyResponse)))
+            );
+            assertThat(bulkAuthorizationFailure.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(bulkAuthorizationFailure.getMessage(), containsString("action [indices:data/write/bulk[s]] is unauthorized"));
+            assertThat(bulkAuthorizationFailure.getMessage(), containsString("on indices [.profiling-sq-leafframes-v001]"));
+
+            final Map<String, Object> createApiKeyResponse = createProfilingApiKey(true);
+            apiKeyId = (String) createApiKeyResponse.get("id");
+            final Map<String, Object> deleteByQueryResponse = responseAsMap(
+                client().performRequest(deleteByQueryRequest(queueAlias, encodeApiKey(createApiKeyResponse)))
+            );
+            assertThat(deleteByQueryResponse.get("deleted"), equalTo(1));
+            assertThat(deleteByQueryResponse.get("failures"), equalTo(List.of()));
+        } finally {
+            if (legacyApiKeyId != null) {
+                invalidateApiKey(legacyApiKeyId);
+            }
+            if (apiKeyId != null) {
+                invalidateApiKey(apiKeyId);
+            }
+            final Request deleteIndexRequest = new Request("DELETE", "/" + concreteIndex);
+            deleteIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            assertOK(adminClient().performRequest(deleteIndexRequest));
+        }
+    }
+
+    private Map<String, Object> createProfilingApiKey(boolean grantQueuePrivileges) throws IOException {
+        final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity(grantQueuePrivileges ? """
+            {
+              "name": "profiling-symbolizer-queue-fixed",
+              "role_descriptors": {
+                "profiling-symbolizer": {
+                  "indices": [
+                    {
+                      "names": [ "profiling-*" ],
+                      "privileges": [ "read", "write" ]
+                    },
+                    {
+                      "names": [ ".profiling-sq-*" ],
+                      "privileges": [ "read", "write", "maintenance" ]
+                    }
+                  ]
+                }
+              }
+            }""" : """
+            {
+              "name": "profiling-symbolizer-queue-legacy",
+              "role_descriptors": {
+                "profiling-symbolizer": {
+                  "indices": [
+                    {
+                      "names": [ "profiling-*" ],
+                      "privileges": [ "read", "write" ]
+                    }
+                  ]
+                }
+              }
+            }""");
+        createApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + VALID_SERVICE_TOKEN));
+        return responseAsMap(client().performRequest(createApiKeyRequest));
+    }
+
+    private static String encodeApiKey(Map<String, Object> apiKeyResponse) {
+        return Base64.getEncoder()
+            .encodeToString((apiKeyResponse.get("id") + ":" + apiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Request deleteByQueryRequest(String queueAlias, String encodedApiKey) {
+        final Request request = new Request("POST", "/" + queueAlias + "/_delete_by_query?refresh=true");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encodedApiKey));
+        return request;
+    }
+
+    private void invalidateApiKey(String apiKeyId) throws IOException {
+        final Request request = new Request("DELETE", "/_security/api_key");
+        request.setJsonEntity(Strings.format("""
+            {
+              "ids": [ "%s" ]
+            }""", apiKeyId));
+        assertOK(adminClient().performRequest(request));
     }
 
     private void assertApiKeys(String apiKeyId, String name, boolean invalidated, RequestOptions.Builder requestOptions)

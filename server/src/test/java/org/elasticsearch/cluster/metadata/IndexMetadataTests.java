@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -45,7 +46,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,17 +62,13 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexMetadataTests extends ESTestCase {
 
     private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -467,6 +463,10 @@ public class IndexMetadataTests extends ESTestCase {
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
         );
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+        assertWarnings(
+            "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
     public void testMissingNumberOfShards() {
@@ -811,6 +811,66 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(idx, IndexMetadata.builder(deserialized).reshardingMetadata(reshardingMetadata).build());
     }
 
+    public void testReshardRemoveShards() {
+        int primaryTerm = randomIntBetween(1, 100);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(8)
+            .numberOfReplicas(randomIntBetween(0, 10))
+            .primaryTerm(1, primaryTerm)
+            .build();
+
+        // Can't use with a number that is not a factor.
+        assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder(indexMetadata).reshardRemoveShards(5));
+
+        // Can't add shards.
+        assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder(indexMetadata).reshardRemoveShards(16));
+
+        var reduce2XOneRound = IndexMetadata.builder(indexMetadata).reshardRemoveShards(4).build();
+        assertEquals(4, reduce2XOneRound.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce2XOneRound.primaryTerm(1));
+
+        var reduce2XTwoRounds = IndexMetadata.builder(reduce2XOneRound).reshardRemoveShards(2).build();
+        assertEquals(2, reduce2XTwoRounds.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce2XTwoRounds.primaryTerm(1));
+
+        var reduce4X = IndexMetadata.builder(indexMetadata).reshardRemoveShards(2).build();
+        assertEquals(2, reduce4X.getNumberOfShards());
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(primaryTerm, reduce4X.primaryTerm(1));
+
+        var reduceToOne = IndexMetadata.builder(indexMetadata).reshardRemoveShards(1).build();
+        assertEquals(indexMetadata.getRoutingNumShards(), reduce2XOneRound.getRoutingNumShards());
+        assertEquals(1, reduceToOne.getNumberOfShards());
+    }
+
+    public void testChangeNumberOfShardsRoundtrip() {
+        int primaryTerm = randomIntBetween(1, 100);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(randomIntBetween(0, 10))
+            .primaryTerm(0, primaryTerm)
+            .build();
+
+        IndexMetadata maxShardsMetadata = indexMetadata;
+        for (int shards = 2; shards < 1024; shards *= 2) {
+            maxShardsMetadata = IndexMetadata.builder(maxShardsMetadata).reshardAddShards(shards).build();
+        }
+
+        IndexMetadata backToOneShardMetadata = maxShardsMetadata;
+        for (int shards = 512; shards > 0; shards /= 2) {
+            backToOneShardMetadata = IndexMetadata.builder(backToOneShardMetadata).reshardRemoveShards(shards).build();
+        }
+
+        assertEquals(1, backToOneShardMetadata.getNumberOfShards());
+        assertEquals(primaryTerm, backToOneShardMetadata.primaryTerm(0));
+    }
+
     private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
@@ -863,5 +923,27 @@ public class IndexMetadataTests extends ESTestCase {
 
     private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
         return IndexReshardingMetadata.newSplitByMultiple(oldShards, randomIntBetween(2, 5));
+    }
+
+    public void testSequenceNumbersDisabledDefaultsToFalse() {
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()))
+            .build();
+        assertFalse(metadata.sequenceNumbersDisabled());
+    }
+
+    public void testSequenceNumbersDisabled() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
+        var disabled = randomBoolean();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                indexSettings(1, 0).put("index.version.created", indexVersion.id())
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            )
+            .build();
+        assertThat(metadata.sequenceNumbersDisabled(), is(disabled));
     }
 }

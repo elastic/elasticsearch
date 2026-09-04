@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.List;
 
@@ -40,8 +41,6 @@ import java.util.List;
  * Conceptually an instant selector is a range selector with a null range.
  */
 public final class InstantSelector extends Selector {
-
-    private FieldAttribute timeSeries;
 
     public InstantSelector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);
@@ -96,5 +95,10 @@ public final class InstantSelector extends Selector {
             output = List.of(FieldAttribute.timeSeriesAttribute(source()));
         }
         return output;
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.INSTANT_VECTOR;
     }
 }

@@ -1,0 +1,74 @@
+---
+"Test GPU vector indexing xpack info":
+  - requires:
+      cluster_features: ["vectors.indexing.gpu_monitoring"]
+      reason: "GPU monitoring feature required"
+
+  - do:
+      xpack.info: {}
+  - is_true: features.gpu_vector_indexing
+  - is_true: features.gpu_vector_indexing.available
+  - is_true: features.gpu_vector_indexing.enabled
+
+---
+"Test GPU vector indexing xpack usage before and after indexing":
+  - requires:
+      cluster_features: ["vectors.indexing.gpu_monitoring"]
+      reason: "GPU monitoring feature required"
+
+  - do:
+      xpack.usage:
+        filter_path: gpu_vector_indexing
+  - is_true: gpu_vector_indexing
+  - is_true: gpu_vector_indexing.available
+  - is_true: gpu_vector_indexing.enabled
+  - gte: { gpu_vector_indexing.nodes_with_gpu: 1 }
+  - gte: { gpu_vector_indexing.nodes.0.memory_in_bytes: 1 }
+  - is_true: gpu_vector_indexing.nodes.0.type
+  - is_true: gpu_vector_indexing.nodes.0.enabled
+
+  - do:
+      indices.create:
+        index: gpu_vectors
+        body:
+          mappings:
+            properties:
+              embedding:
+                type: dense_vector
+                dims: 8
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+          settings:
+            index.number_of_shards: 1
+
+  - do:
+      bulk:
+        index: gpu_vectors
+        refresh: true
+        body:
+          - index: {}
+          - embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+          - index: {}
+          - embedding: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+          - index: {}
+          - embedding: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+          - index: {}
+          - embedding: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1]
+          - index: {}
+          - embedding: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2]
+          - index: {}
+          - embedding: [0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3]
+          - index: {}
+          - embedding: [0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4]
+          - index: {}
+          - embedding: [0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+          - index: {}
+          - embedding: [0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+          - index: {}
+          - embedding: [1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+
+  - do:
+      xpack.usage:
+        filter_path: gpu_vector_indexing
+  - gt: { gpu_vector_indexing.index_build_count: 0 }

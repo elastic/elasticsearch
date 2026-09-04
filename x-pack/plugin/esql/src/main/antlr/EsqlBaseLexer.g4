@@ -13,6 +13,7 @@ lexer grammar EsqlBaseLexer;
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 }
 
 options {
@@ -29,6 +30,15 @@ options {
  *
  * Since the tokens/modes are in development, add a predicate like this:
  * DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
+ *
+ * IMPORTANT: this pattern is safe only for keyword tokens (alphabetic strings in
+ * dedicated lexer modes). Do NOT place {this.isDevVersion()}? on tokens whose first
+ * character is a common operator or symbol (e.g. '-', '+', '=', '~'). A lexer
+ * predicate on such a token prevents ANTLR from caching the DFA transition for that
+ * character, forcing ATN simulation on every occurrence and causing a severe
+ * performance regression (~13x) for ALL queries — not just those that use the token.
+ * For symbol tokens, keep the lexer rule unconditional and guard the parser rule
+ * with {this.isDevVersion()}? instead. See the ARROW token as an example.
  *
  * B. To add a new (production-ready) token
  *
@@ -55,15 +65,20 @@ options {
  * all other commands.
  */
 import ChangePoint,
+       Dedup,
+       DenseVector,
        Enrich,
        Explain,
        Expression,
        From,
        Fork,
        Fuse,
+       Highlight,
        Inline,
+       InExpression,
        Join,
        Lookup,
+       MMR,
        MvExpand,
        Project,
        Promql,

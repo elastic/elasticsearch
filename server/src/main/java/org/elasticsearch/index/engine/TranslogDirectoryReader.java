@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -139,12 +141,27 @@ final class TranslogDirectoryReader extends DirectoryReader {
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
         throw unsupported();
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
         throw unsupported();
     }
 
@@ -182,7 +199,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
         boolean rootDocOnly,
         Translog.Index operation
     ) {
-        final String id = Uid.decodeId(operation.uid());
+        final boolean sliceEnabled = engineConfig.getIndexSettings().isSliceEnabled();
+        final String id = sliceEnabled ? SliceIdFieldMapper.decodeCompoundId(operation.uid()) : Uid.decodeId(operation.uid());
         final ParsedDocument parsedDocs = documentParser.parseDocument(
             new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
             mappingLookup

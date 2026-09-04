@@ -11,14 +11,18 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,18 +30,22 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
@@ -58,14 +66,20 @@ public class InboundHandlerTests extends ESTestCase {
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private FakeTcpChannel channel;
+    private MockBytesRefRecycler recycler;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHandler() throws Exception {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
+        requestHandlers = new Transport.RequestHandlers();
+        responseHandlers = new Transport.ResponseHandlers();
+        handler = createInboundHandler(true); // suppress assertions to test production error-handling
+        recycler = new MockBytesRefRecycler();
+    }
+
+    private InboundHandler createInboundHandler(boolean ignoreDeserializationErrors) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
         TransportHandshaker handshaker = new TransportHandshaker(
             TransportVersion.current(),
             threadPool,
@@ -82,9 +96,7 @@ public class InboundHandlerTests extends ESTestCase {
             new HandlingTimeTracker(),
             false
         );
-        requestHandlers = new Transport.RequestHandlers();
-        responseHandlers = new Transport.ResponseHandlers();
-        handler = new InboundHandler(
+        return new InboundHandler(
             threadPool,
             outboundHandler,
             namedWriteableRegistry,
@@ -98,9 +110,9 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        super.tearDown();
+        Releasables.closeExpectNoException(recycler);
     }
 
     public void testPing() throws Exception {
@@ -167,57 +179,108 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = OutboundHandler.serialize(
-            OutboundHandler.MessageDirection.REQUEST,
-            action,
-            requestId,
-            false,
-            TransportVersion.current(),
-            null,
-            new TestRequest(requestValue),
-            threadPool.getThreadContext(),
-            new RecyclerBytesStreamOutput(recycler)
-        );
+        try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            BytesReference fullRequestBytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                null,
+                new TestRequest(requestValue),
+                threadPool.getThreadContext(),
+                recyclerBytesStreamOutput,
+                recycler
+            );
 
-        BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
-        Header requestHeader = new Header(
-            fullRequestBytes.length() - 6,
+            BytesReference requestContent = fullRequestBytes.slice(
+                TcpHeader.HEADER_SIZE,
+                fullRequestBytes.length() - TcpHeader.HEADER_SIZE
+            );
+            Header requestHeader = new Header(
+                fullRequestBytes.length() - 6,
+                requestId,
+                TransportStatus.setRequest((byte) 0),
+                TransportVersion.current()
+            );
+            InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+            requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
+            handler.inboundMessage(channel, requestMessage);
+
+            TransportChannel transportChannel = channelCaptor.get();
+            assertEquals(TransportVersion.current(), transportChannel.getVersion());
+            assertEquals(requestValue, requestCaptor.get().value);
+
+            String responseValue = randomAlphaOfLength(10);
+            byte responseStatus = TransportStatus.setResponse((byte) 0);
+            if (isError) {
+                responseStatus = TransportStatus.setError(responseStatus);
+                transportChannel.sendResponse(new ElasticsearchException("boom"));
+            } else {
+                transportChannel.sendResponse(new TestResponse(responseValue));
+            }
+
+            BytesReference fullResponseBytes = channel.getMessageCaptor().get();
+            BytesReference responseContent = fullResponseBytes.slice(
+                TcpHeader.HEADER_SIZE,
+                fullResponseBytes.length() - TcpHeader.HEADER_SIZE
+            );
+            Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
+            InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
+            responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
+            handler.inboundMessage(channel, responseMessage);
+
+            if (isError) {
+                assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+                assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+                assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
+            } else {
+                assertEquals(responseValue, responseCaptor.get().value);
+            }
+        }
+    }
+
+    public void testResponseReceivedReportsNetworkMessageSize() throws Exception {
+        String action = "test-request";
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
+            @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {}
+
+            @Override
+            public void handleException(TransportException exp) {}
+
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse("");
+            }
+        }, null, action).requestId();
+
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void onResponseReceived(long id, Transport.ResponseContext context, int networkMessageSize) {
+                assertEquals(requestId, id);
+                capturedNetworkMessageSize.set(networkMessageSize);
+            }
+        });
+
+        int networkMessageSize = between(1, 1000);
+        Header responseHeader = new Header(
+            networkMessageSize,
             requestId,
-            TransportStatus.setRequest((byte) 0),
+            TransportStatus.setResponse((byte) 0),
             TransportVersion.current()
         );
-        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
-        requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
-        handler.inboundMessage(channel, requestMessage);
+        responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+        handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
-        TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals(requestValue, requestCaptor.get().value);
-
-        String responseValue = randomAlphaOfLength(10);
-        byte responseStatus = TransportStatus.setResponse((byte) 0);
-        if (isError) {
-            responseStatus = TransportStatus.setError(responseStatus);
-            transportChannel.sendResponse(new ElasticsearchException("boom"));
-        } else {
-            transportChannel.sendResponse(new TestResponse(responseValue));
-        }
-
-        BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
-        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
-        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
-        responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
-        handler.inboundMessage(channel, responseMessage);
-
-        if (isError) {
-            assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
-            assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
-            assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
-        } else {
-            assertEquals(responseValue, responseCaptor.get().value);
-        }
+        assertEquals(networkMessageSize + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE, capturedNetworkMessageSize.get().intValue());
     }
 
     public void testClosesChannelOnErrorInHandshake() throws Exception {
@@ -320,7 +383,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.setMessageListener(new TransportMessageListener() {
                 @Override
                 @SuppressWarnings("rawtypes")
-                public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+                public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
                     assertEquals(responseId, requestId);
                     safeSleep(TimeValue.timeValueSeconds(1));
                 }
@@ -328,6 +391,121 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A circuit breaker trip while reading a response is rejected work rather than a defect in the wire format, so it must not trip the
+     * deserialization assertions, and it must reach the response handler still recognisable as a breaker rejection: callers classify
+     * rejections with {@link ExceptionsHelper#unwrapCause}, which does not see through a {@link TransportSerializationException}.
+     */
+    @TestLogging(reason = "testing the log level of breaker trips", value = "org.elasticsearch.transport.InboundHandler:DEBUG")
+    public void testCircuitBreakerTripDeserializingResponse() throws Exception {
+        final InboundHandler inboundHandler = createInboundHandler(false);
+        final CapturingResponseHandler responseHandler = new CapturingResponseHandler() {
+            @Override
+            public TestResponse read(StreamInput in) {
+                throw new CircuitBreakingException("[parent] Data too large", 2048, 1024, CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        final long requestId = responseHandlers.add(responseHandler, null, "test-action").requestId();
+
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "breaker trip logged at DEBUG",
+                    EXPECTED_LOGGER_NAME,
+                    Level.DEBUG,
+                    "Circuit breaker tripped deserializing response from [*]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no deserialization warning",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "Failed to deserialize response from [*]"
+                )
+            );
+            inboundHandler.inboundMessage(channel, emptyResponseMessage(requestId));
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        final TransportException exception = responseHandler.exceptionCaptor.get();
+        assertThat(exception, instanceOf(RemoteTransportException.class));
+        assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(CircuitBreakingException.class));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(exception));
+    }
+
+    /**
+     * A response that cannot be read for any other reason is still reported as a serialization failure, at WARN and with a 500, so that
+     * the circuit breaker exemption cannot quietly swallow a genuine wire-format defect.
+     */
+    @TestLogging(reason = "testing the log level of deserialization failures", value = "org.elasticsearch.transport.InboundHandler:DEBUG")
+    public void testDeserializationFailureReportsSerializationException() throws Exception {
+        final CapturingResponseHandler responseHandler = new CapturingResponseHandler() {
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                throw new EOFException("simulated");
+            }
+        };
+        final long requestId = responseHandlers.add(responseHandler, null, "test-action").requestId();
+
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "deserialization failure logged at WARN",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "Failed to deserialize response from [*]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "not reported as a breaker trip",
+                    EXPECTED_LOGGER_NAME,
+                    Level.DEBUG,
+                    "Circuit breaker tripped deserializing response from [*]"
+                )
+            );
+            // the handler under test ignores deserialization errors, so the assertion this path carries does not fire
+            handler.inboundMessage(channel, emptyResponseMessage(requestId));
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        final TransportException exception = responseHandler.exceptionCaptor.get();
+        assertThat(exception, instanceOf(TransportSerializationException.class));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(exception));
+    }
+
+    private InboundMessage emptyResponseMessage(long requestId) {
+        final Header responseHeader = new Header(
+            between(1, 1000),
+            requestId,
+            TransportStatus.setResponse((byte) 0),
+            TransportVersion.current()
+        );
+        responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+        return new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {});
+    }
+
+    private abstract static class CapturingResponseHandler implements TransportResponseHandler<TestResponse> {
+
+        final AtomicReference<TransportException> exceptionCaptor = new AtomicReference<>();
+
+        @Override
+        public Executor executor() {
+            return TransportResponseHandler.TRANSPORT_WORKER;
+        }
+
+        @Override
+        public void handleResponse(TestResponse response) {
+            throw new AssertionError("unexpected response [" + response + "]");
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            assertTrue("response handler notified more than once", exceptionCaptor.compareAndSet(null, exp));
         }
     }
 

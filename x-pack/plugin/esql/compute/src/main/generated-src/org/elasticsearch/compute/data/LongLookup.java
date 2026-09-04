@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
  * Generic {@link Block#lookup} implementation {@link LongBlock}s.
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
-final class LongLookup implements ReleasableIterator<LongBlock> {
+public final class LongLookup implements ReleasableIterator<LongBlock> {
     private final LongBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
@@ -27,7 +27,7 @@ final class LongLookup implements ReleasableIterator<LongBlock> {
     private long first;
     private int valuesInPosition;
 
-    LongLookup(LongBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
+    public LongLookup(LongBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
         positions.incRef();
         this.values = values;

@@ -8,11 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -31,302 +28,228 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Exp;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
-    private static final FunctionDefinition[] FUNCTION_DEFINITIONS = new FunctionDefinition[] {
+    private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
-        withinSeries("delta", Delta::new),
-        withinSeries("idelta", Idelta::new),
-        withinSeries("increase", Increase::new),
-        withinSeries("irate", Irate::new),
-        withinSeries("rate", Rate::new),
-        withinSeries("first_over_time", FirstOverTime::new),
-        withinSeries("last_over_time", LastOverTime::new),
-        withinSeries("deriv", Deriv::new),
+        Delta.PROMQL_DEFINITION,
+        Idelta.PROMQL_DEFINITION,
+        Increase.PROMQL_DEFINITION,
+        Irate.PROMQL_DEFINITION,
+        Rate.PROMQL_DEFINITION,
+        FirstOverTime.PROMQL_DEFINITION,
+        LastOverTime.PROMQL_DEFINITION,
+        Deriv.PROMQL_DEFINITION,
         //
-        withinSeriesOverTimeUnary("avg_over_time", AvgOverTime::new),
-        withinSeriesOverTimeUnary("count_over_time", CountOverTime::new),
-        withinSeriesOverTimeUnary("max_over_time", MaxOverTime::new),
-        withinSeriesOverTimeUnary("min_over_time", MinOverTime::new),
-        withinSeriesOverTimeUnary("sum_over_time", SumOverTime::new),
-        withinSeriesOverTimeUnary("stddev_over_time", StddevOverTime::new),
-        withinSeriesOverTimeUnary("stdvar_over_time", VarianceOverTime::new),
-        withinSeriesOverTimeUnary("absent_over_time", AbsentOverTime::new),
-        withinSeriesOverTimeUnary("present_over_time", PresentOverTime::new),
-        withinSeriesOverTimeBinary("quantile_over_time", PercentileOverTime::new),
+        AvgOverTime.PROMQL_DEFINITION,
+        CountOverTime.PROMQL_DEFINITION,
+        MaxOverTime.PROMQL_DEFINITION,
+        MinOverTime.PROMQL_DEFINITION,
+        SumOverTime.PROMQL_DEFINITION,
+        StddevOverTime.PROMQL_DEFINITION,
+        VarianceOverTime.PROMQL_DEFINITION,
+        AbsentOverTime.PROMQL_DEFINITION,
+        PresentOverTime.PROMQL_DEFINITION,
         //
-        acrossSeriesUnary("avg", Avg::new),
-        acrossSeriesUnary("count", Count::new),
-        acrossSeriesUnary("max", Max::new),
-        acrossSeriesUnary("min", Min::new),
-        acrossSeriesUnary("sum", Sum::new),
-        acrossSeriesUnary("stddev", StdDev::new),
-        acrossSeriesUnary("stdvar", Variance::new),
-        acrossSeriesBinary("quantile", Percentile::new) };
+        PercentileOverTime.PROMQL_DEFINITION,
+        //
+        Avg.PROMQL_DEFINITION,
+        Count.PROMQL_DEFINITION,
+        Max.PROMQL_DEFINITION,
+        Min.PROMQL_DEFINITION,
+        Sum.PROMQL_DEFINITION,
+        StdDev.PROMQL_DEFINITION,
+        Variance.PROMQL_DEFINITION,
+        //
+        Percentile.PROMQL_DEFINITION,
+        PromqlHistogramQuantile.PROMQL_DEFINITION,
+        //
+        PromqlBuiltinFunctionDefinitions.TOPK,
+        PromqlBuiltinFunctionDefinitions.BOTTOMK,
+        PromqlBuiltinFunctionDefinitions.LIMITK,
+        //
+        PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
+        PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        //
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
+        ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
+        HistogramFraction.PROMQL_DEFINITION,
+        //
+        Ceil.PROMQL_DEFINITION,
+        Abs.PROMQL_DEFINITION,
+        Signum.PROMQL_DEFINITION,
+        Exp.PROMQL_DEFINITION,
+        Sqrt.PROMQL_DEFINITION,
+        Log10.PROMQL_DEFINITION,
+        Log.PROMQL_LOG2_DEFINITION,
+        Log.PROMQL_LN_DEFINITION,
+        Floor.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.ROUND,
+        //
+        Asin.PROMQL_DEFINITION,
+        Acos.PROMQL_DEFINITION,
+        Atan.PROMQL_DEFINITION,
+        Cos.PROMQL_DEFINITION,
+        Cosh.PROMQL_DEFINITION,
+        Acosh.PROMQL_DEFINITION,
+        Asinh.PROMQL_DEFINITION,
+        Atanh.PROMQL_DEFINITION,
+        Sinh.PROMQL_DEFINITION,
+        Sin.PROMQL_DEFINITION,
+        Tan.PROMQL_DEFINITION,
+        Tanh.PROMQL_DEFINITION,
+        ToDegrees.PROMQL_DEFINITION,
+        ToRadians.PROMQL_DEFINITION,
+        ClampMin.PROMQL_DEFINITION,
+        ClampMax.PROMQL_DEFINITION,
+        Clamp.PROMQL_DEFINITION,
+        //
+        PromqlBuiltinFunctionDefinitions.VECTOR,
+        PromqlBuiltinFunctionDefinitions.SCALAR,
+        Pi.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.YEAR,
+        PromqlBuiltinFunctionDefinitions.MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
+        PromqlBuiltinFunctionDefinitions.HOUR,
+        PromqlBuiltinFunctionDefinitions.MINUTE,
+        PromqlBuiltinFunctionDefinitions.TIME,
+        PromqlBuiltinFunctionDefinitions.TIMESTAMP, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
-    private final Map<String, FunctionDefinition> promqlFunctions = new HashMap<>();
+    private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
     private PromqlFunctionRegistry() {
-        for (FunctionDefinition def : FUNCTION_DEFINITIONS) {
+        for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
             String normalized = normalize(def.name());
             promqlFunctions.put(normalized, def);
         }
     }
 
     /**
-     * Represents the parameter count constraints for a PromQL function.
+     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
      */
-    public record Arity(int min, int max) {
-        // Common arity patterns as constants
-        public static final Arity NONE = new Arity(0, 0);
-        public static final Arity ONE = new Arity(1, 1);
-        public static final Arity TWO = new Arity(2, 2);
-        public static final Arity VARIADIC = new Arity(1, Integer.MAX_VALUE);
-
-        public Arity {
-            if (min < 0) {
-                throw new IllegalArgumentException("min must be non-negative");
-            }
-            if (max < min) {
-                throw new IllegalArgumentException("max must be >= min");
-            }
-        }
-
-        public static Arity fixed(int count) {
-            return switch (count) {
-                case 0 -> NONE;
-                case 1 -> ONE;
-                case 2 -> TWO;
-                default -> new Arity(count, count);
-            };
-        }
-
-        public static Arity range(int min, int max) {
-            return min == max ? fixed(min) : new Arity(min, max);
-        }
-
-        public static Arity atLeast(int min) {
-            return min == 1 ? VARIADIC : new Arity(min, Integer.MAX_VALUE);
-        }
-
-        public static Arity optional(int max) {
-            return new Arity(0, max);
-        }
-
-        public boolean validate(int paramCount) {
-            return paramCount >= min && paramCount <= max;
-        }
-    }
-
-    @FunctionalInterface
-    public interface EsqlFunctionBuilder {
-        Function build(Source source, Expression target, Expression timestamp, Expression window, List<Expression> extraParams);
-    }
-
-    /**
-     * Function definition record for registration and metadata.
-     */
-    public record FunctionDefinition(String name, FunctionType functionType, Arity arity, EsqlFunctionBuilder esqlBuilder) {
-        public FunctionDefinition {
-            Objects.requireNonNull(name, "name cannot be null");
-            Objects.requireNonNull(functionType, "functionType cannot be null");
-            Objects.requireNonNull(arity, "arity cannot be null");
-            Objects.requireNonNull(esqlBuilder, "esqlBuilder cannot be null");
-        }
-    }
-
-    @FunctionalInterface
-    protected interface WithinSeries<T extends TimeSeriesAggregateFunction> {
-        T build(Source source, Expression field, Expression window, Expression timestamp);
-    }
-
-    @FunctionalInterface
-    protected interface OverTime<T extends TimeSeriesAggregateFunction> {
-        T build(Source source, Expression field, Expression filter, Expression window);
-    }
-
-    @FunctionalInterface
-    protected interface AcrossSeriesUnary<T extends AggregateFunction> {
-        T build(Source source, Expression field);
-    }
-
-    @FunctionalInterface
-    protected interface OverTimeBinary<T extends TimeSeriesAggregateFunction> {
-        T build(Source source, Expression field, Expression filter, Expression window, Expression param);
-    }
-
-    @FunctionalInterface
-    protected interface AcrossSeriesBinary<T extends AggregateFunction> {
-        T build(Source source, Expression field, Expression filter, Expression window, Expression param);
-    }
-
-    private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> {
-                return builder.build(source, target, window, timestamp);
-            }
-        );
-    }
-
-    private static FunctionDefinition withinSeriesOverTimeUnary(String name, OverTime<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> {
-                return builder.build(source, target, Literal.TRUE, window);
-            }
-        );
-    }
-
-    private static FunctionDefinition withinSeriesOverTimeBinary(String name, OverTimeBinary<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.TWO,
-            (source, target, timestamp, window, extraParams) -> {
-                Expression param = extraParams.getFirst();
-                return builder.build(source, target, Literal.TRUE, window, param);
-            }
-        );
-    }
-
-    private static FunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.ACROSS_SERIES_AGGREGATION,
-            Arity.ONE,
-            (source, target, timestamp, window, extraParams) -> {
-                return builder.build(source, target);
-            }
-        );
-    }
-
-    private static FunctionDefinition acrossSeriesBinary(String name, AcrossSeriesBinary<?> builder) {
-        return new FunctionDefinition(
-            name,
-            FunctionType.ACROSS_SERIES_AGGREGATION,
-            Arity.TWO,
-            (source, target, timestamp, window, extraParams) -> {
-                Expression param = extraParams.getFirst();
-                return builder.build(source, target, Literal.TRUE, window, param);
-            }
-        );
-    }
+    public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
     // https://github.com/elastic/metrics-program/issues/39
     private static final Set<String> NOT_IMPLEMENTED = Set.of(
         // Across-series aggregations (not yet available in ESQL)
-        "bottomk",
-        "topk",
         "group",
         "count_values",
+        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
+        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
+        "limit_ratio",
 
         // Range vector functions (not yet implemented)
         "changes",
+        // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
+        "double_exponential_smoothing",
         "holt_winters",
         "mad_over_time",
         "predict_linear",
         "resets",
 
         // Instant vector functions
-        "abs",
         "absent",
-        "ceil",
-        "clamp",
-        "clamp_max",
-        "clamp_min",
-        "exp",
-        "floor",
-        "ln",
-        "log2",
-        "log10",
-        "round",
-        "scalar",
-        "sgn",
+        // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
+        "info",
         "sort",
         "sort_desc",
-        "sqrt",
+        // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
+        "sort_by_label",
+        "sort_by_label_desc",
 
-        // Trigonometric functions
-        "acos",
-        "acosh",
-        "asin",
-        "asinh",
-        "atan",
-        "atanh",
-        "cos",
-        "cosh",
-        "deg",
-        "rad",
-        "sin",
-        "sinh",
-        "tan",
-        "tanh",
-
-        // Time functions
-        "day_of_month",
-        "day_of_week",
-        "day_of_year",
-        "days_in_month",
-        "hour",
-        "minute",
-        "month",
-        "timestamp",
-        "year",
-
-        // Label manipulation functions
-        "label_join",
-        "label_replace",
-
-        // Special functions
-        "histogram_avg",
-        "histogram_count",
-        "histogram_fraction",
-        "histogram_quantile",
+        // Histogram functions
         "histogram_stddev",
-        "histogram_stdvar",
-        "histogram_sum",
-        "pi",
-        "time",
-        "vector"
+        "histogram_stdvar"
     );
 
     private String normalize(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
 
+    public Collection<PromqlFunctionDefinition> allFunctions() {
+        return new ArrayList<>(promqlFunctions.values());
+    }
+
     /**
      * Retrieves the function definition metadata for the given function name.
      */
-    public FunctionDefinition functionMetadata(String name) {
+    public PromqlFunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
         return promqlFunctions.get(normalized);
+    }
+
+    /**
+     * Returns {@code true} if the function with the given name exists in the registry but
+     * has not yet been implemented.
+     */
+    public boolean isNotImplemented(String name) {
+        return NOT_IMPLEMENTED.contains(normalize(name));
+    }
+
+    /**
+     * Returns the names of PromQL functions that are recognized but not yet implemented, sorted for deterministic
+     * output. Used by documentation generation to render the "Not yet supported" list straight from the registry.
+     */
+    public SortedSet<String> notImplementedFunctions() {
+        return new TreeSet<>(NOT_IMPLEMENTED);
     }
 
     public void checkFunction(Source source, String name) {
@@ -341,18 +264,11 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public Function buildEsqlFunction(
-        String name,
-        Source source,
-        Expression target,
-        Expression timestamp,
-        Expression window,
-        List<Expression> extraParams
-    ) {
+    public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
-        FunctionDefinition metadata = functionMetadata(name);
+        PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
-            return metadata.esqlBuilder().build(source, target, timestamp, window, extraParams);
+            return metadata.esqlBuilder().build(source, target, ctx, extraParams);
         } catch (Exception e) {
             throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
         }

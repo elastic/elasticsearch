@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -31,5 +32,10 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected boolean isSingleNodeSnapshot() {
+        return Build.current().isSnapshot();
     }
 }

@@ -15,7 +15,7 @@ Splits tokens at non-alphanumeric characters. The `word_delimiter_graph` filter 
 * Split tokens at letter-number transitions. For example: `XL500` → `XL`, `500`
 * Remove the English possessive (`'s`) from the end of each token. For example: `Neil's` → `Neil`
 
-The `word_delimiter_graph` filter uses Lucene’s [WordDelimiterGraphFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterGraphFilter.md).
+The `word_delimiter_graph` filter uses Lucene’s [WordDelimiterGraphFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterGraphFilter.html).
 
 ::::{tip}
 The `word_delimiter_graph` filter was designed to remove punctuation from complex identifiers, such as product IDs or part numbers. For these use cases, we recommend using the `word_delimiter_graph` filter with the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) tokenizer.

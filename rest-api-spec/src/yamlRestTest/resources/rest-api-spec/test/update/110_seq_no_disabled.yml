@@ -1,0 +1,42 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ disable_sequence_numbers ]
+      reason: "requires support for disabling sequence numbers"
+
+---
+"Update on index with sequence numbers disabled returns 400":
+  - do:
+      indices.create:
+        index: seq_no_disabled_index
+        body:
+          settings:
+            index.disable_sequence_numbers: true
+
+  - do:
+      index:
+        index: seq_no_disabled_index
+        id:    "1"
+        body:  { value: original }
+
+  - do:
+      catch: bad_request
+      update:
+        index: seq_no_disabled_index
+        id:    "1"
+        body:
+          doc: { value: updated }
+
+  - match: { error.type: update_not_supported_exception }
+  - match: { error.reason: "Updates are not supported on indices with sequence numbers disabled" }
+  - match: { status: 400 }
+
+  - do:
+      get:
+        index: seq_no_disabled_index
+        id:    "1"
+
+  - match: { _source.value: original }

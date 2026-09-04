@@ -84,7 +84,7 @@ score = ln(score), if score < 0
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjunction with the filter defined in the child retriever.
 
 `chunk_rescorer` {applies_to}`stack: beta 9.2-9.3, ga 9.4+` {applies_to}`serverless: ga`
 :   (Optional, `object`)

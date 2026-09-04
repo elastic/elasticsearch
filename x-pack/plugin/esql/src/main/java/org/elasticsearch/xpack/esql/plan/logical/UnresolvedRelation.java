@@ -12,22 +12,36 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
+/**
+ * Unresolved index-side relation produced by the parser for {@code FROM <index>} (and other
+ * index-pattern source commands). Pre-analysis machinery and optimizer rules typically pattern-match
+ * on this class.
+ *
+ * @see UnresolvedExternalRelation external-side counterpart for {@code FROM <dataset>} and inline
+ * {@code EXTERNAL}; if you traverse one and care about FROM-style leaves, consider whether you need
+ * the other too.
+ * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
+ * FROM-style leaf.
+ */
+public final class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware, UnresolvedSourceRelation {
 
     private final IndexPattern indexPattern;
     private final boolean frozen;
-    private final List<Attribute> metadataFields;
+    private final List<NamedExpression> metadataFields;
     /*
      * Expected indexMode based on the declaration - used later for verification
      * at resolution time.
@@ -45,7 +59,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern indexPattern,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         String unresolvedMessage,
         SourceCommand sourceCommand
     ) {
@@ -56,7 +70,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern indexPattern,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage,
         @Nullable String commandName
@@ -74,7 +88,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern table,
         boolean frozen,
-        List<Attribute> metadataFields,
+        List<NamedExpression> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage
     ) {
@@ -133,8 +147,14 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return Collections.emptyList();
     }
 
-    public List<Attribute> metadataFields() {
+    public List<NamedExpression> metadataFields() {
         return metadataFields;
+    }
+
+    public UnresolvedRelation addMetadataField(MetadataAttribute newField) {
+        ArrayList<NamedExpression> newFields = new ArrayList<>(metadataFields);
+        newFields.add(newField);
+        return new UnresolvedRelation(source(), indexPattern, frozen, newFields, indexMode, unresolvedMsg, commandName);
     }
 
     public IndexMode indexMode() {
@@ -184,6 +204,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      *         which changes a number of behaviors in the planner.
      */
     public boolean isTimeSeriesMode() {
-        return indexMode == IndexMode.TIME_SERIES;
+        return indexMode.isTsdb();
     }
 }

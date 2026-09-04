@@ -264,17 +264,133 @@ public enum TextFormat implements MediaType {
                 )
             );
         }
+    },
+
+    MARKDOWN() {
+        @Override
+        public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
+            boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+            boolean[] dropColumns = dropNullColumns ? esqlResponse.nullColumns() : new boolean[esqlResponse.columns().size()];
+            List<? extends ColumnInfo> columns = esqlResponse.columns();
+            return Iterators.concat(hasHeader(request) && columns != null ? Iterators.single(writer -> {
+                for (int i = 0; i < columns.size(); i++) {
+                    if (dropColumns[i]) {
+                        continue;
+                    }
+                    writer.append("| ");
+                    writeEscaped(columns.get(i).name(), null, writer);
+                    writer.append(' ');
+                }
+                writer.append("|\n");
+                for (int i = 0; i < columns.size(); i++) {
+                    if (dropColumns[i] == false) {
+                        writer.append("| --- ");
+                    }
+                }
+                writer.append("|\n");
+            }) : Collections.emptyIterator(), Iterators.map(esqlResponse.values(), row -> writer -> {
+                for (int i = 0; row.hasNext(); i++) {
+                    if (dropColumns[i]) {
+                        row.next();
+                        continue;
+                    }
+                    writer.append("| ");
+                    writeEscaped(Objects.toString(row.next(), StringUtils.EMPTY), null, writer);
+                    writer.append(' ');
+                }
+                writer.append("|\n");
+            }));
+        }
+
+        @Override
+        boolean hasHeader(RestRequest request) {
+            String header = request.param(URL_PARAM_HEADER);
+            if (header == null) {
+                List<String> values = request.getAllHeaderValues("Accept");
+                if (values != null) {
+                    // header values are separated by `;` so try breaking it down
+                    for (String value : values) {
+                        String[] params = Strings.tokenizeToStringArray(value, ";");
+                        for (String param : params) {
+                            if (param.toLowerCase(Locale.ROOT).equals(URL_PARAM_HEADER + "=" + PARAM_HEADER_ABSENT)) {
+                                throw new IllegalArgumentException(
+                                    "[header=absent] is not supported for the [md] format; markdown tables require a header row"
+                                );
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            if (PARAM_HEADER_ABSENT.equalsIgnoreCase(header)) {
+                throw new IllegalArgumentException(
+                    "[header=absent] is not supported for the [md] format; markdown tables require a header row"
+                );
+            }
+            return true;
+        }
+
+        @Override
+        public String queryParameter() {
+            return FORMAT_MARKDOWN;
+        }
+
+        @Override
+        String contentType() {
+            return CONTENT_TYPE_MD;
+        }
+
+        @Override
+        public String contentType(RestRequest request) {
+            return contentType() + "; charset=utf-8";
+        }
+
+        @Override
+        protected Character delimiter() {
+            assert false;
+            throw new UnsupportedOperationException("markdown does not use a delimiter character");
+        }
+
+        @Override
+        protected String eol() {
+            assert false;
+            throw new UnsupportedOperationException("markdown does not specify an end of line character");
+        }
+
+        @Override
+        void writeEscaped(String value, Character delimiter, Writer writer) throws IOException {
+            for (int i = 0; i < value.length(); i++) {
+                char c = value.charAt(i);
+                switch (c) {
+                    case '\\' -> writer.write("\\\\");
+                    case '|' -> writer.write("\\|");
+                    case '\n', '\r' -> writer.write(' ');
+                    default -> writer.write(c);
+                }
+            }
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_MD, Map.of()),
+                new HeaderValue(VENDOR_CONTENT_TYPE_MD, Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+            );
+        }
     };
 
     private static final String FORMAT_TEXT = "txt";
     private static final String FORMAT_CSV = "csv";
     private static final String FORMAT_TSV = "tsv";
+    private static final String FORMAT_MARKDOWN = "md";
     private static final String CONTENT_TYPE_TXT = "text/plain";
     private static final String VENDOR_CONTENT_TYPE_TXT = "text/vnd.elasticsearch+plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
     private static final String VENDOR_CONTENT_TYPE_CSV = "text/vnd.elasticsearch+csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
     private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
+    private static final String CONTENT_TYPE_MD = "text/markdown";
+    private static final String VENDOR_CONTENT_TYPE_MD = "text/vnd.elasticsearch+markdown";
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";

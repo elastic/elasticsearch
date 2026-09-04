@@ -33,116 +33,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class XContentParserTests extends ESTestCase {
 
-    public void testFloat() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-
-        final String field = randomAlphaOfLengthBetween(1, 5);
-        final Float value = randomFloat();
-
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            if (randomBoolean()) {
-                builder.field(field, value);
-            } else {
-                builder.field(field).value(value);
-            }
-            builder.endObject();
-
-            final Number number;
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals(field, parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-
-                number = parser.numberValue();
-
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
-            }
-
-            assertEquals(value, number.floatValue(), 0.0f);
-
-            switch (xContentType) {
-                case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
-                case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
-                default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
-            }
-        }
-    }
-
-    public void testLongCoercion() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-
-            builder.field("five", "5.5");
-            builder.field("minusFive", "-5.5");
-
-            builder.field("minNegative", "-9.2233720368547758089999e18");
-            builder.field("tooNegative", "-9.223372036854775809e18");
-            builder.field("maxPositive", "9.2233720368547758079999e18");
-            builder.field("tooPositive", "9.223372036854775808e18");
-
-            builder.field("expTooBig", "2e100");
-            builder.field("minusExpTooBig", "-2e100");
-            builder.field("maxPositiveExp", "1e2147483647");
-            builder.field("tooPositiveExp", "1e2147483648");
-
-            builder.field("expTooSmall", "2e-100");
-            builder.field("minusExpTooSmall", "-2e-100");
-            builder.field("maxNegativeExp", "1e-2147483647");
-
-            builder.field("tooNegativeExp", "1e-2147483648");
-
-            builder.endObject();
-
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
-                assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-
-                assertFieldWithValue("five", 5L, parser);
-                assertFieldWithValue("minusFive", -5L, parser); // Rounds toward zero
-
-                assertFieldWithValue("minNegative", Long.MIN_VALUE, parser);
-                assertFieldWithInvalidLongValue("tooNegative", parser);
-                assertFieldWithValue("maxPositive", Long.MAX_VALUE, parser);
-                assertFieldWithInvalidLongValue("tooPositive", parser);
-
-                assertFieldWithInvalidLongValue("expTooBig", parser);
-                assertFieldWithInvalidLongValue("minusExpTooBig", parser);
-                assertFieldWithInvalidLongValue("maxPositiveExp", parser);
-                assertFieldWithInvalidLongValue("tooPositiveExp", parser);
-
-                // too small goes to zero
-                assertFieldWithValue("expTooSmall", 0L, parser);
-                assertFieldWithValue("minusExpTooSmall", 0L, parser);
-                assertFieldWithValue("maxNegativeExp", 0L, parser);
-
-                assertFieldWithInvalidLongValue("tooNegativeExp", parser);
-            }
-        }
-    }
-
-    private static void assertFieldWithValue(String fieldName, long fieldValue, XContentParser parser) throws IOException {
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(fieldName));
-        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-        assertThat(parser.longValue(), equalTo(fieldValue));
-    }
-
-    private static void assertFieldWithInvalidLongValue(String fieldName, XContentParser parser) throws IOException {
-        assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
-        assertThat(parser.currentName(), is(fieldName));
-        assertThat(parser.nextToken(), is(XContentParser.Token.VALUE_STRING));
-        expectThrows(IllegalArgumentException.class, parser::longValue);
+    protected XContentParser decorateParser(XContentParser parser) {
+        return parser;
     }
 
     public void testReadList() throws IOException {
@@ -167,7 +65,7 @@ public class XContentParserTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private <T> List<T> readList(String source) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();
@@ -247,7 +145,7 @@ public class XContentParserTests extends ESTestCase {
         Map<String, Object> i = new HashMap<>();
         i.put("i", expected);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             Map<String, Object> map = parser.map();
@@ -256,7 +154,7 @@ public class XContentParserTests extends ESTestCase {
     }
 
     private Map<String, String> readMapStrings(String source) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();
@@ -272,7 +170,11 @@ public class XContentParserTests extends ESTestCase {
         String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0");
         String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1");
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+        try (
+            XContentParser parser = decorateParser(
+                super.createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")
+            )
+        ) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
 
@@ -306,7 +208,11 @@ public class XContentParserTests extends ESTestCase {
         String falsy = randomFrom("\"false\"", "false");
         String truthy = randomFrom("\"true\"", "true");
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
+        try (
+            XContentParser parser = decorateParser(
+                super.createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")
+            )
+        ) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();
@@ -330,7 +236,8 @@ public class XContentParserTests extends ESTestCase {
     public void testEmptyList() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startArray("some_array").endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        String data = Strings.toString(builder);
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, data))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -352,7 +259,8 @@ public class XContentParserTests extends ESTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        String data = Strings.toString(builder);
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, data))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -380,7 +288,8 @@ public class XContentParserTests extends ESTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        String data = Strings.toString(builder);
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, data))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -404,7 +313,8 @@ public class XContentParserTests extends ESTestCase {
             .endArray()
             .endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+        String data = Strings.toString(builder);
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, data))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -438,7 +348,7 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             Map<String, SimpleStruct> actualMap = parser.map(HashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
             assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
@@ -469,7 +379,7 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             Map<String, SimpleStruct> actualMap = parser.map(LinkedHashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
             assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
@@ -498,7 +408,7 @@ public class XContentParserTests extends ESTestCase {
                 "s": "ccc"
               }
             }""";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             XContentParseException exception = expectThrows(
                 XContentParseException.class,
                 () -> parser.map(HashMap::new, SimpleStruct::fromXContent)
@@ -513,7 +423,7 @@ public class XContentParserTests extends ESTestCase {
         numberOfTokens = generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
             assertEquals("first_field", parser.currentName());
@@ -558,7 +468,7 @@ public class XContentParserTests extends ESTestCase {
               }
             }
             """;
-        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
+        XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content));
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("parent", parser.currentName());
@@ -596,7 +506,7 @@ public class XContentParserTests extends ESTestCase {
 
         String content = Strings.toString(builder);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // array field
             assertEquals("array", parser.currentName());
@@ -629,7 +539,7 @@ public class XContentParserTests extends ESTestCase {
         generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
             assertEquals("first_field", parser.currentName());
@@ -643,7 +553,7 @@ public class XContentParserTests extends ESTestCase {
         int numberOfTokens = generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, content))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             try (XContentParser subParser = new XContentSubParser(parser)) {
                 int tokensToSkip = randomInt(numberOfTokens + 3);
@@ -670,10 +580,93 @@ public class XContentParserTests extends ESTestCase {
         assertThat(parseException.getMessage(), not(containsString(source)));
     }
 
+    public void testYamlTokenLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = decorateParser(XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(-1L, parser.getTokenLocation().byteOffset());
+        }
+    }
+
+    public void testYamlGetCurrentLocationReturnsMinusOneByteOffset() throws IOException {
+        byte[] yaml = "key: value\n".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = decorateParser(XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, yaml))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation current = parser.getCurrentLocation();
+            assertNotNull(current);
+            assertEquals(-1L, current.byteOffset());
+        }
+    }
+
+    public void testCborHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] cbor;
+        try (var builder = XContentBuilder.builder(XContentType.CBOR.xContent())) {
+            try (
+                XContentParser jsonParser = decorateParser(
+                    XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)
+                )
+            ) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            cbor = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = decorateParser(XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, cbor))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testSmileHasByteOffsets() throws IOException {
+        byte[] json = "{\"k\":1}".getBytes(StandardCharsets.UTF_8);
+        byte[] smile;
+        try (var builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+            try (
+                XContentParser jsonParser = decorateParser(
+                    XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)
+                )
+            ) {
+                builder.copyCurrentStructure(jsonParser);
+            }
+            smile = BytesReference.bytes(builder).toBytesRef().bytes;
+        }
+        try (XContentParser parser = decorateParser(XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, smile))) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertTrue(tokenLoc.byteOffset() >= 0);
+
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertNotNull(currentLoc);
+            assertTrue(currentLoc.byteOffset() > tokenLoc.byteOffset());
+        }
+    }
+
+    public void testFilterXContentParserDelegatesGetCurrentLocation() throws IOException {
+        byte[] json = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser inner = decorateParser(XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json))) {
+            XContentParser wrapper = new FilterXContentParserWrapper(inner);
+            assertEquals(XContentParser.Token.START_OBJECT, wrapper.nextToken());
+
+            XContentLocation tokenLoc = wrapper.getTokenLocation();
+            assertEquals(inner.getTokenLocation(), tokenLoc);
+            assertEquals(0L, tokenLoc.byteOffset());
+
+            XContentLocation currentLoc = wrapper.getCurrentLocation();
+            assertEquals(inner.getCurrentLocation(), currentLoc);
+            assertTrue(currentLoc.byteOffset() > 0);
+        }
+    }
+
     private XContentParser createParser(XContent xContent, XContentParserConfiguration config, String content) throws IOException {
-        return randomBoolean()
+        XContentParser parser = randomBoolean()
             ? xContent.createParser(config, content)
             : xContent.createParser(config, content.getBytes(StandardCharsets.UTF_8));
+        return decorateParser(parser);
     }
 
     /**

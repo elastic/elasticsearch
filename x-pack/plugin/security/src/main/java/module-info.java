@@ -5,7 +5,9 @@
  * 2.0.
  */
 
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+import org.elasticsearch.xpack.security.logging.SecurityActionLoggingFieldsProvider;
 
 module org.elasticsearch.security {
     requires java.naming;
@@ -32,6 +34,7 @@ module org.elasticsearch.security {
     requires org.apache.lucene.sandbox;
 
     requires org.opensaml.core;
+    requires org.opensaml.core.impl;
     requires org.opensaml.saml;
     requires org.opensaml.saml.impl;
     requires org.opensaml.security;
@@ -46,11 +49,13 @@ module org.elasticsearch.security {
     requires io.netty.transport;
     requires jopt.simple;
     requires json.smart;
-    requires net.shibboleth.utilities.java.support;
+    requires net.shibboleth.shared.support;
     requires oauth2.oidc.sdk;
     requires org.slf4j;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.logging;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;
@@ -71,7 +76,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc.saml to org.elasticsearch.internal.security;
-    exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.logging to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.authc.support to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.rest.action.apikey to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.support to org.elasticsearch.internal.security;
@@ -80,9 +85,10 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.transport.extension to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.transport to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.audit to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.audit.logfile to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.metric to org.elasticsearch.internal.security;
 
-    provides org.elasticsearch.index.SlowLogFieldProvider with org.elasticsearch.xpack.security.slowlog.SecuritySlowLogFieldProvider;
+    provides ActionLoggingFieldsProvider with SecurityActionLoggingFieldsProvider;
 
     provides org.elasticsearch.cli.CliToolProvider
         with

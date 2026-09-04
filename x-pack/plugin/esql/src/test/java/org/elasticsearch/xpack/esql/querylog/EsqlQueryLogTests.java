@@ -20,12 +20,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -89,13 +92,13 @@ public class EsqlQueryLogTests extends ESTestCase {
         Loggers.setLevel(queryLog, origQueryLogLevel);
     }
 
-    public static SlowLogFieldProvider mockLogFieldProvider() {
-        return context -> new SlowLogFields(context) {
-        };
+    public static ActionLoggingFieldsProvider mockLogFieldProvider() {
+        return context -> new ActionLoggingFields(context) {};
     }
 
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -108,7 +111,10 @@ public class EsqlQueryLogTests extends ESTestCase {
         for (int i = 0; i < actualTook.length; i++) {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
-                new Versioned<>(new Result(List.of(), List.of(), DriverCompletionInfo.EMPTY, warnQuery), TransportVersion.current()),
+                new Versioned<>(
+                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery, null),
+                    TransportVersion.current()
+                ),
                 query
             );
             if (expectedLevel[i] != null) {
@@ -121,7 +127,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
 
                 // Checks values for all planning timespans
-                for (PlanningProfile.TimeSpanMarker timeSpan : warnQuery.planningProfile().timeSpanMarkers()) {
+                for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
                     String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);
@@ -144,6 +150,7 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     public void testPrioritiesOnFailure() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -186,8 +193,27 @@ public class EsqlQueryLogTests extends ESTestCase {
             }
 
             @Override
-            public PlanningProfile planningProfile() {
-                return new PlanningProfile(randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan());
+            public EsqlQueryProfile queryProfile() {
+                return new EsqlQueryProfile(
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomTimeSpan(),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 100),
+                    randomIntBetween(0, 1000),
+                    randomNonNegativeLong(),
+                    randomFrom(UnmappedResolution.values()),
+                    randomIntBetween(0, 100),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
             }
         };
 
@@ -199,4 +225,5 @@ public class EsqlQueryLogTests extends ESTestCase {
         long stopNanos = startNanos + randomLongBetween(1, 100_000);
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
+
 }

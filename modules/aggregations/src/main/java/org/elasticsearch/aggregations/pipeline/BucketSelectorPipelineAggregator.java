@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,13 +45,13 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation<?, ?>, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+            asMultiBucketAggregation(aggregation);
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
         BucketAggregationSelectorScript.Factory factory = reduceContext.scriptService()
             .compile(script, BucketAggregationSelectorScript.CONTEXT);
+        Runnable cancellationCheck = () -> { if (reduceContext.isCanceled().get()) throw new TaskCancelledException("Cancelled"); };
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -65,6 +66,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
             }
             // TODO: can we use one instance of the script for all buckets? it should be stateless?
             BucketAggregationSelectorScript executableScript = factory.newInstance(vars);
+            executableScript._setCancellationCheck(cancellationCheck);
             if (executableScript.execute()) {
                 newBuckets.add(bucket);
             }

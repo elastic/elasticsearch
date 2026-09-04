@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -249,7 +249,7 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
         }).toList();
     }
 
-    public static final class Request extends LegacyActionRequest {
+    public static final class Request extends UntypedActionRequest {
         private final Collection<String> repositories;
         private final Map<String, SnapshotLifecyclePolicy> policies;
 

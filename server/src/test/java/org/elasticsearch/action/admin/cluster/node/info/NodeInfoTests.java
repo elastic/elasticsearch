@@ -47,7 +47,7 @@ public class NodeInfoTests extends ESTestCase {
             Build.current(),
             DiscoveryNodeUtils.builder("test_node")
                 .roles(emptySet())
-                .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomCompatibleVersion(random()))
+                .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomCompatibleVersion())
                 .build(),
             null,
             null,

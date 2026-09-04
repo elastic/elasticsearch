@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
-import java.util.Set;
 
 public abstract class SpatialRelatesFunctionTestCase extends BinarySpatialFunctionTestCase {
 
@@ -21,9 +20,5 @@ public abstract class SpatialRelatesFunctionTestCase extends BinarySpatialFuncti
 
     protected static void addSpatialGridCombinations(List<TestCaseSupplier> suppliers, DataType... dataTypes) {
         addSpatialGridCombinations(suppliers, dataTypes, DataType.BOOLEAN);
-    }
-
-    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return typeErrorMessage(includeOrdinal, validPerPosition, types, false, false);
     }
 }

@@ -14,12 +14,15 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -43,7 +46,7 @@ import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.con
 
 /**
  * <p>
- * An internal {@link QueryBuilder} type that associates an original query builder with a map of inference results required successfully
+ * An internal {@link QueryBuilder} type that associates an original query builder with a map of inference results required to successfully
  * query a {@link SemanticTextFieldMapper.SemanticTextFieldType}.
  * </p>
  * <p>
@@ -73,11 +76,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     protected InterceptedInferenceQueryBuilder(T originalQuery, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        Objects.requireNonNull(originalQuery, "original query must not be null");
-        this.originalQuery = originalQuery;
-        this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
-        this.inferenceInfoFuture = null;
-        this.interceptedCcsRequest = false;
+        this(originalQuery, inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null, null, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -108,7 +107,16 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
-        this.originalQuery = other.originalQuery;
+        this(other.originalQuery, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
+    }
+
+    protected InterceptedInferenceQueryBuilder(
+        T originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
+    ) {
+        this.originalQuery = Objects.requireNonNull(originalQuery, "original query must not be null");
         this.inferenceResultsMap = inferenceResultsMap;
         this.inferenceInfoFuture = inferenceInfoFuture;
         this.interceptedCcsRequest = interceptedCcsRequest;
@@ -132,11 +140,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract Map<String, Float> getFields();
 
     /**
-     * Get the original query's query text. If not available, {@code null} should be returned.
+     * Get the query input. Plain-text queries should be wrapped as {@code new InferenceStringGroup(queryText)}.
+     * Non-text inputs (e.g. images) should be returned as the appropriate {@link InferenceStringGroup}.
+     * Return {@code null} when no inference results should be generated (e.g. when a standalone query vector builder
+     * is already handling the inference).
      *
-     * @return The original query's query text
+     * @return The query input, or {@code null} if inference results should not be generated
      */
-    protected abstract String getQuery();
+    @Nullable
+    protected abstract InferenceStringGroup getInput();
 
     /**
      * Rewrite to a backwards-compatible form of the query builder, depending on the value of
@@ -155,7 +167,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param interceptedCcsRequest       Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(
+    protected abstract InterceptedInferenceQueryBuilder<T> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
@@ -189,13 +201,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract boolean useDefaultFields();
 
     /**
-     * Get the query-time inference ID override. If not applicable or available, {@code null} should be returned.
-     */
-    protected FullyQualifiedInferenceId getInferenceIdOverride() {
-        return null;
-    }
-
-    /**
      * Perform any custom pre-inference coordinator node validation.
      *
      * @param resolvedIndices The resolved indices
@@ -212,7 +217,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      */
     protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {}
 
-    protected T rewriteToOriginalQuery(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+    /**
+     * Method used to rewrite to the original query when the query does not need to be intercepted. Implementations that require custom
+     * logic for this step should override this method.
+     *
+     * @return The rewritten query
+     */
+    protected QueryBuilder rewriteToOriginalQuery() {
         return originalQuery;
     }
 
@@ -262,7 +273,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) {
+    public Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) {
         throw new UnsupportedOperationException("Query should be rewritten to a different type");
     }
 
@@ -342,7 +353,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             if (inferenceFieldCount == 0 && interceptedCcsRequest == false) {
                 // We aren't querying any inference fields and this query wasn't intercepted in a previous coordinator node rewrite.
                 // Therefore, we don't need to intercept the query.
-                rewritten = rewriteToOriginalQuery(newInferenceResultsMap);
+                rewritten = rewriteToOriginalQuery();
             } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
                 inferenceResultsErrorCheck(newInferenceResultsMap);
                 boolean newInterceptedCcsRequest = this.interceptedCcsRequest
@@ -358,9 +369,8 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
         InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
-            getQuery(),
+            getInput(),
             inferenceResultsMap,
-            getInferenceIdOverride(),
             resolveWildcards(),
             useDefaultFields(),
             alwaysSkipRemotes

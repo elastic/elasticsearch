@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
@@ -65,7 +64,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(sslSetup)));
         try (MockWebServer webServer = initWebServer(sslService); CloseableHttpClient client = buildHttpClient(sslService)) {
             final HttpGet request = new HttpGet(webServer.getUri("/"));
-            try (CloseableHttpResponse ignore = SocketAccess.doPrivileged(() -> client.execute(request))) {
+            try (CloseableHttpResponse ignore = client.execute(request)) {
                 fail("Expected hostname verification exception");
             } catch (Exception e) {
                 assertThat(e, throwableWithMessage(containsStringIgnoringCase("Certificate")));
@@ -166,7 +165,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     @SuppressForbidden(reason = "Allow opening socket for test")
     private void connect(SSLSocket clientSocket, MockWebServer webServer) throws IOException {
-        SocketAccess.doPrivileged(() -> clientSocket.connect(webServer.getAddress()));
+        clientSocket.connect(webServer.getAddress());
     }
 
     private CloseableHttpClient buildHttpClient(SSLService sslService) {

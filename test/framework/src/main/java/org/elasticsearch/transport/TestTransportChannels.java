@@ -12,9 +12,14 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class TestTransportChannels {
+
+    public static TaskTransportChannel newTaskTransportChannel(TransportChannel channel, Releasable onTaskFinished) {
+        return new TaskTransportChannel(1, channel, onTaskFinished);
+    }
 
     public static TcpTransportChannel newFakeTcpTransportChannel(
         String nodeName,

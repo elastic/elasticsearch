@@ -41,161 +41,192 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
-    def "filters test task execution by detected testsfailed-history file"() {
+    def "skips successful tasks and runs everything else"() {
         given:
         simpleTestSetup()
-        writeFailedHistory(":subproject2:test", "org.acme.SubProject2TestClazz2", "someTest1")
+        writeHistory([":subproject1:test"], [:])
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("succeeded in previous run")
+
         result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+    }
+
+    def "skips all tasks when all are successful"() {
+        given:
+        simpleTestSetup()
+        writeHistory([":subproject1:test", ":subproject2:test"], [:])
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.task(":subproject2:test").outcome == TaskOutcome.SKIPPED
+        result.output.contains("succeeded in previous run")
+    }
+
+    def "runs all tests when no tasks are successful and no tests to exclude"() {
+        given:
+        simpleTestSetup()
+        writeHistory([], [:])
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("not confirmed successful in previous run")
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+    }
+
+    def "excludes individual successful tests from partially-failed tasks"() {
+        given:
+        simpleTestSetup()
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz1#someTest1", "org.acme.SubProject2TestClazz1#someTest2"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        // subproject1 fully successful — skip entirely
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+
+        // subproject2 partially failed — exclude the 2 successful tests
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 0 successful suites and 2 successful tests")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
         testNotExecuted(result.output, "SubProject2TestClazz1 > someTest2")
         testExecuted(result.output, "SubProject2TestClazz2 > someTest1")
-        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
-    def "filters failed parameterized tests in tests-failed-history file"() {
+    def "excludes specific methods while running others in the same class"() {
         given:
-        buildFile << """
-        allprojects {
-            apply plugin: 'java'
-            apply plugin: 'elasticsearch.internal-test-rerun'
+        simpleTestSetup()
+        writeHistory(
+            [],
+            [":subproject2:test": ["org.acme.SubProject2TestClazz2#someTest1"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 0 successful suites and 1 successful tests")
+        testNotExecuted(result.output, "SubProject2TestClazz2 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
+        // Other classes in the same task still run
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
+        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
+    }
 
-            repositories {
-                mavenCentral()
-            }
+    def "excludes a single parameter of a parameterized test while its siblings still run"() {
+        given:
+        parameterizedTestSetup()
+        writeHistory(
+            [],
+            [":subproject1:test": ["org.acme.ParameterizedTestClazz#someTest1 {phase=0}"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        testNotExecuted(result.output, "someTest1 > someTest1 {phase=0}")
+        testExecuted(result.output, "someTest1 > someTest1 {phase=1}")
+        testExecuted(result.output, "someTest1 > someTest1 {phase=2}")
+        // The bare method pattern the randomized runner needs must not take the other method down with it
+        testExecuted(result.output, "someTest2 > someTest2 {phase=0}")
+    }
 
-            dependencies {
-                testImplementation 'junit:junit:4.13.1'
-                testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.8.2"
-            }
+    def "excludes a plain method of a randomized runner suite that has no parameters"() {
+        given:
+        parameterizedTestSetup()
+        writeHistory(
+            [],
+            [":subproject1:test": ["org.acme.RandomizedTestClazz#someTest1"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        // Without parameters both descriptions the runner checks are identical, so the single bare pattern excludes it
+        testNotExecuted(result.output, "RandomizedTestClazz > someTest1")
+        testExecuted(result.output, "RandomizedTestClazz > someTest2")
+    }
 
-            tasks.named("test").configure {
-                testLogging {
-                    events("started", "skipped")
-                }
-            }
-        }
-        """
-        subProject(":subproject1") {
-            createTest("SubProject1RandomizedTestClazz1")
-        }
-        subProject(":subproject2") {
-            createTest("SubProject2RandomizedTestClazz1")
-            file("src/test/java/org/acme/SubProject2RandomizedTestClazz2.java") <<'''
-            package org.acme;
+    def "excludes an entire parameterized suite via suite level pruning"() {
+        given:
+        parameterizedTestSetup()
+        writeHistory(
+            [],
+            [:],
+            [":subproject1:test": ["org.acme.ParameterizedTestClazz"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("excluding 1 successful suites and 0 successful tests")
+        testNotExecuted(result.output, "someTest1 > someTest1 {phase=0}")
+        testNotExecuted(result.output, "someTest1 > someTest1 {phase=1}")
+        testNotExecuted(result.output, "someTest1 > someTest1 {phase=2}")
+        testNotExecuted(result.output, "someTest2 > someTest2 {phase=0}")
+        // The plain suite in the same task is untouched
+        testExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+    }
 
-            import java.util.Arrays;
-import java.util.Formatter;
+    def "runs all parameters when the project opted out of individual test pruning"() {
+        given:
+        parameterizedTestSetup(true)
+        writeHistory(
+            [],
+            [":subproject1:test": ["org.acme.ParameterizedTestClazz#someTest1 {phase=0}"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("project opted out of individual test pruning")
+        testExecuted(result.output, "someTest1 > someTest1 {phase=0}")
+        testExecuted(result.output, "someTest1 > someTest1 {phase=1}")
+    }
 
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+    def "suite level pruning still applies when the project opted out of individual test pruning"() {
+        given:
+        parameterizedTestSetup(true)
+        writeHistory(
+            [],
+            [":subproject1:test": ["org.acme.ParameterizedTestClazz#someTest1 {phase=0}"]],
+            [":subproject1:test": ["org.acme.SubProject1TestClazz1"]]
+        )
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+        then:
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        // A single message covers both halves of the outcome, instead of one line per concern
+        result.output.contains(
+            "excluding 1 successful suites from :subproject1:test and rerunning 1 successful tests " +
+                "(project opted out of individual test pruning)"
+        )
+        result.output.contains("rerunning 1 successful tests in :subproject1:test") == false
+        testNotExecuted(result.output, "SubProject1TestClazz1 > someTest1")
+        testExecuted(result.output, "someTest1 > someTest1 {phase=0}")
+    }
 
-import com.carrotsearch.randomizedtesting.RandomizedRunner;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-import com.carrotsearch.randomizedtesting.annotations.Seeds;
-
-public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
-  private String yaml;
-
-  public SubProject2RandomizedTestClazz2(
-      @Name("yaml") String yaml) {
-    this.yaml = yaml;
-  }
-
-  @Test
-  public void test() {
-    System.out.println(yaml + " "
-        + getContext().getRandomness());
-  }
-
-  @ParametersFactory
-  public static Iterable<Object[]> parameters() {
-    return Arrays.asList($$(
-        $("analysis-common/30_tokenizers/letter"),
-        $("analysis-common/40_tokenizers/letter")));
-  }
-}
-        '''
-        }
-        writeFailedHistory(":subproject2:test", "org.acme.SubProject2RandomizedTestClazz2", "test {yaml=analysis-common/30_tokenizers/letter}")
-
+    def "task level pruning still applies when the project opted out of individual test pruning"() {
+        given:
+        parameterizedTestSetup(true)
+        writeHistory([":subproject1:test"], [:])
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
-        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
-        testNotExecuted(result.output, "SubProject2TestClazz1 > someTest1")
-        testExecuted(result.output, "SubProject2RandomizedTestClazz2 > test {yaml=analysis-common/30_tokenizers/letter}")
-        testNotExecuted(result.output, "SubProject2RandomizedTestClazz2 > test {yaml=analysis-common/40_tokenizers/letter}")
-    }
-
-
-
-    private File writeFailedHistory(String taskPath, String testClazz, String testName) {
-        file(".failed-test-history.json") << """
-{
-  "workUnits": [
-    {
-      "name": "$taskPath",
-      "outcome": "failed",
-      "tests": [
-        {
-          "name": "$testClazz",
-          "outcome": {
-            "overall": "failed",
-            "own": "passed",
-            "children": "failed"
-          },
-          "executions": [
-            {
-              "outcome": {
-                "overall": "failed",
-                "own": "passed",
-                "children": "failed"
-              }
-            }
-          ],
-          "children": [
-            {
-              "name": "$testName",
-              "outcome": {
-                "overall": "failed"
-              },
-              "executions": [
-                {
-                  "outcome": {
-                    "overall": "failed"
-                  }
-                }
-              ],
-              "children": []
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-"""
-    }
-
-    boolean testExecuted(String output, String testReference) {
-        output.contains(testReference + " STARTED")
-    }
-
-    boolean testSkipped(String output, String testReference) {
-        output.contains(testReference + " SKIPPED")
-    }
-
-    boolean testNotExecuted(String output, String testReference) {
-        output.contains(testReference) == false
+        result.output.contains("succeeded in previous run")
     }
 
     def "handles malformed failed-test-history gracefully"() {
@@ -213,9 +244,14 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
     def "rejects oversized failed-test-history file"() {
         given:
         simpleTestSetup()
-        // Create file > 10MB
-        def largeContent = '{"workUnits":[' + ('{"name":"test","tests":[]},'.multiply(500000)) + '{}]}'
-        file(".failed-test-history.json") << largeContent
+        // The size check runs before JSON parsing, so content validity is irrelevant here. Write a file
+        // just over the 100MB cap in 1MB chunks to avoid allocating the whole payload in memory.
+        file(".failed-test-history.json").withOutputStream { out ->
+            byte[] chunk = new byte[1024 * 1024]
+            for (int i = 0; i < 101; i++) {
+                out.write(chunk)
+            }
+        }
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()
@@ -224,42 +260,88 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
         result.output.contains("Failed test history file too large")
     }
 
-    def "skips tests with null names in history"() {
+    def "ignores unknown fields in history file"() {
         given:
         simpleTestSetup()
         file(".failed-test-history.json") << '''
 {
-  "workUnits": [{
-    "name": ":subproject1:test",
-    "outcome": "failed",
-    "tests": [{
-      "name": null,
-      "children": []
-    }]
-  }]
+  "successfulTasks": [":subproject1:test"],
+  "successfulTests": {},
+  "workUnits": [],
+  "executedTestTasks": [":subproject1:test", ":subproject2:test"],
+  "unknownField": "ignored"
 }'''
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
 
         then:
-        // Task runs but skips null-named test
-        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
-        result.output.contains("Skipping test class with null name")
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
     }
 
-    def "handles empty workUnits array"() {
+    def "non-test task paths in successfulTasks are harmless"() {
         given:
         simpleTestSetup()
-        file(".failed-test-history.json") << '{"workUnits":[]}'
+        file(".failed-test-history.json") << '''
+{
+  "successfulTasks": [":subproject1:compileJava", ":subproject2:assemble"]
+}'''
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").build()
 
         then:
-        // Should skip all tests since no failures recorded
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.task(":subproject2:test").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "task in successfulTasks takes precedence over successfulTests"() {
+        given:
+        simpleTestSetup()
+        // Task is in both successfulTasks (skip entirely) and successfulTests (exclude tests).
+        // successfulTasks should win — skip the whole task.
+        writeHistory(
+            [":subproject1:test"],
+            [":subproject1:test": ["org.acme.SubProject1TestClazz1#someTest1"]]
+        )
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
         result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
-        result.task(":subproject2:test").outcome == TaskOutcome.SKIPPED
+    }
+
+    boolean testExecuted(String output, String testReference) {
+        output.contains(testReference + " STARTED")
+    }
+
+    boolean testNotExecuted(String output, String testReference) {
+        output.contains(testReference) == false
+    }
+
+    private File writeHistory(
+        List<String> successfulTasks,
+        Map<String, List<String>> successfulTests,
+        Map<String, List<String>> successfulSuites = [:]
+    ) {
+        def tasksJson = successfulTasks.collect { "\"$it\"" }.join(", ")
+        def testsEntries = successfulTests.collect { taskPath, tests ->
+            def testsJson = tests.collect { "\"$it\"" }.join(", ")
+            "\"$taskPath\": [$testsJson]"
+        }.join(", ")
+        def suitesEntries = successfulSuites.collect { taskPath, suites ->
+            def suitesJson = suites.collect { "\"$it\"" }.join(", ")
+            "\"$taskPath\": [$suitesJson]"
+        }.join(", ")
+        file(".failed-test-history.json") << """
+{
+  "successfulTasks": [$tasksJson],
+  "successfulSuites": {$suitesEntries},
+  "successfulTests": {$testsEntries}
+}
+"""
     }
 
     void simpleTestSetup() {
@@ -273,7 +355,7 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
                 }
 
                 dependencies {
-                    testImplementation 'junit:junit:4.13.1'
+                    testImplementation 'junit:junit:4.13.2'
                 }
 
                 tasks.named("test").configure {
@@ -290,6 +372,95 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
         subProject(":subproject2") {
             createTest("SubProject2TestClazz1")
             createTest("SubProject2TestClazz2")
+        }
+    }
+
+    /**
+     * Sets up a single subproject holding a suite parameterized by the randomized runner alongside a plain JUnit4 suite.
+     * The randomized runner reports such tests as {@code someTest1 {phase=0}} and only excludes one when both that name
+     * and the bare method name are filtered out, which is what the parameterized pruning has to get right.
+     */
+    void parameterizedTestSetup(boolean optOutOfIndividualTestPruning = false) {
+        buildFile << """
+        allprojects {
+                apply plugin: 'java'
+                apply plugin: 'elasticsearch.internal-test-rerun'
+
+                repositories {
+                    mavenCentral()
+                }
+
+                dependencies {
+                    testImplementation 'junit:junit:4.13.2'
+                    testImplementation 'com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.8.2'
+                }
+
+                tasks.named("test").configure {
+                    testLogging {
+                        events("started", "skipped")
+                    }
+                }
+            }
+            """
+        subProject(":subproject1") {
+            if (optOutOfIndividualTestPruning) {
+                buildFile << """
+                smartRetry.pruneIndividualTests.set(false)
+                """
+            }
+            createTest("SubProject1TestClazz1")
+            file("src/test/java/org/acme/RandomizedTestClazz.java") << """
+            package org.acme;
+
+            import com.carrotsearch.randomizedtesting.RandomizedRunner;
+            import org.junit.Test;
+            import org.junit.runner.RunWith;
+
+            @RunWith(RandomizedRunner.class)
+            public class RandomizedTestClazz {
+
+                @Test
+                public void someTest1() {
+                }
+
+                @Test
+                public void someTest2() {
+                }
+            }
+            """
+            file("src/test/java/org/acme/ParameterizedTestClazz.java") << """
+            package org.acme;
+
+            import com.carrotsearch.randomizedtesting.RandomizedRunner;
+            import com.carrotsearch.randomizedtesting.annotations.Name;
+            import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+            import java.util.List;
+            import org.junit.Test;
+            import org.junit.runner.RunWith;
+
+            @RunWith(RandomizedRunner.class)
+            public class ParameterizedTestClazz {
+
+                private final int phase;
+
+                public ParameterizedTestClazz(@Name("phase") int phase) {
+                    this.phase = phase;
+                }
+
+                @ParametersFactory(shuffle = false)
+                public static Iterable<Object[]> parameters() {
+                    return List.of(new Object[] { 0 }, new Object[] { 1 }, new Object[] { 2 });
+                }
+
+                @Test
+                public void someTest1() {
+                }
+
+                @Test
+                public void someTest2() {
+                }
+            }
+            """
         }
     }
 }

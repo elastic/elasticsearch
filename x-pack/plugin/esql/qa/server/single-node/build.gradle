@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -9,6 +11,7 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPreco
 apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -16,27 +19,92 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:tools'))
   javaRestTestImplementation project(xpackModule('esql'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
+  yamlRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
-  javaRestTestImplementation('org.apache.arrow:arrow-vector:18.3.0')
-  javaRestTestImplementation('org.apache.arrow:arrow-format:18.3.0')
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
-  javaRestTestImplementation('org.checkerframework:checker-qual:3.42.0')
-  javaRestTestImplementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  javaRestTestImplementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  javaRestTestImplementation("org.slf4j:slf4j-nop:${versions.slf4j}")
-  javaRestTestImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+  javaRestTestImplementation project(':libs:arrow')
+  javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
+  // S3 fixture infrastructure for external source generative tests
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  clusterModules project(':modules:repository-s3')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+  clusterPlugins project(xpackModule('esql-datasource-parquet'))
+}
+
+// Generate Parquet fixtures at build time from CSV — mirrors the multi-node build exactly.
+ext.serverProject = project(xpackModule('esql:qa:server'))
+ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
+// Capture into locals so task configuration closures can reference them without going through ext.
+def serverProj = ext.serverProject
+def testFixturesProj = ext.testFixturesProject
+def testFixturesDataDir = ext.testFixturesDataDir
+def csvToParquetFixtures = ext.csvToParquetFixtures
+def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
+
+tasks.register('syncIcebergFixtures', Sync) {
+  dependsOn testFixturesProj.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesDataDir) {
+    include csvToParquetFixtures.collect { "${it}.csv" }
+  }
+  into parquetFixtureDir
+}
+
+ext.generateParquetTasks = []
+csvToParquetFixtures.each { baseName ->
+  def taskName = "generateParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${parquetFixtureDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProj.tasks.named('compileParquetFixtureGeneratorJava'), syncIcebergFixtures
+    dependsOn testFixturesProj.tasks.named('processResources')
+    classpath = serverProj.configurations.parquetFixtureGenerator + serverProj.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  ext.generateParquetTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateParquetFixtures') {
+  dependsOn generateParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn generateParquetFixtures
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
+    variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+    variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
+    variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
+    variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index', 'search'
   }
   restTests {
     includeXpack 'esql'
@@ -45,11 +113,59 @@ restResources {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  dependsOn generateEsqlSpecTests
+}
+tasks.named('check').configure { dependsOn csvSpecTests }
+
+// Second rest-test variant: runs EsqlSpecIT against a cluster with xpack security enabled and
+// the REST client authenticated as a superuser. The cluster reads the tests.cluster.security.enabled
+// system property (see Clusters.java); ESRestTestCase.restClientSettings() reads the two auth
+// system properties. No test classes are modified.
+tasks.register('javaRestTestSecure', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  // Runs the csvSpecTest source set, whose cluster is shared(true)
+  maxParallelForks = 1
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  filter {
+    // Runs the generated per-csv-spec-file classes with security enabled.
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.EsqlSpec*IT'
+  }
+  systemProperty 'tests.cluster.security.enabled', 'true'
+  systemProperty 'tests.rest.cluster.username', 'test-admin'
+  systemProperty 'tests.rest.cluster.password', 'x-pack-test-password'
 }
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("to be triaged")
-  maxParallelForks = 1
 }
+
+// Runs only the CSV spec suite — used by the dedicated releaseTestCheckEsqlQa1 CI job.
+tasks.register('releaseTestCheckCsvSpec') {
+  group = 'Verification'
+  description = 'Runs csvSpecTests against a release distribution.'
+  dependsOn csvSpecTests
+}
+
+// Runs only the two REST test variants — used by the releaseTestCheckEsqlQa3 CI job.
+// csvSpecTests is excluded here; it runs in its own job via releaseTestCheckCsvSpec.
+tasks.register('releaseTestCheckRest') {
+  group = 'Verification'
+  description = 'Runs the REST test suites against a release distribution.'
+  dependsOn 'javaRestTest', 'yamlRestTest'
+}
+
+// Uncomment this to start automatically running this as part of CI
+// Otherwise run explicitly with: ./gradlew ":x-pack:plugin:esql:qa:server:single-node:javaRestTestSecure"
+// tasks.named('check').configure { dependsOn 'javaRestTestSecure' }

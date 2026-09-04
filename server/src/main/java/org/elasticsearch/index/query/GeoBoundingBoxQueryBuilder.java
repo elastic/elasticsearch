@@ -41,7 +41,7 @@ import java.util.Objects;
  * This query can only operate on fields of type geo_point that have latitude and longitude
  * enabled.
  * */
-public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
+public class GeoBoundingBoxQueryBuilder extends LeafQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";
 
     /**

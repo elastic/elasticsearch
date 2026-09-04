@@ -275,7 +275,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         createIndex(
             idleIndex,
             idleIndexSettingsBuilder.build(),
-            "doc",
             "keyword",
             "type=keyword",
             "@timestamp",
@@ -286,7 +285,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         createIndex(
             activeIndex,
             activeIndexSettingsBuilder.build(),
-            "doc",
             "keyword",
             "type=keyword",
             "@timestamp",
@@ -354,7 +352,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
                 .build(),
-            "doc",
             "keyword",
             "type=keyword"
         );
@@ -364,7 +361,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
                 .build(),
-            "doc",
             "keyword",
             "type=keyword"
         );

@@ -16,10 +16,6 @@ Looking for the SharePoint **Online** connector? See the [SharePoint Online refe
 
 ::::
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-sharepoint-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-sharepoint-client-availability-prerequisites]

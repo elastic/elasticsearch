@@ -10,13 +10,18 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request.completio
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiCompletionRequest;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreatorTests.getContentOfMessageInRequestMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
@@ -25,13 +30,25 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionRequestTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
+
     public void testCreateRequest_WithApiKeyDefined() throws IOException {
         var input = "input";
         var user = "user";
         var apiKey = randomAlphaOfLength(10);
 
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -56,7 +73,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
         var entraId = randomAlphaOfLength(10);
 
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -91,7 +108,8 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id"
+            "id",
+            threadPool
         );
 
         return new AzureOpenAiCompletionRequest(List.of(input), completionModel, false);

@@ -25,9 +25,9 @@ public record JinaAIRerankRequestEntity(
     JinaAIRerankModel model
 ) implements ToXContentObject {
 
-    private static final String DOCUMENTS_FIELD = "documents";
-    private static final String QUERY_FIELD = "query";
-    private static final String MODEL_FIELD = "model";
+    public static final String DOCUMENTS_FIELD = "documents";
+    public static final String QUERY_FIELD = "query";
+    public static final String MODEL_FIELD = "model";
 
     public JinaAIRerankRequestEntity {
         Objects.requireNonNull(query);

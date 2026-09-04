@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.index.mapper.MapperFeatures;
 
-import java.util.Arrays;
+import java.util.List;
 
 public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
 
@@ -88,27 +86,24 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
             }
         }""";
 
-    public MatchOnlyTextRollingUpgradeIT(String template, String testScenario) {
-        super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> data() {
-        return Arrays.asList(
-            new Object[][] {
-                { TEMPLATE, "basic" },
-                { TEMPLATE_WITH_MULTI_FIELD, "with-keyword-multi-field" },
-                { TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE, "with-keyword-multi-field-and-ignore-above" } }
+    @Override
+    protected List<TemplateConfig> getTemplates() {
+        return List.of(
+            new TemplateConfig(DATA_STREAM_NAME_PREFIX + ".basic", TEMPLATE),
+            new TemplateConfig(DATA_STREAM_NAME_PREFIX + ".with-keyword-multi-field", TEMPLATE_WITH_MULTI_FIELD),
+            new TemplateConfig(
+                DATA_STREAM_NAME_PREFIX + ".with-keyword-multi-field-and-ignore-above",
+                TEMPLATE_WITH_MULTI_FIELD_AND_IGNORE_ABOVE
+            )
         );
     }
 
     @Override
-    public void testIndexing() throws Exception {
+    protected void checkRequiredFeatures() {
         assumeTrue(
             "Match only text block loader bug is present and fix is not present in this cluster",
             oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
         );
-        super.testIndexing();
     }
 
 }

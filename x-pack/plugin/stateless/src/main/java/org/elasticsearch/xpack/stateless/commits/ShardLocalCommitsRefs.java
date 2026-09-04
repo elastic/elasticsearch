@@ -34,13 +34,11 @@ public class ShardLocalCommitsRefs {
         this.acquiredGenerations = new ConcurrentHashMap<>();
     }
 
-    // TODO: make package-private ES-13786
-    public SoftDeleteIndexCommit incRef(IndexCommit indexCommit) {
+    SoftDeleteIndexCommit incRef(IndexCommit indexCommit) {
         return incRef(indexCommit, false);
     }
 
-    // TODO: make package-private ES-13786
-    public SoftDeleteIndexCommit incRef(IndexCommit indexCommit, boolean acquiredForCommitListener) {
+    SoftDeleteIndexCommit incRef(IndexCommit indexCommit, boolean acquiredForCommitListener) {
         if (Assertions.ENABLED && acquiredForCommitListener) {
             incRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
         }
@@ -58,8 +56,7 @@ public class ShardLocalCommitsRefs {
      * @param indexCommit the IndexCommit to decrement
      * @return {@code true} if the IndexCommit can be safely deleted, {@code false} otherwise
      */
-    // TODO: make package-private ES-13786
-    public boolean decRef(IndexCommit indexCommit) {
+    boolean decRef(IndexCommit indexCommit) {
         assert indexCommit instanceof SoftDeleteIndexCommit;
         if (Assertions.ENABLED && ((SoftDeleteIndexCommit) indexCommit).isAcquiredForCommitListener()) {
             decRefGeneration(acquiredCommitGenerationsForCommitsListener, indexCommit.getGeneration());
@@ -80,8 +77,7 @@ public class ShardLocalCommitsRefs {
         return refCount == null;
     }
 
-    // TODO: make package-private ES-13786
-    public boolean hasAcquiredIndexCommitsForTesting() {
+    boolean hasAcquiredIndexCommitsForTesting() {
         // We explicitly check only external commits and disregard internal commits acquired by the commits listener
         for (var e : acquiredGenerations.entrySet()) {
             var commitListenerCount = acquiredCommitGenerationsForCommitsListener.get(e.getKey());

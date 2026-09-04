@@ -10,17 +10,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMax}.
+ * {@link ExpressionEvaluator} implementation for {@link MvMax}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvMaxLongEvaluator.class);
 
-  public MvMaxLongEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+  public MvMaxLongEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -41,11 +41,11 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     int positionCount = v.getPositionCount();
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         long value = v.getLong(first);
@@ -95,11 +95,11 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     int positionCount = v.getPositionCount();
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMax.ascendingIndex(valueCount);
         long result = v.getLong(first + idx);
@@ -132,10 +132,10 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

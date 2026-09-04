@@ -5,7 +5,7 @@ mapped_pages:
 
 # Content extraction [es-connectors-content-extraction]
 
-Connectors use the [Elastic ingest attachment processor^](/reference/enrich-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
+Connectors use the [Elastic ingest attachment processor](/reference/ingest-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
 
 While intended primarily for PDF and Microsoft Office formats, you can use any of the [supported formats](#es-connectors-content-extraction-supported-file-types).
 

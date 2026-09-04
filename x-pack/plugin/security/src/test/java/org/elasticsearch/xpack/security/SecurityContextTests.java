@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
@@ -175,12 +176,15 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.isRunAs(), authentication.isRunAs());
             assertEquals(original.getEffectiveSubject().getRealm(), authentication.getEffectiveSubject().getRealm());
-            assertEquals(TransportVersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getTransportVersion());
+            assertEquals(
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current()),
+                authentication.getEffectiveSubject().getTransportVersion()
+            );
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved
             requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
-        }, TransportVersionUtils.getPreviousVersion());
+        }, TransportVersionUtils.getPreviousVersion(TransportVersion.current()));
 
         final Authentication authAfterExecution = securityContext.getAuthentication();
         assertEquals(original, authAfterExecution);
@@ -188,6 +192,41 @@ public class SecurityContextTests extends ESTestCase {
         assertNotNull(originalContext);
         originalContext.restore();
         assertEquals(original, securityContext.getAuthentication());
+    }
+
+    public void testExecuteAfterRewritingAuthenticationShouldPreserveTransientHeaders() throws IOException {
+        RealmRef authBy = new RealmRef("ldap", "foo", "node1");
+        final Authentication original = AuthenticationTestHelper.builder().user(new User("test")).realmRef(authBy).build();
+        original.writeToContext(threadContext);
+
+        final String tokenKey = "_custom_token_key";
+        final AuthenticationToken tokenValue = Mockito.mock(AuthenticationToken.class);
+        threadContext.putTransient(tokenKey, tokenValue);
+
+        final String anotherTokenKey = "_another_token";
+        final AuthenticationToken anotherTokenValue = Mockito.mock(AuthenticationToken.class);
+        threadContext.putTransient(anotherTokenKey, anotherTokenValue);
+
+        // Non-AuthenticationToken transient should NOT be preserved across the rewrite
+        final String plainKey = "_plain_transient";
+        final String plainValue = randomAlphaOfLengthBetween(5, 10);
+        threadContext.putTransient(plainKey, plainValue);
+
+        final TransportVersion targetVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            assertThat(securityContext.getAuthentication().getEffectiveSubject().getTransportVersion(), equalTo(targetVersion));
+            // AuthenticationToken transients should be preserved
+            assertThat(threadContext.getTransient(tokenKey), equalTo(tokenValue));
+            assertThat(threadContext.getTransient(anotherTokenKey), equalTo(anotherTokenValue));
+            // Non-AuthenticationToken transients should NOT be preserved
+            assertThat(threadContext.getTransient(plainKey), nullValue());
+        }, targetVersion);
+
+        // After execution, all original transients should be restored
+        assertThat(threadContext.getTransient(tokenKey), equalTo(tokenValue));
+        assertThat(threadContext.getTransient(anotherTokenKey), equalTo(anotherTokenValue));
+        assertThat(threadContext.getTransient(plainKey), equalTo(plainValue));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {

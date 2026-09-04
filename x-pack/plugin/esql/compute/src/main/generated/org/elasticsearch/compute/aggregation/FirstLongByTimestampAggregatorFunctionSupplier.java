@@ -31,13 +31,13 @@ public final class FirstLongByTimestampAggregatorFunctionSupplier implements Agg
   @Override
   public FirstLongByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstLongByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstLongByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstLongByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstLongByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstLongByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

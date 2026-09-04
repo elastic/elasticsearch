@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.ProjectSecrets;
-import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
@@ -33,6 +32,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -71,9 +72,8 @@ public class S3ClientsManagerTests extends ESTestCase {
     private S3Service s3Service;
     private S3ClientsManager s3ClientsManager;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClientsManager() throws Exception {
         s3SecretsIdGenerators = ConcurrentCollections.newConcurrentMap();
         clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
 
@@ -111,9 +111,8 @@ public class S3ClientsManagerTests extends ESTestCase {
         s3Service.start();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanup() throws Exception {
         s3Service.close();
         clusterService.close();
         threadPool.close();
@@ -144,7 +143,7 @@ public class S3ClientsManagerTests extends ESTestCase {
             ClusterState.builder(clusterService.state())
                 .putProjectMetadata(
                     ProjectMetadata.builder(projectId)
-                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(new SecureClusterStateSettings(mockSecureSettings)))
+                        .putCustom(ProjectSecrets.TYPE, new ProjectSecrets(mockSecureSettings.toSecureClusterStateSettings()))
                 )
                 .build()
         );
@@ -419,7 +418,7 @@ public class S3ClientsManagerTests extends ESTestCase {
                 randomByteArrayOfLength(between(8, 20))
             );
         }
-        final var secureClusterStateSettings = new SecureClusterStateSettings(mockSecureSettings);
+        final var secureClusterStateSettings = mockSecureSettings.toSecureClusterStateSettings();
 
         synchronized (this) {
             final ClusterState initialState = clusterService.state();

@@ -49,6 +49,43 @@
   - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
   - is_true: indices.$backing_index.lifecycle.rollover
 
+---
+"Explain includes frozen transition state":
+  - requires:
+      reason: "Frozen after added"
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{name}/_lifecycle
+          capabilities: [ "dlm.frozen_after" ]
+  - do:
+      allowed_warnings:
+        - "index template [template-with-lifecycle-frozen] has index patterns [managed-data-stream-frozen] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle-frozen] will take precedence during new index creation"
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
+      indices.put_index_template:
+        name: template-with-lifecycle-frozen
+        body:
+          index_patterns: [ managed-data-stream-frozen ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "30d"
+              frozen_after: "10d"
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: managed-data-stream-frozen
+  - is_true: acknowledged
 
+  - do:
+      indices.get_data_stream:
+        name: "managed-data-stream-frozen"
+  - set:
+      data_streams.0.indices.0.index_name: backing_index_frozen
 
-
+  - do:
+      indices.explain_data_lifecycle:
+        index: $backing_index_frozen
+  - match: { indices.$backing_index_frozen.managed_by_lifecycle: true }
+  - match: { indices.$backing_index_frozen.frozen_transition_status: 'waiting' }

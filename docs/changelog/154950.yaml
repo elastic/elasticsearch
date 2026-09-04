@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154079
+pr: 154950
+summary: Fix logical operator folding on MV constants
+type: bug

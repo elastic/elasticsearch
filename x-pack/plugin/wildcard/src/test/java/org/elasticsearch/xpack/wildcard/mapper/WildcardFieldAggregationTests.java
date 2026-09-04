@@ -13,6 +13,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -57,6 +58,13 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         IndexableField field = parseDoc.getByKey(wildcardFieldMapper.fullPath());
         if (field != null) {
             doc.add(field);
+        }
+        // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
+        // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+        String countsKey = wildcardFieldMapper.fullPath() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        IndexableField countsField = parseDoc.getByKey(countsKey);
+        if (countsField != null) {
+            doc.add(countsField);
         }
         iw.addDocument(doc);
     }

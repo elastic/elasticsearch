@@ -38,11 +38,11 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+        try (var mockLog = MockLog.capture(SnapshotsService.class, SnapshotDeletionStartBatcher.class)) {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
-                    SnapshotsService.class.getName(),
+                    SnapshotDeletionStartBatcher.class.getName(),
                     Level.INFO,
                     "deleting snapshots [does-not-exist] from repository [default/test-repo]"
                 )
@@ -51,7 +51,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
-                    SnapshotsService.class.getName(),
+                    SnapshotDeletionStartBatcher.class.getName(),
                     Level.INFO,
                     "deleting snapshots [test-snapshot] from repository [default/test-repo]"
                 )

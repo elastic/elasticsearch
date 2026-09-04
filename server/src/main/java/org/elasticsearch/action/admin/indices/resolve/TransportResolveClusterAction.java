@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -387,7 +388,8 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
             indexNameExpressionResolver,
             indices,
             aliases,
-            dataStreams
+            dataStreams,
+            Set.of()
         );
 
         /*

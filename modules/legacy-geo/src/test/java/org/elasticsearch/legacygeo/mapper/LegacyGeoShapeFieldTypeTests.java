@@ -37,7 +37,7 @@ public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MappedFieldType mapper = new LegacyGeoShapeFieldMapper.Builder("field", version, false, true).build(
             MapperBuilderContext.root(false, false)
         ).fieldType();

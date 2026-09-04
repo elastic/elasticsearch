@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -31,7 +30,6 @@ import static org.hamcrest.Matchers.is;
 public class SetParserTests extends AbstractStatementParserTests {
 
     public void testSet() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = \"bar\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -51,7 +49,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithTripleQuotes() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(1));
@@ -69,7 +66,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleSet() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
@@ -86,7 +82,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetArrays() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
         assertThat(query.plan(), is(instanceOf(Row.class)));
         assertThat(query.settings().size(), is(2));
@@ -96,7 +91,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithNamedParams() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = ?a; SET foo = \"baz\"; SET x = ?x; row a = 1",
             new QueryParams(
@@ -116,7 +110,6 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetWithPositionalParams() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = unvalidatedStatement(
             "SET foo = \"bar\"; SET bar = ?; SET foo = \"baz\"; SET x = ?; row a = ?",
             new QueryParams(
@@ -139,8 +132,6 @@ public class SetParserTests extends AbstractStatementParserTests {
 
     @SuppressWarnings("unchecked")
     public void testSetWithMap() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-
         // non-constant map
         try {
             unvalidatedStatement("""
@@ -206,10 +197,10 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
-        var modes = List.of("FAIL", "NULLIFY", "LOAD");
-        assertThat(modes.size(), is(UnmappedResolution.values().length));
+        verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY", "LOAD"));
+    }
+
+    private void verifySetUnmappedFields(List<String> modes) {
         for (var mode : modes) {
             EsqlStatement statement = statement("SET unmapped_fields=\"" + randomizeCase(mode) + "\"; row a = 1");
             assertThat(statement.setting(UNMAPPED_FIELDS), is(UnmappedResolution.valueOf(mode)));
@@ -218,16 +209,14 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFieldsWrongValue() {
-        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         var mode = randomValueOtherThanMany(
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
+        // The values the message goes on to list depend on the build, so QuerySettingsTests pins them for both snapshot and release.
         expectValidationError(
             "SET unmapped_fields=\"" + mode + "\"; row a = 1",
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
-                + mode
-                + "], must be one of [FAIL, NULLIFY, LOAD]"
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [" + mode + "], must be one of "
         );
     }
 }

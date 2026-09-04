@@ -14,12 +14,18 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.ResettableValue;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -88,6 +94,34 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             if (componentTemplate.modifiedDateMillis().isPresent()) {
                 validationException = addValidationError(
                     "Provided a template property which is managed by the system: modified_date_millis",
+                    validationException
+                );
+            }
+            List<DataStreamLifecycle.DownsamplingRound> rounds = Optional.ofNullable(componentTemplate.template())
+                .map(Template::lifecycle)
+                .map(DataStreamLifecycle.Template::downsamplingRounds)
+                .map(ResettableValue::get)
+                .orElse(null);
+            if (rounds != null) {
+                try {
+                    DataStreamLifecycle.DownsamplingRound.validateRounds(rounds);
+                } catch (Exception e) {
+                    validationException = addValidationError(
+                        "template downsampling rounds are not valid: " + e.getMessage(),
+                        validationException
+                    );
+                }
+            }
+            TimeValue failureStoreFrozenAfter = Optional.ofNullable(componentTemplate.template())
+                .map(Template::dataStreamOptions)
+                .map(dataStreamOptions -> dataStreamOptions.failureStore().get())
+                .map(failureStore -> failureStore.lifecycle().get())
+                .map(DataStreamLifecycle.Template::frozenAfter)
+                .map(ResettableValue::get)
+                .orElse(null);
+            if (failureStoreFrozenAfter != null) {
+                validationException = addValidationError(
+                    DataStreamLifecycle.FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE,
                     validationException
                 );
             }

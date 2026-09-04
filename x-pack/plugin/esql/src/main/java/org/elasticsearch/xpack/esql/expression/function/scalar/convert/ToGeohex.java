@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class ToGeohex extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGeohex", ToGeohex::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohex.class).unary(ToGeohex::new).name("to_geohex");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOHEX, (source, fieldEval) -> fieldEval),
@@ -45,6 +47,7 @@ public class ToGeohex extends AbstractConvertFunction {
         returnType = "geohex",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        briefSummary = "Converts a value to a geohex.",
         description = """
             Converts an input value to a `geohex` value.
             A string will only be successfully converted if it respects the

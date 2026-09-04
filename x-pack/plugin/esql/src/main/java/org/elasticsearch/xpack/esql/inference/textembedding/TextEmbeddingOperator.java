@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
 
 /**
  * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
@@ -27,22 +24,24 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
-    private final ExpressionEvaluator textEvaluator;
-
-    public TextEmbeddingOperator(
+    TextEmbeddingOperator(
         DriverContext driverContext,
-        BulkInferenceRunner bulkInferenceRunner,
+        InferenceService inferenceService,
         String inferenceId,
-        ExpressionEvaluator textEvaluator,
-        int maxOutstandingPages
+        ExpressionEvaluator inputEvaluator,
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
     ) {
-        super(driverContext, bulkInferenceRunner, inferenceId, maxOutstandingPages);
-        this.textEvaluator = textEvaluator;
-    }
-
-    @Override
-    protected void doClose() {
-        Releasables.close(textEvaluator);
+        super(
+            driverContext,
+            inferenceService,
+            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, batchSize, timeout),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
+            source,
+            tolerateFailures
+        );
     }
 
     @Override
@@ -51,32 +50,23 @@ public class TextEmbeddingOperator extends InferenceOperator {
     }
 
     /**
-     * Constructs the text embedding inference requests iterator for the given input page by evaluating the text expression.
-     *
-     * @param inputPage The input data page.
-     */
-    @Override
-    protected BulkInferenceRequestIterator requests(Page inputPage) {
-        return new TextEmbeddingOperatorRequestIterator((BytesRefBlock) textEvaluator.eval(inputPage), inferenceId());
-    }
-
-    /**
-     * Creates a new {@link TextEmbeddingOperatorOutputBuilder} to collect and emit the text embedding results.
-     *
-     * @param input The input page for which results will be constructed.
-     */
-    @Override
-    protected TextEmbeddingOperatorOutputBuilder outputBuilder(Page input) {
-        FloatBlock.Builder outputBlockBuilder = blockFactory().newFloatBlockBuilder(input.getPositionCount());
-        return new TextEmbeddingOperatorOutputBuilder(outputBlockBuilder, input);
-    }
-
-    /**
      * Factory for creating {@link TextEmbeddingOperator} instances.
+     *
+     * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
+     * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
+     * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
+     *                         Set by the DENSE_VECTOR command; the fold-based TEXT_EMBEDDING function leaves it false (fail-fast).
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory textEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory textEvaluatorFactory,
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
+    ) implements OperatorFactory {
+
         @Override
         public String describe() {
             return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
@@ -86,10 +76,13 @@ public class TextEmbeddingOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new TextEmbeddingOperator(
                 driverContext,
-                inferenceService.bulkInferenceRunner(),
+                inferenceService,
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
-                BulkInferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
+                batchSize,
+                timeout,
+                source,
+                tolerateFailures
             );
         }
     }

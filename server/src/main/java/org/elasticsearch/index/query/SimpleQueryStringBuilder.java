@@ -69,7 +69,7 @@ import java.util.Objects;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQueryStringBuilder> {
 
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
@@ -395,7 +395,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    public Query doToQuery(SearchExecutionContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
         boolean isAllField;
@@ -427,7 +427,18 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         }
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
         sqp.setType(type);
-        Query query = sqp.parse(queryText);
+        Query query;
+        try {
+            query = sqp.parse(queryText);
+        } catch (StackOverflowError e) {
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(queryText, 1024)
+            );
+        }
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 

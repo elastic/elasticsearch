@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [ capabilities, allowed_warnings_regex, contains, warnings_regex ]
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains, warnings_regex, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
@@ -154,6 +154,8 @@ setup:
 
   # Aggregate data types ─ https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/field-data-types#aggregated-data-types
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: aggregate_family
         body:
@@ -190,7 +192,7 @@ no index, to_long with 3 args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 3" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_integer with 3 args:
@@ -202,7 +204,7 @@ no index, to_integer with 3 args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 3" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_long with no args:
@@ -214,7 +216,7 @@ no index, to_long with no args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 0" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_integer with no args:
@@ -226,7 +228,7 @@ no index, to_integer with no args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 0" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_long literal second argument is not an integer:

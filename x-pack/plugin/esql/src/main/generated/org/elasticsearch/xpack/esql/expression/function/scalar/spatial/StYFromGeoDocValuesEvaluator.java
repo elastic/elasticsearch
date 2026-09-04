@@ -13,29 +13,29 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StY}.
+ * {@link ExpressionEvaluator} implementation for {@link StY}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StYFromGeoDocValuesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYFromGeoDocValuesEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator encoded;
+  private final ExpressionEvaluator encoded;
 
-  public StYFromGeoDocValuesEvaluator(Source source, EvalOperator.ExpressionEvaluator encoded,
+  public StYFromGeoDocValuesEvaluator(Source source, ExpressionEvaluator encoded,
       DriverContext driverContext) {
     super(driverContext, source);
     this.encoded = encoded;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return encoded;
   }
 
@@ -125,12 +125,12 @@ public final class StYFromGeoDocValuesEvaluator extends AbstractConvertFunction.
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encoded;
+    private final ExpressionEvaluator.Factory encoded;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded) {
+    public Factory(Source source, ExpressionEvaluator.Factory encoded) {
       this.source = source;
       this.encoded = encoded;
     }

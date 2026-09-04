@@ -21,8 +21,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLDataException;
 import java.sql.SQLException;
@@ -120,22 +118,23 @@ public class JreHttpUrlConnection implements Closeable {
         // con.setRequestProperty("Accept-Encoding", GZIP);
 
         setupSSL(cfg);
-        setupBasicAuth(cfg);
+        setupAuth(cfg);
     }
 
     private void setupSSL(ConnectionConfiguration cfg) {
         if (cfg.sslConfig().isEnabled()) {
             HttpsURLConnection https = (HttpsURLConnection) con;
             SSLSocketFactory factory = cfg.sslConfig().sslSocketFactory();
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                https.setSSLSocketFactory(factory);
-                return null;
-            });
+            https.setSSLSocketFactory(factory);
         }
     }
 
-    private void setupBasicAuth(ConnectionConfiguration cfg) {
-        if (StringUtils.hasText(cfg.authUser())) {
+    private void setupAuth(ConnectionConfiguration cfg) {
+        if (StringUtils.hasText(cfg.apiKey())) {
+            // API key authentication: Authorization: ApiKey <encoded_api_key>
+            con.setRequestProperty("Authorization", "ApiKey " + cfg.apiKey());
+        } else if (StringUtils.hasText(cfg.authUser())) {
+            // Basic authentication: Authorization: Basic <base64(user:pass)>
             String basicValue = cfg.authUser() + ":" + cfg.authPass();
             String encoded = StringUtils.asUTFString(Base64.getEncoder().encode(StringUtils.toUTF(basicValue)));
             con.setRequestProperty("Authorization", "Basic " + encoded);

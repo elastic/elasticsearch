@@ -176,7 +176,7 @@ public class Phase implements ToXContentObject, Writeable {
         return Strings.toString(this, true, true);
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
         if (getActions().containsKey(FreezeAction.NAME)) {
             deprecationLogger.warn(

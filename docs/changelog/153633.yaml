@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 148338
+pr: 153633
+summary: Fix NPE in PROMQL parsing when index-pattern is used for non-index params
+type: bug

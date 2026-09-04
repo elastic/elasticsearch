@@ -12,19 +12,17 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
-
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * DoubleUpDownCounterAdapter wraps an otel DoubleUpDownCounter
  */
-public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownCounter>
+class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownCounter>
     implements
         org.elasticsearch.telemetry.metric.DoubleUpDownCounter {
 
-    public DoubleUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
+    DoubleUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit));
     }
 
@@ -35,7 +33,7 @@ public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownC
 
     @Override
     public void add(double inc, Map<String, Object> attributes) {
-        getInstrument().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<DoubleUpDownCounter> {

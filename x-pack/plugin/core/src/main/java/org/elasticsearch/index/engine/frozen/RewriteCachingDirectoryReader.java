@@ -36,6 +36,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  * This special DirectoryReader is used to handle can_match requests against frozen indices.
@@ -66,12 +67,27 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
         throw new UnsupportedOperationException();
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
         throw new UnsupportedOperationException();
     }
 

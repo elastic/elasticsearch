@@ -7,28 +7,37 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
+import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
@@ -120,6 +129,57 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
+     * Tests that {@link Operator#canProduceMoreDataWithoutExtraInput()} returns false before the operator has started
+     * (for non-source operators, before any input is added; for source operators, before any output is produced)
+     * and after it is finished.
+     */
+    public void testCanProduceMoreDataWithoutExtraInput() {
+        DriverContext driverContext = driverContext();
+        try (var operator = simple().get(driverContext)) {
+            // Before operator has started
+            // For non-source operators: no input added yet - should return false
+            // For source operators: they can produce data without input, so this may return true
+            // We just verify the method doesn't throw
+            boolean initialValue = operator.canProduceMoreDataWithoutExtraInput();
+            if (operator instanceof SourceOperator == false) {
+                assertFalse(
+                    "canProduceMoreDataWithoutExtraInput should return false before operator has started (no input added)",
+                    initialValue
+                );
+            }
+
+            // After operator is finished - should return false for all operators
+            operator.finish();
+            // For async operators, wait for async actions to complete
+            if (operator instanceof AsyncOperator<?>) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                try {
+                    waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+                } catch (Exception e) {
+                    // Ignore exceptions - we just want to ensure async actions complete
+                }
+            }
+            // Ensure operator is finished by draining any remaining output
+            while (operator.isFinished() == false) {
+                // Some operators need getOutput() to be called to finish
+                Page output = operator.getOutput();
+                if (output != null) {
+                    output.releaseBlocks();
+                } else {
+                    break;
+                }
+            }
+            assertTrue("Operator should be finished", operator.isFinished());
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                operator.canProduceMoreDataWithoutExtraInput()
+            );
+        }
+    }
+
+    /**
      * Extracts and asserts the operator status.
      */
     protected final void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
@@ -166,15 +226,73 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
+     * Every {@link DriverContext} this harness vends, tracked so {@link #ensureNoUnassertedWarnings()} can prove
+     * that no test silently drops warnings accumulated into a context's per-driver sink.
+     */
+    private final List<DriverContext> driverContexts = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Contexts whose per-driver warnings were explicitly asserted via {@link #collectWarnings(DriverContext)} and
+     * are therefore exempt from the empty-sink leak-check.
+     */
+    private final Set<DriverContext> assertedWarnings = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
     }
 
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return registerDriverContext(new DriverContext(blockFactory.bigArrays(), blockFactory, null));
+    }
+
+    private DriverContext registerDriverContext(DriverContext driverContext) {
+        driverContexts.add(driverContext);
+        return driverContext;
+    }
+
+    /**
+     * Finishes {@code driverContext} if needed, marks it consumed so {@link #ensureNoUnassertedWarnings()} exempts
+     * it, and returns its snapshotted per-driver warnings sink.
+     */
+    protected final List<String> collectWarnings(DriverContext driverContext) {
+        if (driverContext.isFinished() == false) {
+            driverContext.finish();
+        }
+        assertedWarnings.add(driverContext);
+        return driverContext.warnings();
+    }
+
+    /**
+     * Whether {@link #ensureNoUnassertedWarnings()} runs. Override to {@code false} for the rare test whose shared
+     * harness feeds randomized data that legitimately produces warnings not worth asserting one-by-one (e.g. an
+     * aggregator that warns on invalid inputs generated by the generic grouping-aggregator harness).
+     */
+    protected boolean assertNoLeakedWarnings() {
+        return true;
+    }
+
+    /**
+     * Automatically asserts that all {@link DriverContext}s that have not had
+     * their warnings {@link #collectWarnings collected} are empty.
+     */
+    @After
+    public final void ensureNoUnassertedWarnings() {
+        if (assertNoLeakedWarnings() == false) {
+            return;
+        }
+        for (DriverContext driverContext : driverContexts) {
+            if (assertedWarnings.contains(driverContext)) {
+                continue;
+            }
+            if (driverContext.isFinished() == false) {
+                driverContext.finish();
+            }
+            assertThat("un-asserted per-driver warnings", driverContext.warnings(), empty());
+        }
     }
 }

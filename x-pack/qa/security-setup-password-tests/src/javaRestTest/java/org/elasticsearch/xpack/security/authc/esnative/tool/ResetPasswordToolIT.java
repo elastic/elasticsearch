@@ -49,6 +49,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
+        logger.info("CLI TOOL ERROR OUTPUT:\n{}", mockTerminal.getErrorOutput());
         assertEquals(0, status);
         final String basicHeader = "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes(StandardCharsets.UTF_8));
         try {
@@ -119,6 +120,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
+        logger.info("CLI TOOL ERROR OUTPUT:\n{}", mockTerminal.getErrorOutput());
         assertEquals(0, status);
 
         // and authenticate with the new password

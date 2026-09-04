@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -271,7 +272,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     private static ReaderContext createReaderContext(IndexShard indexShard) {
-        return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+        return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false, 0L);
     }
 
     private static SearchContext createSearchContext(boolean suggested) {
@@ -306,7 +307,8 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         return new TestSearchContext(searchExecutionContext) {
             private final SearchRequest searchquest = new SearchRequest().allowPartialSearchResults(true);

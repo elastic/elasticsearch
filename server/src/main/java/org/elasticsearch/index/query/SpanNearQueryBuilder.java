@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -36,7 +37,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
-public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
+public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
@@ -337,6 +338,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public Query toQuery(SearchExecutionContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
             throw new UnsupportedOperationException();
         }
 

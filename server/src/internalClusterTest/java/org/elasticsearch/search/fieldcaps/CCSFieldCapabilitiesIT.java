@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -342,19 +343,7 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
         Map<String, ResolvedIndexExpressions> remote = response.getResolvedRemotely();
         assertThat(remote, notNullValue());
-        assertThat(remote, aMapWithSize(1));
-        assertThat(remote.keySet(), contains(remoteClusterAlias));
-
-        ResolvedIndexExpressions remoteResponse = remote.get(remoteClusterAlias);
-        List<String> remoteIndicesList = remoteResponse.getLocalIndicesList();
-        assertThat(remoteIndicesList, hasSize(0));
-        List<ResolvedIndexExpression> remoteResolvedExpressions = remoteResponse.expressions();
-        assertEquals(1, remoteResolvedExpressions.size());
-        assertEquals(
-            remoteResolvedExpressions.get(0).localExpressions().localIndexResolutionResult(),
-            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
-        );
-        assertEquals(0, remoteIndicesList.size());
+        assertThat(remote, anEmptyMap());
     }
 
     public void testResolvedToMatchingRemotelyOnly() {

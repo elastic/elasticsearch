@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import static org.apache.lucene.util.BitUtil.VH_LE_LONG;
+import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
 
 /** Byte array utilities. */
 final class ByteArrayUtils {
@@ -47,6 +48,60 @@ final class ByteArrayUtils {
             i += Long.BYTES;
         }
         return -1;
+    }
+
+    static int codePointCount(byte[] bytes, int offset, int length) {
+        int pos = offset;
+        int limit = offset + length;
+        int continuations = 0;
+
+        for (; pos <= limit - 8; pos += 8) {
+            long data = readLongNative(bytes, pos);
+            long high = data & 0x8080808080808080L;
+            // If all bytes start with 0, they are all ascii, so the block can be skipped.
+            if (high != 0) {
+                // Set the high bit in `mask` if the high bit in data is set and the second bit is not set
+                long mask = high & (~data << 1);
+                continuations += Long.bitCount(mask);
+            }
+        }
+
+        // Last 7 or fewer bytes
+        while (pos < limit) {
+            continuations += (bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
+            pos++;
+        }
+
+        return length - continuations;
+    }
+
+    /**
+     * Checks whether {@code term} appears as a contiguous subsequence within {@code value}.
+     * Adapted from {@code StringUTF16.indexOfLatin1Unsafe}.
+     */
+    static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        byte first = term[termOffset];
+        int max = valueOffset + valueLength - termLength;
+        for (int i = valueOffset; i <= max; i++) {
+            if (value[i] != first) {
+                while (++i <= max && value[i] != first)
+                    ;
+            }
+            if (i <= max) {
+                int j = i + 1;
+                int end = j + termLength - 1;
+                for (int k = termOffset + 1; j < end && value[j] == term[k]; j++, k++)
+                    ;
+                if (j == end) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static long readLongNative(byte[] arr, int offset) {
+        return (long) VH_NATIVE_LONG.get(arr, offset);
     }
 
     private static long readLongLE(byte[] arr, int offset) {

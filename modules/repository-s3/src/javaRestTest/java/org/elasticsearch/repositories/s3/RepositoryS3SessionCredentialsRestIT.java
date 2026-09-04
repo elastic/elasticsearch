@@ -13,7 +13,6 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -25,7 +24,6 @@ import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKeyAndToken;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3SessionCredentialsRestIT");
@@ -38,6 +36,7 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,

@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM sample_data, no_mapping_sample_data
+| EVAL event_duration = event_duration::long
+| KEEP event_duration

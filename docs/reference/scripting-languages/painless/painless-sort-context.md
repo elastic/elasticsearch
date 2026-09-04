@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-sort-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -9,7 +12,7 @@ products:
 
 Use a Painless script to [sort](/reference/elasticsearch/rest-apis/sort-search-results.md) the documents in a query.
 
-**Variables**
+## Variables
 
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
@@ -20,42 +23,37 @@ Use a Painless script to [sort](/reference/elasticsearch/rest-apis/sort-search-r
 `_score` (`double` read-only)
 :   The similarity score of the current document.
 
-**Return**
+## Return
 
 `double` or `String`
 :   The sort key. The return type depends on the value of the `type` parameter in the script sort config (`"number"` or `"string"`).
 
-**API**
+## API
 
 The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared.html) is available.
 
-**Example**
+## Example
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-To sort results by the length of the `theatre` field, submit the following query:
+The following request sorts documents by the average price per item, calculated by dividing the `taxful_total_price` by the `total_quantity`.
 
-```console
-GET /_search
+Documents with a higher average item price appear at the top of the results.
+
+```json
+GET /kibana_sample_data_ecommerce/_search
 {
-  "query": {
-    "term": {
-      "sold": "true"
-    }
-  },
   "sort": {
     "_script": {
       "type": "number",
       "script": {
         "lang": "painless",
-        "source": "doc['theatre'].value.length() * params.factor",
-        "params": {
-          "factor": 1.1
-        }
+        "source": """
+            doc['taxful_total_price'].value / doc['total_quantity'].value
+        """
       },
-      "order": "asc"
+      "order": "desc"
     }
   }
 }
 ```
-

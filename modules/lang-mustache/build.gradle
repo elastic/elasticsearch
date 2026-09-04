@@ -27,3 +27,7 @@ restResources {
   }
 }
 
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.replaceValueInLength("profile", 2, "Test that parameters can be used")
+}
+

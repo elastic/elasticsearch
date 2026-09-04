@@ -12,10 +12,20 @@ package org.elasticsearch.gradle.internal.precommit;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import org.gradle.api.problems.Problems;
+
+import javax.inject.Inject;
+
 /**
  * Incremental task to validate a set of YAML files against a schema.
  */
 public class ValidateYamlAgainstSchemaTask extends ValidateJsonAgainstSchemaTask {
+
+    @Inject
+    public ValidateYamlAgainstSchemaTask(Problems problems) {
+        super(problems);
+    }
+
     @Override
     protected String getFileType() {
         return "YAML";

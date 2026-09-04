@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -73,6 +74,7 @@ public final class SearchResponseMerger implements Releasable {
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
+    private final SearchCoordinatorContext searchCoordinatorContext;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     private final Releasable releasable = LeakTracker.wrap(() -> {
@@ -86,13 +88,15 @@ public final class SearchResponseMerger implements Releasable {
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
+        this.searchCoordinatorContext = searchCoordinatorContext;
     }
 
     /**
@@ -121,7 +125,7 @@ public final class SearchResponseMerger implements Releasable {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
-            return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
+            return SearchResponse.emptyResponseBuilder().tookInMillis(searchTimeProvider.buildTookInMillis()).clusters(clusters).build();
         }
         int totalShards = 0;
         int skippedShards = 0;
@@ -129,12 +133,13 @@ public final class SearchResponseMerger implements Releasable {
         // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
+        Map<String, SearchProfileShardResult> shardProfileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
+        DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
         TopDocsStats topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
 
@@ -143,10 +148,11 @@ public final class SearchResponseMerger implements Releasable {
             skippedShards += searchResponse.getSkippedShards();
             successfulShards += searchResponse.getSuccessfulShards();
             numReducePhases += searchResponse.getNumReducePhases();
+            mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
             Collections.addAll(failures, searchResponse.getShardFailures());
 
-            profileResults.putAll(searchResponse.getProfileResults());
+            shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());
 
             if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = searchResponse.getAggregations();
@@ -209,21 +215,29 @@ public final class SearchResponseMerger implements Releasable {
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
+            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
-                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-            SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+            SearchProfileResults searchProfileResults = shardProfileResults.isEmpty()
+                ? null
+                : new SearchProfileResults(shardProfileResults);
+            if (searchProfileResults != null) {
+                searchProfileResults.setOriginalSource(searchCoordinatorContext.originalSource());
+                searchProfileResults.setRequestIndices(searchCoordinatorContext.requestIndices());
+            }
+
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
-            return new SearchResponse(
+            SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
                 reducedAggs,
                 suggest,
                 topDocsStats.timedOut,
                 topDocsStats.terminatedEarly,
-                profileShardResults,
+                searchProfileResults,
                 numReducePhases,
                 null,
                 totalShards,
@@ -232,8 +246,12 @@ public final class SearchResponseMerger implements Releasable {
                 tookInMillis,
                 shardFailures,
                 clusters,
+                null,
+                topHitsToRelease,
                 null
             );
+            mergedResponse.setDirectoryMetrics(mergedDirectoryMetrics);
+            return mergedResponse;
         } finally {
             mergedSearchHits.decRef();
         }

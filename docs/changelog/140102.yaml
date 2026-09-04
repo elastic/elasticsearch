@@ -1,7 +1,0 @@
-pr: 140102
-summary: Add block loader for the `_id` field of time-series indices
-area: ES|QL
-type: bug
-issues:
- - 140033
- - 135689

@@ -21,7 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -38,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.Supplier;
 
@@ -49,7 +51,7 @@ public final class OutboundHandler {
 
     private final String nodeName;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // only used in assertions, can be dropped in future
     private final TransportVersion version;
 
     private final StatsTracker statsTracker;
@@ -242,7 +244,8 @@ public final class OutboundHandler {
                 compressionScheme,
                 writeable,
                 threadPool.getThreadContext(),
-                byteStreamOutput
+                byteStreamOutput,
+                recycler
             );
             serializeSuccess = true;
         } catch (Exception e) {
@@ -289,7 +292,8 @@ public final class OutboundHandler {
         Compression.Scheme compressionScheme,
         Writeable writeable,
         ThreadContext threadContext,
-        RecyclerBytesStreamOutput byteStreamOutput
+        RecyclerBytesStreamOutput byteStreamOutput,
+        Recycler<BytesRef> recycler
     ) throws IOException {
         assert action != null;
         assert byteStreamOutput.position() == 0;
@@ -306,7 +310,7 @@ public final class OutboundHandler {
         }
 
         final int variableHeaderLength = Math.toIntExact(byteStreamOutput.position() - TcpHeader.HEADER_SIZE);
-        BytesReference message = serializeMessageBody(writeable, compressionScheme, version, byteStreamOutput);
+        BytesReference message = serializeMessageBody(writeable, compressionScheme, version, byteStreamOutput, recycler);
         byte status = 0;
         if (messageDirection != MessageDirection.REQUEST) {
             status = TransportStatus.setResponse(status);
@@ -329,10 +333,30 @@ public final class OutboundHandler {
         Writeable writeable,
         Compression.Scheme compressionScheme,
         TransportVersion version,
-        RecyclerBytesStreamOutput byteStreamOutput
+        RecyclerBytesStreamOutput byteStreamOutput,
+        Recycler<BytesRef> recycler
     ) throws IOException {
-        // The compressible bytes stream will not close the underlying bytes stream
-        final StreamOutput stream = compressionScheme != null ? wrapCompressed(compressionScheme, byteStreamOutput) : byteStreamOutput;
+        final StreamOutput stream;
+        final Closeable toClose1;
+        final Closeable toClose2;
+
+        if (compressionScheme == null) {
+            stream = byteStreamOutput;
+            toClose1 = toClose2 = null;
+        } else if (compressionScheme == Compression.Scheme.DEFLATE) {
+            stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.noCloseStream(byteStreamOutput));
+            toClose1 = stream;
+            toClose2 = null;
+        } else if (compressionScheme == Compression.Scheme.LZ4) {
+            final var buffer = recycler.obtain();
+            stream = new BufferedStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(byteStreamOutput)), buffer.v());
+            toClose1 = stream;
+            toClose2 = buffer;
+        } else {
+            assert false : compressionScheme;
+            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
+        }
+
         final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
@@ -350,9 +374,13 @@ public final class OutboundHandler {
             }
         } finally {
             // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
-            // are written.
-            if (compressionScheme != null) {
-                stream.close();
+            // are written. But note that the inner stream is wrapped in a noCloseStream() so it remains open.
+            if (toClose1 != null) {
+                if (toClose2 == null) {
+                    IOUtils.close(toClose1);
+                } else {
+                    IOUtils.close(toClose1, toClose2);
+                }
             }
         }
         final BytesReference msg = byteStreamOutput.bytes();
@@ -361,19 +389,6 @@ public final class OutboundHandler {
         }
         zeroCopyBuffer.mustIncRef();
         return new ReleasableBytesReference(CompositeBytesReference.of(msg, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
-    }
-
-    // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
-    // resources and write EOS marker bytes but must not yet release the bytes themselves
-    private static StreamOutput wrapCompressed(Compression.Scheme compressionScheme, RecyclerBytesStreamOutput bytesStream)
-        throws IOException {
-        if (compressionScheme == Compression.Scheme.DEFLATE) {
-            return CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.noCloseStream(bytesStream));
-        } else if (compressionScheme == Compression.Scheme.LZ4) {
-            return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
-        } else {
-            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
-        }
     }
 
     private void internalSend(

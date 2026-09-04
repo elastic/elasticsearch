@@ -143,6 +143,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         long[] ords;
 
         FakeSortedBinaryDocValues(BytesRef[] terms) {
+            super(null);
             this.terms = terms;
         }
 

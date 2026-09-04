@@ -77,7 +77,7 @@ class SpiActions {
         new DummyImplementations.DummyLocaleServiceProvider();
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void getInheritedChannel() throws IOException {
         try (Channel channel = SelectorProvider.provider().inheritedChannel()) {}
     }

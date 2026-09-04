@@ -1,0 +1,91 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.recovery;
+
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests;
+
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
+
+public class RegisterCommitRequestSerializationTests extends AbstractWireSerializingTestCase<RegisterCommitRequest> {
+
+    @Override
+    protected Writeable.Reader<RegisterCommitRequest> instanceReader() {
+        return RegisterCommitRequest::new;
+    }
+
+    @Override
+    protected RegisterCommitRequest createTestInstance() {
+        return new RegisterCommitRequest(
+            randomPrimaryTermAndGeneration(),
+            randomPrimaryTermAndGeneration(),
+            randomShardId(),
+            randomIdentifier(),
+            randomNonNegativeLong()
+        );
+    }
+
+    @Override
+    protected RegisterCommitRequest mutateInstance(RegisterCommitRequest instance) throws IOException {
+        int i = randomIntBetween(0, 4);
+        return switch (i) {
+            case 0 -> new RegisterCommitRequest(
+                randomValueOtherThan(
+                    instance.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                    PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration
+                ),
+                instance.getCompoundCommitPrimaryTermAndGeneration(),
+                instance.getShardId(),
+                instance.getNodeId(),
+                instance.getClusterStateVersion()
+            );
+            case 1 -> new RegisterCommitRequest(
+                instance.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                randomValueOtherThan(
+                    instance.getCompoundCommitPrimaryTermAndGeneration(),
+                    PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration
+                ),
+                instance.getShardId(),
+                instance.getNodeId(),
+                instance.getClusterStateVersion()
+            );
+            case 2 -> new RegisterCommitRequest(
+                instance.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                instance.getCompoundCommitPrimaryTermAndGeneration(),
+                randomValueOtherThan(instance.getShardId(), RegisterCommitRequestSerializationTests::randomShardId),
+                instance.getNodeId(),
+                instance.getClusterStateVersion()
+            );
+            case 3 -> new RegisterCommitRequest(
+                instance.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                instance.getCompoundCommitPrimaryTermAndGeneration(),
+                instance.getShardId(),
+                randomValueOtherThan(instance.getNodeId(), ESTestCase::randomIdentifier),
+                instance.getClusterStateVersion()
+            );
+            case 4 -> new RegisterCommitRequest(
+                instance.getBatchedCompoundCommitPrimaryTermAndGeneration(),
+                instance.getCompoundCommitPrimaryTermAndGeneration(),
+                instance.getShardId(),
+                instance.getNodeId(),
+                randomValueOtherThan(instance.getClusterStateVersion(), ESTestCase::randomNonNegativeLong)
+            );
+            default -> throw new IllegalStateException("Unexpected value " + i);
+        };
+    }
+
+    public static ShardId randomShardId() {
+        return new ShardId(randomAlphaOfLength(20), UUIDs.randomBase64UUID(), randomIntBetween(0, 25));
+    }
+}

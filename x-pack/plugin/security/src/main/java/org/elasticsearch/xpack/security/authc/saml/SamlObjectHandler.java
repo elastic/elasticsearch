@@ -15,7 +15,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.Unmarshaller;
@@ -52,9 +52,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.Clock;
@@ -63,9 +60,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.Inflater;
@@ -173,41 +168,32 @@ public class SamlObjectHandler {
         }
 
         checkIdpSignature(credential -> {
-            try {
-                final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
-                final String keyAlg = credential.getPublicKey().getAlgorithm();
-                if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
-                    if (logger.isDebugEnabled()) {
-                        String keyFingerprint = "SHA265:"
-                            + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
-                        logger.debug(
-                            "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
-                            keyAlg,
-                            keyFingerprint,
-                            signatureAlg
-                        );
-                    }
-                    return false;
+            final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
+            final String keyAlg = credential.getPublicKey().getAlgorithm();
+            if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
+                if (logger.isDebugEnabled()) {
+                    String keyFingerprint = "SHA265:"
+                        + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
+                    logger.debug(
+                        "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
+                        keyAlg,
+                        keyFingerprint,
+                        signatureAlg
+                    );
                 }
-                return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
-                    try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
-                        SignatureValidator.validate(signature, credential);
-                        logger.debug(
-                            () -> format(
-                                "SAML Signature [%s] matches credentials [%s] [%s]",
-                                signatureText,
-                                credential.getEntityId(),
-                                credential.getPublicKey()
-                            )
-                        );
-                        return true;
-                    } catch (PrivilegedActionException e) {
-                        logger.warn("SecurityException while attempting to validate SAML signature." + describeIssuer(issuer), e);
-                        return false;
-                    }
-                });
-            } catch (PrivilegedActionException e) {
-                throw new SecurityException("SecurityException while attempting to validate SAML signature", e);
+                return false;
+            }
+            try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
+                SignatureValidator.validate(signature, credential);
+                logger.debug(
+                    () -> format(
+                        "SAML Signature [%s] matches credentials [%s] [%s]",
+                        signatureText,
+                        credential.getEntityId(),
+                        credential.getPublicKey()
+                    )
+                );
+                return true;
             }
         }, signatureText, issuer);
     }
@@ -398,8 +384,7 @@ public class SamlObjectHandler {
 
     protected ParsedQueryString parseQueryStringAndValidateSignature(String queryString, String samlMessageParameterName) {
         final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(queryString, 0, parameters);
+        final var parameters = RequestParams.fromQueryString(queryString);
         final String samlMessage = parameters.get(samlMessageParameterName);
         if (samlMessage == null) {
             throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);

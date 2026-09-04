@@ -103,12 +103,12 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                   "remote_indices": [
                     {
                       "names": ["cluster1_index1"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     },
                     {
                       "names": ["cluster2_index1"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster_2"]
                     }
                   ]

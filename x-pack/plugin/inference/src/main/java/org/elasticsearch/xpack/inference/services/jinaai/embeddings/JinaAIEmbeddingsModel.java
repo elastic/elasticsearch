@@ -55,15 +55,14 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             createServiceSettings(serviceSettings, taskType, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             null,
             taskType
         );
     }
 
-    // should only be used for testing
     JinaAIEmbeddingsModel(
-        String modelId,
+        String inferenceId,
         BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
@@ -72,12 +71,20 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings(),
-            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build))
         );
+    }
+
+    /**
+     * Constructor for creating {@link JinaAIEmbeddingsModel} instances
+     * from {@link ModelConfigurations} and {@link ModelSecrets}.
+     * @param config a model configurations object
+     * @param secrets a model secrets object
+     */
+    public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
+        super(config, secrets, buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build));
     }
 
     private JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsTaskSettings taskSettings) {
@@ -96,11 +103,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     @Override
     public JinaAIEmbeddingsTaskSettings getTaskSettings() {
         return (JinaAIEmbeddingsTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     @Override

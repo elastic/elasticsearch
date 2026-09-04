@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -38,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -50,16 +48,13 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
 
     private ClusterService clusterService;
     private ThreadPool threadPool;
-    private MockLicenseState licenseState;
     private SearchRequestCacheDisablingInterceptor interceptor;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool("search request interceptor tests");
-        licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         clusterService = mock(ClusterService.class);
-        interceptor = new SearchRequestCacheDisablingInterceptor(threadPool, licenseState);
+        interceptor = new SearchRequestCacheDisablingInterceptor(threadPool);
     }
 
     @After
@@ -76,7 +71,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
     }
 
     public void testRequestCacheWillBeDisabledWhenSearchRemoteIndices() {
-        configureMinMondeVersion(VersionUtils.randomVersion(random()));
+        configureMinMondeVersion(VersionUtils.randomVersion());
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         RequestInfo requestInfo = new RequestInfo(

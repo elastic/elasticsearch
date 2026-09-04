@@ -108,41 +108,31 @@ public abstract class AbstractHttpFixture extends ExternalResource {
             try {
                 Response response;
 
-                // Check if this is a request made by the AntFixture
-                final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
-                if (userAgent != null
-                    && userAgent.startsWith("Apache Ant")
-                    && "GET".equals(exchange.getRequestMethod())
-                    && "/".equals(exchange.getRequestURI().getPath())) {
-                    response = new Response(200, TEXT_PLAIN_CONTENT_TYPE, "OK".getBytes(UTF_8));
+                try {
+                    final long requestId = requests.getAndIncrement();
+                    final String method = exchange.getRequestMethod();
 
-                } else {
-                    try {
-                        final long requestId = requests.getAndIncrement();
-                        final String method = exchange.getRequestMethod();
-
-                        final Map<String, String> headers = new HashMap<>();
-                        for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
-                            headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
-                        }
-
-                        final ByteArrayOutputStream body = new ByteArrayOutputStream();
-                        try (InputStream requestBody = exchange.getRequestBody()) {
-                            final byte[] buffer = new byte[1024];
-                            int i;
-                            while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
-                                body.write(buffer, 0, i);
-                            }
-                            body.flush();
-                        }
-
-                        final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
-                        response = handle(request);
-
-                    } catch (Exception e) {
-                        final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
-                        response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
+                    final Map<String, String> headers = new HashMap<>();
+                    for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
+                        headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
                     }
+
+                    final ByteArrayOutputStream body = new ByteArrayOutputStream();
+                    try (InputStream requestBody = exchange.getRequestBody()) {
+                        final byte[] buffer = new byte[1024];
+                        int i;
+                        while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
+                            body.write(buffer, 0, i);
+                        }
+                        body.flush();
+                    }
+
+                    final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
+                    response = handle(request);
+
+                } catch (Exception e) {
+                    final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
+                    response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
                 }
 
                 if (response == null) {
@@ -172,11 +162,20 @@ public abstract class AbstractHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://127.0.0.1:" + httpServer.getAddress().getPort();
+        return "http://" + getHttpAddress();
     }
 
     public String getHostAndPort() {
-        return "127.0.0.1:" + httpServer.getAddress().getPort();
+        return getHttpAddress();
+    }
+
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        InetSocketAddress addr = httpServer.getAddress();
+        String host = addr.getAddress() instanceof Inet6Address ? "[" + addr.getHostString() + "]" : addr.getHostString();
+        return host + ":" + addr.getPort();
     }
 
     @FunctionalInterface

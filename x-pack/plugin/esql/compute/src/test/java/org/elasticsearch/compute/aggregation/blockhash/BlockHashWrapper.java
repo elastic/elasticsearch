@@ -43,8 +43,8 @@ public abstract class BlockHashWrapper extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        return blockHash.getKeys();
+    public Block[] getKeys(IntVector selected) {
+        return blockHash.getKeys(selected);
     }
 
     @Override

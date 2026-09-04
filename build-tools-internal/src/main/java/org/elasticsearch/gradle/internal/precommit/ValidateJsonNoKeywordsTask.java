@@ -14,12 +14,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.problems.Problem;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.Incremental;
@@ -29,13 +37,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
+
+import javax.inject.Inject;
 
 /**
  * Incremental task to validate that the API names in set of JSON files do not contain
@@ -46,14 +58,22 @@ import java.util.stream.StreamSupport;
  * `delete` is an operator in JavaScript, but it isn't in the keywords list for JavaScript or
  * TypeScript because it's OK to use `delete` as a method name.
  */
+@CacheableTask
 public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     private File jsonKeywords;
     private File report;
     private FileCollection inputFiles;
+    private final ProblemReporter problemReporter;
+
+    @Inject
+    public ValidateJsonNoKeywordsTask(Problems problems) {
+        this.problemReporter = problems.getReporter();
+    }
 
     @Incremental
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInputFiles() {
         return inputFiles;
     }
@@ -63,6 +83,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getJsonKeywords() {
         return jsonKeywords;
     }
@@ -84,6 +105,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     public void validate(InputChanges inputChanges) {
         final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
+        final List<Problem> problems = new ArrayList<>();
 
         getLogger().debug("Loading keywords from {}", jsonKeywords.getName());
 
@@ -120,8 +142,22 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                     for (String component : apiName.split("\\.")) {
                         if (languagesByKeyword.containsKey(component)) {
                             final Set<String> errorsForFile = errors.computeIfAbsent(file, _file -> new HashSet<>());
-                            errorsForFile.add(
-                                component + " is a reserved keyword in these languages: " + languagesByKeyword.get(component)
+                            String detail = component + " is a reserved keyword in these languages: " + languagesByKeyword.get(component);
+                            errorsForFile.add(detail);
+                            problems.add(
+                                problemReporter.create(
+                                    ProblemId.create(
+                                        "keyword-conflict",
+                                        "API name conflicts with reserved keyword",
+                                        ElasticsearchBuildProblems.JSON_VALIDATION
+                                    ),
+                                    spec -> spec.contextualLabel(
+                                        "'" + component + "' in " + file.getName() + " conflicts with reserved keywords"
+                                    )
+                                        .details(detail)
+                                        .fileLocation(file.getAbsolutePath())
+                                        .solution("Rename the API to avoid using reserved keywords")
+                                )
                             );
                         }
                     }
@@ -164,7 +200,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
             System.lineSeparator(),
             String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
         );
-        throw new GradleException(message);
+        throw problemReporter.throwing(new GradleException(message), problems);
     }
 
     /**

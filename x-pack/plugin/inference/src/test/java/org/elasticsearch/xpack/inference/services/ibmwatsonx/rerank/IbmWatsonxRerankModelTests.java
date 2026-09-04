@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -15,14 +17,39 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 
 public class IbmWatsonxRerankModelTests extends ESTestCase {
-    public static IbmWatsonxRerankModel createModel(String model, String projectId, URI uri, String apiVersion, String apiKey) {
+    public static IbmWatsonxRerankModel createModel(
+        String modelId,
+        String projectId,
+        URI uri,
+        String apiVersion,
+        String apiKey,
+        String url,
+        String authHeaderValue
+    ) {
+        return createModel(modelId, projectId, uri, apiVersion, apiKey, url, authHeaderValue, null, null, null);
+    }
+
+    public static IbmWatsonxRerankModel createModel(
+        String modelId,
+        String projectId,
+        URI uri,
+        String apiVersion,
+        String apiKey,
+        String url,
+        String authHeaderValue,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer truncateInputTokens
+    ) {
         return new IbmWatsonxRerankModel(
             "id",
             TaskType.RERANK,
             "service",
-            new IbmWatsonxRerankServiceSettings(uri, apiVersion, model, projectId, null),
-            new IbmWatsonxRerankTaskSettings(2, true, 100),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            url,
+            new IbmWatsonxRerankServiceSettings(uri, apiVersion, modelId, projectId, null),
+            new IbmWatsonxRerankTaskSettings(topN, returnDocuments, truncateInputTokens),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 }

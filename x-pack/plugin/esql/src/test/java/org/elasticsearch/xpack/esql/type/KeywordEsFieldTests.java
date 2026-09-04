@@ -13,18 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 
 import java.util.Map;
 
-public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField> {
-    static KeywordEsField randomKeywordEsField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        boolean hasDocValues = randomBoolean();
-        int precision = randomInt();
-        boolean normalized = randomBoolean();
-        boolean isAlias = randomBoolean();
-        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType);
-    }
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomKeywordEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 
+public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField> {
     @Override
     protected KeywordEsField createTestInstance() {
         return randomKeywordEsField(4);

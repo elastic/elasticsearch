@@ -142,7 +142,7 @@ final class PercolateQuery extends Query implements Accountable {
                                                 .add(nonNestedDocsFilter, Occur.FILTER)
                                                 .build();
                                         }
-                                        TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
+                                        TopDocs topDocs = Lucene.searchWithoutBulkScorer(percolatorIndexSearcher, query, 1);
                                         if (topDocs.scoreDocs.length > 0) {
                                             score = topDocs.scoreDocs[0].score;
                                             return true;

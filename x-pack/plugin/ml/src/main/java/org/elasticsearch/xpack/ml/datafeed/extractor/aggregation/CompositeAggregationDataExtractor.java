@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
@@ -27,6 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -57,6 +59,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private volatile boolean isCancelled;
     private volatile long nextBucketOnCancel;
     private boolean hasNext;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     CompositeAggregationDataExtractor(
         CompositeAggregationBuilder compositeAggregationBuilder,
@@ -112,9 +115,9 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             LOGGER.trace("[{}] extraction finished", context.jobId);
             hasNext = false;
             afterKey = null;
-            return new Result(searchInterval, Optional.empty());
+            return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
         }
-        return new Result(searchInterval, Optional.of(processAggs(aggs)));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)), lastLinkedClusterStates);
     }
 
     private InternalAggregations search() {
@@ -148,11 +151,34 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             compositeAggregationBuilder.aggregateAfter(afterKey);
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
-        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(
+            searchSourceBuilder,
+            context.queryContext.indicesOptions
+        );
+
+        if (context.queryContext.projectRouting != null) {
+            searchRequest.request().setProjectRouting(context.queryContext.projectRouting);
+        }
+
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
+            // see the same type and HTTP status as before this wrapper was introduced.
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             InternalAggregations aggregations = searchResponse.getAggregations();
             if (aggregations == null) {
                 return null;
@@ -234,16 +260,26 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
+    }
+
+    @Override
     public DataSummary getSummary() {
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(
             client,
             context.queryContext
         );
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
-            client,
-            context.queryContext,
-            searchRequestBuilder
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

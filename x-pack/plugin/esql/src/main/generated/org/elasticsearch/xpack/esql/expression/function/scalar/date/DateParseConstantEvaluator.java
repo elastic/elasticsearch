@@ -17,22 +17,22 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
+ * {@link ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateParseConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateParseConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateParseConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
 
   private final DateFormatter formatter;
 
@@ -44,8 +44,8 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
   private Warnings warnings;
 
-  public DateParseConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DateFormatter formatter, ZoneId zoneId, Locale locale, DriverContext driverContext) {
+  public DateParseConstantEvaluator(Source source, ExpressionEvaluator val, DateFormatter formatter,
+      ZoneId zoneId, Locale locale, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.formatter = formatter;
@@ -76,10 +76,11 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -127,20 +128,15 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
     private final DateFormatter formatter;
 
@@ -148,8 +144,8 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
     private final Locale locale;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        DateFormatter formatter, ZoneId zoneId, Locale locale) {
+    public Factory(Source source, ExpressionEvaluator.Factory val, DateFormatter formatter,
+        ZoneId zoneId, Locale locale) {
       this.source = source;
       this.val = val;
       this.formatter = formatter;

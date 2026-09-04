@@ -5,24 +5,36 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   javaRestTestImplementation(project(':modules:lang-mustache'))
+
+  yamlRestTestImplementation project(':test:yaml-rest-runner')
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  // Pulls in MlModelServer and its bundled model resources used by ml/3rd_party_deployment.yml.
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin:inference:qa:inference-service-tests'), "javaRestTest"))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
+restResources {
+  restApi {
+    include '*'
+  }
+  restTests {
+    includeXpack 'ml'
+  }
 }
 
-if (buildParams.inFipsJvm){
-  // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure{enabled = false }
+if (buildParams.inFipsJvm) {
+  // Test cluster for javaRestTest runs with security disabled
+  tasks.named("javaRestTest").configure { enabled = false }
 }
 
-tasks.named('javaRestTestTestingConventions').configure {
-  baseClass "org.elasticsearch.xpack.ml.integration.InferenceTestCase"
-  baseClass "org.elasticsearch.test.rest.ESRestTestCase"
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("ml yaml rest tests require the default distribution")
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("ml java rest tests require the default distribution")
 }

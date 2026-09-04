@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
@@ -20,19 +22,26 @@ import java.util.Objects;
 /**
  * A wrapper on {@link FloatVectorValues}.
  */
-public abstract class FilterFloatVectorValues extends FloatVectorValues {
+public abstract class FilterFloatVectorValues extends FloatVectorValues implements HasIndexSlice {
 
     /** Wrapped values */
     protected final FloatVectorValues in;
+    private final IndexInput slice;
 
     /** Sole constructor */
     protected FilterFloatVectorValues(FloatVectorValues in) {
         this.in = Objects.requireNonNull(in);
+        this.slice = in instanceof HasIndexSlice s ? s.getSlice() : null;
     }
 
     @Override
     public KnnVectorValues.DocIndexIterator iterator() {
         return in.iterator();
+    }
+
+    @Override
+    public int getVectorByteLength() {
+        return in.getVectorByteLength();
     }
 
     @Override
@@ -59,6 +68,11 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues {
     }
 
     @Override
+    public VectorScorer rescorer(float[] target) throws IOException {
+        return in.rescorer(target);
+    }
+
+    @Override
     public int ordToDoc(int ord) {
         return in.ordToDoc(ord);
     }
@@ -66,5 +80,10 @@ public abstract class FilterFloatVectorValues extends FloatVectorValues {
     @Override
     public Bits getAcceptOrds(Bits acceptDocs) {
         return in.getAcceptOrds(acceptDocs);
+    }
+
+    @Override
+    public IndexInput getSlice() {
+        return slice;
     }
 }

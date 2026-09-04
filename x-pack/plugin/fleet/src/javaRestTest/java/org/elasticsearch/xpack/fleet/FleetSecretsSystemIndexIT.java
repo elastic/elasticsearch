@@ -48,6 +48,8 @@ public class FleetSecretsSystemIndexIT extends AbstractFleetIT {
         assertTrue(responseMap.containsKey("id"));
         final String id = responseMap.get("id").toString();
 
+        ensureHealth(req -> req.addParameter("wait_for_status", "green"));
+
         // get secret
         Request getRequest = new Request("GET", "/_fleet/secret/" + id);
         Response getResponse = client().performRequest(getRequest);

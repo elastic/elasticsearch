@@ -3,9 +3,9 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-gce-usage.html
 ---
 
-# GCE Virtual Machine discovery [discovery-gce-usage]
+# GCE virtual machine discovery [discovery-gce-usage]
 
-Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery of seed hosts. Here is a simple sample configuration:
+Google Compute Engine (GCE) VM discovery allows to use the google APIs to perform automatic discovery of seed hosts. Here is a simple sample configuration:
 
 ```yaml
 cloud:

@@ -73,6 +73,24 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return compoundCommits.stream().flatMap(commit -> commit.internalFiles().stream()).collect(Collectors.toSet());
     }
 
+    public long calculateBccBlobLength() {
+        long blobLength = 0;
+        for (int i = 0; i < compoundCommits.size(); i++) {
+            var compoundCommit = compoundCommits.get(i);
+            if (i == compoundCommits.size() - 1) {
+                blobLength += compoundCommit.sizeInBytes();
+            } else {
+                blobLength += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
+            }
+        }
+        return blobLength;
+    }
+
+    public BlobFile toBlobFile() {
+        String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
+        return new BlobFile(blobName, primaryTermAndGeneration);
+    }
+
     /**
      * Reads a maximum of {@code maxBlobLength} bytes of a {@link BatchedCompoundCommit} from the blob store. For that it materializes the
      * headers for all the {@link StatelessCompoundCommit} contained in the batched compound commit that are located before the maximum blob
@@ -216,10 +234,14 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     public static Set<PrimaryTermAndGeneration> computeReferencedBCCGenerations(StatelessCompoundCommit commit) {
         Set<PrimaryTermAndGeneration> primaryTermAndGenerations = new HashSet<>();
+        appendBCCGenerations(primaryTermAndGenerations, commit);
+        return Collections.unmodifiableSet(primaryTermAndGenerations);
+    }
+
+    public static void appendBCCGenerations(Set<PrimaryTermAndGeneration> primaryTermAndGenerations, StatelessCompoundCommit commit) {
         for (BlobLocation blobLocation : commit.commitFiles().values()) {
             primaryTermAndGenerations.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
         }
-        return Collections.unmodifiableSet(primaryTermAndGenerations);
     }
 
     public static String blobNameFromGeneration(long generation) {

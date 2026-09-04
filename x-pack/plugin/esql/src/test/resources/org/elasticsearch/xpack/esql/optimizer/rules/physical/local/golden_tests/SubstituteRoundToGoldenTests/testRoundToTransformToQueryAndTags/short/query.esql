@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) by x = round_to(short, 1,3,2,4)

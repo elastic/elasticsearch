@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.blockloader.script.LongScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -123,7 +124,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
         }
     }
 

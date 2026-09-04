@@ -75,4 +75,11 @@ public abstract class LazyFilterTermsEnum extends BaseTermsEnum {
             throw new UncheckedIOException(e);
         }
     }
+
+    public static TermsEnum unwrap(TermsEnum wrapped) throws IOException {
+        if (wrapped instanceof LazyFilterTermsEnum wrappedEnum) {
+            return wrappedEnum.getDelegate();
+        }
+        return wrapped;
+    }
 }

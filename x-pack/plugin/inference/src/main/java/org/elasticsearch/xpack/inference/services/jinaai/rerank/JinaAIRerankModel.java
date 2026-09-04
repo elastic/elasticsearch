@@ -51,13 +51,12 @@ public class JinaAIRerankModel extends JinaAIModel {
             inferenceId,
             JinaAIRerankServiceSettings.fromMap(serviceSettings, context),
             JinaAIRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             null
         );
     }
 
-    // should only be used for testing
-    JinaAIRerankModel(
+    public JinaAIRerankModel(
         String modelId,
         JinaAIRerankServiceSettings serviceSettings,
         JinaAIRerankTaskSettings taskSettings,
@@ -67,18 +66,16 @@ public class JinaAIRerankModel extends JinaAIModel {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, JinaAIService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings(),
-            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build))
         );
+    }
+
+    public JinaAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, buildUri(JinaAIService.NAME, DEFAULT_URI_BUILDER::build));
     }
 
     private JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
-    }
-
-    public JinaAIRerankModel(JinaAIRerankModel model, JinaAIRerankServiceSettings serviceSettings) {
-        super(model, serviceSettings);
     }
 
     @Override
@@ -89,11 +86,6 @@ public class JinaAIRerankModel extends JinaAIModel {
     @Override
     public JinaAIRerankTaskSettings getTaskSettings() {
         return (JinaAIRerankTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     /**

@@ -9,10 +9,8 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -30,10 +28,10 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
@@ -44,9 +42,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerInt7uOperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("foo");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkLogging.configure();
     }
 
     byte[] byteArrayA;
@@ -62,18 +58,7 @@ public class VectorScorerInt7uOperationBenchmark {
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
-    @FunctionalInterface
-    private interface LuceneFunction {
-        float run(byte[] vec1, byte[] vec2);
-    }
-
-    @FunctionalInterface
-    private interface NativeFunction {
-        float run(MemorySegment vec1, MemorySegment vec2, int length);
-    }
-
-    private LuceneFunction luceneImpl;
-    private NativeFunction nativeImpl;
+    private LuceneFunction<byte[]> luceneImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -88,18 +73,13 @@ public class VectorScorerInt7uOperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(byteArrayA.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
+        MemorySegment.copy(byteArrayA, 0, nativeSegA, ValueLayout.JAVA_BYTE, 0L, byteArrayA.length);
         nativeSegB = arena.allocate(byteArrayB.length);
-        MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
+        MemorySegment.copy(byteArrayB, 0, nativeSegB, ValueLayout.JAVA_BYTE, 0L, byteArrayB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;
             case EUCLIDEAN -> VectorUtil::squareDistance;
-            default -> throw new UnsupportedOperationException("Not used");
-        };
-        nativeImpl = switch (function) {
-            case DOT_PRODUCT -> VectorScorerInt7uOperationBenchmark::dotProduct7u;
-            case EUCLIDEAN -> VectorScorerInt7uOperationBenchmark::squareDistance7u;
             default -> throw new UnsupportedOperationException("Not used");
         };
     }
@@ -115,30 +95,22 @@ public class VectorScorerInt7uOperationBenchmark {
     }
 
     @Benchmark
-    public float nativeWithNativeSeg() {
-        return nativeImpl.run(nativeSegA, nativeSegB, size);
+    public int nativeWithNativeSeg() {
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
-    public float nativeWithHeapSeg() {
-        return nativeImpl.run(heapSegA, heapSegB, size);
+    public int nativeWithHeapSeg() {
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
-
-    static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (int) vectorSimilarityFunctions.dotProductHandle7u().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
-
-    static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (int) vectorSimilarityFunctions.squareDistanceHandle7u().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

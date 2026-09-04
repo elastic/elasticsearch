@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -251,15 +253,9 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(
-            field,
-            vector,
-            numCands,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            similarity
-        ).addFilterQueries(filterQueries).boost(boost);
+        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity)
+            .addFilterQueries(filterQueries)
+            .boost(boost);
         assertEquals(expected, builder.toQueryBuilder());
     }
 
@@ -342,11 +338,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     }
 
     public static float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
+        return VectorTestUtils.randomFloatVector(dim);
     }
 
     private static class RewriteableQuery extends AbstractQueryBuilder<RewriteableQuery> {
@@ -373,7 +365,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         }
 
         @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
             throw new UnsupportedOperationException();
         }
 

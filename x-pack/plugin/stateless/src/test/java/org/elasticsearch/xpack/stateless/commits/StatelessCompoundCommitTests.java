@@ -13,7 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -295,7 +295,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         );
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
+            StreamOutput positionTracking = new OutputStreamStreamOutput(output);
 
             Map<String, BlobLocation> referencedCommitBlobsWithoutBlobLength = StatelessCompoundCommitTestUtils.randomCommitFiles();
             List<StatelessCompoundCommit.InternalFile> internalFiles = new ArrayList<>();
@@ -354,7 +354,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     // This method is moved from StatelessCompoundCommit since the production code only needs to write commit blobs with current version
     private static long writeBwcHeader(
-        PositionTrackingOutputStreamStreamOutput positionTracking,
+        StreamOutput positionTracking,
         ShardId shardId,
         long generation,
         long primaryTerm,
@@ -407,7 +407,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 commitFiles,
                 List.of(),
                 InternalFilesReplicatedRanges.EMPTY,
-                new PositionTrackingOutputStreamStreamOutput(output),
+                new OutputStreamStreamOutput(output),
                 randomBoolean(),
                 List.of()
             );
@@ -445,7 +445,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 testInstance.commitFiles(),
                 List.of(),
                 InternalFilesReplicatedRanges.EMPTY,
-                new PositionTrackingOutputStreamStreamOutput(output),
+                new OutputStreamStreamOutput(output),
                 writerFeatureFlag,
                 List.of()
             );

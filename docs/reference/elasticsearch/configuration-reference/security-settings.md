@@ -852,7 +852,7 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 
 `idp.metadata.http.minimum_refresh`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the minimum frequency with which `https` metadata is checked for changes. In regular operation {{es}} will use the value of `idp.metadata.http.refresh` as the polling interval. However, under some circumstances {{es}} may determine that it needs to poll more frequently. In these cases, the `minimum_refresh` will set the minimum frequency at which the metdata will be checked. Defaults to `5m` (5 minutes) and must not be set to a value greater than `idp.metadata.http.refresh`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the minimum frequency with which `https` metadata is checked for changes. In regular operation {{es}} will use the value of `idp.metadata.http.refresh` as the polling interval. However, under some circumstances {{es}} may determine that it needs to poll more frequently. In these cases, the `minimum_refresh` will set the minimum frequency at which the metadata will be checked. Defaults to `5m` (5 minutes) and must not be set to a value greater than `idp.metadata.http.refresh`
 
 `idp.use_single_logout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether to utilise the Identity Provider’s Single Logout service (if one exists in the IdP metadata file). Defaults to `true`.

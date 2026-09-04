@@ -59,6 +59,9 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
+        // Guard against a filter referring to itself (directly or via a cycle), which would otherwise
+        // recurse until the stack overflows and takes the node down.
+        allFilters = ReferringFilterResolver.enter(name(), allFilters);
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);

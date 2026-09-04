@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
 import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -216,6 +218,28 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         }
 
         return super.simulateMethod(method, args);
+    }
+
+    public void testBuildExcludedDocsQueryUsesShould() {
+        List<SpecifiedDocument> excludedDocs = List.of(new SpecifiedDocument("test", "1"), new SpecifiedDocument("test", "2"));
+
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of("ruleset1"));
+        QueryBuilder result = ruleQueryBuilder.buildExcludedDocsQuery(excludedDocs);
+        assertThat(result, instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder boolQuery = (BoolQueryBuilder) result;
+
+        // Multiple excluded docs with indices must be combined with should (OR), not must (AND)
+        assertEquals(2, boolQuery.should().size());
+        assertEquals(0, boolQuery.must().size());
+    }
+
+    public void testBuildExcludedDocsQueryWithoutIndicesUsesIdsQuery() {
+        List<SpecifiedDocument> excludedDocs = List.of(new SpecifiedDocument(null, "1"), new SpecifiedDocument(null, "2"));
+
+        RuleQueryBuilder ruleQueryBuilder = new RuleQueryBuilder(new MatchAllQueryBuilder(), MATCH_CRITERIA, List.of("ruleset1"));
+        QueryBuilder result = ruleQueryBuilder.buildExcludedDocsQuery(excludedDocs);
+        // When all docs have no index, an IdsQuery is used directly
+        assertFalse(result instanceof BoolQueryBuilder);
     }
 
     @Override

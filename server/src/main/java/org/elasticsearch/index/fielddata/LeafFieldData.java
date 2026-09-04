@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -50,6 +51,11 @@ public interface LeafFieldData extends Accountable {
             @Override
             public Object nextValue() throws IOException {
                 return format.format(values.nextValue());
+            }
+
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return values.docIdIterator();
             }
         };
     }

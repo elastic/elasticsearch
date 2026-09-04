@@ -17,12 +17,14 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -44,12 +46,15 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * Returns the direction type (inbound, outbound, internal, external) given
  * a source IP address, destination IP address, and a list of internal networks.
  */
-public class NetworkDirection extends EsqlScalarFunction {
+public class NetworkDirection extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NetworkDirection",
         NetworkDirection::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(NetworkDirection.class)
+        .ternary(NetworkDirection::new)
+        .name("network_direction", "netdir");
 
     private final Expression sourceIpField;
     private final Expression destinationIpField;
@@ -58,6 +63,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
+        briefSummary = "Returns the network direction type given source and destination IP addresses.",
         description = "Returns the direction type (inbound, outbound, internal, external) given "
             + "a source IP address, destination IP address, and a list of internal networks.",
         examples = @Example(file = "ip", tag = "networkDirectionFromRowWithInlineNetworks")
@@ -119,7 +125,7 @@ public class NetworkDirection extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var sourceIpEvaluatorSupplier = toEvaluator.apply(sourceIpField);
         var destinationIpEvaluatorSupplier = toEvaluator.apply(destinationIpField);
         var internalNetworksEvaluatorSupplier = toEvaluator.apply(internalNetworks);
@@ -143,11 +149,11 @@ public class NetworkDirection extends EsqlScalarFunction {
         @Position int position,
         BytesRefBlock networks
     ) {
-        int valueCount = networks.getValueCount(position);
-        if (valueCount == 0) {
+        if (networks.isNull(position)) {
             builder.appendNull();
             return;
         }
+        int valueCount = networks.getValueCount(position);
         int first = networks.getFirstValueIndex(position);
 
         System.arraycopy(sourceIp.bytes, sourceIp.offset, scratch.bytes, 0, sourceIp.length);

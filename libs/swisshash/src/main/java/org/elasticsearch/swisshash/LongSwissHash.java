@@ -91,6 +91,15 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         }
     }
 
+    /**
+     * Size at or above which {@link #shouldPrefetch()} reports that batched
+     * software prefetch is worthwhile (the table no longer fits comfortably in
+     * cache). Mirrors {@code BytesRefSwissHash}. {@link #PREFETCH_THRESHOLD} is a
+     * mutable test seam.
+     */
+    public static final int DEFAULT_PREFETCH_THRESHOLD = (int) ((1 << 17) * BigCore.FILL_FACTOR); // ~114k entries
+    public static int PREFETCH_THRESHOLD = DEFAULT_PREFETCH_THRESHOLD;
+
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
@@ -169,7 +178,15 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
      */
     @Override
     public long add(final long key) {
-        final int hash = hash(key);
+        return addWithHash(key, hash(key));
+    }
+
+    /**
+     * Same semantics as {@link #add(long)} but accepts a pre-computed hash from
+     * {@link #hash(long)}. Lets a caller batch hashing and {@link #prefetch} the
+     * slots before inserting, so the cold-DRAM probe misses overlap across keys.
+     */
+    public int addWithHash(final long key, final int hash) {
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -177,6 +194,24 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             smallCore.transitionToBigCore();
         }
         return bigCore.add(key, hash);
+    }
+
+    /**
+     * Whether the table is large enough (and on the big core) that batched
+     * software prefetch outweighs its overhead.
+     */
+    public boolean shouldPrefetch() {
+        return size >= PREFETCH_THRESHOLD && bigCore != null;
+    }
+
+    /**
+     * Warm the cache lines a subsequent {@link #addWithHash}/{@link #find} for
+     * this hash will touch: the SIMD control bytes and the id cell at the home
+     * group. The returned value must be consumed (e.g. XOR-ed into a sink) so the
+     * JIT cannot drop the reads. Only valid when {@link #shouldPrefetch()}.
+     */
+    public int prefetch(final int hash) {
+        return bigCore.prefetch(hash);
     }
 
     @Override
@@ -400,14 +435,17 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
 
             boolean success = false;
             try {
-                int keyPagesNeeded = (capacity * KEY_SIZE - 1) >> PAGE_SHIFT;
+                // keyPages are indexed by id, which never exceeds nextGrowSize - 1 before this core
+                // is replaced, so size them to nextGrowSize rather than the (up to 1/FILL_FACTOR
+                // larger) capacity used for the slot-indexed control/id arrays.
+                int keyPagesNeeded = (nextGrowSize * KEY_SIZE - 1) >> PAGE_SHIFT;
                 keyPagesNeeded++;
                 var initialKeyPages = keyPages;
                 keyPages = new byte[keyPagesNeeded][];
                 for (int i = 0; i < keyPagesNeeded; i++) {
                     keyPages[i] = (i < initialKeyPages.length) ? initialKeyPages[i] : grabKeyPage();
                 }
-                assert keyPages[keyOffset(mask) >> PAGE_SHIFT] != null
+                assert keyPages[keyOffset(nextGrowSize - 1) >> PAGE_SHIFT] != null
                     && Arrays.stream(keyPages).mapToInt(b -> b.length).distinct().count() == 1L
                     && keyPagesNeeded > initialKeyPages.length;
 
@@ -591,6 +629,17 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             final int idOffset = idOffset(slot);
             return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
+
+        /**
+         * Two-level warm: the control bytes and the id cell at the home group.
+         * The key load stays serial in {@code addImpl} but overlaps across batch
+         * elements once control/id are warm.
+         */
+        int prefetch(final int hash) {
+            final int group = hash & mask;
+            final int idOffset = idOffset(group);
+            return controlData[group] ^ idPages[idOffset >> PAGE_SHIFT][idOffset & PAGE_MASK];
+        }
     }
 
     /**
@@ -613,7 +662,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         return slot * ID_SIZE;
     }
 
-    private int hash(final long v) {
+    /**
+     * The 32-bit hash of a key, exposed so callers can precompute it once and
+     * pass it to {@link #prefetch(int)} and {@link #addWithHash(long, int)}.
+     */
+    public static int hash(final long v) {
         return BitMixer.mix(v);
     }
 

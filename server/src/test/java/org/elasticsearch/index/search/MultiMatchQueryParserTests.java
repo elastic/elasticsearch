@@ -16,6 +16,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
@@ -111,7 +113,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
     public void testToQueryPhrasePrefix() throws IOException {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
         searchExecutionContext.setAllowUnmappedFields(true);
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("Har", "name.first", "name.last", "name.nickname");
         multiMatchQueryBuilder.type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX);
@@ -138,7 +140,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
     public void testCrossFieldMultiMatchQuery() throws IOException {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
         searchExecutionContext.setAllowUnmappedFields(true);
         for (float tieBreaker : new float[] { 0.0f, 0.5f }) {
             Query parsedQuery = multiMatchQuery("banon").field("name.first", 2)
@@ -165,7 +167,12 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         Query actual = MultiMatchQueryParser.blendTerm(indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap()), new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        }, null, emptyMap(), null, null),
+            new BytesRef("baz"),
+            1f,
+            false,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
@@ -188,7 +195,12 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         );
         Query actual = MultiMatchQueryParser.blendTerm(indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap()), new BytesRef("baz"), 1f, true, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        }, null, emptyMap(), null, null),
+            new BytesRef("baz"),
+            1f,
+            true,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
@@ -203,7 +215,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> MultiMatchQueryParser.blendTerm(indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
                 throw new UnsupportedOperationException();
-            }, null, emptyMap()), new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft, 1)))
+            }, null, emptyMap(), null, null), new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft, 1)))
         );
     }
 
@@ -222,16 +234,21 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         Query expected = new DisjunctionMaxQuery(Arrays.asList(expectedDisjunct2, expectedDisjunct1), 1.0f);
         Query actual = MultiMatchQueryParser.blendTerm(indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap()), new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        }, null, emptyMap(), null, null),
+            new BytesRef("baz"),
+            1f,
+            false,
+            Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3))
+        );
         assertEquals(expected, actual);
     }
 
     public void testMultiMatchCrossFieldsWithSynonyms() throws IOException {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
 
-        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         parser.setAnalyzer(new MockSynonymAnalyzer());
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("name.first", 1.0f);
@@ -261,8 +278,8 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
     public void testCrossFieldsWithSynonymsPhrase() throws IOException {
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
-        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
+        }, null, emptyMap(), null, null);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         parser.setAnalyzer(new MockSynonymAnalyzer());
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("name.first", 1.0f);
@@ -294,7 +311,9 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             null,
             () -> 0L,
             null,
-            emptyMap()
+            emptyMap(),
+            null,
+            null
         );
 
         Map<String, Float> fieldNames = new HashMap<>();
@@ -302,7 +321,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         fieldNames.put("name.last", 1.0f);
         fieldNames.put("name.nickname", 1.0f);
 
-        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         parser.setTieBreaker(0.3f);
         Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "Robert", null);
 
@@ -353,8 +372,8 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
-        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
+        }, null, emptyMap(), null, null);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("field", 1.0f);
         fieldNames.put("field_split", 1.0f);
@@ -375,5 +394,21 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             0.0f
         );
         assertThat(query, equalTo(expected));
+    }
+
+    public void testCrossFieldsZeroTokensDoesNotThrow() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap(), null, null);
+
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
+
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
+        parser.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
+
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, ".", null);
+        assertNull(query);
     }
 }

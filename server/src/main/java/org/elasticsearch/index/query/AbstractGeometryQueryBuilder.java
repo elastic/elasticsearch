@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 /**
  * Base {@link QueryBuilder} that builds a Geometry Query
  */
-public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
+public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends LeafQueryBuilder<QB> {
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
     public static final ShapeRelation DEFAULT_SHAPE_RELATION = ShapeRelation.INTERSECTS;

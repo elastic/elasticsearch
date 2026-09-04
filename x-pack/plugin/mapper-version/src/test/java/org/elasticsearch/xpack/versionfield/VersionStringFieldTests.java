@@ -38,7 +38,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
     }
 
     public String setUpIndex(String indexName) throws IOException {
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
@@ -166,7 +166,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testRegexQuery() throws Exception {
         String indexName = "test_regex";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1")
@@ -249,7 +249,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testFuzzyQuery() throws Exception {
         String indexName = "test_fuzzy";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1")
@@ -275,7 +275,6 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(
             indexName,
             Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
             "version",
             "type=version",
             "foo",
@@ -324,6 +323,73 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         );
     }
 
+    // prefix: indexed version prefix; ch: multi-byte test char; upperCh: uppercase variant, or null if the char has no case
+    private record MultiByteCase(String prefix, String ch, String upperCh) {}
+
+    public void testWildcardQueryUnicode() throws Exception {
+        String indexName = "test_wildcard_unicode";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
+        ensureGreen(indexName);
+
+        List<MultiByteCase> cases = List.of(
+            new MultiByteCase("1.0.0-", "σ", "Σ"), // 2-byte UTF-8
+            new MultiByteCase("2.0.0-", "🐔", null) // 4-byte UTF-8, surrogate pair, no case
+        );
+        for (MultiByteCase c : cases) {
+            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", c.prefix() + c.ch() + "tart").endObject()).get();
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        for (MultiByteCase c : cases) {
+            checkMultiByteWildcard(indexName, c);
+        }
+    }
+
+    private void checkMultiByteWildcard(String indexName, MultiByteCase c) {
+        // pattern char must not corrupt the automaton
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart")), 1);
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart").caseInsensitive(true)),
+            1
+        );
+
+        // '*' must traverse the char, trailing it directly or on both sides
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", c.prefix() + c.ch() + "*")), 1);
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "*")), 1);
+
+        if (c.upperCh() != null) {
+            assertHitCount(
+                client().prepareSearch(indexName)
+                    .setQuery(QueryBuilders.wildcardQuery("version", "*" + c.upperCh() + "tart").caseInsensitive(true)),
+                1
+            );
+        }
+
+        // '?' must consume one full char, not a single byte of it
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", c.prefix() + "?tart")), 1);
+    }
+
+    // version field's case_insensitive wildcards should fold like #153513 (K <-> KELVIN SIGN) even for ASCII query chars.
+    public void testWildcardQueryAsciiFoldsToMultiByte() throws Exception {
+        String indexName = "test_wildcard_ascii_fold";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
+        ensureGreen(indexName);
+
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.0.0-\u212Aelvin").endObject()).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-kelvin*").caseInsensitive(true)),
+            1
+        );
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-KELVIN*").caseInsensitive(true)),
+            1
+        );
+        // without case-insensitive matching, the ASCII pattern must not match the Kelvin sign
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-kelvin*")), 0);
+    }
+
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", query)), response -> {
             assertEquals(expectedResults.length, response.getHits().getTotalHits().value());
@@ -340,7 +406,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
      */
     public void testStoreMalformed() throws Exception {
         String indexName = "test_malformed";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.invalid.0").endObject()).get();
@@ -407,7 +473,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testAggs() throws Exception {
         String indexName = "test_aggs";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
@@ -455,7 +521,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testMultiValues() throws Exception {
         String indexName = "test_multi";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject()).get();

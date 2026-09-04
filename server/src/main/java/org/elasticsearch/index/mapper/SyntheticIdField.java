@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -27,14 +28,10 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_KEY = SyntheticIdField.class.getSimpleName() + ".enabled";
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
-    private static final TokenStream EMPTY_TOKEN_STREAM = new TokenStream() {
-        @Override
-        public boolean incrementToken() {
-            return false;
-        }
-    };
-
     private static final FieldType TYPE;
+
+    static final FieldType COLUMNAR_DV_ONLY_TYPE;
+    static final FieldType COLUMNAR_INDEXED_TYPE;
 
     static {
         TYPE = new FieldType();
@@ -51,9 +48,24 @@ public final class SyntheticIdField extends Field {
         TYPE.setIndexOptions(IndexOptions.DOCS);
         TYPE.setTokenized(false);
         TYPE.setOmitNorms(true);
-        // The field is marked as stored, but storage on disk might be skipped
-        TYPE.setStored(true);
+        TYPE.setStored(false);
+        TYPE.setDocValuesType(DocValuesType.BINARY);
         TYPE.freeze();
+
+        COLUMNAR_DV_ONLY_TYPE = new FieldType();
+        COLUMNAR_DV_ONLY_TYPE.setDocValuesType(DocValuesType.BINARY);
+        COLUMNAR_DV_ONLY_TYPE.setIndexOptions(IndexOptions.NONE);
+        COLUMNAR_DV_ONLY_TYPE.freeze();
+
+        COLUMNAR_INDEXED_TYPE = new FieldType();
+        COLUMNAR_INDEXED_TYPE.putAttribute(ENABLED_ATTRIBUTE_KEY, ENABLED_ATTRIBUTE_VALUE);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
+        COLUMNAR_INDEXED_TYPE.setIndexOptions(IndexOptions.DOCS);
+        COLUMNAR_INDEXED_TYPE.setTokenized(true);
+        COLUMNAR_INDEXED_TYPE.setOmitNorms(true);
+        COLUMNAR_INDEXED_TYPE.setStored(false);
+        COLUMNAR_INDEXED_TYPE.freeze();
     }
 
     public SyntheticIdField(BytesRef bytes) {
@@ -62,7 +74,11 @@ public final class SyntheticIdField extends Field {
 
     @Override
     public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-        return EMPTY_TOKEN_STREAM;
+        if (reuse != null) {
+            assert reuse instanceof EmptyTokenStream : reuse;
+            return reuse; // will be reset before reuse
+        }
+        return new EmptyTokenStream();
     }
 
     @Override
@@ -76,5 +92,22 @@ public final class SyntheticIdField extends Field {
             && SyntheticIdField.ENABLED_ATTRIBUTE_VALUE.equals(attributes.get(ENABLED_ATTRIBUTE_KEY))
             && TSDBSyntheticIdPostingsFormat.FORMAT_NAME.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY))
             && TSDBSyntheticIdPostingsFormat.SUFFIX.equals(attributes.get(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY));
+    }
+
+    static final class EmptyTokenStream extends TokenStream {
+        @Override
+        public boolean incrementToken() {
+            return false;
+        }
+
+        @Override
+        public void end() {
+            // The underlying attributes are null, hence we just do a no-op
+        }
+
+        @Override
+        public void reset() {
+            clearAttributes();
+        }
     }
 }

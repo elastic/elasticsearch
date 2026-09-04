@@ -10,6 +10,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVectorsShardRequest> {
+public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVectorsShardRequest> implements SplitAwareRequest {
 
     private int shardId;
     private String preference;

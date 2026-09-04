@@ -87,7 +87,7 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNodeCopy = XContentHelper.convertToMap(BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
-        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
         MappingParserContext context = new MappingParserContext(
             null,
             type -> typeParser,
@@ -98,7 +98,6 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
             query -> {
                 throw new UnsupportedOperationException();
             },

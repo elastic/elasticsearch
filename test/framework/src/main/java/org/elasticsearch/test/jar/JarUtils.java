@@ -20,8 +20,6 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -111,9 +109,7 @@ public final class JarUtils {
     public static ModuleLayer.Controller loadModule(Path path, ClassLoader loader, String name) {
         var finder = ModuleFinder.of(path.getParent());
         var cf = Configuration.resolveAndBind(finder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), Set.of(name));
-        return AccessController.doPrivileged(
-            (PrivilegedAction<ModuleLayer.Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader)
-        );
+        return ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader);
     }
 
     @FunctionalInterface

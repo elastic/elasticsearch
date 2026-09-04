@@ -7,211 +7,312 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.is;
 
-public class MistralEmbeddingsServiceSettingsTests extends ESTestCase {
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var model = "mistral-embed";
-        var dims = 1536;
-        var maxInputTokens = 512;
+public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralEmbeddingsServiceSettings> {
+
+    private static final String TEST_MODEL_ID = "mistral-embed";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-mistral-embed";
+
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 512;
+
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 128;
+
+    private static final SimilarityMeasure TEST_SIMILARITY = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
+
+    private static final int TEST_RATE_LIMIT = 3;
+    private static final int INITIAL_TEST_RATE_LIMIT = 100;
+
+    private static final int DEFAULT_RATE_LIMIT = 240;
+
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(
-            createRequestSettingsMap(model, dims, maxInputTokens, SimilarityMeasure.COSINE),
-            ConfigurationParseContext.REQUEST
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
         );
-
-        assertThat(serviceSettings, is(new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, SimilarityMeasure.COSINE, null)));
-    }
-
-    public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var model = "mistral-embed";
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var settingsMap = createRequestSettingsMap(model, dims, maxInputTokens, SimilarityMeasure.COSINE);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
-
-        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
-            is(new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, SimilarityMeasure.COSINE, new RateLimitSettings(3)))
+            is(
+                new MistralEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
     }
 
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var model = "mistral-embed";
-        var dims = 1536;
-        var maxInputTokens = 512;
-
-        var settingsMap = createRequestSettingsMap(model, dims, maxInputTokens, SimilarityMeasure.COSINE);
-        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings, is(new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, SimilarityMeasure.COSINE, null)));
-    }
-
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
-        var model = "mistral-embed";
-
-        var settingsMap = createRequestSettingsMap(model, null, null, null);
-        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings, is(new MistralEmbeddingsServiceSettings(model, null, null, null, null)));
-    }
-
-    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
-        var model = "mistral-embed";
-        var dimensions = 0;
-
-        var settingsMap = createRequestSettingsMap(model, dimensions, null, SimilarityMeasure.COSINE);
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+    public void testFromMap_OnlyMandatoryFields_UsesDefaultValues_Success() {
+        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, null, null, null),
+            randomFrom(ConfigurationParseContext.values())
         );
 
         assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+            serviceSettings,
+            is(new MistralEmbeddingsServiceSettings(TEST_MODEL_ID, null, null, null, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_NoModel_ThrowsValidationError() {
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            new HashMap<>(),
+            Strings.format("[service_settings] does not contain the required setting [%s]", MistralConstants.MODEL_FIELD)
+        );
+    }
+
+    public void testFromMap_DimensionsAreZero_ThrowsValidationError() {
+        var zeroDimensions = 0;
+
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_MODEL_ID, zeroDimensions, null, null, null),
+            Strings.format(
+                "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                zeroDimensions,
+                ServiceFields.DIMENSIONS
+            )
         );
     }
 
     public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
-        var model = "mistral-embed";
-        var dimensions = randomNegativeInt();
+        var negativeDimensions = randomNegativeInt();
 
-        var settingsMap = createRequestSettingsMap(model, dimensions, null, SimilarityMeasure.COSINE);
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
-                    dimensions
-                )
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_MODEL_ID, negativeDimensions, null, TEST_SIMILARITY, null),
+            Strings.format(
+                "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                negativeDimensions,
+                ServiceFields.DIMENSIONS
             )
         );
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
-        var model = "mistral-embed";
-        var maxInputTokens = 0;
+        var zeroMaxInputTokens = 0;
 
-        var settingsMap = createRequestSettingsMap(model, null, maxInputTokens, SimilarityMeasure.COSINE);
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, zeroMaxInputTokens, TEST_SIMILARITY, null),
+            Strings.format(
+                "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                zeroMaxInputTokens,
+                ServiceFields.MAX_INPUT_TOKENS
+            )
         );
     }
 
     public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
-        var model = "mistral-embed";
-        var maxInputTokens = randomNegativeInt();
+        var negativeMaxInputTokens = randomNegativeInt();
 
-        var settingsMap = createRequestSettingsMap(model, null, maxInputTokens, SimilarityMeasure.COSINE);
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_MODEL_ID, null, negativeMaxInputTokens, TEST_SIMILARITY, null),
+            Strings.format(
+                "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                negativeMaxInputTokens,
+                ServiceFields.MAX_INPUT_TOKENS
+            )
+        );
+    }
 
+    private static void assertFromMap_FieldIsInvalid_ThrowsValidationError(
+        Map<String, Object> serviceSettingsMap,
+        String expectedErrorMessage
+    ) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+            () -> MistralEmbeddingsServiceSettings.fromMap(serviceSettingsMap, randomFrom(ConfigurationParseContext.values()))
         );
 
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(thrownException.validationErrors().getFirst(), is(expectedErrorMessage));
+    }
+
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT);
+        var originalServiceSettings = new MistralEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+
         assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
-                    maxInputTokens
+            updatedServiceSettings,
+            is(
+                new MistralEmbeddingsServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    INITIAL_TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {
-        var model = "mistral-embed";
-
-        var settingsMap = createRequestSettingsMap(model, null, null, SimilarityMeasure.DOT_PRODUCT);
-        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings, is(new MistralEmbeddingsServiceSettings(model, null, null, SimilarityMeasure.DOT_PRODUCT, null)));
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new MistralEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new MistralEmbeddingsServiceSettings("model_name", 1024, 512, null, new RateLimitSettings(3));
+        var entity = new MistralEmbeddingsServiceSettings(
+            TEST_MODEL_ID,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY,
+            new RateLimitSettings(TEST_RATE_LIMIT)
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"model":"model_name","dimensions":1024,"max_input_tokens":512,""" + """
-            "rate_limit":{"requests_per_minute":3}}"""));
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model": "%s",
+                "dimensions": %d,
+                "similarity": "%s",
+                "max_input_tokens": %d,
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, TEST_DIMENSIONS, TEST_SIMILARITY, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT));
+
+        assertThat(xContentResult, is(expected));
     }
 
-    public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {
-        var outputBuffer = new BytesStreamOutput();
-        var settings = new MistralEmbeddingsServiceSettings("model_name", 1024, 512, null, new RateLimitSettings(3));
-        settings.writeTo(outputBuffer);
+    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
+        var entity = new MistralEmbeddingsServiceSettings(TEST_MODEL_ID, null, null, null, null);
 
-        var outputBufferRef = outputBuffer.bytes();
-        var inputBuffer = new ByteArrayStreamInput(outputBufferRef.array());
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
 
-        var settingsFromBuffer = new MistralEmbeddingsServiceSettings(inputBuffer);
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT));
 
-        assertEquals(settings, settingsFromBuffer);
+        assertThat(xContentResult, is(expected));
     }
 
-    public static HashMap<String, Object> createRequestSettingsMap(
-        String model,
+    public static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
         @Nullable Integer dimensions,
-        @Nullable Integer maxTokens,
-        @Nullable SimilarityMeasure similarityMeasure
+        @Nullable Integer maxInputTokens,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer rateLimit
     ) {
-        var map = new HashMap<String, Object>(Map.of(MistralConstants.MODEL_FIELD, model));
+        var map = new HashMap<String, Object>();
 
+        if (modelId != null) {
+            map.put(MistralConstants.MODEL_FIELD, modelId);
+        }
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
         }
-
-        if (maxTokens != null) {
-            map.put(ServiceFields.MAX_INPUT_TOKENS, maxTokens);
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
         }
-
-        if (similarityMeasure != null) {
-            map.put(SIMILARITY, similarityMeasure.toString());
+        if (similarity != null) {
+            map.put(ServiceFields.SIMILARITY, similarity.toString());
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
 
         return map;
     }
 
+    @Override
+    protected MistralEmbeddingsServiceSettings mutateInstanceForVersion(
+        MistralEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    @Override
+    protected Writeable.Reader<MistralEmbeddingsServiceSettings> instanceReader() {
+        return MistralEmbeddingsServiceSettings::new;
+    }
+
+    @Override
+    protected MistralEmbeddingsServiceSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected MistralEmbeddingsServiceSettings mutateInstance(MistralEmbeddingsServiceSettings instance) throws IOException {
+        var modelId = instance.modelId();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(4)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
+            case 2 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new MistralEmbeddingsServiceSettings(modelId, dimensions, maxInputTokens, similarity, rateLimitSettings);
+    }
+
+    private static MistralEmbeddingsServiceSettings createRandom() {
+        var modelId = randomAlphaOfLength(8);
+        var dimensions = randomIntBetween(32, 256);
+        var maxInputTokens = randomIntBetween(128, 256);
+        var similarityMeasure = randomFrom(SimilarityMeasure.values());
+        return new MistralEmbeddingsServiceSettings(
+            modelId,
+            dimensions,
+            maxInputTokens,
+            similarityMeasure,
+            RateLimitSettingsTests.createRandom()
+        );
+    }
 }

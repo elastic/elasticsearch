@@ -232,6 +232,22 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
+        // Only remove docker containers after each test when a test class explicitly opts in.
+        // This runs after the TestWatcher (which calls dumpDebug on failure), so the container is still
+        // available for diagnostics.
+        if (distribution().isDocker() && shouldRemoveDockerContainerAfterTest()) {
+            removeContainer();
+        }
+    }
+
+    /**
+     * Controls whether a Docker-based test should remove its container during {@link #teardown()}.
+     * <p>
+     * Default is {@code false} because some docker test classes intentionally reuse a container across
+     * multiple test methods (e.g., {@code KeystoreManagementTests}).
+     */
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return false;
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -411,8 +427,6 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else {
-
-            // Otherwise, error should be on shell stderr
             assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }
@@ -609,6 +623,10 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
+        verifySecurityAutoConfigured(es, null);
+    }
+
+    public void verifySecurityAutoConfigured(Installation es, String keystorePassword) throws Exception {
         final String autoConfigDirName = "certs";
         final Settings settings;
         if (es.distribution.isArchive()) {
@@ -639,10 +657,7 @@ public abstract class PackagingTestCase extends Assert {
                 .forEach(
                     file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
-            assertThat(
-                sh.run(es.executables().keystoreTool + " list").stdout(),
-                Matchers.containsString("autoconfiguration.password_hash")
-            );
+            assertThat(listKeystoreEntries(es, keystorePassword), Matchers.containsString("autoconfiguration.password_hash"));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
@@ -655,6 +670,16 @@ public abstract class PackagingTestCase extends Assert {
         if (es.distribution.isDocker() == false) {
             assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
+
+        if (es.distribution.isArchive()) {
+            String keystoreEntries = listKeystoreEntries(es, keystorePassword);
+            assertThat(keystoreEntries, Matchers.containsString("cluster.state.encryption.password.autoconfigured"));
+            assertThat(keystoreEntries, Matchers.containsString("cluster.state.encryption.active_password_id"));
+        }
+    }
+
+    private static String listKeystoreEntries(Installation es, String keystorePassword) {
+        return es.executables().keystoreTool.run("list", keystorePassword == null ? null : keystorePassword + "\n").stdout();
     }
 
     /**

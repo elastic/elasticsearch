@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1096,8 +1097,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return new RecyclerBytesStreamOutput(clearableRecycler);
+                    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+                        return new RecyclerBytesStreamOutput(clearableRecycler, circuitBreaker);
                     }
                 };
 
@@ -1106,7 +1107,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     // relax lag detector
                     settingsBuilder.put(
                         LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
-                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100))
+                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100), TimeValue.ZERO, TimeValue.MINUS_ONE)
                     );
                 }
                 settingsBuilder.put(nodeSettings);
@@ -1193,15 +1194,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 client.initialize(
                     Map.of(
                         TransportNodesHotThreadsAction.TYPE,
-                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
+                        new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, ActionFilters.EMPTY),
                         MasterHistoryAction.INSTANCE,
-                        new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
+                        new MasterHistoryAction.TransportAction(transportService, ActionFilters.EMPTY, masterHistoryService),
                         ClusterFormationInfoAction.INSTANCE,
-                        new ClusterFormationInfoAction.TransportAction(transportService, new ActionFilters(Set.of()), coordinator),
+                        new ClusterFormationInfoAction.TransportAction(transportService, ActionFilters.EMPTY, coordinator),
                         CoordinationDiagnosticsAction.INSTANCE,
                         new CoordinationDiagnosticsAction.TransportAction(
                             transportService,
-                            new ActionFilters(Set.of()),
+                            ActionFilters.EMPTY,
                             coordinationDiagnosticsService
                         )
                     ),

@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
-import java.util.Random;
 import java.util.TreeSet;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
@@ -77,23 +76,18 @@ public class VersionUtils {
     }
 
     /** Returns a random {@link Version} from all available versions. */
-    public static Version randomVersion(Random random) {
-        return randomFrom(random, ALL_VERSIONS);
+    public static Version randomVersion() {
+        return randomFrom(ALL_VERSIONS);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
-    public static Version randomCompatibleVersion(Random random, Version version) {
+    public static Version randomCompatibleVersion(Version version) {
         final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
-        return compatible.get(random.nextInt(compatible.size()));
+        return compatible.get(random().nextInt(compatible.size()));
     }
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(@Nullable Version minVersion, @Nullable Version maxVersion) {
-        return randomVersionBetween(random(), minVersion, maxVersion);
-    }
-
-    /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
@@ -112,7 +106,7 @@ public class VersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return randomFrom(random, versions);
+        return randomFrom(versions);
     }
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
@@ -120,7 +114,7 @@ public class VersionUtils {
         return ALL_VERSIONS.tailSet(version, true).descendingSet().stream().filter(version::isCompatible).findFirst().orElseThrow();
     }
 
-    public static <T extends VersionId<T>> T randomFrom(Random random, NavigableSet<T> set) {
-        return RandomPicks.randomFrom(random, set);
+    public static <T extends VersionId<T>> T randomFrom(NavigableSet<T> set) {
+        return RandomPicks.randomFrom(random(), set);
     }
 }

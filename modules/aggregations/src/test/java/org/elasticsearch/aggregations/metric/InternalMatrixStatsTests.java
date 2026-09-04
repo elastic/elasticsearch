@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,9 +42,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         return new AggregationsPlugin();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initFields() throws Exception {
         hasMatrixStatsResults = frequently();
         int numFields = hasMatrixStatsResults ? randomInt(128) : 0;
         fields = new String[numFields];
@@ -147,7 +147,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             () -> false,
             mock(AggregationBuilder.class),
             b -> {},
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            null
         );
         InternalMatrixStats reduced = (InternalMatrixStats) InternalAggregationTestCase.reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());

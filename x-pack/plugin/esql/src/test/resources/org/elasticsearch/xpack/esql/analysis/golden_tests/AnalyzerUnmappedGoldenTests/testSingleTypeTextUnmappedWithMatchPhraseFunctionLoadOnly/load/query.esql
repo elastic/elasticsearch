@@ -1,0 +1,3 @@
+SET unmapped_fields="load"; FROM text_state_mapped, text_state_unmapped
+| WHERE match_phrase(txt, "William Faulkner")
+| KEEP txt

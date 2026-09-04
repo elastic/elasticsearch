@@ -27,8 +27,7 @@ public class RetryableActionTests extends ESTestCase {
     private DeterministicTaskQueue taskQueue;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTaskQueue() throws Exception {
         taskQueue = new DeterministicTaskQueue();
     }
 

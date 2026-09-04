@@ -1,0 +1,6 @@
+Project[[result{r}#0, step{r}#1 AS step#2]]
+\_Limit[1000[INTEGER],false,false]
+  \_Filter[ISNOTNULL(result{r}#0)]
+    \_Eval[[TODOUBLE(step{r}#1) / 1000.0[DOUBLE] AS result#0]]
+      \_MvExpand[[1715299380000][DATETIME] AS step#2,step{r}#1]
+        \_LocalRelation[[step{r}#2],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=1715299380000]]]}]

@@ -682,6 +682,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public SharedBlobCacheService<CacheKey>.CacheFile getFrozenCacheFile(String fileName, long length) {
-        return sharedBlobCacheService.getCacheFile(createCacheKey(fileName), length);
+        return sharedBlobCacheService.getCacheFile(
+            createCacheKey(fileName),
+            length,
+            SharedBlobCacheService.CacheMissHandler.NOOP,
+            SharedBlobCacheService.UNKNOWN_TIMESTAMP
+        );
     }
 }

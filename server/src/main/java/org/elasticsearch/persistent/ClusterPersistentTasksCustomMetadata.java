@@ -115,7 +115,7 @@ public final class ClusterPersistentTasksCustomMetadata extends AbstractNamedDif
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

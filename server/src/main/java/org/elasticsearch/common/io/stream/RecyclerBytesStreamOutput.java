@@ -10,6 +10,8 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -20,11 +22,22 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Objects;
+
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CODE_POINT_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 
 /**
  * A @link {@link StreamOutput} that uses a {@link Recycler<BytesRef>} to acquire pages of bytes, which avoids frequent reallocation &amp;
@@ -50,14 +63,18 @@ import java.util.Objects;
  * a short time, for instance soon being written to the network or to disk, then the imminent recycling of these pages may mean it is ok to
  * keep it as-is. For results which are both small and long-lived it may be better to copy them into a freshly-allocated {@code byte[]}.
  * <p>
- * Any memory allocated in this way is not tracked by the {@link org.elasticsearch.common.breaker} subsystem, even if the
- * {@code Recycler<BytesRef>} was obtained from {@link BigArrays#bytesRefRecycler()}, unless the caller takes steps to add this tracking
- * themselves.
+ * Any memory allocated in this way is tracked by the {@link org.elasticsearch.common.breaker} subsystem if and only if the caller passes in
+ * a non-null {@link CircuitBreaker} at creation time. If the provided {@link CircuitBreaker} is {@code null} then the allocations performed
+ * here are untracked by circuit-breakers, even if the {@code Recycler<BytesRef>} was obtained from {@link BigArrays#bytesRefRecycler()}.
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
-    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final Recycler<BytesRef> recycler;
+
+    @Nullable // if no circuit breaker in use
+    private final CircuitBreaker circuitBreaker;
+
+    private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
     private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
@@ -83,7 +100,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private long positionOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
+        this(recycler, null);
+    }
+
+    public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler, @Nullable CircuitBreaker circuitBreaker) {
         this.recycler = recycler;
+        this.circuitBreaker = circuitBreaker;
         this.pageSize = recycler.pageSize();
         this.currentOffset = this.maxOffset = pageSize;
         // Always start with a page. This is because if we don't have a page, one of the hot write paths would be forced to go through
@@ -171,26 +193,35 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void writeVInt(int i) throws IOException {
-        int currentOffset = this.currentOffset;
-        final int remainingBytesInPage = maxOffset - currentOffset;
-
-        // Single byte values (most common)
-        if ((i & 0xFFFFFF80) == 0) {
-            if (1 > remainingBytesInPage) {
-                super.writeVInt(i);
-            } else {
-                this.currentBufferPool[currentOffset] = (byte) i;
-                this.currentOffset = currentOffset + 1;
-            }
+    public void writeVInt(int i) {
+        if ((i & 0xFFFF_FF80) != 0) {
+            // The cold-path multi-byte case is extracted to its own method so the hotter-path single-byte case can inline.
+            writeMultiByteVInt(i);
             return;
         }
 
-        int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > remainingBytesInPage) {
-            super.writeVInt(i);
+        final var maxOffset = this.maxOffset;
+        var currentOffset = this.currentOffset;
+        if (currentOffset == maxOffset) {
+            ensureCapacityFromPosition(positionOffset + currentOffset + 1);
+            currentOffset = nextPage();
+        }
+
+        this.currentBufferPool[currentOffset] = (byte) i;
+        this.currentOffset = currentOffset + 1;
+    }
+
+    private void writeMultiByteVInt(int i) {
+        final int currentOffset = this.currentOffset;
+        final int remainingBytesInPage = maxOffset - currentOffset;
+        if (5 > remainingBytesInPage && vIntLength(i) > remainingBytesInPage) {
+            while ((i & 0xFFFF_FF80) != 0) {
+                writeByte((byte) ((i & 0x7F) | 0x80));
+                i >>>= 7;
+            }
+            writeByte((byte) (i & 0x7F));
         } else {
-            this.currentOffset = currentOffset + StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
+            this.currentOffset = StreamOutputHelper.putMultiByteVInt(this.currentBufferPool, i, currentOffset);
         }
     }
 
@@ -265,7 +296,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
-        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
             tmp.setTransportVersion(getTransportVersion());
             writeable.writeTo(tmp);
             int size = tmp.size();
@@ -303,37 +334,62 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
     // intermediary buffers
     @Override
-    public void writeString(String str) throws IOException {
+    public void writeString(String str) {
         int currentOffset = this.currentOffset;
         final int charCount = str.length();
         int bytesNeededForVInt = vIntLength(charCount);
-        // maximum serialized length is 3 bytes per char + n bytes for the vint
-        if (charCount * 3 + bytesNeededForVInt > maxOffset - currentOffset) {
-            // Technically no need for scratch buffer here, we can do the same thing directly on the pages just with bounds checks -- TODO
-            StreamOutputHelper.writeString(str, this);
+        // maximum serialized length is 3 bytes per char + n bytes for the vInt
+        if (charCount * MAX_CHAR_BYTES + bytesNeededForVInt > maxOffset - currentOffset) {
+            writeStringWithBoundsChecks(charCount, str);
             return;
         }
 
         int offset = currentOffset;
         byte[] currentBufferPool = this.currentBufferPool;
-        // mostly duplicated from StreamOutput.writeString to to get more reliable compilation of this very hot loop
+        // mostly duplicated from StreamOutput.writeString to get more reliable compilation of this very hot loop
         putVInt(charCount, bytesNeededForVInt, currentBufferPool, offset);
         offset += bytesNeededForVInt;
 
         for (int i = 0; i < charCount; i++) {
-            final int c = str.charAt(i);
-            if (c <= 0x007F) {
-                currentBufferPool[offset++] = ((byte) c);
-            } else if (c > 0x07FF) {
-                currentBufferPool[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            } else {
-                currentBufferPool[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            }
+            offset = putCharUtf8(currentBufferPool, str.charAt(i), offset);
         }
         this.currentOffset = offset;
+    }
+
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeStringWithBoundsChecks(int charCount, String str) {
+        writeVInt(charCount);
+        int i = 0;
+        int position = currentOffset;
+        while (i < charCount) {
+            final int lastSafePosition = this.maxOffset - MAX_CHAR_BYTES;
+            final var currentBufferPool = this.currentBufferPool;
+            while (i < charCount && position <= lastSafePosition) {
+                position = putCharUtf8(currentBufferPool, str.charAt(i++), position);
+            }
+            this.currentOffset = position;
+            final int oldPageIndex = this.pageIndex;
+            while (this.pageIndex == oldPageIndex && i < charCount) {
+                writeCharUtf8(str.charAt(i++));
+            }
+            position = this.currentOffset;
+        }
+    }
+
+    /**
+     * Like {@link StreamOutputHelper#writeCharUtf8(StreamOutput, int)} except no {@code throws IOException}.
+     */
+    private void writeCharUtf8(int c) {
+        if (c <= 0x7F) {
+            writeByte((byte) c);
+        } else if (c > 0x07FF) {
+            writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+            writeByte((byte) (0x80 | c >> 6 & 0x3F));
+            writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+            writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        }
     }
 
     @Override
@@ -350,6 +406,59 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeGenericString(String value) throws IOException {
         writeByte((byte) 0);
         writeString(value);
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        if (text.hasBytes()) {
+            super.writeText(text);
+            return;
+        }
+        final String str = text.string();
+        final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(str, 0, str.length());
+        final int currentOffset = this.currentOffset;
+        if (Integer.BYTES + byteLength <= maxOffset - currentOffset) {
+            final byte[] currentBufferPool = this.currentBufferPool;
+            ByteUtils.writeIntBE(byteLength, currentBufferPool, currentOffset);
+            final int end = UnicodeUtil.UTF16toUTF8(str, 0, str.length(), currentBufferPool, currentOffset + Integer.BYTES);
+            assert end == currentOffset + Integer.BYTES + byteLength : end + " vs " + currentOffset + " plus " + byteLength;
+            this.currentOffset = end;
+        } else {
+            writeTextWithBoundsChecks(str, byteLength);
+        }
+    }
+
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeTextWithBoundsChecks(String str, int byteLength) throws IOException {
+        writeInt(byteLength);
+        final long startPosition = position();
+        // a code point that straddles the end of a page is encoded here first and then written across the boundary one byte at a time
+        final byte[] straddlingCodePoint = new byte[MAX_CODE_POINT_BYTES];
+        final int charCount = str.length();
+        int i = 0;
+        while (i < charCount) {
+            final byte[] currentBufferPool = this.currentBufferPool;
+            final int currentOffset = this.currentOffset;
+            // no char needs more than MAX_CHAR_BYTES, including the pair of chars making up a supplementary code point
+            int chunkChars = Math.min((this.maxOffset - currentOffset) / MAX_CHAR_BYTES, charCount - i);
+            if (0 < chunkChars && i + chunkChars < charCount && Character.isHighSurrogate(str.charAt(i + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next step, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            if (0 < chunkChars) {
+                this.currentOffset = UnicodeUtil.UTF16toUTF8(str, i, chunkChars, currentBufferPool, currentOffset);
+                i += chunkChars;
+            } else {
+                // too little of the page left to fit another char, so this code point straddles the boundary
+                final int chars = Character.charCount(str.codePointAt(i));
+                final int length = UnicodeUtil.UTF16toUTF8(str, i, chars, straddlingCodePoint, 0);
+                for (int b = 0; b < length; b++) {
+                    writeByte(straddlingCodePoint[b]);
+                }
+                i += chars;
+            }
+        }
+        assert position() - startPosition == byteLength : position() - startPosition + " bytes written but expected " + byteLength;
     }
 
     @Override
@@ -400,6 +509,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (pages != null) {
             closeFields();
             Releasables.close(pages);
+            if (circuitBreaker != null) {
+                circuitBreaker.addWithoutBreaking(-(long) pageSize * pages.size());
+            }
         }
     }
 
@@ -414,7 +526,116 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         var pages = this.pages;
         closeFields();
 
-        return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+        final Releasable releasable;
+        if (pages.size() == 1) {
+            if (circuitBreaker == null) {
+                releasable = pages.getFirst();
+            } else {
+                final var pageSize = this.pageSize;
+                releasable = Releasables.wrap(pages.getFirst(), () -> circuitBreaker.addWithoutBreaking(-pageSize));
+            }
+        } else {
+            if (circuitBreaker == null) {
+                releasable = Releasables.wrap(pages);
+            } else {
+                final long releaseSize = (long) this.pageSize * pages.size();
+                releasable = Releasables.wrap(Releasables.wrap(pages), () -> circuitBreaker.addWithoutBreaking(-releaseSize));
+            }
+        }
+
+        return new ReleasableBytesReference(bytes, releasable);
+    }
+
+    /**
+     * Base64-encode the contents of the stream and convert to a {@link String}, avoiding unnecessary allocation and copying as much as
+     * possible.
+     *
+     * @param encoder Encoder to use. Must not insert line-breaks.
+     * @return Base64-encoded copy of the contents of the stream.
+     */
+    public String toBase64String(Base64.Encoder encoder) {
+        assert encoder.encode(new byte[120]).length == 160 : "Line breaks not supported";
+        if (pageIndex == 0) {
+            // common case: small object that fits into one page, can be encoded directly
+            final var rawLength = pageSize - (maxOffset - currentOffset);
+
+            // allocates a new array for the output
+            final var encodedBuffer = encoder.encode(ByteBuffer.wrap(currentBufferPool, currentOffset - rawLength, rawLength));
+            assert encodedBuffer.hasArray();
+
+            // copies the buffer to a fresh array to ensure immutability
+            return new String(encodedBuffer.array(), encodedBuffer.arrayOffset(), encodedBuffer.remaining(), StandardCharsets.ISO_8859_1);
+        } else {
+            return toBase64StringMultiPage(encoder);
+        }
+    }
+
+    private String toBase64StringMultiPage(Base64.Encoder encoder) {
+        // probably a mistake to want such a massive string, but let's do our best
+
+        class ToAsciiStringStream extends OutputStream {
+            // possibly slightly oversized but NB no space for line-breaks
+            final byte[] encodedBytes = new byte[Math.multiplyExact(4, Math.addExact(Math.toIntExact(position()), 2) / 3)];
+            int position;
+
+            @Override
+            public void write(int b) {
+                encodedBytes[position++] = (byte) b;
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) {
+                System.arraycopy(b, off, encodedBytes, position, len);
+                position += len;
+            }
+
+            @Override
+            public String toString() {
+                return new String(encodedBytes, 0, position, StandardCharsets.ISO_8859_1);
+            }
+        }
+
+        try (var toAsciiStringStream = new ToAsciiStringStream()) {
+            try (var encoderStream = encoder.wrap(toAsciiStringStream)) {
+                int copyPageIndex = 0;
+                for (final var page : pages) {
+                    final var pageContents = page.v();
+                    if (copyPageIndex++ < pageIndex) {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, pageContents.length);
+                    } else {
+                        encoderStream.write(pageContents.bytes, pageContents.offset, currentOffset - pageContents.offset);
+                        break;
+                    }
+                }
+            }
+            return toAsciiStringStream.toString();
+        } catch (IOException e) {
+            assert false : e; // no actual IO happens here
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copies the entire remaining contents of the given {@link InputStream} directly into this output, avoiding the need for any
+     * intermediate buffers.
+     */
+    public void writeAllBytesFrom(InputStream in) throws IOException {
+        while (true) {
+            final var currentBufferPool = this.currentBufferPool;
+            final var maxOffset = this.maxOffset;
+            var currentOffset = this.currentOffset;
+            while (currentOffset < maxOffset) {
+                int readSize = in.read(currentBufferPool, currentOffset, maxOffset - currentOffset);
+                if (readSize == -1) {
+                    this.currentOffset = currentOffset;
+                    return;
+                }
+                currentOffset += readSize;
+            }
+            this.currentOffset = maxOffset;
+            ensureCapacity(1);
+            nextPage();
+        }
     }
 
     private void closeFields() {
@@ -440,34 +661,32 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public BytesReference bytes() {
-        int position = (int) position();
+        final int position = (int) position();
         if (position == 0) {
             return BytesArray.EMPTY;
+        } else if (position <= pageSize) {
+            final var page = pages.getFirst().v();
+            return new BytesArray(page.bytes, page.offset, position);
         } else {
-            final int adjustment;
-            final int bytesInLastPage;
-            final int remainder = position % pageSize;
-            if (remainder != 0) {
-                adjustment = 1;
-                bytesInLastPage = remainder;
+            return bytesMultiPage(position);
+        }
+    }
+
+    private BytesReference bytesMultiPage(int position) {
+        final int pageCount = (position + pageSize - 1) / pageSize;
+        assert pageCount > 1;
+        final BytesReference[] references = new BytesReference[pageCount];
+        int pageIndex = 0;
+        for (var page : pages) {
+            if (pageIndex < pageCount - 1) {
+                references[pageIndex++] = new BytesArray(page.v());
             } else {
-                adjustment = 0;
-                bytesInLastPage = pageSize;
-            }
-            final int pageCount = (position / pageSize) + adjustment;
-            if (pageCount == 1) {
-                BytesRef page = pages.get(0).v();
-                return new BytesArray(page.bytes, page.offset, bytesInLastPage);
-            } else {
-                BytesReference[] references = new BytesReference[pageCount];
-                for (int i = 0; i < pageCount - 1; ++i) {
-                    references[i] = new BytesArray(this.pages.get(i).v());
-                }
-                BytesRef last = this.pages.get(pageCount - 1).v();
-                references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
-                return CompositeBytesReference.of(references);
+                final var pageBytes = page.v();
+                references[pageIndex] = new BytesArray(pageBytes.bytes, pageBytes.offset, position - pageIndex * pageSize);
+                break;
             }
         }
+        return CompositeBytesReference.of(references);
     }
 
     private void ensureCapacity(int bytesNeeded) {
@@ -489,10 +708,22 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             // Calculate number of additional pages needed
             int additionalPagesNeeded = (int) ((additionalCapacityNeeded + pageSize - 1) / pageSize);
             pages.ensureCapacity(pages.size() + additionalPagesNeeded);
-            for (int i = 0; i < additionalPagesNeeded; i++) {
-                Recycler.V<BytesRef> newPage = recycler.obtain();
-                assert pageSize == newPage.v().length;
-                pages.add(newPage);
+
+            if (circuitBreaker != null) {
+                circuitBreaker.addEstimateBytesAndMaybeBreak((long) pageSize * additionalPagesNeeded, "RecyclerBytesStreamOutput");
+            }
+            int pagesAdded = 0;
+            try {
+                while (pagesAdded < additionalPagesNeeded) {
+                    Recycler.V<BytesRef> newPage = recycler.obtain();
+                    assert pageSize == newPage.v().length;
+                    pages.add(newPage);
+                    pagesAdded += 1;
+                }
+            } finally {
+                if (circuitBreaker != null && pagesAdded < additionalPagesNeeded) {
+                    circuitBreaker.addWithoutBreaking((long) pageSize * (pagesAdded - additionalPagesNeeded));
+                }
             }
             currentCapacity += additionalPagesNeeded * pageSize;
         }

@@ -36,7 +36,7 @@ public class TransportXPackUsageAction extends TransportLocalClusterStateAction<
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportXPackUsageAction(
@@ -86,14 +86,10 @@ public class TransportXPackUsageAction extends TransportLocalClusterStateAction<
                 if (responses.size() < usageActions().size()) {
                     final var childRequest = new XPackUsageRequest(request.masterTimeout());
                     childRequest.setParentTask(request.getParentTask());
-                    client.executeLocally(
-                        usageActions.get(responses.size()),
-                        childRequest,
-                        listener.delegateFailure((delegate, response) -> {
-                            responses.add(response.getUsage());
-                            run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
-                        })
-                    );
+                    client.execute(usageActions.get(responses.size()), childRequest, listener.delegateFailure((delegate, response) -> {
+                        responses.add(response.getUsage());
+                        run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
+                    }));
                 } else {
                     assert responses.size() == usageActions.size() : responses.size() + " vs " + usageActions.size();
                     listener.onResponse(new XPackUsageResponse(responses));

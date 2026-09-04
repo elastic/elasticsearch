@@ -150,6 +150,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
 
+    public interface TaggedProjectCustom extends ProjectCustom {
+
+        /** Returns a set of project tag names that are allowed for this {@link ProjectCustom}. */
+        Set<String> allowedTagsNames();
+
+        String tagPrefix();
+    }
+
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
         false,

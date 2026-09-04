@@ -80,7 +80,7 @@ public class SqlQueryRequestTests extends AbstractXContentSerializingTestCase<Te
             randomTimeValue(),
             randomBoolean(),
             randomTVGreaterThan(MIN_KEEP_ALIVE),
-            randomBoolean()
+            randomBoolean() ? true : null
         );
     }
 
@@ -119,7 +119,7 @@ public class SqlQueryRequestTests extends AbstractXContentSerializingTestCase<Te
             request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
             request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE))),
             request -> request.allowPartialSearchResults(
-                randomValueOtherThan(request.allowPartialSearchResults(), ESTestCase::randomBoolean)
+                randomValueOtherThan(request.allowPartialSearchResults(), () -> randomBoolean() ? true : null)
             )
         );
         TestSqlQueryRequest newRequest = new TestSqlQueryRequest(

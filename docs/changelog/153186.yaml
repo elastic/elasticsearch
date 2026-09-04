@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153186
+summary: Upgrade otel-data `OpenTelemetry` to 1.62.0
+type: upgrade

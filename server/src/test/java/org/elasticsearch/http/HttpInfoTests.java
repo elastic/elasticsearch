@@ -34,7 +34,7 @@ public class HttpInfoTests extends ESTestCase {
                 ),
                 0L
             ),
-            "localhost/" + NetworkAddress.format(localhost) + ':' + port
+            "localhost/" + NetworkAddress.format(localhost, port)
         );
     }
 
@@ -49,7 +49,7 @@ public class HttpInfoTests extends ESTestCase {
                 ),
                 0L
             ),
-            NetworkAddress.format(localhost) + ':' + port
+            NetworkAddress.format(localhost, port)
         );
     }
 

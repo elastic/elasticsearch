@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -26,11 +27,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -41,6 +45,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -57,35 +62,56 @@ public abstract class IndexRouting {
      * Build the routing from {@link IndexMetadata}.
      */
     public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
-        if (metadata.getIndexMode() == IndexMode.TIME_SERIES
+        RoutingFunction routingFunction;
+
+        if (shouldUseShardCountModRouting(metadata.getCreationVersion())) {
+            routingFunction = RoutingFunction.moduloNumberOfShards(metadata.getNumberOfShards());
+        } else {
+            routingFunction = RoutingFunction.legacyRoutingNumberOfShards(metadata.getRoutingNumShards(), metadata.getRoutingFactor());
+        }
+
+        return create(metadata, routingFunction, metadata.getReshardingMetadata());
+    }
+
+    public static IndexRouting reshardingCustom(
+        IndexMetadata metadata,
+        RoutingFunction routingFunction,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
+        return create(metadata, routingFunction, reshardingMetadata);
+    }
+
+    private static IndexRouting create(
+        IndexMetadata metadata,
+        RoutingFunction routingFunction,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
+        if (IndexMode.isTsdb(metadata.getIndexMode())
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
-            return new ExtractFromSource.ForIndexDimensions(metadata);
+            return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata);
         }
         if (metadata.getRoutingPaths().isEmpty() == false) {
-            return new ExtractFromSource.ForRoutingPath(metadata);
+            return new ExtractFromSource.ForRoutingPath(metadata, routingFunction, reshardingMetadata);
         }
         if (metadata.isRoutingPartitionedIndex()) {
-            return new Partitioned(metadata);
+            return new Partitioned(metadata, routingFunction, reshardingMetadata);
         }
-        return new Unpartitioned(metadata);
+        return new Unpartitioned(metadata, routingFunction, reshardingMetadata);
     }
 
     protected final String indexName;
-    private final int numberOfShards;
-    private final int routingNumShards;
-    private final int routingFactor;
     protected final IndexVersion creationVersion;
+    protected final RoutingFunction routingFunction;
     @Nullable
-    private final IndexReshardingMetadata indexReshardingMetadata;
+    private final IndexReshardingMetadata reshardingMetadata;
 
-    private IndexRouting(IndexMetadata metadata) {
+    private IndexRouting(IndexMetadata metadata, RoutingFunction routingFunction, @Nullable IndexReshardingMetadata reshardingMetadata) {
         this.indexName = metadata.getIndex().getName();
-        this.numberOfShards = metadata.getNumberOfShards();
-        this.routingNumShards = metadata.getRoutingNumShards();
-        this.routingFactor = metadata.getRoutingFactor();
         this.creationVersion = metadata.getCreationVersion();
-        this.indexReshardingMetadata = metadata.getReshardingMetadata();
+        this.reshardingMetadata = reshardingMetadata;
+
+        this.routingFunction = routingFunction;
     }
 
     /**
@@ -94,15 +120,58 @@ public abstract class IndexRouting {
     public void preProcess(IndexRequest indexRequest) {}
 
     /**
+     * Batch version of {@link #preProcess(IndexRequest)}: pre-processes each request in turn.
+     * Subclasses override for more efficient batch treatment..
+     */
+    public void preProcess(IndexRequest[] requests) {
+        for (IndexRequest r : requests) {
+            preProcess(r);
+        }
+    }
+
+    /**
      * Finalize the request after routing, incorporating data produced by the routing logic.
      */
     public void postProcess(IndexRequest indexRequest) {}
+
+    /**
+     * Batch version of {@link #postProcess(IndexRequest)}: post-processes each request in turn.
+     * Subclasses override for more efficient batch treatment.
+     */
+    public void postProcess(IndexRequest[] requests) {
+        for (IndexRequest r : requests) {
+            postProcess(r);
+        }
+    }
 
     /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
     public abstract int indexShard(IndexRequest indexRequest);
+
+    /**
+     * Batch version of {@link #indexShard(IndexRequest)}: routes each request. Returns one shard id
+     * per request in the same order as {@code requests}.
+     */
+    public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+        int[] shards = new int[requests.length];
+        for (int i = 0; i < requests.length; i++) {
+            shards[i] = indexShard(requests[i]);
+        }
+        return shards;
+    }
+
+    /**
+     * Returns a {@link RoutingExtractor} for this routing strategy if it can compute the shard id
+     * from data accumulated during a single source parse pass (e.g. via
+     * {@link org.elasticsearch.sourcebatch.SourceBatchEncoder}); returns {@code null} for strategies that route
+     * solely on the document id and explicit routing field, in which case callers should use
+     * {@link #indexShard(IndexRequest)} directly.
+     */
+    public RoutingExtractor newRoutingExtractor() {
+        return null;
+    }
 
     /**
      * Called when indexing a document must be rerouted from the source shard to the target
@@ -148,26 +217,6 @@ public abstract class IndexRouting {
     }
 
     /**
-     * Convert a hash generated from an {@code (id, routing}) pair into a
-     * shard id.
-     */
-    protected final int hashToShardId(int hash) {
-        if (shouldUseShardCountModRouting(creationVersion)) {
-            return Math.floorMod(hash, numberOfShards);
-        } else {
-            return hashToShardIdOld(hash);
-        }
-    }
-
-    /**
-     * Convert a hash generated from an {@code (id, routing}) pair into a
-     * shard id using the old routingNumShards mechanism.
-     */
-    protected final int hashToShardIdOld(int hash) {
-        return Math.floorMod(hash, routingNumShards) / routingFactor;
-    }
-
-    /**
      * Convert a routing value into a hash.
      */
     private static int effectiveRoutingToHash(String effectiveRouting) {
@@ -179,6 +228,11 @@ public abstract class IndexRouting {
      * @throws IllegalArgumentException if the operation is not allowed
      */
     public void checkIndexSplitAllowed() {}
+
+    /// Returns a predicate that given the document id and a routing value
+    /// returns `true` if the document routes to the provided shard.
+    /// This API is specifically used by [ShardSplittingQuery].
+    public abstract BiPredicate<String, String> shardMatcherForSplit(int shardId);
 
     /**
      * If this index is in the process of resharding, and the shard to which this request is being routed,
@@ -195,10 +249,10 @@ public abstract class IndexRouting {
     }
 
     private int rerouteFromSplitTargetShard(int shardId, IndexReshardingState.Split.TargetShardState minimumRequiredState) {
-        assert indexReshardingMetadata == null || indexReshardingMetadata.isSplit() : "Index resharding state is not a split";
-        if (indexReshardingMetadata != null && indexReshardingMetadata.getSplit().isTargetShard(shardId)) {
-            if (indexReshardingMetadata.getSplit().targetStateAtLeast(shardId, minimumRequiredState) == false) {
-                return indexReshardingMetadata.getSplit().sourceShard(shardId);
+        assert reshardingMetadata == null || reshardingMetadata.isSplit() : "Index resharding state is not a split";
+        if (reshardingMetadata != null && reshardingMetadata.getSplit().isTargetShard(shardId)) {
+            if (reshardingMetadata.getSplit().targetStateAtLeast(shardId, minimumRequiredState) == false) {
+                return reshardingMetadata.getSplit().sourceShard(shardId);
             }
         }
         return shardId;
@@ -207,12 +261,16 @@ public abstract class IndexRouting {
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexMode indexMode;
+        private final boolean sliceEnabled;
+        private final String requiredRoutingParameterName;
 
-        IdAndRoutingOnly(IndexMetadata metadata) {
-            super(metadata);
+        IdAndRoutingOnly(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
+            super(metadata, routingFunction, reshardingMetadata);
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
+            this.sliceEnabled = IndexSettings.SLICE_ENABLED.get(metadata.getSettings());
+            this.requiredRoutingParameterName = sliceEnabled ? SliceIndexing.PARAM_NAME : "routing";
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
@@ -234,7 +292,8 @@ public abstract class IndexRouting {
         }
 
         private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
-            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR || indexMode == IndexMode.COLUMNAR)
+                && isNewIndexVersion(creationVersion);
         }
 
         private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
@@ -276,13 +335,31 @@ public abstract class IndexRouting {
         @Override
         public int getShard(String id, @Nullable String routing) {
             checkRoutingRequired(id, routing);
-            return shardId(id, routing);
+            int shardId = shardId(id, routing);
+            return rerouteSearchIfResharding(shardId);
         }
 
         private void checkRoutingRequired(String id, @Nullable String routing) {
             if (routingRequired && routing == null) {
+                if (sliceEnabled) {
+                    throw new SliceMissingException(indexName, id);
+                }
                 throw new RoutingMissingException(indexName, id);
             }
+        }
+
+        protected String requiredRoutingParameterName() {
+            return requiredRoutingParameterName;
+        }
+
+        @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            return (id, routing) -> {
+                // Note that we intentionally do not apply any adjustments for resharding.
+                // These adjustments are introduced for coordinator nodes and `ShardSplittingQuery` does not need them.
+                int routedToShardId = shardId(id, routing);
+                return routedToShardId == shardId;
+            };
         }
     }
 
@@ -290,18 +367,18 @@ public abstract class IndexRouting {
      * Strategy for indices that are not partitioned.
      */
     private static class Unpartitioned extends IdAndRoutingOnly {
-        Unpartitioned(IndexMetadata metadata) {
-            super(metadata);
+        Unpartitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
+            super(metadata, routingFunction, reshardingMetadata);
         }
 
         @Override
         protected int shardId(String id, @Nullable String routing) {
-            return hashToShardId(effectiveRoutingToHash(routing == null ? id : routing));
+            return routingFunction.shardNum(effectiveRoutingToHash(routing == null ? id : routing));
         }
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
-            consumer.accept(rerouteSearchIfResharding(hashToShardId(effectiveRoutingToHash(routing))));
+            consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(effectiveRoutingToHash(routing))));
         }
     }
 
@@ -311,25 +388,27 @@ public abstract class IndexRouting {
     private static class Partitioned extends IdAndRoutingOnly {
         private final int routingPartitionSize;
 
-        Partitioned(IndexMetadata metadata) {
-            super(metadata);
+        Partitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
+            super(metadata, routingFunction, reshardingMetadata);
             this.routingPartitionSize = metadata.getRoutingPartitionSize();
         }
 
         @Override
         protected int shardId(String id, @Nullable String routing) {
             if (routing == null) {
-                throw new IllegalArgumentException("A routing value is required for gets from a partitioned index");
+                throw new IllegalArgumentException(
+                    "A " + requiredRoutingParameterName() + " value is required for gets from a partitioned index"
+                );
             }
             int offset = Math.floorMod(effectiveRoutingToHash(id), routingPartitionSize);
-            return hashToShardId(effectiveRoutingToHash(routing) + offset);
+            return routingFunction.shardNum(effectiveRoutingToHash(routing) + offset);
         }
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             int hash = effectiveRoutingToHash(routing);
             for (int i = 0; i < routingPartitionSize; i++) {
-                consumer.accept(rerouteSearchIfResharding(hashToShardId(hash + i)));
+                consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(hash + i)));
             }
         }
     }
@@ -344,23 +423,66 @@ public abstract class IndexRouting {
         private final boolean useTimeSeriesSyntheticId;
         private final boolean addIdWithRoutingHash;
         private int hash = Integer.MAX_VALUE;
+        /**
+         * Hashes recorded by a batch {@link #indexShard(IndexRequest[], SourceBatch)} call, one per
+         * request. Set by subclasses (e.g. {@link ForIndexDimensions}) and consumed by the batch
+         * {@link #postProcess(IndexRequest[])} override. {@code null} between calls.
+         */
+        int[] batchHashes;
 
-        ExtractFromSource(IndexMetadata metadata, List<String> includePaths) {
-            super(metadata);
+        /**
+         * Records the routing hash that {@link #postProcess(IndexRequest)} will later read. Used by
+         * subclasses that compute the hash through means other than {@link #hashSource} — e.g. via
+         * a {@link RoutingExtractor} fed during batch encoding.
+         */
+        final void setRecordedHash(int h) {
+            this.hash = h;
+        }
+
+        ExtractFromSource(
+            IndexMetadata metadata,
+            RoutingFunction routingFunction,
+            IndexReshardingMetadata reshardingMetadata,
+            List<String> includePaths
+        ) {
+            super(metadata, routingFunction, reshardingMetadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
             indexMode = metadata.getIndexMode();
             assert indexMode != null : "Index mode must be set for ExtractFromSource routing";
-            this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+            this.trackTimeSeriesRoutingHash = indexMode.isTsdb()
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
-            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
+            addIdWithRoutingHash = (indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.LOGSDB_COLUMNAR
+                || indexMode == IndexMode.COLUMNAR);
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }
 
         @Override
         public void postProcess(IndexRequest indexRequest) {
+            doPostProcess(indexRequest, hash);
+        }
+
+        @Override
+        public void postProcess(IndexRequest[] requests) {
+            if (batchHashes == null || batchHashes.length != requests.length) {
+                throw new IllegalStateException(
+                    "batch postProcess requires the hashes recorded by indexShard(IndexRequest[], SourceBatch) for the same "
+                        + requests.length
+                        + " requests, but "
+                        + (batchHashes == null ? "none were recorded" : "found " + batchHashes.length)
+                        + "; batch pre-process, routing and post-process must be used together"
+                );
+            }
+            for (int i = 0; i < requests.length; i++) {
+                doPostProcess(requests[i], batchHashes[i]);
+            }
+            batchHashes = null;
+        }
+
+        private void doPostProcess(IndexRequest indexRequest, int hash) {
             if (trackTimeSeriesRoutingHash) {
                 indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
             } else if (addIdWithRoutingHash) {
@@ -374,7 +496,7 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(indexRequest.routing());
             hash = hashSource(indexRequest);
-            int shardId = hashToShardId(hash);
+            int shardId = routingFunction.shardNum(hash);
             return rerouteWritesIfResharding(shardId);
         }
 
@@ -385,9 +507,9 @@ public abstract class IndexRouting {
                 if (routing == null) {
                     throw new IllegalStateException("Routing should be set by the coordinator");
                 }
-                return hashToShardId(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
+                return routingFunction.shardNum(TimeSeriesRoutingHashFieldMapper.decode(indexRequest.routing()));
             } else if (addIdWithRoutingHash) {
-                return hashToShardId(idToHash(indexRequest.id()));
+                return routingFunction.shardNum(idToHash(indexRequest.id()));
             } else {
                 checkNoRouting(indexRequest.routing());
                 return indexShard(indexRequest);
@@ -395,6 +517,15 @@ public abstract class IndexRouting {
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
+
+        /**
+         * Returns true if dimension fields on this index should write to {@link org.elasticsearch.index.mapper.RoutingFields}
+         * during document mapping. Returns false for {@link ForIndexDimensions}, which builds the tsid during routing
+         * on the coordinating node and attaches it to the index request, so the data node does not need to re-extract dimensions.
+         */
+        public boolean extractDimensionsWhileMapping() {
+            return true;
+        }
 
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
@@ -423,7 +554,7 @@ public abstract class IndexRouting {
             return (rerouteWritesIfResharding(shardId));
         }
 
-        private void checkNoRouting(@Nullable String routing) {
+        void checkNoRouting(@Nullable String routing) {
             if (routing != null) {
                 throw new IllegalArgumentException(error("specifying routing"));
             }
@@ -453,12 +584,18 @@ public abstract class IndexRouting {
                 // For TSDB, the hash is stored as the id prefix.
                 hash = ByteUtils.readIntLE(idBytes, 0);
             }
-            return hashToShardId(hash);
+            return routingFunction.shardNum(hash);
         }
 
         @Override
         public void checkIndexSplitAllowed() {
             throw new IllegalArgumentException(error("index-split"));
+        }
+
+        @Override
+        public BiPredicate<String, String> shardMatcherForSplit(int shardId) {
+            // Splits of time series indices are not supported, see `checkIndexSplitAllowed()`.
+            throw new UnsupportedOperationException(error("index-split"));
         }
 
         @Override
@@ -481,8 +618,8 @@ public abstract class IndexRouting {
         public static class ForRoutingPath extends ExtractFromSource {
             private final Predicate<String> isRoutingPath;
 
-            ForRoutingPath(IndexMetadata metadata) {
-                super(metadata, metadata.getRoutingPaths());
+            ForRoutingPath(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
+                super(metadata, routingFunction, reshardingMetadata, metadata.getRoutingPaths());
                 isRoutingPath = Regex.simpleMatcher(metadata.getRoutingPaths().toArray(String[]::new));
             }
 
@@ -491,6 +628,23 @@ public abstract class IndexRouting {
                 return hashRoutingFields(indexRequest.getContentType(), indexRequest.source()).buildHash(
                     IndexRouting.ExtractFromSource::defaultOnEmpty
                 );
+            }
+
+            @Override
+            public RoutingExtractor newRoutingExtractor() {
+                return new RoutingPathExtractor(this);
+            }
+
+            /**
+             * Computes the shard id from a {@link RoutingHashBuilder} populated during batch encoding,
+             * applying the same post-processing as {@link #indexShard(IndexRequest)} (records the
+             * hash so {@link #postProcess(IndexRequest)} can later embed it in the auto-generated id
+             * for LogsDB, and reroutes if the destination shard is a not-yet-handed-off split target).
+             */
+            int shardIdForRoutingHash(RoutingHashBuilder builder) {
+                int h = builder.buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+                setRecordedHash(h);
+                return rerouteWritesIfResharding(routingFunction.shardNum(h));
             }
 
             public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -520,6 +674,16 @@ public abstract class IndexRouting {
             public boolean matchesField(String fieldName) {
                 return isRoutingPath.test(fieldName);
             }
+
+            /**
+             * Batch routing is not yet implemented for {@code routing_path} indices.
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                throw new UnsupportedOperationException(
+                    "Batch routing is not yet implemented for routing_path indices (index [" + indexName + "])"
+                );
+            }
         }
 
         /**
@@ -531,14 +695,17 @@ public abstract class IndexRouting {
          */
         public static class ForIndexDimensions extends ExtractFromSource {
 
-            ForIndexDimensions(IndexMetadata metadata) {
-                super(metadata, metadata.getTimeSeriesDimensions());
-                assert metadata.getIndexMode() == IndexMode.TIME_SERIES : "Index mode must be time_series for ForIndexDimensions routing";
+            private final Predicate<String> isDimensionField;
+
+            ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
+                super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
+                assert IndexMode.isTsdb(metadata.getIndexMode()) : "Index mode must be time_series for ForIndexDimensions routing";
                 assert metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
                     : "Index version must be at least "
                         + IndexVersions.TSID_CREATED_DURING_ROUTING
                         + " for ForIndexDimensions routing but was "
                         + metadata.getCreationVersion();
+                this.isDimensionField = Regex.simpleMatcher(metadata.getTimeSeriesDimensions().toArray(String[]::new));
             }
 
             @Override
@@ -551,6 +718,37 @@ public abstract class IndexRouting {
                 return hash(tsid);
             }
 
+            @Override
+            public RoutingExtractor newRoutingExtractor() {
+                return new DimensionsExtractor(this);
+            }
+
+            /**
+             * Computes the shard id from a {@link TsidBuilder} populated during batch encoding,
+             * matching the post-processing of {@link #hashSource(IndexRequest)}: builds the tsid,
+             * stashes it on the request so the data node can reuse it instead of rebuilding (see
+             * {@link #extractDimensionsWhileMapping()}), records the routing hash for
+             * {@link #postProcess(IndexRequest)}, and reroutes if the destination shard is a
+             * not-yet-handed-off split target.
+             */
+            int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
+                BytesRef tsid = tsidBuilder.buildTsid(creationVersion);
+                indexRequest.tsid(tsid);
+                int h = hash(tsid);
+                setRecordedHash(h);
+                return rerouteWritesIfResharding(routingFunction.shardNum(h));
+            }
+
+            /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */
+            boolean matchesField(String fieldName) {
+                return isDimensionField.test(fieldName);
+            }
+
+            @Override
+            public boolean extractDimensionsWhileMapping() {
+                return false;
+            }
+
             public BytesRef buildTsid(XContentType sourceType, BytesReference source) {
                 TsidBuilder b = new TsidBuilder();
                 try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, source, sourceType)) {
@@ -558,7 +756,54 @@ public abstract class IndexRouting {
                 } catch (IOException | ParsingException e) {
                     throw new IllegalArgumentException("Error extracting tsid: " + e.getMessage(), e);
                 }
-                return b.buildTsid();
+                return b.buildTsid(creationVersion);
+            }
+
+            /**
+             * Batch routing: computes tsids for all requests in one column-major pass over
+             * {@code batch}.
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                batchHashes = null;
+                int[] shards = new int[requests.length];
+                int[] hashes = new int[requests.length];
+                // Enforce all-or-none tsid rule: either every request has a pre-set tsid (from an
+                // upstream producer that already computed them) or none do. A mixed batch is a bug.
+                boolean allPreSet = requests.length > 0 && requests[0].tsid() != null;
+                for (int i = 0; i < requests.length; i++) {
+                    IndexRequest req = requests[i];
+                    checkNoRouting(req.routing());
+                    BytesRef tsid = req.tsid();
+                    if ((tsid == null) == allPreSet) {
+                        throw new IllegalArgumentException(
+                            "Batch tsid consistency violation at index "
+                                + i
+                                + ": expected all requests to "
+                                + (allPreSet ? "have" : "lack")
+                                + " a pre-set tsid"
+                        );
+                    }
+                    if (allPreSet) {
+                        // Hash and route here, while the request and its tsid are already loaded for the
+                        // check above.
+                        int h = hash(tsid);
+                        hashes[i] = h;
+                        shards[i] = rerouteWritesIfResharding(routingFunction.shardNum(h));
+                    }
+                }
+
+                if (allPreSet == false) {
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion);
+                    for (int i = 0; i < requests.length; i++) {
+                        requests[i].tsid(tsids[i]);
+                        int h = hash(tsids[i]);
+                        hashes[i] = h;
+                        shards[i] = rerouteWritesIfResharding(routingFunction.shardNum(h));
+                    }
+                }
+                batchHashes = hashes;
+                return shards;
             }
         }
     }

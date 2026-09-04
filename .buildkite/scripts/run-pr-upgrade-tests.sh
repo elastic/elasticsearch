@@ -32,11 +32,19 @@ steps:
         - label: "pr-upgrade-part-{{matrix.PART}}"
           command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=${VERSION}-SNAPSHOT -Dtests.bwc.refspec.main=${BASE_COMMIT} bcUpgradeTestPart{{matrix.PART}}
           timeout_in_minutes: 300
+          retry:
+            automatic:
+              - exit_status: 47
+                limit: 3
+                signal_reason: none
           agents:
             provider: gcp
-            image: family/elasticsearch-ubuntu-2004
-            machineType: n1-standard-32
+            image: family/elasticsearch-ubuntu-2404
+            machineType: n4-standard-16
+            diskType: hyperdisk-balanced
             buildDirectory: /dev/shm/bk
+            preemptible: true
+            spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
           matrix:
             setup:
               PART: ["1", "2", "3", "4", "5", "6"]

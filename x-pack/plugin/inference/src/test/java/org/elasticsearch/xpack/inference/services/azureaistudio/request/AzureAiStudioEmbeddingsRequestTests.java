@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
@@ -45,7 +46,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             null,
             inputType
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, "apikey");
 
@@ -67,7 +68,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             "userid",
             inputType
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://openaitarget.local");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.OPENAI, "apikey");
 
@@ -89,7 +90,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             null,
             inputType
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/embeddings");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, "apikey");
 
@@ -110,7 +111,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
             "userid",
             inputType
         );
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, "http://coheretarget.local/v1/embeddings");
         validateRequestApiKey(httpPost, AzureAiStudioProvider.COHERE, "apikey");
 
@@ -134,7 +135,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         );
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

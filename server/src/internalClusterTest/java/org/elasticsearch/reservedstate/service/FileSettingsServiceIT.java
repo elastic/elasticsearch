@@ -24,9 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -63,6 +65,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private final AtomicLong versionCounter = new AtomicLong(1);
+
+    /**
+     * The test must wait this long for {@link LocalHealthMonitor} to do its thing. The shorter, the better.
+     * <p>
+     * If we could get our hands on the {@link LocalHealthMonitor} objects for the relevant nodes,
+     * we could forcibly make these tests even faster by using {@code LocalHealthMonitor.setMonitorInterval}.
+     */
+    private static final TimeValue HEALTH_POLL_INTERVAL = LocalHealthMonitor.MIN_POLL_INTERVAL; // Make it as snappy as possible
 
     @Before
     public void resetVersionCounter() {
@@ -610,6 +620,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), HEALTH_POLL_INTERVAL)
+            .build();
+    }
+
     public void testHealthIndicatorWithSingleNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start the node");
@@ -683,7 +701,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                     getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
                 );
             }
-        });
+        }, 2 * HEALTH_POLL_INTERVAL.duration(), HEALTH_POLL_INTERVAL.timeUnit());
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

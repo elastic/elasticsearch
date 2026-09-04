@@ -168,6 +168,7 @@ public final class TextParams {
     public static FieldType buildFieldType(
         Supplier<Boolean> indexed,
         Supplier<Boolean> stored,
+        Supplier<Boolean> hasDocValues,
         Supplier<String> indexOptions,
         Supplier<Boolean> norms,
         Supplier<String> termVectors

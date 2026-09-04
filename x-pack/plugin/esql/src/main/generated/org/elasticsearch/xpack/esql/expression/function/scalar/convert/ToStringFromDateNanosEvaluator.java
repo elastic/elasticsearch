@@ -8,33 +8,37 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDateNanosEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator datetime;
+  private final ExpressionEvaluator datetime;
 
-  public ToStringFromDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      DriverContext driverContext) {
+  private final DateFormatter formatter;
+
+  public ToStringFromDateNanosEvaluator(Source source, ExpressionEvaluator datetime,
+      DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.datetime = datetime;
+    this.formatter = formatter;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return datetime;
   }
 
@@ -55,7 +59,7 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
   private BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
   }
 
   @Override
@@ -90,12 +94,12 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
 
   private BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
   }
 
   @Override
   public String toString() {
-    return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + "]";
+    return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -110,24 +114,27 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+    private final ExpressionEvaluator.Factory datetime;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime) {
+    private final DateFormatter formatter;
+
+    public Factory(Source source, ExpressionEvaluator.Factory datetime, DateFormatter formatter) {
       this.source = source;
       this.datetime = datetime;
+      this.formatter = formatter;
     }
 
     @Override
     public ToStringFromDateNanosEvaluator get(DriverContext context) {
-      return new ToStringFromDateNanosEvaluator(source, datetime.get(context), context);
+      return new ToStringFromDateNanosEvaluator(source, datetime.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + "]";
+      return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
     }
   }
 }

@@ -57,7 +57,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
     @Override
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder().setId(NAME)
-            .setSource(new SourceConfig(new String[] { CONTINUOUS_EVENTS_SOURCE_INDEX }, QueryConfig.matchAll(), RUNTIME_MAPPINGS))
+            .setSource(new SourceConfig(new String[] { CONTINUOUS_EVENTS_SOURCE_INDEX }, QueryConfig.matchAll(), RUNTIME_MAPPINGS, null))
             .setDest(new DestConfig(NAME, null, INGEST_PIPELINE))
             .setLatestConfig(new LatestConfig(List.of(eventField), timestampField));
         addCommonBuilderParameters(transformConfigBuilder);
@@ -164,8 +164,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 assertThat(XContentMapValues.extractValue(INGEST_RUN_FIELD, source), is(not(equalTo(iteration))));
             }
         }
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 
     private String toJson(Map<String, Object> map) throws IOException {

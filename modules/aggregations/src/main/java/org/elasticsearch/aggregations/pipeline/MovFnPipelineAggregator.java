@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -72,12 +73,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation<
-            ? extends InternalMultiBucketAggregation,
-            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
-                ? extends InternalMultiBucketAggregation,
-                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<?, ?> histo = asMultiBucketAggregation(aggregation);
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -91,6 +87,9 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         }
 
         MovingFunctionScript executableScript = scriptFactory.newInstance();
+        executableScript._setCancellationCheck(
+            () -> { if (reduceContext.isCanceled().get()) throw new TaskCancelledException("Cancelled"); }
+        );
 
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))

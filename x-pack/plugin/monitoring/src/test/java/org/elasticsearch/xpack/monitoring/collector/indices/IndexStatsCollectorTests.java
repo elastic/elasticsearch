@@ -172,7 +172,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 
@@ -213,7 +213,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the deprecation documentation for the next major version."
+                + "in a future release. See the breaking changes documentation for the next major version."
         );
     }
 

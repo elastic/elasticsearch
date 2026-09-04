@@ -258,6 +258,8 @@ However, when the `fields` pattern targets the nested `user` field directly, no 
 
 ### Retrieve unmapped fields [retrieve-unmapped-fields]
 
+{{esql}} provides an equivalent capability with the `SET unmapped_fields` directive. To query unmapped fields in {{esql}}, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+
 ::::{dropdown}
 By default, the `fields` parameter returns only values of mapped fields. However, {{es}} allows storing fields in `_source` that are unmapped, such as setting [dynamic field mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md) to `false` or by using an object field with `enabled: false`. These options disable parsing and indexing of the object content.
 
@@ -541,7 +543,13 @@ GET my-index-000001/_search
 % TEST[setup:my_index]
 
 1. Both full field names and wildcard patterns are accepted.
-2. Using object notation, you can pass a `format` parameter to apply a custom format for the field’s doc values. [Date fields](/reference/elasticsearch/mapping-reference/date.md) support a [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md). [Numeric fields](/reference/elasticsearch/mapping-reference/number.md) support a [DecimalFormat pattern](https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.md). Other field datatypes do not support the `format` parameter.
+2. Using object notation, you can pass a `format` parameter to apply a custom format for the field’s doc values. [Date fields](/reference/elasticsearch/mapping-reference/date.md) support a [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md). [Numeric fields](/reference/elasticsearch/mapping-reference/number.md) support a [DecimalFormat pattern](https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.md). 
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+[Dense vector fields](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-docvalue-formats) support `format` values of `array` (default) — an array of decoded vector values — or `binary`, a base64-encoded string of the raw vector bytes (numeric element types are emitted in big-endian order; `byte` and `bit` vectors are returned as stored). Any other format produces an error that lists the supported values. Other field datatypes do not support the `format` parameter.
 
 
 ::::{tip}

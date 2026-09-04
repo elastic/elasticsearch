@@ -16,11 +16,11 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -42,16 +42,18 @@ public class HttpClient implements Closeable {
     private final ThreadPool threadPool;
     private final HttpSettings settings;
     private final ThrottlerManager throttlerManager;
+    private final CircuitBreaker circuitBreaker;
 
     public static HttpClient create(
         HttpSettings settings,
         ThreadPool threadPool,
         PoolingNHttpClientConnectionManager connectionManager,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
         var client = createAsyncClient(Objects.requireNonNull(connectionManager), Objects.requireNonNull(settings));
 
-        return new HttpClient(settings, client, threadPool, throttlerManager);
+        return new HttpClient(settings, client, threadPool, throttlerManager, circuitBreaker);
     }
 
     private static CloseableHttpAsyncClient createAsyncClient(
@@ -111,11 +113,18 @@ public class HttpClient implements Closeable {
     }
 
     // Default for testing
-    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, ThreadPool threadPool, ThrottlerManager throttlerManager) {
+    HttpClient(
+        HttpSettings settings,
+        CloseableHttpAsyncClient asyncClient,
+        ThreadPool threadPool,
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
+    ) {
         this.settings = Objects.requireNonNull(settings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(asyncClient);
         this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
     }
 
     public void start() {
@@ -123,7 +132,7 @@ public class HttpClient implements Closeable {
     }
 
     public void send(HttpRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
-        SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
+        client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingResponseThread(response, request, listener);
@@ -142,7 +151,7 @@ public class HttpClient implements Closeable {
                     listener
                 );
             }
-        }));
+        });
     }
 
     private void respondUsingResponseThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
@@ -182,9 +191,15 @@ public class HttpClient implements Closeable {
     }
 
     public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
-        var streamingProcessor = new StreamingHttpResultPublisher(threadPool, settings, listener);
+        var streamingProcessor = new StreamingHttpResultPublisher(
+            threadPool,
+            settings,
+            listener,
+            circuitBreaker,
+            request.inferenceEntityId()
+        );
 
-        SocketAccess.doPrivileged(() -> client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
+        client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
             @Override
             public void completed(Void response) {
                 streamingProcessor.close();
@@ -206,7 +221,7 @@ public class HttpClient implements Closeable {
                         )
                     );
             }
-        }));
+        });
     }
 
     @Override

@@ -10,15 +10,11 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
@@ -31,7 +27,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -55,6 +50,25 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private volatile Map<ScriptContext<?>, List<Whitelist>> whitelists;
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
+
+    /**
+     * Populated in {@link #createComponents}, the first hook handed a {@code MeterRegistry}. The engine is built earlier,
+     * in {@link #getScriptEngine}, so it takes this holder's {@code get} and reads through it on every compile.
+     */
+    private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
+
+    /**
+     * Enables per-execution allocation metrics, off by default. A system property rather than a {@link Setting} so it can be
+     * withdrawn later: a released {@code NodeScope} setting cannot be, since a node that no longer registers the key refuses
+     * to start with it in {@code elasticsearch.yml}. Serverless sets it; stateful leaves it off.
+     */
+    public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
+
+    /**
+     * Read at construction: whether to record is settled long before there is anything to record into. Anything but
+     * {@code true} or {@code false} is an error.
+     */
+    private final boolean allocationMetricsEnabled = Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
 
     public static List<Whitelist> baseWhiteList() {
         return List.of(
@@ -99,12 +113,16 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
+        painlessScriptEngine.set(
+            new PainlessScriptEngine(settings, contextsWithWhitelists, allocationMetrics::get, allocationMetricsEnabled)
+        );
         return painlessScriptEngine.get();
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        allocationMetrics.set(new AllocationMetrics(services.telemetryProvider().getMeterRegistry()));
+
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());
@@ -112,7 +130,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CompilerSettings.REGEX_ENABLED, CompilerSettings.REGEX_LIMIT_FACTOR);
+        return Arrays.asList(CompilerSettings.REGEX_ENABLED, CompilerSettings.REGEX_LIMIT_FACTOR, CompilerSettings.MAX_ALLOCATION_BYTES);
     }
 
     @Override
@@ -171,18 +189,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new PainlessExecuteAction.RestAction(settings));
+        handlers.add(new PainlessExecuteAction.RestAction(restHandlersServices.crossProjectModeDecider()));
         handlers.add(new PainlessContextAction.RestAction());
         return handlers;
     }

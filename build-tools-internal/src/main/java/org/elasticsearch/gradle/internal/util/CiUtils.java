@@ -9,10 +9,57 @@
 
 package org.elasticsearch.gradle.internal.util;
 
+import groovy.lang.Closure;
+
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 public class CiUtils {
 
-    static String safeName(String input) {
+    private static final Logger logger = Logging.getLogger(CiUtils.class);
+
+    public static String safeName(String input) {
         return input.replaceAll("[^a-zA-Z0-9_\\-\\.]+", " ").trim().replaceAll(" ", "_").toLowerCase();
     }
 
+    /**
+     * Executes a buildkite-agent command with timeout and exit code checking.
+     * Failures are logged as warnings but do not fail the build.
+     */
+    public static void runBuildkiteAgent(List<String> args, String description, Closure<?> stdinWriter) {
+        try {
+            List<String> command = new ArrayList<>();
+            command.add("buildkite-agent");
+            command.addAll(args);
+            Process process = new ProcessBuilder(command).start();
+            if (stdinWriter != null) {
+                try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()))) {
+                    stdinWriter.call(writer);
+                }
+            }
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (completed == false) {
+                logger.warn("Timeout {}", description);
+                process.destroyForcibly();
+            } else if (process.exitValue() != 0) {
+                logger.warn("Failed {}: exit code {}", description, process.exitValue());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed {}: {}", description, e.getMessage());
+        }
+    }
+
+    /**
+     * Executes a buildkite-agent command with timeout and exit code checking.
+     * Failures are logged as warnings but do not fail the build.
+     */
+    public static void runBuildkiteAgent(List<String> args, String description) {
+        runBuildkiteAgent(args, description, null);
+    }
 }

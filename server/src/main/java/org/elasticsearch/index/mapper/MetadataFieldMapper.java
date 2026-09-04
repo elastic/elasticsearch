@@ -13,6 +13,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,11 +35,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             throws MapperParsingException;
 
         /**
-         * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         *
-         * @param parserContext context that may be useful to build the field like analyzers
+         * Get a default {@link Builder} for this metadata field, using the given parser context.
+         * Returns null if this metadata field is not applicable for the current index.
          */
-        MetadataFieldMapper getDefault(MappingParserContext parserContext);
+        Builder getDefaultBuilder(MappingParserContext parserContext);
     }
 
     /**
@@ -85,21 +85,20 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return mapperParser.apply(parserContext);
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            MetadataFieldMapper mapper = mapperParser.apply(parserContext);
+            if (mapper == null) {
+                return null;
+            }
+            return new ConstantBuilder(mapper);
         }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
 
-        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
         final Function<MappingParserContext, Builder> builderFunction;
 
-        public ConfigurableTypeParser(
-            Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
-            Function<MappingParserContext, Builder> builderFunction
-        ) {
-            this.defaultMapperParser = defaultMapperParser;
+        public ConfigurableTypeParser(Function<MappingParserContext, Builder> builderFunction) {
             this.builderFunction = builderFunction;
         }
 
@@ -111,8 +110,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return defaultMapperParser.apply(parserContext);
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            return builderFunction.apply(parserContext);
         }
     }
 
@@ -122,7 +121,23 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             super(name);
         }
 
+        /**
+         * Returns true if any parameter on this builder was explicitly set (e.g. via parsing),
+         * even if the value matches the default.
+         */
         boolean isConfigured() {
+            for (Parameter<?> param : getParameters()) {
+                if (param.isSet()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Returns true if any parameter has a value that differs from its default.
+         */
+        private boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
@@ -183,17 +198,45 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return null;    // by default, things can't be configured so we have no builder
+        return new ConstantBuilder(this);
+    }
+
+    /**
+     * A trivial builder for non-configurable metadata field mappers that have no parameters.
+     * Wraps a built mapper and returns it unchanged from {@link #build()}.
+     */
+    static final class ConstantBuilder extends Builder {
+        private final MetadataFieldMapper mapper;
+
+        ConstantBuilder(MetadataFieldMapper mapper) {
+            super(mapper.fullPath());
+            this.mapper = mapper;
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
+        }
+
+        @Override
+        public MetadataFieldMapper build() {
+            return mapper;
+        }
+
+        @Override
+        public String contentType() {
+            return mapper.typeName();
+        }
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
+        if (mergeBuilder.hasNonDefaultParameters() == false) {
             return builder;
         }
         builder.startObject(leafName());
-        getMergeBuilder().toXContent(builder, params);
+        mergeBuilder.toXContent(builder, params);
         return builder.endObject();
     }
 
@@ -217,6 +260,37 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public void postParse(DocumentParserContext context) throws IOException {
         // do nothing
+    }
+
+    /**
+     * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
+     * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
+     * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
+     * {@link org.apache.lucene.document.Field}. Defaults to a no-op.
+     */
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
+     * to a no-op.
+     */
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Whether this metadata mapper can participate in the columnar bulk batch-mapping path.
+     */
+    public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        // This allows some metadata mappers to not block columnar indexing but still force a fall back
+        // if we do not supportsColumnarParse on specific fields
+        return supportsColumnarParse(indexSettings);
     }
 
     @Override

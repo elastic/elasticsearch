@@ -37,13 +37,13 @@ public final class TopBooleanAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public TopBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopBooleanAggregatorFunction.create(driverContext, channels, limit, ascending);
+    return new TopBooleanAggregatorFunction(driverContext, channels, limit, ascending);
   }
 
   @Override
   public TopBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return TopBooleanGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+    return new TopBooleanGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

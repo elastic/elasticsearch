@@ -206,8 +206,20 @@ public class InlineJoin extends Join implements SortPreserving {
         return tuple;
     }
 
+    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
+        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+            InlineJoin.class,
+            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+            // and equals would have ignored name IDs anyway
+            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+        );
+        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+        newLogicalPlan.setOptimized();
+        return newLogicalPlan;
+    }
+
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config);
+        super(source, left, right, config, ExecuteLocation.ANY);
     }
 
     public InlineJoin(
@@ -218,7 +230,7 @@ public class InlineJoin extends Join implements SortPreserving {
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, leftFields, rightFields, null);
+        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.ANY);
     }
 
     private static InlineJoin readFrom(StreamInput in) throws IOException {

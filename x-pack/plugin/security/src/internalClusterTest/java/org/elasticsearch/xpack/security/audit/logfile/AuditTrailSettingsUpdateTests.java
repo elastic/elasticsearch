@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.BeforeClass;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -111,6 +113,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     }
 
     public void testDynamicHostSettings() {
+        final String expectedLoopbackAddress = NetworkAddress.format(InetAddress.getLoopbackAddress());
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
@@ -123,14 +126,23 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
             .getAuditTrail();
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is("127.0.0.1"));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        assertThat(
+            loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME),
+            is(expectedLoopbackAddress)
+        );
+        assertThat(
+            loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME),
+            is(expectedLoopbackAddress)
+        );
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
         updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
+        assertThat(
+            loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME),
+            is(expectedLoopbackAddress)
+        );
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
         updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));

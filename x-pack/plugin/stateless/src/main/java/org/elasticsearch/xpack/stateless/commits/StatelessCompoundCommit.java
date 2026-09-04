@@ -18,7 +18,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -312,6 +311,19 @@ public record StatelessCompoundCommit(
     }
 
     /**
+     * Returns the BCC blob file that physically contains this compound commit's internal files.
+     */
+    public BlobFile getContainingBccBlobFile() {
+        for (String internalFile : internalFiles) {
+            BlobLocation location = commitFiles.get(internalFile);
+            assert location != null : "internal file [" + internalFile + "] does not exist as a commit file [" + commitFiles + "]";
+            return location.blobFile();
+        }
+        assert false : "a commit should always have at least one internal file";
+        return null;
+    }
+
+    /**
      * Returns the "first" blob location of the internal files after comparing all the offsets in the current term and
      * generation using the provided comparator.
      *
@@ -335,6 +347,10 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
+    public Set<BlobFile> getBlobFiles() {
+        return commitFiles.values().stream().map(BlobLocation::blobFile).collect(Collectors.toSet());
+    }
+
     /**
      * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
      * @return the header size in bytes
@@ -350,7 +366,7 @@ public record StatelessCompoundCommit(
         Map<String, BlobLocation> referencedBlobFiles,
         Iterable<InternalFile> internalFiles,
         InternalFilesReplicatedRanges internalFilesReplicatedRanges,
-        PositionTrackingOutputStreamStreamOutput positionTracking,
+        StreamOutput positionTracking,
         boolean useInternalFilesReplicatedContent,
         Iterable<InternalFile> extraContent
     ) throws IOException {
@@ -684,6 +700,10 @@ public record StatelessCompoundCommit(
 
         public TimestampFieldValueRange(StreamInput in) throws IOException {
             this(in.readLong(), in.readLong());
+        }
+
+        public long midpointMillis() {
+            return minMillis + (maxMillis - minMillis) / 2;
         }
 
         @Override

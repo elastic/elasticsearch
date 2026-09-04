@@ -10,19 +10,28 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 
 /**
- * Holds all the doc values used in the {@link TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum} and
- * {@link TSDBSyntheticIdFieldsProducer.SyntheticIdPostingsEnum} to lookup and to build synthetic _ids,
- * along with some utility methods to access doc values.
+ * Holds all the doc values used in the {@link TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum},
+ * {@link TSDBSyntheticIdFieldsProducer.SyntheticIdPostingsEnum} and {@link TSDBSyntheticIdStoredFieldsReader} to lookup and to build
+ * synthetic _ids, along with some utility methods to access doc values.
  * <p>
  * It holds the instance of {@link DocValuesProducer} used to create the sorted doc values for _tsid, @timestamp and
  * _ts_routing_hash. Because doc values can only advance, they are re-created from the {@link DocValuesProducer} when we need to
@@ -34,11 +43,19 @@ class TSDBSyntheticIdDocValuesHolder {
     private final FieldInfo tsIdFieldInfo;
     private final FieldInfo timestampFieldInfo;
     private final FieldInfo routingHashFieldInfo;
+    private final @Nullable FieldInfo tombstoneFieldInfo;
+    private final @Nullable FieldInfo softDeletesFieldInfo;
     private final DocValuesProducer docValuesProducer;
+    private final boolean hasTsIdSkipper;
+    private final boolean hasTimestampSkipper;
 
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
     private SortedDocValues tsIdDocValues; // sorted asc. order
+    private NumericDocValues tombstoneDocValues;
+    private NumericDocValues softDeletesDocValues;
+    // tsids in the same segment have the same length
+    private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
@@ -47,7 +64,11 @@ class TSDBSyntheticIdDocValuesHolder {
         this.tsIdFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ID);
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
+        this.tombstoneFieldInfo = fieldInfos.fieldInfo(SeqNoFieldMapper.TOMBSTONE_NAME);
+        this.softDeletesFieldInfo = fieldInfos.fieldInfo(Lucene.SOFT_DELETES_FIELD);
         this.docValuesProducer = docValuesProducer;
+        this.hasTsIdSkipper = tsIdFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
+        this.hasTimestampSkipper = timestampFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
     }
 
     private FieldInfo safeFieldInfo(FieldInfos fieldInfos, String fieldName) {
@@ -74,7 +95,9 @@ class TSDBSyntheticIdDocValuesHolder {
             cachedTsId = null;
         }
         boolean found = tsIdDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+        if (found == false) {
+            throw new IllegalStateException("No _tsid value for docID " + docID);
+        }
         return tsIdDocValues.ordValue();
     }
 
@@ -90,7 +113,7 @@ class TSDBSyntheticIdDocValuesHolder {
             timestampDocValues = docValuesProducer.getSortedNumeric(timestampFieldInfo);
         }
         boolean found = timestampDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + timestampFieldInfo.getName() + " and docID " + docID;
+        assert found : "No value found for field [" + timestampFieldInfo.getName() + "] and docID " + docID;
         assert timestampDocValues.docValueCount() == 1;
         return timestampDocValues.nextValue();
     }
@@ -107,7 +130,7 @@ class TSDBSyntheticIdDocValuesHolder {
             routingHashDocValues = docValuesProducer.getSorted(routingHashFieldInfo);
         }
         boolean found = routingHashDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + routingHashFieldInfo.getName() + " and docID " + docID;
+        assert found : "No value found for field [" + routingHashFieldInfo.getName() + "] and docID " + docID;
         return routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
     }
 
@@ -134,7 +157,7 @@ class TSDBSyntheticIdDocValuesHolder {
         int ordinal = tsIdDocValues.lookupTerm(tsId);
         if (0 <= ordinal) {
             cachedTsIdOrd = ordinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return ordinal;
     }
@@ -160,20 +183,25 @@ class TSDBSyntheticIdDocValuesHolder {
         var tsId = tsIdDocValues.lookupOrd(tsIdOrdinal);
         if (tsId != null) {
             cachedTsIdOrd = tsIdOrdinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return tsId;
     }
 
     /**
      * Use a doc values skipper to find a starting document ID for the provided _tsid ordinal. The returned document ID might have the
-     * exact _tsid ordinal provided, or a lower one.
+     * exact _tsid ordinal provided, or a lower one; every document before it is guaranteed to have a lower _tsid ordinal. Returns
+     * {@link DocIdSetIterator#NO_MORE_DOCS} if the provided ordinal is greater than every ordinal in the segment.
      *
      * @param tsIdOrd the _tsid ordinal
      * @return a docID to start scanning documents from in order to find the first document ID matching the provided _tsid
      * @throws IOException if any I/O exception occurs
      */
-    private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+    int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        assert tsIdOrd >= 0 : tsIdOrd;
+        if (hasTsIdSkipper == false) {
+            return 0;
+        }
         var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
         assert skipper != null;
         if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
@@ -192,9 +220,8 @@ class TSDBSyntheticIdDocValuesHolder {
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
         final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
-        if (startDocId == DocIdSetIterator.NO_MORE_DOCS) {
-            return startDocId;
-        }
+        assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
+
         // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
         if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
@@ -205,12 +232,14 @@ class TSDBSyntheticIdDocValuesHolder {
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
-            boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+            // Skip documents without _tsid (NOOP tombstones)
+            if (tsIdDocValues.advanceExact(docID) == false) {
+                continue;
+            }
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd || tsIdOrd < ord) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;
@@ -218,6 +247,7 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         cachedTsIdOrd = -1;
         cachedTsId = null;
+        assert false : "Method must be called with an existing _tsid ordinal: " + tsIdOrd;
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
@@ -242,12 +272,14 @@ class TSDBSyntheticIdDocValuesHolder {
         assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
-            boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+            // Skip documents without _tsid (NOOP tombstones)
+            if (tsIdDocValues.advanceExact(docID) == false) {
+                continue;
+            }
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;
@@ -261,23 +293,14 @@ class TSDBSyntheticIdDocValuesHolder {
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
-    /**
-     * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
-     *
-     * @param timestamp the timestamp to match
-     * @param minDocID the min. document ID
-     * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
-     * @throws IOException if any I/O exception occurs
-     */
-    int skipDocIDForTimestamp(long timestamp, int minDocID) throws IOException {
+    @Nullable
+    DocValuesSkipper docValuesSkipperForTimestamp() throws IOException {
+        if (hasTimestampSkipper == false) {
+            return null;
+        }
         var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
         assert skipper != null;
-        if (skipper.minValue() > timestamp || timestamp > skipper.maxValue()) {
-            return DocIdSetIterator.NO_MORE_DOCS;
-        }
-        skipper.advance(minDocID);
-        skipper.advance(timestamp, Long.MAX_VALUE);
-        return Math.max(minDocID, skipper.minDocID(0));
+        return skipper;
     }
 
     int getTsIdValueCount() throws IOException {
@@ -285,5 +308,103 @@ class TSDBSyntheticIdDocValuesHolder {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
         }
         return tsIdDocValues.getValueCount();
+    }
+
+    int getTsidFixedLength() throws IOException {
+        if (tsidFixedLength >= 0) {
+            return tsidFixedLength;
+        }
+        if (tsIdDocValues == null) {
+            tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
+        }
+        if (tsIdDocValues.getValueCount() == 0) {
+            tsidFixedLength = 0;
+        } else {
+            tsidFixedLength = tsIdDocValues.lookupOrd(0).length;
+        }
+        return tsidFixedLength;
+    }
+
+    /**
+     * Returns true if the document has a _tsid doc value.
+     * NOOP tombstones don't have _tsid doc values and return false.
+     */
+    boolean hasTsIdDocValue(int docID) throws IOException {
+        if (tsIdDocValues == null || tsIdDocValues.docID() > docID) {
+            tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
+            cachedTsIdOrd = -1;
+            cachedTsId = null;
+        }
+        boolean hasTsId = tsIdDocValues.advanceExact(docID);
+        assert hasTsId || assertNoOpTombstone(docID);
+        return hasTsId;
+    }
+
+    private boolean assertNoOpTombstone(int docID) throws IOException {
+        assert isTombstone(docID) : "Document " + docID + " has no _tsid but is not a tombstone";
+        assert isSoftDeleted(docID) : "Document " + docID + " has no _tsid but is not soft-deleted";
+        return true;
+    }
+
+    private boolean isTombstone(int docID) throws IOException {
+        if (tombstoneFieldInfo == null) {
+            return false;
+        }
+        if (tombstoneDocValues == null || tombstoneDocValues.docID() > docID) {
+            tombstoneDocValues = docValuesProducer.getNumeric(tombstoneFieldInfo);
+        }
+        return tombstoneDocValues.advanceExact(docID) && tombstoneDocValues.longValue() > 0;
+    }
+
+    private boolean isSoftDeleted(int docID) throws IOException {
+        if (softDeletesFieldInfo == null) {
+            return false;
+        }
+        if (softDeletesDocValues == null || softDeletesDocValues.docID() > docID) {
+            softDeletesDocValues = docValuesProducer.getNumeric(softDeletesFieldInfo);
+        }
+        return softDeletesDocValues.advanceExact(docID) && softDeletesDocValues.longValue() == 1;
+    }
+
+    /**
+     * Returns the synthetic _id for a given document ID. Document must exist.
+     *
+     * @param   docID the document ID
+     * @return  the synthetic _id
+     * @throws IOException if any I/O exception occurs
+     */
+    BytesRef docSyntheticId(int docID) throws IOException {
+        return docSyntheticId(docID, docTsIdOrdinal(docID), docTimestamp(docID), null);
+    }
+
+    BytesRef docSyntheticId(int docID, int docTsIdOrd, long docTimestamp, @Nullable BytesRefBuilder scratch) throws IOException {
+        final var tsId = lookupTsIdOrd(docTsIdOrd);
+        final var routingHashBytes = docRoutingHash(docID);
+
+        // The synthetic _id starts with the tsId bytes. If the first byte is >= BASE64_ESCAPE (0xfd),
+        // it could be misinterpreted as the UTF8 (0xff) or NUMERIC (0xfe) encoding prefixes used
+        // elsewhere in ID handling. In that case, we prepend an escape byte to avoid ambiguity.
+        // See Uid#encodeBase64Id which applies the same escaping logic when encoding IDs.
+        final boolean needsEscape = Byte.toUnsignedInt(tsId.bytes[tsId.offset]) >= Uid.BASE64_ESCAPE;
+        final int offset = needsEscape ? 1 : 0;
+        final int length = TsidExtractingIdFieldMapper.syntheticIdLength(tsId) + offset;
+
+        if (scratch != null) {
+            scratch.grow(length);
+            if (needsEscape) {
+                scratch.setByteAt(0, (byte) Uid.BASE64_ESCAPE);
+            }
+            TsidExtractingIdFieldMapper.writeSyntheticId(tsId, docTimestamp, routingHashBytes, scratch.bytes(), offset);
+            scratch.setLength(length);
+            return scratch.get();
+        }
+
+        // Fallback without scratch (allocates)
+        byte[] bytes = new byte[length];
+        if (needsEscape) {
+            bytes[0] = (byte) Uid.BASE64_ESCAPE;
+        }
+        TsidExtractingIdFieldMapper.writeSyntheticId(tsId, docTimestamp, routingHashBytes, bytes, offset);
+        return new BytesRef(bytes);
     }
 }

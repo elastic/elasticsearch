@@ -13,18 +13,17 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_TOKENS;
 
 public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "google_vertex_ai_chatcompletion_task_settings";
@@ -64,16 +63,9 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
         ThinkingConfig thinkingConfig = ThinkingConfig.fromMap(taskSettings, validationException);
 
         // Extract optional maxTokens setting
-        Integer maxTokens = extractOptionalPositiveInteger(
-            taskSettings,
-            MAX_TOKENS,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer maxTokens = extractOptionalPositiveInteger(taskSettings, MAX_TOKENS, TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }
@@ -105,9 +97,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        GoogleVertexAiChatCompletionTaskSettings newTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
+        GoogleVertexAiChatCompletionTaskSettings newTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(newSettings);
         return GoogleVertexAiChatCompletionTaskSettings.of(this, newTaskSettings);
     }
 

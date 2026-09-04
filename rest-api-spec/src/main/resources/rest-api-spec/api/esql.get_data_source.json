@@ -1,0 +1,40 @@
+{
+  "esql.get_data_source": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-get",
+      "description": "Get one or more ES|QL data sources. Secret setting values are returned masked."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/data_source/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data source names or wildcard patterns"
+            }
+          }
+        },
+        {
+          "path": "/_query/data_source",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

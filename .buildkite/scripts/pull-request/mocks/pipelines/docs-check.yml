@@ -1,4 +1,5 @@
 config:
+  auto-retry: false
   included-regions:
     - ^docs/.*
     - ^x-pack/docs/.*

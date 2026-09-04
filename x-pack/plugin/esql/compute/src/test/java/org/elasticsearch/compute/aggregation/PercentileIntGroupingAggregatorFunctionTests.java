@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.junit.Before;
@@ -34,7 +34,7 @@ public class PercentileIntGroupingAggregatorFunctionTests extends GroupingAggreg
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileIntAggregatorFunctionSupplier(percentile);
+        return new PercentileIntAggregatorFunctionSupplier(percentile, QuantileStates.DEFAULT_COMPRESSION);
     }
 
     @Override

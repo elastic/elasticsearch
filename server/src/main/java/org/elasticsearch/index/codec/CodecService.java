@@ -12,12 +12,11 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,8 +33,6 @@ import java.util.stream.Collectors;
  */
 public class CodecService implements CodecProvider {
 
-    public static final boolean ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields").isEnabled();
-
     private final Map<String, Codec> codecs;
 
     public static final String DEFAULT_CODEC = "default";
@@ -49,32 +46,36 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        boolean useSyntheticId = mapperService != null
-            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-            && mapperService.getIndexSettings()
-                .getIndexVersionCreated()
-                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+        boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
-        var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
         if (useSyntheticId) {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
-            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays));
-        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            codecs.put(
-                DEFAULT_CODEC,
-                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool)
-            );
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(bestSpeedCodec));
         } else {
-            codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
+            codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         }
-        codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
+        // We can't remove this now
+        codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
 
-        codecs.put(
-            BEST_COMPRESSION_CODEC,
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays, threadPool)
+        PerFieldMapperCodec bestCompressionCodec = new PerFieldMapperCodec(
+            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+            mapperService,
+            bigArrays,
+            threadPool
         );
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
-            Lucene103Codec.Mode.BEST_COMPRESSION,
+        if (useSyntheticId) {
+            codecs.put(BEST_COMPRESSION_CODEC, new ES94TSDBBestCompressionLucene104Codec(bestCompressionCodec));
+        } else {
+            codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
+        }
+        Codec legacyBestCompressionCodec = new DefaultCompressionPerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_COMPRESSION,
             mapperService,
             bigArrays,
             threadPool
@@ -87,13 +88,10 @@ public class CodecService implements CodecProvider {
         }
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            Codec codec;
-            if (e.getValue() instanceof DeduplicateFieldInfosCodec dedupCodec) {
-                codec = dedupCodec;
-            } else {
-                codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            return codec;
+            // Codecs that already expose a deduplicating format (directly, or via a delegate they wrap) must not be wrapped
+            // again: each extra layer re-interns instances that are canonical already, once per segment open.
+            Codec codec = e.getValue();
+            return isDeduplicating(codec.fieldInfosFormat()) ? codec : new DeduplicateFieldInfosCodec(codec.getName(), codec);
         }));
     }
 
@@ -113,19 +111,41 @@ public class CodecService implements CodecProvider {
         return codecs.keySet().toArray(new String[0]);
     }
 
+    /**
+     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment: whole {@code FieldInfo} instances
+     * against the per-directory cache when the feature flag is on, otherwise just their names and attribute maps. Codecs that declare
+     * their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
+     */
+    public static FieldInfosFormat deduplicating(FieldInfosFormat delegate) {
+        if (isDeduplicating(delegate)) {
+            return delegate;
+        }
+        return org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+            ? new CachingFieldInfosFormat(delegate)
+            : new DeduplicatingFieldInfosFormat(delegate);
+    }
+
+    /**
+     * Whether {@code format} already shares field infos, so wrapping it again would only re-intern instances that are
+     * canonical already, once per segment open.
+     */
+    static boolean isDeduplicating(FieldInfosFormat format) {
+        return format instanceof CachingFieldInfosFormat || format instanceof DeduplicatingFieldInfosFormat;
+    }
+
     public static class DeduplicateFieldInfosCodec extends FilterCodec {
 
-        private final DeduplicatingFieldInfosFormat deduplicatingFieldInfosFormat;
+        private final FieldInfosFormat fieldInfosFormat;
 
         @SuppressWarnings("this-escape")
         protected DeduplicateFieldInfosCodec(String name, Codec delegate) {
             super(name, delegate);
-            this.deduplicatingFieldInfosFormat = new DeduplicatingFieldInfosFormat(super.fieldInfosFormat());
+            this.fieldInfosFormat = deduplicating(super.fieldInfosFormat());
         }
 
         @Override
         public final FieldInfosFormat fieldInfosFormat() {
-            return deduplicatingFieldInfosFormat;
+            return fieldInfosFormat;
         }
 
         public final Codec delegate() {

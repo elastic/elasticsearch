@@ -17,7 +17,8 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -48,7 +49,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new SumLongAggregatorFunctionSupplier().aggregatorFactory(mode, sumChannels),
+                new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregatorFactory(mode, sumChannels),
                 new MaxLongAggregatorFunctionSupplier().aggregatorFactory(mode, maxChannels)
             ),
             mode

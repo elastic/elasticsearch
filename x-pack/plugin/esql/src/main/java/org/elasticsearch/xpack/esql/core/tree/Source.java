@@ -10,27 +10,51 @@ package org.elasticsearch.xpack.esql.core.tree;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public final class Source implements Writeable {
+public final class Source implements Writeable, WarningSourceLocation {
 
-    public static final Source EMPTY = new Source(Location.EMPTY, "");
+    public static final Source EMPTY = new Source(Location.EMPTY, "", null);
 
     private final Location location;
     private final String text;
+    /**
+     * The name of the view this source came from, or null if it came from the original query.
+     * This is used during serialization to look up the correct query string for reconstructing
+     * the source text.
+     */
+    private final String viewName;
 
     public Source(int line, int charPositionInLine, String text) {
-        this(new Location(line, charPositionInLine), text);
+        this(new Location(line, charPositionInLine), text, null);
     }
 
     public Source(Location location, String text) {
+        this(location, text, null);
+    }
+
+    public Source(Location location, String text, String viewName) {
         this.location = location;
         this.text = text;
+        this.viewName = viewName;
+    }
+
+    /**
+     * Returns a new Source with the same location and text but associated with the given view name.
+     * This is used during view resolution to tag Source objects with their origin view.
+     */
+    public Source withViewName(String viewName) {
+        if (this == EMPTY) {
+            return this;
+        }
+        return new Source(location, text, viewName);
     }
 
     public static Source readFrom(PlanStreamInput in) throws IOException {
@@ -38,10 +62,15 @@ public final class Source implements Writeable {
             return EMPTY;
         }
         SourcePositions positions = new SourcePositions(in);
+        String viewName = null;
+        if (in.getTransportVersion().supports(Configuration.ESQL_VIEW_QUERIES)) {
+            viewName = in.readOptionalString();
+        }
         int charPositionInLine = positions.column - 1;
 
-        String text = sourceText(in.sourceText(), positions.line, positions.column, positions.length);
-        return new Source(new Location(positions.line, charPositionInLine), text);
+        String query = in.sourceText(viewName);
+        String text = sourceText(query, positions.line, positions.column, positions.length);
+        return new Source(new Location(positions.line, charPositionInLine), text, viewName);
     }
 
     /**
@@ -53,6 +82,9 @@ public final class Source implements Writeable {
         if (in.readBoolean()) {
             // Read it and throw it away because we're always returning empty.
             new SourcePositions(in);
+            if (in.getTransportVersion().supports(Configuration.ESQL_VIEW_QUERIES)) {
+                in.readOptionalString(); // viewName
+            }
         }
         return EMPTY;
     }
@@ -65,6 +97,9 @@ public final class Source implements Writeable {
         }
         out.writeBoolean(true);
         new SourcePositions(location.getLineNumber(), location.getColumnNumber(), text.length()).writeTo(out);
+        if (out.getTransportVersion().supports(Configuration.ESQL_VIEW_QUERIES)) {
+            out.writeOptionalString(viewName);
+        }
     }
 
     // TODO: rename to location()
@@ -72,13 +107,32 @@ public final class Source implements Writeable {
         return location;
     }
 
+    @Override
     public String text() {
         return text;
     }
 
+    /**
+     * Returns the name of the view this source came from, or null if it came from the original query.
+     */
+    @Override
+    public String viewName() {
+        return viewName;
+    }
+
+    @Override
+    public int lineNumber() {
+        return location.getLineNumber();
+    }
+
+    @Override
+    public int columnNumber() {
+        return location.getColumnNumber();
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(location, text);
+        return Objects.hash(location, text, viewName);
     }
 
     @Override
@@ -92,7 +146,7 @@ public final class Source implements Writeable {
         }
 
         Source other = (Source) obj;
-        return Objects.equals(location, other.location) && Objects.equals(text, other.text);
+        return Objects.equals(location, other.location) && Objects.equals(text, other.text) && Objects.equals(viewName, other.viewName);
     }
 
     @Override
@@ -105,7 +159,7 @@ public final class Source implements Writeable {
      */
     @Deprecated
     public static Source synthetic(String text) {
-        return new Source(Location.EMPTY, text);
+        return new Source(Location.EMPTY, text, null);
     }
 
     private static String sourceText(String query, int line, int column, int length) {

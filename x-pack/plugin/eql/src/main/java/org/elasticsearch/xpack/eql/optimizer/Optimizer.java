@@ -395,11 +395,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(AbstractJoin join) {
             List<Constraint> constraints = new ArrayList<>();
 
-            // collect constraints for each filter
-            join.queries().forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
+            // collect constraints for each non-negated filter only; negated (missing event) filters use different semantics
+            for (KeyedFilter k : join.queries()) {
+                if (k.isMissingEventFilter() == false) {
+                    k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k)));
+                }
+            }
 
             if (constraints.isEmpty() == false) {
-                List<KeyedFilter> queries = join.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
+                // propagate constraints only to non-negated filters; applying key constraints to missing event filters is incorrect
+                List<KeyedFilter> queries = new ArrayList<>(join.queries().size());
+                for (KeyedFilter k : join.queries()) {
+                    queries.add(k.isMissingEventFilter() ? k : addConstraint(k, constraints));
+                }
 
                 if (join instanceof Join j) {
                     join = j.with(queries, j.until(), j.direction());
@@ -564,7 +572,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(AbstractJoin plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
-                if (filter.anyMatch(LocalRelation.class::isInstance)) {
+                if (filter.isMissingEventFilter() == false && filter.anyMatch(LocalRelation.class::isInstance)) {
                     return new LocalRelation(plan.source(), plan.output(), plan instanceof Sample ? Type.SAMPLE : Type.SEQUENCE);
                 }
             }

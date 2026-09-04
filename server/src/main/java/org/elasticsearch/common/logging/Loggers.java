@@ -20,6 +20,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.NetworkTraceFlag;
@@ -37,6 +38,10 @@ import java.util.stream.Stream;
 public class Loggers {
 
     private Loggers() {};
+
+    private static final class DeprecationLoggerHolder {
+        static final DeprecationLogger INSTANCE = DeprecationLogger.getLogger(Loggers.class);
+    }
 
     public static final String SPACE = " ";
 
@@ -141,7 +146,7 @@ public class Loggers {
      * level.
      */
     public static void setLevel(Logger logger, String level) {
-        setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS);
+        setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS, false);
     }
 
     /**
@@ -149,11 +154,43 @@ public class Loggers {
      * level.
      */
     public static void setLevel(Logger logger, Level level) {
-        setLevel(logger, level, RESTRICTED_LOGGERS);
+        setLevel(logger, level, RESTRICTED_LOGGERS, false);
+    }
+
+    /**
+     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
+     * level.
+     * <p>
+     * When {@code warnOnChildLoggerOverrides} is {@code true}, a single deprecation warning is emitted if any explicitly-configured
+     * child loggers would have their level overridden, listing all affected children. This flag should only be set when processing a
+     * user-initiated dynamic cluster settings update; it must not be set during startup or internal/programmatic uses to avoid spurious
+     * noise.
+     */
+    public static void setLevel(Logger logger, String level, boolean warnOnChildLoggerOverrides) {
+        setLevel(logger, level == null ? null : Level.valueOf(level), RESTRICTED_LOGGERS, warnOnChildLoggerOverrides);
+    }
+
+    /**
+     * Set the level of the logger. If the new level is null, the logger will inherit it's level from its nearest ancestor with a non-null
+     * level.
+     * <p>
+     * When {@code warnOnChildLoggerOverrides} is {@code true}, a single deprecation warning is emitted if any explicitly-configured
+     * child loggers would have their level overridden, listing all affected children. This flag should only be set when processing a
+     * user-initiated dynamic cluster settings update; it must not be set during startup or internal/programmatic uses to avoid spurious
+     * noise.
+     */
+
+    public static void setLevel(Logger logger, Level level, boolean warnOnChildLoggerOverrides) {
+        setLevel(logger, level, RESTRICTED_LOGGERS, warnOnChildLoggerOverrides);
     }
 
     // visible for testing only
     static void setLevel(Logger logger, Level level, List<String> restrictions) {
+        setLevel(logger, level, restrictions, false);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove warnOnChildLoggerOverrides & deprecation warning
+    private static void setLevel(Logger logger, Level level, List<String> restrictions, boolean warnOnChildLoggerOverrides) {
         // If configuring an ancestor / root, the restriction has to be explicitly set afterward.
         boolean setRestriction = false;
 
@@ -184,17 +221,32 @@ public class Loggers {
 
         // we have to descend the hierarchy
         final LoggerContext ctx = LoggerContext.getContext(false);
+        boolean hasOverriddenChildren = false;
         for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
             if (isDescendantOf(loggerConfig.getName(), logger.getName())) {
+                if (warnOnChildLoggerOverrides
+                    && level != null
+                    && loggerConfig.getLevel() != null
+                    && loggerConfig.getLevel().equals(level) == false) {
+                    hasOverriddenChildren = true;
+                }
                 Configurator.setLevel(loggerConfig.getName(), level);
             }
+        }
+        if (hasOverriddenChildren) {
+            DeprecationLoggerHolder.INSTANCE.warn(
+                DeprecationCategory.SETTINGS,
+                "logger_child_override",
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
         }
 
         if (setRestriction) {
             // if necessary, after setting the level of an ancestor, enforce restriction again
             for (String restricted : restrictions) {
                 if (isDescendantOf(restricted, logger.getName())) {
-                    setLevel(LogManager.getLogger(restricted), Level.INFO, Collections.emptyList());
+                    setLevel(LogManager.getLogger(restricted), Level.INFO, Collections.emptyList(), false);
                 }
             }
         }

@@ -63,7 +63,7 @@ final class Ec2ClientSettings {
     );
 
     /** Previously, the protocol to use to connect to ec2, but now has no effect */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting<HttpScheme> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",

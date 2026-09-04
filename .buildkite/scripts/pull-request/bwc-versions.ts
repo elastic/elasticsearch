@@ -2,7 +2,7 @@ import { parse } from "yaml";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../..`);
 
 let BWC_VERSIONS_PATH = `${PROJECT_ROOT}/.ci/bwcVersions`;
 let BWC_VERSIONS: any;

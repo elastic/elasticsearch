@@ -918,8 +918,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             client().performRequest(createDoc);
         }
 
-        Request request = new Request("GET", docLocation);
-        assertThat(toStr(client().performRequest(request)), containsString(doc));
+        Map<String, Object> getResponse = entityAsMap(client().performRequest(new Request("GET", docLocation)));
+        assertThat(getResponse.get("_source"), equalTo(Map.of("test", "test")));
     }
 
     /**

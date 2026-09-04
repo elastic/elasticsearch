@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -31,6 +32,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsLoader;
@@ -43,6 +45,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -56,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -63,6 +67,7 @@ import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -195,7 +200,9 @@ public class MockNode extends Node {
             TelemetryProvider telemetryProvider,
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
-            ProjectResolver projectResolver
+            CrossProjectModeDecider crossProjectModeDecider,
+            ProjectResolver projectResolver,
+            List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -215,7 +222,9 @@ public class MockNode extends Node {
                     telemetryProvider,
                     nodeId,
                     linkedProjectConfigService,
-                    projectResolver
+                    crossProjectModeDecider,
+                    projectResolver,
+                    transportMessageListenerProviders
                 );
             } else {
                 return new MockTransportService(
@@ -228,6 +237,7 @@ public class MockNode extends Node {
                     taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             }
@@ -237,15 +247,24 @@ public class MockNode extends Node {
         protected ClusterInfoService newClusterInfoService(
             PluginsService pluginsService,
             Settings settings,
+            WriteLoadConstraintSettings writeLoadConstraintSettings,
             ClusterService clusterService,
             ThreadPool threadPool,
             NodeClient client
         ) {
             if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+                return super.newClusterInfoService(
+                    pluginsService,
+                    settings,
+                    writeLoadConstraintSettings,
+                    clusterService,
+                    threadPool,
+                    client
+                );
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
                     settings,
+                    writeLoadConstraintSettings,
                     clusterService,
                     threadPool,
                     client
@@ -262,6 +281,20 @@ public class MockNode extends Node {
             } else {
                 return new MockHttpTransport();
             }
+        }
+
+        @Override
+        ShutdownPrepareService newShutdownPrepareService(
+            PluginsService pluginsService,
+            Settings settings,
+            HttpServerTransport httpServerTransport,
+            TransportService transportService,
+            TerminationHandler terminationHandler
+        ) {
+            if (pluginsService.filterPlugins(ListenableShutdownPrepareService.TestPlugin.class).findAny().isPresent()) {
+                return new ListenableShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+            }
+            return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);
         }
     }
 

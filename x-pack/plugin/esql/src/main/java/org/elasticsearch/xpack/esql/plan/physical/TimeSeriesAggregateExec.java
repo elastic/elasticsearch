@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,9 +22,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -34,6 +37,12 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         PhysicalPlan.class,
         "TimeSeriesAggregateExec",
         TimeSeriesAggregateExec::new
+    );
+
+    // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
+    // handled by TimeSeriesCollapseExec rather than a flag on this node.
+    private static final TransportVersion TIME_SERIES_AGGREGATE_EXEC_COLLAPSED = TransportVersion.fromName(
+        "time_series_aggregate_collapsed"
     );
 
     private final Bucket timeBucket;
@@ -55,12 +64,24 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
+            in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapseExec
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
+            out.writeOptionalWriteable(timeBucket);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXEC_COLLAPSED)) {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
@@ -143,6 +164,20 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return timeBucket;
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
+        return Objects.equals(timeBucket, other.timeBucket);
+    }
+
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
         if (timeBucket == null) {
             return null;
@@ -153,4 +188,5 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         }
         return rounding;
     }
+
 }

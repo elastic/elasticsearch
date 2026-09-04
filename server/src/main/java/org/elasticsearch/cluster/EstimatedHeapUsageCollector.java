@@ -11,26 +11,22 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
 
-import java.util.Map;
-
 /**
- * Collect the estimated heap usage for each node in the cluster.
- * <p>
- * Results are returned as a map of node ID to estimated heap usage in bytes
+ * Collects node and shard heap usage estimates for {@link ClusterInfo}.
  *
- * @see EstimatedHeapUsage
+ * @see NodeHeapMetrics
  */
 public interface EstimatedHeapUsageCollector {
 
     /**
      * This will be used when there is no EstimatedHeapUsageCollector available
      */
-    EstimatedHeapUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
+    EstimatedHeapUsageCollector EMPTY = listener -> listener.onResponse(EstimatedHeapUsageStats.EMPTY);
 
     /**
-     * Collect the estimated heap usage for every node in the cluster
+     * Collects node and shard heap usage estimates from a single source snapshot.
      *
      * @param listener The listener which will receive the results
      */
-    void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener);
+    void collectEstimatedHeapUsage(ActionListener<EstimatedHeapUsageStats> listener);
 }

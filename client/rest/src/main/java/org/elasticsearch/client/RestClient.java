@@ -394,6 +394,7 @@ public class RestClient implements Closeable {
     ) {
         request.cancellable.runIfNotCancelled(() -> {
             final RequestContext context = request.createContextForNextAttempt(tuple.nodes.next(), tuple.authCache);
+            request.cancellable.throwIfCancelled();
             client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
                 @Override
                 public void completed(HttpResponse httpResponse) {

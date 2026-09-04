@@ -44,7 +44,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
          * NB prior to 9.1 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in, false);
             // Read and ignore ack timeout.

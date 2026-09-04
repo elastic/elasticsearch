@@ -1,0 +1,7 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[FROMPARTIAL($$partial$$p{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#1,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS p#2]]
+  \_UnionAll[[$$partial$$p{r$}#0]]
+    |_Aggregate[[],[TOPARTIAL(PERCENTILE(salary{r}#3,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#3,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0]]
+    | \_ExternalRelation[s3://bucket/heavy_a.parquet][parquet][emp_no{r}#4, salary{r}#3, dept{r}#5]
+    \_Aggregate[[],[TOPARTIAL(PERCENTILE(salary{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER]),true[BOOLEAN],PT0S[TIME_DURATION],PERCENTILE(salary{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],50[INTEGER])) AS $$partial$$p#0]]
+      \_ExternalRelation[s3://bucket/heavy_b.parquet][parquet][emp_no{r}#7, salary{r}#6, dept{r}#8]

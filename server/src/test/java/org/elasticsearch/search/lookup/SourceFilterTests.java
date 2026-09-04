@@ -206,4 +206,25 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(filter.isPathFiltered("nested.field", false));
         assertTrue(filter.isPathFiltered("nested.another", false));
     }
+
+    public void testNonBmpFieldNames() {
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X (a surrogate pair)
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y
+
+        // map filter path: include keeps only the requested supplementary-character field
+        Source included = Source.fromMap(Map.of(x, 1, y, 2), XContentType.JSON)
+            .filter(new SourceFilter(new String[] { x }, new String[] {}));
+        assertEquals(Map.of(x, 1), included.source());
+
+        // map filter path: exclude drops the excluded supplementary-character field
+        Source excluded = Source.fromMap(Map.of(x, 1, y, 2), XContentType.JSON)
+            .filter(new SourceFilter(new String[] {}, new String[] { x }));
+        assertEquals(Map.of(y, 2), excluded.source());
+
+        // path-level checks used by synthetic source / field selection (drive SourceFilter#step directly)
+        assertTrue(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(x));
+        assertFalse(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(y));
+        assertTrue(new SourceFilter(null, new String[] { x }).isPathFiltered(x, false));
+        assertFalse(new SourceFilter(null, new String[] { x }).isPathFiltered(y, false));
+    }
 }

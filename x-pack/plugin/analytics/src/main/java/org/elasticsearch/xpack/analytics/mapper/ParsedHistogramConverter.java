@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
+import org.elasticsearch.exponentialhistogram.TDigestToExponentialHistogramConverter;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.ExponentialHistogramToTDigestConverter;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 
 public class ParsedHistogramConverter {
 
@@ -23,21 +24,17 @@ public class ParsedHistogramConverter {
      * @return the resulting t-digest histogram
      */
     public static HistogramParser.ParsedHistogram exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram expHisto) {
-        // We don't want to reuse the code across the OTLP intake an the field mappers because they use different data models
-        // and shuffling the data into a common format or interface would be more expensive and complex than just duplicating the logic.
-        List<Double> centroids = new ArrayList<>(); // sorted from descending to ascending
-        List<Long> counts = new ArrayList<>();
+        EncodedTDigest.CentroidIterator centroidIterator = ExponentialHistogramToTDigestConverter.convert(
+            IndexWithCount.asBuckets(expHisto.scale(), expHisto.negativeBuckets()),
+            ZeroBucket.create(expHisto.zeroThreshold(), expHisto.zeroCount()),
+            IndexWithCount.asBuckets(expHisto.scale(), expHisto.positiveBuckets())
+        );
 
-        List<IndexWithCount> neg = expHisto.negativeBuckets();
-        for (int i = neg.size() - 1; i >= 0; i--) {
-            appendBucketCentroid(centroids, counts, neg.get(i), expHisto.scale(), -1);
-        }
-        if (expHisto.zeroCount() > 0) {
-            centroids.add(0.0);
-            counts.add(expHisto.zeroCount());
-        }
-        for (IndexWithCount positiveBucket : expHisto.positiveBuckets()) {
-            appendBucketCentroid(centroids, counts, positiveBucket, expHisto.scale(), 1);
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        while (centroidIterator.next()) {
+            centroids.add(centroidIterator.currentMean());
+            counts.add(centroidIterator.currentCount());
         }
         assert centroids.size() == counts.size();
         assert centroids.stream().sorted().toList().equals(centroids);
@@ -61,76 +58,20 @@ public class ParsedHistogramConverter {
         List<Double> centroids = tDigest.values();
         List<Long> counts = tDigest.counts();
 
-        int numNegativeCentroids = 0;
-        while (numNegativeCentroids < centroids.size() && centroids.get(numNegativeCentroids) < 0) {
-            numNegativeCentroids++;
-        }
-
-        // iterate negative centroids from closest to zero to furthest away,
-        // which corresponds to ascending exponential histogram bucket indices
-        int scale = MAX_SCALE;
-        List<IndexWithCount> negativeBuckets = new ArrayList<>();
-        for (int i = numNegativeCentroids - 1; i >= 0; i--) {
-            double centroid = centroids.get(i);
-            long count = counts.get(i);
-            assert centroid < 0;
-            appendCentroidWithCountAsBucket(centroid, count, scale, negativeBuckets);
-        }
-
-        long zeroCount = 0;
-        int firstPositiveIndex = numNegativeCentroids;
-        if (firstPositiveIndex < centroids.size() && centroids.get(firstPositiveIndex) == 0) {
-            // we have a zero-centroid, which we'll map to the zero bucket
-            zeroCount = counts.get(firstPositiveIndex);
-            firstPositiveIndex++;
-        }
-
-        List<IndexWithCount> positiveBuckets = new ArrayList<>();
-        for (int i = firstPositiveIndex; i < centroids.size(); i++) {
-            double centroid = centroids.get(i);
-            long count = counts.get(i);
-            assert centroid > 0;
-            appendCentroidWithCountAsBucket(centroid, count, scale, positiveBuckets);
-        }
+        TDigestToExponentialHistogramConverter.LazyConversion converted = TDigestToExponentialHistogramConverter.convertLazy(
+            new TDigestToExponentialHistogramConverter.ArrayBasedCentroidIterator(centroids, counts)
+        );
 
         return new ExponentialHistogramParser.ParsedExponentialHistogram(
-            scale,
+            converted.getScale(),
             0.0,
-            zeroCount,
-            negativeBuckets,
-            positiveBuckets,
+            converted.getZeroCount(),
+            IndexWithCount.fromIterator(converted.negativeBuckets()),
+            IndexWithCount.fromIterator(converted.positiveBuckets()),
             null, // sum, min, max will be estimated
             null,
             null
         );
     }
 
-    private static void appendCentroidWithCountAsBucket(double centroid, long count, int scale, List<IndexWithCount> outputBuckets) {
-        if (count == 0) {
-            return; // zero counts are allowed in T-Digests but not in exponential histograms
-        }
-        long index = ExponentialScaleUtils.computeIndex(centroid, scale);
-        assert outputBuckets.isEmpty() || outputBuckets.getLast().index() < index;
-        outputBuckets.add(new IndexWithCount(index, count));
-    }
-
-    private static void appendBucketCentroid(
-        List<Double> centroids,
-        List<Long> counts,
-        IndexWithCount expHistoBucket,
-        int scale,
-        int sign
-    ) {
-        double lowerBound = ExponentialScaleUtils.getLowerBucketBoundary(expHistoBucket.index(), scale);
-        double upperBound = ExponentialScaleUtils.getUpperBucketBoundary(expHistoBucket.index(), scale);
-        double center = sign * (lowerBound + upperBound) / 2.0;
-        // the index + scale representation is higher precision than the centroid representation,
-        // so we can have multiple exp histogram buckets map to the same centroid.
-        if (centroids.isEmpty() == false && centroids.getLast() == center) {
-            counts.add(counts.removeLast() + expHistoBucket.count());
-        } else {
-            centroids.add(center);
-            counts.add(expHistoBucket.count());
-        }
-    }
 }

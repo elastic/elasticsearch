@@ -3725,6 +3725,11 @@ public class EsqlCapabilities {
         PROMQL_LIMITK,
 
         /**
+         * Support for the PromQL {@code limit_ratio()} streaming-sampled fraction function.
+         */
+        PROMQL_LIMIT_RATIO,
+
+        /**
          * Support for PromQL {@code histogram_fraction()} on native histograms.
          */
         PROMQL_HISTOGRAM_FRACTION,

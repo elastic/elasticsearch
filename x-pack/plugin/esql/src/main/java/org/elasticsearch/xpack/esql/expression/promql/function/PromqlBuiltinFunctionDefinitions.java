@@ -101,6 +101,22 @@ public class PromqlBuiltinFunctionDefinitions {
         .name("limitk");
 
     /**
+     * {@code limit_ratio(r, v)} retains exactly {@code ceil(r * N)} of N rows per group using
+     * Bresenham-style streaming sampling. Selection is O(groups) state with no buffering.
+     */
+    public static final PromqlFunctionDefinition LIMIT_RATIO = PromqlFunctionDefinition.def()
+        .acrossSeriesBinaryRatioReduce(PromqlFunctionDefinition.RATIO)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns a ratio `r` of elements from the input vector in storage order, keeping their full label set.")
+        .example("limit_ratio(0.5, http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Elements are selected in storage-arrival order rather than uniformly at random. "
+                + "A `without` grouping clause is not yet supported."
+        )
+        .name("limit_ratio");
+
+    /**
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and

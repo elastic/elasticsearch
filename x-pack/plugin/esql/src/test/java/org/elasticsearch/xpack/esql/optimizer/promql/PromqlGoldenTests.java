@@ -158,6 +158,22 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .run();
     }
 
+    public void testLimitRatio() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    public void testLimitRatioByGrouping() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL limit_ratio support", EsqlCapabilities.Cap.PROMQL_LIMIT_RATIO.isEnabled());
+        builder("PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) by (pod))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
     // Grouping on a derived label materializes it as a concrete column and pins where the relabel derivation sits relative
     // to the outer aggregate (columns-only identity out of by(dst)). Uses the flat-dimension k8s index so the source label
     // being read is materialized as a supported column - a passthrough dimension is unsupported in this static analyzer.

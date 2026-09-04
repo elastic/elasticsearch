@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -156,6 +157,7 @@ public enum FeatureMetric {
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
+        LimitRatioBy.class, // internal PromQL plan node; the enclosing PROMQL command records telemetry
         InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
         MarkJoin.class // MarkJoin's enclosing command(WHERE, EVAL, STATS or INLINE STATS) already records the telemetry
     );

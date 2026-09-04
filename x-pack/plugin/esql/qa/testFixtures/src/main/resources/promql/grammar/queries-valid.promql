@@ -249,3 +249,8 @@ foo offset -(1^2);
 (sum(foo));
 (sum(foo) by (bar));
 (sum by (bar) (foo));
+
+limit_ratio(0.5, some_metric);
+limit_ratio(0.3, some_metric) by (pod);
+limit_ratio(0.0, some_metric);
+limit_ratio(1.0, some_metric);

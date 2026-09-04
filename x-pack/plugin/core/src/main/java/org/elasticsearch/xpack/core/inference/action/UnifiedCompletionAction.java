@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.inference.InferenceContext;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_NON_STREAMING_ADDED;
-
 public class UnifiedCompletionAction extends ActionType<InferenceAction.Response> {
     public static final UnifiedCompletionAction INSTANCE = new UnifiedCompletionAction();
     public static final String NAME = "cluster:internal/xpack/inference/unified";
@@ -81,11 +79,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             this.taskType = TaskType.fromStream(in);
             this.unifiedCompletionRequest = new UnifiedCompletionRequest(in);
             this.timeout = in.readTimeValue();
-            if (in.getTransportVersion().supports(CHAT_COMPLETION_NON_STREAMING_ADDED)) {
-                this.stream = in.readBoolean();
-            } else {
-                this.stream = true;
-            }
+            this.stream = in.readBoolean();
         }
 
         public TaskType getTaskType() {
@@ -143,9 +137,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             } else {
                 out.writeTimeValue(timeout);
             }
-            if (out.getTransportVersion().supports(CHAT_COMPLETION_NON_STREAMING_ADDED)) {
-                out.writeBoolean(stream);
-            }
+            out.writeBoolean(stream);
         }
 
         @Override

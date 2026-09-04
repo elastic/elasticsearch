@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_NON_STREAMING_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -110,17 +109,12 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             }
         }
 
-        var stream = instance.isStreaming();
-        if (version.supports(CHAT_COMPLETION_NON_STREAMING_ADDED) == false) {
-            stream = true;
-        }
-
         return new UnifiedCompletionAction.Request(
             instance.getInferenceEntityId(),
             instance.getTaskType(),
             UnifiedCompletionRequestTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest(), version),
             context,
-            stream,
+            instance.isStreaming(),
             timeout
         );
     }

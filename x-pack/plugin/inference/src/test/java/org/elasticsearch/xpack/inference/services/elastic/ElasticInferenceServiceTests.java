@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
@@ -110,6 +111,7 @@ import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
@@ -662,6 +664,55 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
+        }
+    }
+
+    /**
+     * Covers the seam that {@link org.elasticsearch.xpack.inference.services.elastic.action.ModelStrategyFactoryTests} cannot: that
+     * {@code doInfer} accepts a {@link TaskType#COMPLETION} model, converts the {@code CompletionInput} into a non-streaming
+     * {@code UnifiedChatInput}, and returns {@link CompletionResults} rather than the unified chat-completion shape.
+     */
+    public void testInfer_SendsCompletionRequest() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "id": "chatcmpl-123",
+                    "object": "chat.completion",
+                    "created": 1677652288,
+                    "model": "my-model-id",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "Hello there, how may I assist you today?"
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(
+                elasticInferenceServiceURL,
+                MODEL_ID_VALUE,
+                TaskType.COMPLETION
+            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(result, instanceOf(CompletionResults.class));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.get("model"), is(MODEL_ID_VALUE));
+            assertFalse((Boolean) requestMap.get("stream"));
         }
     }
 
@@ -2090,7 +2141,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     @Override
     public EnumSet<TaskType> expectedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override

@@ -201,7 +201,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(CHAT_COMPLETION);
+        return EnumSet.of(COMPLETION, CHAT_COMPLETION);
     }
 
     @Override

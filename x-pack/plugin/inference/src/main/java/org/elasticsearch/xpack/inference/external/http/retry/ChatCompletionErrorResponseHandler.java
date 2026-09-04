@@ -40,7 +40,6 @@ public class ChatCompletionErrorResponseHandler {
         HttpResult result,
         UnifiedChatCompletionErrorResponse errorResponse
     ) {
-        assert outboundRequest.isStreaming() : "Only streaming requests support this format";
         var statusCode = result.response().getStatusLine().getStatusCode();
         var errorMessage = BaseResponseHandler.constructErrorMessage(message, outboundRequest, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);

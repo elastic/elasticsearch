@@ -10,10 +10,12 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
@@ -38,13 +40,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
-import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -59,9 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
@@ -103,10 +102,7 @@ public class CodecTests extends ESTestCase {
 
             // The intended differences. Both change how a segment is produced or read back, not the bytes on disk:
             // adaptive points writes Lucene90 point files with data-driven leaf sizes and reads with Lucene's own reader.
-            assertThat(
-                es.fieldInfosFormat(),
-                instanceOf(ElasticsearchFieldInfosFormat.class)
-            );
+            assertThat(es.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
             assertSame(mode.toString(), Elasticsearch900AdaptivePointsFormat.INSTANCE, es.pointsFormat());
         }
     }
@@ -273,6 +269,27 @@ public class CodecTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * The per-field fallbacks come from the Lucene codec rather than being restated, so a codec for a newer Lucene inherits them.
+     * These are the formats that were previously named here explicitly.
+     */
+    public void testPerFieldFallbacksComeFromTheLuceneCodec() {
+        Elasticsearch96Codec es = new Elasticsearch96Codec();
+        Lucene104Codec lucene = new Lucene104Codec();
+        for (String field : new String[] { "a", "_id", "vector" }) {
+            // Distinct instances, so compare what actually lands in a segment: the class and the recorded name.
+            assertEquals(field, lucene.getPostingsFormatForField(field).getClass(), es.getPostingsFormatForField(field).getClass());
+            assertEquals(field, lucene.getPostingsFormatForField(field).getName(), es.getPostingsFormatForField(field).getName());
+            assertEquals(field, lucene.getDocValuesFormatForField(field).getClass(), es.getDocValuesFormatForField(field).getClass());
+            assertEquals(field, lucene.getDocValuesFormatForField(field).getName(), es.getDocValuesFormatForField(field).getName());
+            assertEquals(field, lucene.getKnnVectorsFormatForField(field).getClass(), es.getKnnVectorsFormatForField(field).getClass());
+            assertEquals(field, lucene.getKnnVectorsFormatForField(field).getName(), es.getKnnVectorsFormatForField(field).getName());
+        }
+        assertThat(es.getPostingsFormatForField("a"), instanceOf(Lucene104PostingsFormat.class));
+        assertThat(es.getDocValuesFormatForField("a"), instanceOf(Lucene90DocValuesFormat.class));
+        assertThat(es.getKnnVectorsFormatForField("a"), instanceOf(Lucene99HnswVectorsFormat.class));
     }
 
     public void testDefault() throws Exception {

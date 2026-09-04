@@ -45,7 +45,13 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class, BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES);
+        runPartitionTest(
+            recycler,
+            bigArrays,
+            breaker,
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES
+        );
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

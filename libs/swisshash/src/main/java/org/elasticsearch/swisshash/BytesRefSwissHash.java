@@ -128,7 +128,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, PAGED_PARTITION_THRESHOLD_BYTES);
+        this(
+            recycler,
+            breaker,
+            bigArrays,
+            new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays),
+            true,
+            PAGED_PARTITION_THRESHOLD_BYTES
+        );
     }
 
     /**
@@ -137,7 +144,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Use this in tests to force one path or the other without allocating large data sets.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays, long pagedPartitionBytesThreshold) {
-        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, pagedPartitionBytesThreshold);
+        this(
+            recycler,
+            breaker,
+            bigArrays,
+            new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays),
+            true,
+            pagedPartitionBytesThreshold
+        );
     }
 
     /**
@@ -992,9 +1006,19 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         if (keys instanceof FlatBytesRefPartitionedHashKeys flat) {
             assert flat.partitionData[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
             if (smallCore != null) {
-                return smallCore.mergeKeys(flat.partitionData[partitionIndex], flat.partitionOffsets[partitionIndex], keysInPartition, resultIds);
+                return smallCore.mergeKeys(
+                    flat.partitionData[partitionIndex],
+                    flat.partitionOffsets[partitionIndex],
+                    keysInPartition,
+                    resultIds
+                );
             } else {
-                return bigCore.mergeKeys(flat.partitionData[partitionIndex], flat.partitionOffsets[partitionIndex], keysInPartition, resultIds);
+                return bigCore.mergeKeys(
+                    flat.partitionData[partitionIndex],
+                    flat.partitionOffsets[partitionIndex],
+                    keysInPartition,
+                    resultIds
+                );
             }
         } else {
             final PagedBytesRefPartitionedHashKeys paged = (PagedBytesRefPartitionedHashKeys) keys;
@@ -1007,8 +1031,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
     }
 
-    abstract static sealed class BytesRefPartitionedHashKeys implements PartitionedHashKeys
-        permits FlatBytesRefPartitionedHashKeys, PagedBytesRefPartitionedHashKeys {
+    abstract static sealed class BytesRefPartitionedHashKeys implements PartitionedHashKeys permits FlatBytesRefPartitionedHashKeys,
+        PagedBytesRefPartitionedHashKeys {
 
         final int[] partitionCounts = new int[NUM_PARTITIONS];
 
@@ -1017,7 +1041,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             return partitionCounts[partition];
         }
 
-        abstract void splitKeys(CircuitBreaker breaker, BytesRefArray bytesRefs, BytesRef scratch, int idOffset, short[] positions, int[] fills);
+        abstract void splitKeys(
+            CircuitBreaker breaker,
+            BytesRefArray bytesRefs,
+            BytesRef scratch,
+            int idOffset,
+            short[] positions,
+            int[] fills
+        );
     }
 
     static final class FlatBytesRefPartitionedHashKeys extends BytesRefPartitionedHashKeys {
@@ -1030,9 +1061,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
             final int initialBytes = ArrayUtil.oversize(avgBytesPerPartition, 1);
             final int initialOffsets = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES
-                + (long) NUM_PARTITIONS * initialBytes
-                + (long) NUM_PARTITIONS * initialOffsets * Integer.BYTES;
+            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS
+                * initialOffsets * Integer.BYTES;
             breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
             partitionDataUsed = new int[NUM_PARTITIONS];
             partitionData = new byte[NUM_PARTITIONS][];

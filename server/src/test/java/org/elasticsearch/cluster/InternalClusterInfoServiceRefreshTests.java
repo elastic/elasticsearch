@@ -72,7 +72,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
-                nodeStatsClient(context.threadPool()),
+                context.threadPool(),
                 estimatedHeapUsageCollector,
                 CacheSizesAndCommitmentCollector.EMPTY,
                 PartitionSizeCollector.EMPTY,
@@ -114,6 +114,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(partitionSizeCollector).collectHostedShardsPartitionSizes(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                context.threadPool(),
                 EstimatedHeapUsageCollector.EMPTY,
                 CacheSizesAndCommitmentCollector.EMPTY,
                 partitionSizeCollector,
@@ -161,6 +162,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(cacheSizesAndCommitmentCollector).collectCacheSizesAndCommitmentStats(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                context.threadPool(),
                 EstimatedHeapUsageCollector.EMPTY,
                 cacheSizesAndCommitmentCollector,
                 PartitionSizeCollector.EMPTY,
@@ -197,6 +199,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             }).when(searchLaneRequirementsCollector).collectSearchLaneRequirements(any(), any());
 
             final InternalClusterInfoService clusterInfoService = context.createClusterInfoService(
+                context.threadPool(),
                 EstimatedHeapUsageCollector.EMPTY,
                 CacheSizesAndCommitmentCollector.EMPTY,
                 PartitionSizeCollector.EMPTY,
@@ -265,22 +268,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         }
 
         InternalClusterInfoService createClusterInfoService(
-            EstimatedHeapUsageCollector estimatedHeapUsageCollector,
-            CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
-            PartitionSizeCollector partitionSizeCollector,
-            SearchLaneRequirementsCollector searchLaneRequirementsCollector
-        ) {
-            return createClusterInfoService(
-                new NoOpClient(threadPool),
-                estimatedHeapUsageCollector,
-                cacheSizesAndCommitmentCollector,
-                partitionSizeCollector,
-                searchLaneRequirementsCollector
-            );
-        }
-
-        InternalClusterInfoService createClusterInfoService(
-            NoOpClient client,
+            ThreadPool threadPool,
             EstimatedHeapUsageCollector estimatedHeapUsageCollector,
             CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
             PartitionSizeCollector partitionSizeCollector,
@@ -291,7 +279,7 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 new WriteLoadConstraintSettings(clusterService.getClusterSettings()),
                 clusterService,
                 threadPool,
-                client,
+                nodeStatsClient(threadPool),
                 estimatedHeapUsageCollector,
                 cacheSizesAndCommitmentCollector,
                 partitionSizeCollector,

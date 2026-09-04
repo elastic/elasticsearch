@@ -31,6 +31,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- prepareDocumentWindow: stage 1 only, direct BitIndexes access --------
 
+    // prepareDocumentWindow narrows BitIndexes to each document's byte range.
     public void testPrepareDocumentWindowSetsReadWindow() {
         String doc1 = "{\"a\":1}";
         String doc2 = "{\"b\":2}";
@@ -54,6 +55,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
         assertTrue("second doc starts at or after first doc ends", secondIdx >= offsets[1]);
     }
 
+    // Structural indices from doc 0 must not appear when walking doc 1.
     public void testPrepareDocumentWindowIsolatesDocuments() {
         String doc1 = "{\"a\":1,\"b\":2}";
         String doc2 = "{\"c\":3}";
@@ -87,6 +89,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
         assertTrue("doc 1 should have structural indices", count > 0);
     }
 
+    // 100 small NDJSON docs in one batch — each window must start with '{'.
     public void testManySmallDocumentsWindow() {
         String[] docs = new String[100];
         for (int i = 0; i < 100; i++) {
@@ -110,6 +113,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- stage1 must be called first -----------------------------------------
 
+    // prepareDocumentWindow before stage1 is an illegal state.
     public void testPrepareDocumentWindowBeforeStage1Throws() {
         SimdJsonParser batch = newParser(CAPACITY);
         expectThrows(IllegalStateException.class, () -> batch.prepareDocumentWindow(0, 10));
@@ -117,6 +121,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- batch reuse (stage1 called again) -----------------------------------
 
+    // Calling stage1 again on a new buffer must replace the prior batch.
     public void testBatchReuse() {
         SimdJsonParser batch = newParser(CAPACITY);
 
@@ -145,6 +150,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- stage1 with offset ---------------------------------------------------
 
+    // stage1(offset, len) produces absolute structural indices in a padded buffer.
     public void testStage1WithOffset() {
         String json = "{\"a\":1}";
         byte[] raw = json.getBytes(UTF_8);
@@ -165,6 +171,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- docLen exceeding chunk limit is rejected ------------------------------
 
+    // Single document longer than CHUNK_BYTE_LIMIT is rejected up front.
     public void testChunkedRejectsDocLargerThanChunkLimit() {
         int oversized = SimdJsonParser.CHUNK_BYTE_LIMIT + 1;
         SimdJsonParser batch = newParser(oversized);
@@ -176,6 +183,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked single chunk -------------------------------------------------
 
+    // Batch smaller than one chunk — all docs walk via prepareDocumentWindowChunked.
     public void testPrepareDocumentWindowChunkedSingleChunk() {
         String[] docs = new String[50];
         for (int i = 0; i < docs.length; i++) {
@@ -200,11 +208,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked multiple chunks ----------------------------------------------
 
-    /**
-     * Native stage 1 validates each indexed chunk. Concatenated documents in a batch larger
-     * than {@link SimdJsonParser#CHUNK_BYTE_LIMIT} are not valid JSON when sliced at the
-     * chunk limit, so indexing must fail until chunk boundaries align with document boundaries.
-     */
+    // Chunk slice crosses document boundary — native stage1 rejects invalid JSON fragment.
     public void testPrepareDocumentWindowChunkedMultipleChunksRejectsInvalidBatchSlice() {
         String doc = "{\"i\":0}";
         int docLen = doc.getBytes(UTF_8).length;
@@ -227,6 +231,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked doc at exact chunk boundary ----------------------------------
 
+    // Document starting exactly at a chunk boundary must index correctly.
     public void testPrepareDocumentWindowChunkedDocAtExactChunkBoundary() {
         int chunkLimit = SimdJsonParser.CHUNK_BYTE_LIMIT;
         String smallDoc = "{\"x\":1}";
@@ -258,6 +263,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked many small docs ----------------------------------------------
 
+    // 1000 small docs spanning multiple chunks — each window must be valid.
     public void testChunkedBatchManySmallDocs() {
         int docCount = 1000;
         String[] docs = new String[docCount];
@@ -282,6 +288,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- beginBatch sub-range -------------------------------------------------
 
+    // beginBatch(offset, len) indexes a sub-range inside a larger buffer.
     public void testBeginBatchSubRange() {
         String doc = "{\"sub\":true}";
         byte[] raw = doc.getBytes(UTF_8);
@@ -302,6 +309,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked minimal doc --------------------------------------------------
 
+    // Minimal {} document through the chunked API.
     public void testPrepareDocumentWindowMinimalDoc() {
         String doc = "{}";
         byte[] buffer = buildBatchBuffer(doc);
@@ -318,6 +326,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked single field doc ---------------------------------------------
 
+    // Single-field object through the chunked API.
     public void testPrepareDocumentWindowSingleFieldDoc() {
         String doc = "{\"a\":1}";
         byte[] buffer = buildBatchBuffer(doc);
@@ -334,6 +343,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- chunked batch reuse --------------------------------------------------
 
+    // beginBatch + prepareDocumentWindowChunked can be reused across buffers.
     public void testChunkedBatchReuse() {
         SimdJsonParser batch = newParser(CAPACITY);
 
@@ -366,6 +376,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
 
     // -- sentinel restore across chunked windows ------------------------------
 
+    // Sentinel bytes restored between consecutive chunked document windows.
     public void testSentinelRestoreAcrossChunkedWindows() {
         String[] docs = new String[5];
         for (int i = 0; i < 5; i++) {
@@ -389,10 +400,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
         }
     }
 
-    /**
-     * {@link SimdJsonParser} requires ascending document offsets. Preparing a later document
-     * before an earlier one in the same batch must not silently walk the earlier document.
-     */
+    // Document offsets within a batch must be prepared in ascending order.
     public void testOutOfOrderDocumentWindowThrows() throws Exception {
         String first = "{\"first\":1}";
         String second = "{\"second\":2}";
@@ -415,10 +423,7 @@ public class SimdJsonParserTests extends SimdJsonTestCase {
         expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, parser, handler));
     }
 
-    /**
-     * Re-running stage 1 on the same parser for a second document must not leak structural
-     * indices from the first document into the second walk.
-     */
+    // Second stage1 on the same parser must not leak prior document structurals.
     public void testSecondStage1DoesNotLeakPriorDocument() throws Exception {
         String doc1 = "{\"only\":1}";
         String doc2 = "{\"other\":2}";

@@ -42,10 +42,11 @@ public final class SimdJsonParserPool {
     private static final Logger logger = LogManager.getLogger(SimdJsonParserPool.class);
 
     /**
-     * Maximum document size the thread-local parser is sized for. Matches the ESCF single-doc
-     * limit ({@code 16 KiB}); documents larger than this must use another parser path.
+     * Maximum document size the thread-local parser is sized for. Matches
+     * {@link SimdJsonSupport#maxDocBytes()}; documents larger than this must use another parser
+     * path or a dedicated {@link SimdJsonParser} constructed with a higher capacity.
      */
-    static final int PARSER_CAPACITY = 16 * 1024;
+    static final int PARSER_CAPACITY = SimdJsonSupport.maxDocBytes();
 
     private static final SimdJsonParserPool DEFAULT = SimdJsonSupport.isSupported() ? new SimdJsonParserPool() : null;
 

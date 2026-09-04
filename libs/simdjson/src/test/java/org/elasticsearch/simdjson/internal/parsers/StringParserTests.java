@@ -18,6 +18,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.simdjson.SimdJsonTestCase.makeJsonString;
 
+// Unit tests for StringParser (JSON string unescaping with SIMD + scalar tail).
 public class StringParserTests extends ESTestCase {
 
     @BeforeClass
@@ -42,16 +43,21 @@ public class StringParserTests extends ESTestCase {
         return Arrays.copyOf(dst, len);
     }
 
+    // ---- Basic unescaping ----
+
     public void testSimpleString() {
         assertEquals("hello", parse("hello"));
     }
 
+    // Zero-length content between quotes yields len=0.
     public void testEmptyString() {
         byte[] buf = makeJsonString("");
         byte[] dst = new byte[buf.length];
         int len = parser.parseString(buf, 0, dst);
         assertEquals(0, len);
     }
+
+    // ---- Standard JSON escapes ----
 
     public void testEscapedQuote() {
         assertEquals("say \"hi\"", parse("say \\\"hi\\\""));
@@ -105,6 +111,8 @@ public class StringParserTests extends ESTestCase {
         assertEquals((byte) 'b', result[2]);
     }
 
+    // ---- Unicode and surrogate pairs ----
+
     public void testUnicodeEscapeAscii() {
         assertEquals("A", parse("\\u0041"));
     }
@@ -133,6 +141,8 @@ public class StringParserTests extends ESTestCase {
         assertEquals((byte) 0x80, result[3]);
     }
 
+    // ---- SIMD lane width boundaries (plain content, no escapes) ----
+
     public void testStringAt16ByteBoundary() {
         String content = "a".repeat(15);
         assertEquals(content, parse(content));
@@ -153,6 +163,7 @@ public class StringParserTests extends ESTestCase {
         assertEquals(content, parse(content));
     }
 
+    // Escape sequence straddling a 128-bit vector boundary.
     public void testEscapeAtWordBoundary() {
         String content = "abcdefg\\n";
         byte[] result = parseToBytes(content);
@@ -317,6 +328,7 @@ public class StringParserTests extends ESTestCase {
 
     // --- Boundary sweep: escape at every position near each SIMD width ---
 
+    // Sweep newline escape position around the 16-byte buffer boundary.
     public void testEscapeSweepAround16() {
         for (int prefix = 12; prefix <= 18; prefix++) {
             String content = "a".repeat(prefix) + "\\n" + "z";

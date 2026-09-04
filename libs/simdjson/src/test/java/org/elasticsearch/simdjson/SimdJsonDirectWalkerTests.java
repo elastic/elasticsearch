@@ -17,13 +17,18 @@ import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+// Unit tests for SimdJsonDirectWalker event emission (simdjson-only, no Jackson comparison).
 public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
 
+    // ---- Scalars and root object ----
+
+    // Root {} emits no handler events (emptyObject is only for nested {}).
     public void testEmptyObject() {
         List<String> events = walkJson("{}");
         assertEquals(List.of(), events);
     }
 
+    // Each scalar JSON type maps to one handler event string.
     public void testSingleStringField() {
         List<String> events = walkJson("{\"a\":\"hello\"}");
         assertEquals(List.of("string(a=hello)"), events);
@@ -34,11 +39,13 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("long(n=42,fitsInt=true)"), events);
     }
 
+    // Values beyond int range still emit long with fitsInt=false.
     public void testSingleLongField() {
         List<String> events = walkJson("{\"n\":9999999999}");
         assertEquals(List.of("long(n=9999999999,fitsInt=false)"), events);
     }
 
+    // Decimal point forces double classification.
     public void testSingleDoubleField() {
         List<String> events = walkJson("{\"d\":3.14}");
         assertEquals(1, events.size());
@@ -60,6 +67,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("null(n)"), events);
     }
 
+    // Field order is preserved; each type maps to one handler event.
     public void testMultipleFields() {
         List<String> events = walkJson("{\"a\":1,\"b\":\"x\",\"c\":true}");
         assertEquals(3, events.size());
@@ -68,16 +76,20 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("bool(c=true)", events.get(2));
     }
 
+    // ---- Nesting and depth limits ----
+
     public void testNestedObject() {
         List<String> events = walkJson("{\"o\":{\"inner\":1}}");
         assertEquals(List.of("startObject(o)", "long(inner=1,fitsInt=true)", "endObject()"), events);
     }
 
+    // Walker uses emptyObject() for {} (Jackson comparison mode normalizes to start/end).
     public void testEmptyNestedObject() {
         List<String> events = walkJson("{\"o\":{}}");
         assertEquals(List.of("emptyObject(o)"), events);
     }
 
+    // 10 levels of nesting — startObject/endObject pairs must balance.
     public void testDeeplyNested() {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
@@ -102,6 +114,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertTrue(events.contains("long(v=1,fitsInt=true)"));
     }
 
+    // MAX_DEPTH is 64; 65 nested objects must fail.
     public void testMaxDepthExceeded() {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
@@ -117,6 +130,8 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         expectThrows(JsonParsingException.class, () -> walkJson(sb.toString()));
     }
 
+    // ---- Arrays ----
+
     public void testSimpleIntArray() {
         List<String> events = walkJson("{\"a\":[1,2,3]}");
         assertEquals(
@@ -131,6 +146,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         );
     }
 
+    // Mixed scalar types in one array.
     public void testMixedArray() {
         List<String> events = walkJson("{\"a\":[1,\"s\",true,null,3.14]}");
         assertEquals(7, events.size());
@@ -143,6 +159,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("endArray()", events.get(6));
     }
 
+    // Array of arrays — nested start/end array events.
     public void testNestedArrayInArray() {
         List<String> events = walkJson("{\"a\":[[1,2],[3]]}");
         assertEquals(
@@ -161,11 +178,15 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         );
     }
 
+    // Object as array element uses arrayElemStartObject/EndObject wrappers.
     public void testObjectInArray() {
         List<String> events = walkJson("{\"a\":[{\"k\":\"v\"}]}");
         assertEquals(List.of("startArray(a)", "arrayElemStartObject()", "string(k=v)", "arrayElemEndObject()", "endArray()"), events);
     }
 
+    // ---- Escapes, signs, and scientific notation ----
+
+    // \\n in a string value is decoded to a real newline.
     public void testEscapedStringField() {
         List<String> events = walkJson("{\"a\":\"hello\\nworld\"}");
         assertEquals(1, events.size());
@@ -183,16 +204,21 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertTrue(events.get(0).startsWith("double(n=-3.14,"));
     }
 
+    // Exponent form produces double event (not long).
     public void testScientificNotation() {
         List<String> events = walkJson("{\"n\":1.5e10}");
         assertEquals(1, events.size());
         assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
     }
 
+    // Root must be an object; top-level arrays are rejected.
     public void testDocumentStartingWithArray() {
         expectThrows(JsonParsingException.class, () -> walkJson("[1,2]"));
     }
 
+    // ---- Parser/walker integration edge cases ----
+
+    // Empty BitIndexes (no structurals) must fail before value parsing.
     public void testEmptyBitIndexesThrows() {
         byte[] buffer = new byte[0];
         BitIndexes bitIndexes = new BitIndexes(64);
@@ -207,6 +233,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, bitIndexes, handler));
     }
 
+    // Repeated walks must resolve the same field name String from FrozenFieldNameTable.
     public void testFieldNameCaching() {
         String json = "{\"field\":1}";
         byte[] buffer = json.getBytes(UTF_8);
@@ -234,11 +261,14 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("field", name2);
     }
 
+    // ---- Exact buffer sizes (SIMD lane boundaries) ----
+
     public void testTinyDocument2Bytes() {
         List<String> events = walkJson("{}");
         assertEquals(List.of(), events);
     }
 
+    // Exact 16/32/64-byte UTF-8 document lengths (SIMD lane alignment).
     public void testDocumentExactly16Bytes() {
         String json = "{\"a\":\"b\"       }";
         assertEquals(16, json.getBytes(UTF_8).length);
@@ -295,6 +325,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     // ---- Zero-padding tests ----
     // All code paths have scalar tail fallbacks, so no trailing padding is needed.
 
+    // Diverse value types with zero trailing padding — scalar tail must handle all paths.
     public void testZeroPaddingForAllValueTypes() {
         String[] docs = {
             "{}",
@@ -359,10 +390,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         walkWithExactPadding("{\"first\":1,\"abcdefghi\":2}", 0);
     }
 
-    /**
-     * Truncated JSON (missing closing brace) must not yield a successful walk — either stage 1
-     * or the direct walker must reject it.
-     */
+    // Truncated JSON must not complete a successful walk.
     public void testTruncatedJsonMustNotWalkSuccessfully() {
         byte[] buffer = "{\"a\":1".getBytes(UTF_8);
         try (SimdJsonParser parser = newParser(buffer.length)) {
@@ -377,16 +405,11 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         }
     }
 
-    /**
-     * Walks a JSON document using a buffer of exactly {@code docLen + paddingBytes}.
-     */
+    // Walk with buffer length = JSON length + padding (no trailing slack required).
     private void walkWithExactPadding(String json, int paddingBytes) {
         walkAndRecord(json, paddingBytes);
     }
 
-    /**
-     * Walks a JSON document and returns the recording handler for assertion.
-     */
     private RecordingHandler walkAndRecord(String json, int paddingBytes) {
         byte[] jsonBytes = json.getBytes(UTF_8);
         int len = jsonBytes.length;

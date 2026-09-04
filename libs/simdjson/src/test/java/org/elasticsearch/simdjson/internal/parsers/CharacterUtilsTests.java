@@ -12,7 +12,10 @@ package org.elasticsearch.simdjson.internal.parsers;
 import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.test.ESTestCase;
 
+// Fast lookups for JSON structural chars, whitespace, escapes, and \\u hex parsing.
 public class CharacterUtilsTests extends ESTestCase {
+
+    // ---- isStructuralOrWhitespace ----
 
     public void testStructuralCharsReturnTrue() {
         assertTrue(CharacterUtils.isStructuralOrWhitespace((byte) '{'));
@@ -43,6 +46,13 @@ public class CharacterUtilsTests extends ESTestCase {
         assertFalse(CharacterUtils.isStructuralOrWhitespace((byte) 0x80));
         assertFalse(CharacterUtils.isStructuralOrWhitespace((byte) 0xFF));
     }
+
+    public void testQuoteAndBackslashReturnFalse() {
+        assertFalse(CharacterUtils.isStructuralOrWhitespace((byte) '"'));
+        assertFalse(CharacterUtils.isStructuralOrWhitespace((byte) '\\'));
+    }
+
+    // ---- JSON string escape sequences ----
 
     public void testEscapeQuote() {
         assertEquals((byte) '"', CharacterUtils.escape((byte) '"'));
@@ -82,6 +92,13 @@ public class CharacterUtilsTests extends ESTestCase {
         expectThrows(JsonParsingException.class, () -> CharacterUtils.escape((byte) '0'));
     }
 
+    public void testEscapeNullAndNegativeByteThrows() {
+        expectThrows(JsonParsingException.class, () -> CharacterUtils.escape((byte) 0));
+        expectThrows(JsonParsingException.class, () -> CharacterUtils.escape((byte) 0x80));
+    }
+
+    // ---- \\uXXXX hex conversion ----
+
     public void testHexToIntValidLowerCase() {
         byte[] buff = new byte[] { '0', '0', '4', '1' };
         assertEquals(0x0041, CharacterUtils.hexToInt(buff, 0));
@@ -111,5 +128,18 @@ public class CharacterUtilsTests extends ESTestCase {
 
         byte[] lowerFs = new byte[] { 'f', 'f', 'f', 'f' };
         assertEquals(0xFFFF, CharacterUtils.hexToInt(lowerFs, 0));
+    }
+
+    // Invalid hex digits OR to 0xFFFFFFFF; StringParser treats that as malformed \\u.
+    public void testHexToIntInvalidDigitsReturnsNegativeOne() {
+        assertEquals(-1, CharacterUtils.hexToInt(new byte[] { '0', '0', 'G', '0' }, 0));
+        assertEquals(-1, CharacterUtils.hexToInt(new byte[] { '0', '0', '0', ' ' }, 0));
+        assertEquals(-1, CharacterUtils.hexToInt(new byte[] { '0', '0', 'g', '0' }, 0));
+    }
+
+    // Hex digits may start mid-buffer after '\\u' in a JSON string.
+    public void testHexToIntWithNonZeroOffset() {
+        byte[] buff = new byte[] { '\\', 'u', '0', '0', '4', '1' };
+        assertEquals(0x0041, CharacterUtils.hexToInt(buff, 2));
     }
 }

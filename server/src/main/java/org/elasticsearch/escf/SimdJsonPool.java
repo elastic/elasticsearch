@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
 import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
+import org.elasticsearch.simdjson.SimdJsonSupport;
 
 /**
  * ESCF-specific facade over {@link SimdJsonParserPool}. Adds the document size threshold
@@ -34,7 +35,7 @@ final class SimdJsonPool {
     static final FeatureFlag SIMDJSON_ESCF_FEATURE_FLAG = new FeatureFlag("simdjson_escf");
 
     /** Documents larger than this threshold are handled by the Jackson parser. */
-    static final int MAX_DOC_BYTES = 16 * 1024;
+    static final int MAX_DOC_BYTES = SimdJsonSupport.maxDocBytes();
 
     private static final SimdJsonParserPool POOL = SimdJsonParserPool.getDefault();
 

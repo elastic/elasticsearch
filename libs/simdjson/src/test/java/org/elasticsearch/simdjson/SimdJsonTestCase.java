@@ -74,6 +74,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         return new SimdJsonParser(capacity);
     }
 
+    // End-to-end walk: stage1 + prepareDocumentWindow + SimdJsonDirectWalker.
     protected List<String> walkJson(String json) {
         return walkJson(json, false);
     }
@@ -96,7 +97,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         }
     }
 
-    // ---- Recording handler ----
+    // ---- Recording handler (test-only JsonDocumentHandler) ----
 
     /**
      * {@link JsonDocumentHandler} that records all events as strings in a list.
@@ -248,7 +249,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         return ("\"" + content + "\"").getBytes(StandardCharsets.UTF_8);
     }
 
-    // ---- Batch buffer helpers ----
+    // ---- Batch buffer helpers (multi-document NDJSON batches) ----
 
     /** Concatenates JSON docs into a single buffer. */
     protected static byte[] buildBatchBuffer(String... jsonDocs) {

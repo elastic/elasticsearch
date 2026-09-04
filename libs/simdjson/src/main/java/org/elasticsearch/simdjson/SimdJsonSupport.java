@@ -23,6 +23,12 @@ import java.util.Optional;
  */
 public final class SimdJsonSupport {
 
+    /**
+     * Default single-document size limit ({@value #DEFAULT_MAX_DOC_BYTES} bytes). Override at JVM
+     * startup with {@code -Des.simdjson.max_doc_bytes=<n>} for benchmarks or local experiments.
+     */
+    public static final int DEFAULT_MAX_DOC_BYTES = 16 * 1024;
+
     static {
         Optional.ofNullable(SimdJsonSupport.class.getModule().getLayer())
             .orElse(ModuleLayer.boot())
@@ -43,5 +49,14 @@ public final class SimdJsonSupport {
      */
     public static boolean isSupported() {
         return SimdJsonNativeSupport.isLoaded() && SimdJsonVectorSupport.isAvailable();
+    }
+
+    /**
+     * Maximum document size (bytes) for thread-local {@link SimdJsonParserPool} parsers and the
+     * ESCF simdjson encode path. Controlled by {@code -Des.simdjson.max_doc_bytes=<n>}; defaults
+     * to {@link #DEFAULT_MAX_DOC_BYTES}.
+     */
+    public static int maxDocBytes() {
+        return Integer.getInteger("es.simdjson.max_doc_bytes", DEFAULT_MAX_DOC_BYTES);
     }
 }

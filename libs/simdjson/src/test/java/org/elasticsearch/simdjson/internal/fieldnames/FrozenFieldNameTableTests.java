@@ -14,8 +14,12 @@ import org.elasticsearch.test.ESTestCase;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytes;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytesAtOffset;
 
+// Unit tests for FrozenFieldNameTable insert/lookup, freeze, and parent-child merge.
 public class FrozenFieldNameTableTests extends ESTestCase {
 
+    // ---- Basic insert and lookup ----
+
+    // lookup must return the same String instance that insert created.
     public void testLookupReturnsSameInstance() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -29,6 +33,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertSame(inserted, looked);
     }
 
+    // Unknown names return null before insert.
     public void testLookupBeforeInsertReturnsNull() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -40,6 +45,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertNull(child.lookup(buf, 0, len, hash));
     }
 
+    // insert materializes a new String from buffer bytes.
     public void testInsertCreatesString() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -52,6 +58,9 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertEquals("hello", result);
     }
 
+    // ---- Freeze ----
+
+    // After freeze, all inserted names remain lookup-able.
     public void testFreezeAndLookup() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -75,6 +84,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // freeze is idempotent.
     public void testFreezeIdempotent() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -89,6 +99,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertTrue(child.isFrozen());
     }
 
+    // isFrozen transitions false -> true only after freeze (or release).
     public void testIsFrozenBeforeAndAfter() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -105,6 +116,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertTrue(child.isFrozen());
     }
 
+    // insert/lookup with non-zero buffer offset.
     public void testLookupWithOffset() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -122,6 +134,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertSame(inserted, looked);
     }
 
+    // 200 fields triggers hash-table backing store after freeze.
     public void testManyFieldsScaleToHashTable() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -146,6 +159,9 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // ---- Parent-child merge ----
+
+    // Fields inserted in child1 are visible to child2 after release merges into parent.
     public void testParentChildMerge() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
 
@@ -169,6 +185,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // Two sequential children both contribute names to a third child.
     public void testTwoChildrenMerge() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
 
@@ -191,6 +208,9 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertEquals("alpha", resultAlpha);
     }
 
+    // ---- Release lifecycle ----
+
+    // release() on a dirty child auto-freezes before merging.
     public void testReleaseFreezesIfDirty() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -205,6 +225,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertTrue(child.isFrozen());
     }
 
+    // A clean child refreshes from parent on release without inserting locally.
     public void testReleaseRefreshesIfNotDirty() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
 
@@ -226,6 +247,9 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertEquals("shared", result);
     }
 
+    // ---- Field name length edge cases ----
+
+    // Names of length 1..8 (prefix8 fast path).
     public void testShortFieldNames() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -256,6 +280,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // Names longer than 8 bytes (full hashName path).
     public void testLongFieldNames() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -280,6 +305,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // Zero-length field name is valid.
     public void testEmptyFieldName() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -293,6 +319,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertSame(inserted, looked);
     }
 
+    // insert after freeze still works (lazy growth of frozen table).
     public void testInsertAfterFreezeStillWorks() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -311,6 +338,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertEquals("after", result);
     }
 
+    // Same 8-byte prefix but different suffixes must map to distinct Strings.
     public void testFieldNamesWithSamePrefix8() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = table.makeChild();
@@ -338,6 +366,7 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         assertNotSame(result1, result2);
     }
 
+    // Simulates multi-doc indexing: child1 learns fields, child2 starts frozen with parent cache.
     public void testFieldNameCachingAcrossDocs() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
 

@@ -25,8 +25,9 @@ import java.util.List;
  */
 public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
-    // ---- Jackson/XContent walker ----
+    // ---- Jackson/XContent walker (mirrors JsonDocumentEventComparison event format) ----
 
+    // Walk a root object and record Jackson handler-style events.
     private List<String> walkWithJackson(String json) throws IOException {
         return walkWithJackson(json, false);
     }
@@ -45,6 +46,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         return events;
     }
 
+    // Walk object fields inside an array element or nested structure.
     private void walkJacksonObject(XContentParser p, List<String> events) throws IOException {
         while (true) {
             XContentParser.Token token = p.nextToken();
@@ -79,6 +81,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Continue walking after the first field name of a non-empty object.
     private void walkJacksonObjectBody(XContentParser p, XContentParser.Token current, List<String> events) throws IOException {
         XContentParser.Token token = current;
         while (true) {
@@ -139,6 +142,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Classify Jackson numbers the same way simdjson does (long / bigInteger / double + fitsFloat).
     private static void addJacksonNumberEvent(XContentParser p, String fieldName, List<String> events) throws IOException {
         XContentParser.NumberType numType = p.numberType();
         if (numType == XContentParser.NumberType.INT || numType == XContentParser.NumberType.LONG) {
@@ -167,19 +171,20 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
-    // ---- Comparison helper ----
+    // ---- Comparison helpers ----
 
     private void assertParsersAgree(String json) throws IOException {
         assertParsersAgree(json, false);
     }
 
+    // Both backends must emit identical event streams for the same JSON input.
     private void assertParsersAgree(String json, boolean allowDuplicateKeys) throws IOException {
         List<String> jacksonEvents = walkWithJackson(json, allowDuplicateKeys);
         List<String> simdEvents = walkJson(json, true);
         assertEquals("Event streams differ for: " + json, jacksonEvents, simdEvents);
     }
 
-    // ---- Specific document tests ----
+    // ---- Basic structure and scalar types ----
 
     public void testEmptyObject() throws IOException {
         assertParsersAgree("{}");
@@ -209,6 +214,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"x\":null}");
     }
 
+    // Mixed scalars in one object.
     public void testMultipleFieldTypes() throws IOException {
         assertParsersAgree("{\"s\":\"val\",\"i\":42,\"d\":1.5,\"b\":true,\"n\":null}");
     }
@@ -217,6 +223,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"outer\":{\"inner\":\"deep\"}}");
     }
 
+    // Empty {} must emit startObject/endObject, not a separate emptyObject event.
     public void testEmptyNestedObject() throws IOException {
         assertParsersAgree("{\"empty\":{}}");
     }
@@ -253,6 +260,8 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"arr\":[{}]}");
     }
 
+    // ---- String escapes ----
+
     public void testEscapedString() throws IOException {
         assertParsersAgree("{\"msg\":\"line1\\nline2\"}");
     }
@@ -268,6 +277,8 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
     public void testUnicodeEscape() throws IOException {
         assertParsersAgree("{\"char\":\"\\u0041\"}");
     }
+
+    // ---- Simple numeric sign and zero ----
 
     public void testNegativeNumber() throws IOException {
         assertParsersAgree("{\"n\":-42}");
@@ -285,6 +296,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"z\":0}");
     }
 
+    // Many fields in a flat object (field-name table stress).
     public void testLargeObject() throws IOException {
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < 50; i++) {
@@ -295,6 +307,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree(sb.toString());
     }
 
+    // Realistic nested document with arrays and null.
     public void testComplexDocument() throws IOException {
         assertParsersAgree(
             "{\"user\":{\"name\":\"Alice\",\"age\":30,\"active\":true,"
@@ -307,6 +320,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"items\":[{\"type\":\"a\",\"val\":1},{\"type\":\"b\",\"val\":2.5},{\"type\":\"c\",\"val\":null}]}");
     }
 
+    // Insignificant whitespace must not change events.
     public void testWhitespace() throws IOException {
         assertParsersAgree("{ \"a\" : 1 , \"b\" : 2 }");
     }
@@ -315,17 +329,12 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\n\t\"a\":\t1,\n\t\"b\":\t2\n}");
     }
 
-    /**
-     * Duplicate object keys: Jackson rejects by default but emits every occurrence when
-     * {@link XContentParser#allowDuplicateKeys(boolean) allowDuplicateKeys(true)}, as
-     * {@link org.elasticsearch.escf.EscfEncoder} configures its parser. The direct walker
-     * must produce the same event stream in that mode.
-     */
+    // ESCF allows duplicate keys; simdjson must match Jackson in that mode.
     public void testDuplicateKeysMatchJacksonWhenAllowed() throws IOException {
         assertParsersAgree("{\"k\":1,\"k\":2,\"k\":3}", true);
     }
 
-    // ---- Numeric edge cases ----
+    // ---- Integer and big-integer boundaries ----
 
     public void testIntegerBoundaryMaxInt() throws IOException {
         assertParsersAgree("{\"n\":" + Integer.MAX_VALUE + "}");
@@ -366,6 +375,8 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
     public void testBigIntegerInArray() throws IOException {
         assertParsersAgree("{\"arr\":[1,9223372036854775808,-9223372036854775809]}");
     }
+
+    // ---- Double range and IEEE-754 edge cases ----
 
     public void testDoubleMaxValue() throws IOException {
         assertParsersAgree("{\"n\":" + Double.MAX_VALUE + "}");
@@ -419,8 +430,8 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":-0}");
     }
 
+    // 0.1 has no exact IEEE-754 representation; both parsers must agree on the same double.
     public void testDoublePrecisionClassic() throws IOException {
-        // 0.1 cannot be exactly represented in IEEE 754
         assertParsersAgree("{\"n\":0.1}");
     }
 
@@ -428,13 +439,13 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":0.3333333333333333}");
     }
 
+    // 1.5 is exactly representable as both float and double (fitsFloat=true).
     public void testDoubleFitsFloat() throws IOException {
-        // 1.5 is exactly representable as both float and double
         assertParsersAgree("{\"n\":1.5}");
     }
 
+    // 1.1 is not exactly representable as float (fitsFloat=false).
     public void testDoubleDoesNotFitFloat() throws IOException {
-        // This value differs between float and double precision
         assertParsersAgree("{\"n\":1.1}");
     }
 
@@ -442,8 +453,8 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":0.5}");
     }
 
+    // Exponent form forces double path even for integer-looking values.
     public void testLargeIntegerAsDouble() throws IOException {
-        // Integer-valued but beyond long range when written with exponent
         assertParsersAgree("{\"n\":1e19}");
     }
 
@@ -461,6 +472,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":3.141592653589793238462643383279}");
     }
 
+    // Lexical trailing zeros must not change the parsed double.
     public void testTrailingZerosInDecimal() throws IOException {
         assertParsersAgree("{\"n\":1.50000000000000}");
     }
@@ -471,6 +483,7 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"n\":1e0}");
     }
 
+    // Integer-looking value written with exponent (double path, not long).
     public void testScientificIntegerLikePositiveExponent() throws IOException {
         assertParsersAgree("{\"n\":5e2}");
     }
@@ -507,7 +520,27 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         assertParsersAgree("{\"arr\":[1e0,5e2,1e308,1e-308,1e309,1e-400]}");
     }
 
-    // ---- Random document generation ----
+    // Same numeric value in different lexical forms: Jackson and simdjson must agree field-by-field.
+    public void testEquivalentNumericFormsSameParserAgreement() throws IOException {
+        assertParsersAgree("{\"i\":500,\"d\":500.0,\"e\":5e2,\"z\":500e0}");
+    }
+
+    // Locks in long vs double classification per encoding (500 is long; 5e2/500.0 are double).
+    public void testIntegerDecimalScientificClassification() throws IOException {
+        assertNumericClassification("{\"n\":500}", "long(n=500,fitsInt=true)");
+        assertNumericClassification("{\"n\":500.0}", "double(n=500.0,fitsFloat=true)");
+        assertNumericClassification("{\"n\":5e2}", "double(n=500.0,fitsFloat=true)");
+        assertNumericClassification("{\"n\":500e0}", "double(n=500.0,fitsFloat=true)");
+    }
+
+    private void assertNumericClassification(String json, String expectedEvent) throws IOException {
+        List<String> jacksonEvents = walkWithJackson(json);
+        List<String> simdEvents = walkJson(json, true);
+        assertEquals("Unexpected Jackson events for " + json, List.of(expectedEvent), jacksonEvents);
+        assertEquals("Jackson and simdjson differ for " + json, jacksonEvents, simdEvents);
+    }
+
+    // ---- Random fuzz (decimal doubles only; no explicit scientific notation) ----
 
     public void testRandomDocumentsMatchJackson() throws IOException {
         for (int i = 0; i < 100; i++) {

@@ -18,14 +18,12 @@ import java.util.Set;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-/**
- * Tests for {@link FieldNameHash}: wyhash consistency, hashWord/maskWord helpers,
- * and fused scanAndHash over JSON field name bytes.
- */
+// Unit tests for FieldNameHash: wyhash consistency, hashWord/maskWord, and fused scanAndHash.
 public class FieldNameHashTests extends ESTestCase {
 
-    // -- hashName consistency -----------------------------------------------
+    // ---- hashName consistency ----
 
+    // Same bytes must always produce the same hash.
     public void testHashDeterministic() {
         byte[] buf = "fieldName".getBytes(UTF_8);
         int len = "fieldName".length();
@@ -34,6 +32,7 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(h1, h2);
     }
 
+    // Zero is reserved for empty hash-table slots — hashName must never return it.
     public void testHashNeverZero() {
         for (String name : new String[] { "", "a", "ab", "abcd", "abcdefgh", "abcdefghijklmnop", "x".repeat(50) }) {
             byte[] buf = name.getBytes(UTF_8);
@@ -42,6 +41,7 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // 200 sequential field names should collide rarely.
     public void testHashDistinctForDifferentNames() {
         Set<Integer> hashes = new HashSet<>();
         for (int i = 0; i < 200; i++) {
@@ -53,14 +53,15 @@ public class FieldNameHashTests extends ESTestCase {
         assertTrue("expected at least 195 distinct hashes out of 200 names, got " + hashes.size(), hashes.size() >= 195);
     }
 
+    // Hash is independent of leading padding bytes in the buffer.
     public void testHashWithOffset() {
         byte[] padded = "XXXXname".getBytes(UTF_8);
         byte[] plain = "name".getBytes(UTF_8);
         assertEquals(FieldNameHash.hashName(plain, 0, 4), FieldNameHash.hashName(padded, 4, 4));
     }
 
+    // len 1..8: readSmall path (byte-at-a-time for 1-3, int reads for 4-8).
     public void testHashShortKeys() {
-        // len 1..8: readSmall path (byte-at-a-time for 1-3, int reads for 4-8)
         for (int len = 1; len <= 8; len++) {
             byte[] buf = new byte[len];
             Arrays.fill(buf, 0, len, (byte) 'x');
@@ -69,8 +70,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // len 9..16: two overlapping readLE8 reads.
     public void testHashMediumKeys() {
-        // len 9..16: two overlapping readLE8 reads
         for (int len = 9; len <= 16; len++) {
             byte[] buf = new byte[len];
             Arrays.fill(buf, 0, len, (byte) 'y');
@@ -79,8 +80,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // len > 16: loop + tail; exact-length buffers verify no over-read.
     public void testHashLongKeys() {
-        // len > 16: loop + tail. Uses exact-length buffers to verify no over-read.
         for (int len : new int[] { 17, 32, 48, 100, 255 }) {
             byte[] buf = new byte[len];
             Arrays.fill(buf, 0, len, (byte) 'z');
@@ -89,9 +90,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Every tail remainder 1..16 after the 16-byte loop must hash correctly.
     public void testHashLongKeysTailBoundary() {
-        // After the loop, rem = len % 16 (for len > 16). Test every remainder value 1..16.
-        // rem <= 8 uses readSmall; rem > 8 uses two overlapping readLE8 reads.
         for (int rem = 1; rem <= 16; rem++) {
             int len = 16 + rem;
             byte[] buf = new byte[len];
@@ -103,8 +103,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // hashName must not read past len even when the buffer is larger.
     public void testHashLongKeysTailConsistentWithExactBuffer() {
-        // Verify that hashName on an exact-length buffer and a larger buffer produce the same hash.
         for (int rem = 1; rem <= 16; rem++) {
             int len = 16 + rem;
             byte[] exact = new byte[len];
@@ -121,8 +121,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Names identical except in the tail region (rem=1) must hash differently.
     public void testHashDistinguishesTailBytes() {
-        // Two names that differ only in the tail region (rem <= 8) must hash differently.
         byte[] a = "0123456789abcdefX".getBytes(UTF_8);
         byte[] b = "0123456789abcdefY".getBytes(UTF_8);
         assertEquals(17, a.length);
@@ -133,9 +133,8 @@ public class FieldNameHashTests extends ESTestCase {
         );
     }
 
+    // readSmall for len 1-3 must ignore bytes past len.
     public void testHashSmallReadConsistency() {
-        // Verify readSmall for len 1-3 (individual byte reads) produces consistent values
-        // regardless of surrounding buffer content.
         for (int len = 1; len <= 3; len++) {
             byte[] clean = new byte[len];
             byte[] noisy = new byte[len + 32];
@@ -152,8 +151,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // readSmall for len 4-8 (native-order int reads) must ignore trailing bytes.
     public void testHashSmallReadForLen4To8() {
-        // Verify readSmall for len 4-8 (native-order int reads) is consistent
         for (int len = 4; len <= 8; len++) {
             byte[] exact = new byte[len];
             byte[] larger = new byte[len + 32];
@@ -170,14 +169,16 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Empty key still produces a non-zero hash.
     public void testHashEmptyKey() {
         byte[] buf = new byte[0];
         int h = FieldNameHash.hashName(buf, 0, 0);
         assertNotEquals(0, h);
     }
 
-    // -- hashWord (fused scan+hash from pre-loaded word) --------------------
+    // ---- hashWord (fused scan+hash from pre-loaded word) ----
 
+    // hashWord(word, len) must match hashName for len 0..8.
     public void testHashWordMatchesHashNameForAllLengths0To8() {
         byte[] name = "abcdefgh".getBytes(UTF_8);
         // Build an 8-byte word as LONG_LE would read it: name bytes in little-endian order
@@ -192,6 +193,7 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Random 8-byte words — hashWord must stay consistent with hashName.
     public void testHashWordWithRandomBytes() {
         for (int iter = 0; iter < 100; iter++) {
             byte[] name = new byte[8];
@@ -209,6 +211,7 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // maskWord must produce the same prefix8 as readPrefix8.
     public void testMaskWordProducesCorrectPrefix8() {
         byte[] name = "abcdefgh".getBytes(UTF_8);
         long word = 0;
@@ -222,12 +225,9 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
-    // -- scanAndHash --------------------------------------------------------
+    // ---- scanAndHash ----
 
-    /**
-     * scanAndHash operates on real JSON buffers where the field name sits after an opening quote
-     * and is followed by a closing quote.
-     */
+    // Fused scan returns (hash << 32 | len) for a simple unescaped field name.
     public void testScanAndHashSimpleField() {
         byte[] buf = makeScanBuffer("hello");
         long result = FieldNameHash.scanAndHash(buf, 0);
@@ -238,18 +238,21 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(FieldNameHash.hashName(buf, 0, 5), hash);
     }
 
+    // Backslash in the name — caller must fall back to escaped resolution (-1).
     public void testScanAndHashReturnsMinusOneForBackslash() {
         byte[] buf = makeScanBufferRaw("hel\\lo\"");
         long result = FieldNameHash.scanAndHash(buf, 0);
         assertEquals(-1L, result);
     }
 
+    // Backslash immediately before the closing quote still returns -1.
     public void testScanAndHashBackslashBeforeQuote() {
         byte[] buf = makeScanBufferRaw("abc\\\"def\"");
         long result = FieldNameHash.scanAndHash(buf, 0);
         assertEquals("backslash appears before quote, should return -1", -1L, result);
     }
 
+    // Empty field name (quote immediately after opening quote).
     public void testScanAndHashEmptyFieldName() {
         byte[] buf = makeScanBuffer("");
         long result = FieldNameHash.scanAndHash(buf, 0);
@@ -258,6 +261,7 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(0, len);
     }
 
+    // Long unescaped name spanning multiple 8-byte SIMD words.
     public void testScanAndHashLongFieldName() {
         String name = "a_very_long_field_name_that_spans_multiple_eight_byte_words";
         byte[] buf = makeScanBuffer(name);
@@ -269,6 +273,7 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(FieldNameHash.hashName(buf, 0, name.length()), hash);
     }
 
+    // Representative name lengths — scanAndHash must agree with hashName.
     public void testScanAndHashConsistentWithHashName() {
         for (String name : new String[] { "a", "ab", "abc", "abcd", "abcde", "abcdefgh", "twelve_bytes", "sixteen_bytes_xx" }) {
             byte[] buf = makeScanBuffer(name);
@@ -281,11 +286,8 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Closing quote at every offset 1..15 relative to the 8-byte word boundary.
     public void testScanAndHashScalarTailSweep() {
-        // For each length 1..15, the closing quote lands at a different position relative
-        // to the 8-byte word boundary. Lengths <= 7 always hit the scalar tail on an
-        // exact-length buffer; lengths 8+ may hit the SIMD path or the scalar tail
-        // depending on buffer size.
         for (int nameLen = 1; nameLen <= 15; nameLen++) {
             String name = "x".repeat(nameLen);
             byte[] buf = makeScanBuffer(name);
@@ -298,16 +300,15 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
+    // Short name with backslash — scalar tail must detect escape and return -1.
     public void testScanAndHashBackslashInScalarTail() {
-        // Place a backslash where it will be found by the scalar tail (name len < 7)
         byte[] buf = makeScanBufferRaw("ab\\c\"");
         long result = FieldNameHash.scanAndHash(buf, 0);
         assertEquals(-1L, result);
     }
 
+    // 7-char name: closing quote at last byte of first 8-byte word.
     public void testScanAndHashQuoteAt8ByteBoundary() {
-        // Name of exactly 7 chars: quote lands at position 7 (last byte of first 8-byte word).
-        // With an exact-length buffer this is within the SIMD loop; verify correctness.
         String name = "abcdefg";
         byte[] buf = makeScanBuffer(name);
         long result = FieldNameHash.scanAndHash(buf, 0);
@@ -315,10 +316,8 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(7, (int) (result & 0xFFFFFFFFL));
     }
 
+    // 8-char name: closing quote in second word — scalar tail on exact-length buffer.
     public void testScanAndHashQuoteJustPast8ByteBoundary() {
-        // Name of exactly 8 chars: quote at position 8, second word needed.
-        // On an exact-length buffer (9 bytes: 8 + quote), the second word read
-        // exceeds bounds, so the scalar tail handles it.
         String name = "abcdefgh";
         byte[] buf = makeScanBuffer(name);
         long result = FieldNameHash.scanAndHash(buf, 0);
@@ -326,8 +325,8 @@ public class FieldNameHashTests extends ESTestCase {
         assertEquals(8, (int) (result & 0xFFFFFFFFL));
     }
 
+    // Every length 0..40 with distinct byte content — comprehensive scanAndHash sweep.
     public void testScanAndHashMatchesHashNameForAllLengthsUpTo40() {
-        // Comprehensive sweep: every length from 0 to 40, with distinct byte content.
         for (int nameLen = 0; nameLen <= 40; nameLen++) {
             byte[] nameBytes = new byte[nameLen];
             for (int i = 0; i < nameLen; i++) {
@@ -344,7 +343,7 @@ public class FieldNameHashTests extends ESTestCase {
         }
     }
 
-    // -- Helpers ----
+    // ---- Helpers ----
 
     /**
      * Creates a buffer for scanAndHash: the field name followed by a closing quote.

@@ -19,14 +19,18 @@ import java.io.IOException;
  * Per-factory format-reader profile, shipped back from data nodes as part of
  * {@link DriverCompletionInfo#sourceReaderProfiles()}.
  */
-public record SourceReaderProfile(String source, long readNanos, long readCpuNanos) implements Writeable, ToXContentObject {
+public record SourceReaderProfile(String nodeName, String source, long readNanos, long readCpuNanos)
+    implements
+        Writeable,
+        ToXContentObject {
 
     public static SourceReaderProfile readFrom(StreamInput in) throws IOException {
-        return new SourceReaderProfile(in.readString(), in.readVLong(), in.readVLong());
+        return new SourceReaderProfile(in.readString(), in.readString(), in.readVLong(), in.readVLong());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
         out.writeString(source);
         out.writeVLong(readNanos);
         out.writeVLong(readCpuNanos);
@@ -35,6 +39,7 @@ public record SourceReaderProfile(String source, long readNanos, long readCpuNan
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("node_name", nodeName);
         builder.field("source", source);
         builder.field("read_nanos", readNanos);
         builder.field("read_cpu_nanos", readCpuNanos);

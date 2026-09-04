@@ -601,7 +601,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ? new EsqlQueryResponse.Profile(
                 result.completionInfo().driverProfiles(),
                 result.completionInfo().planProfiles(),
-                versionedResult.minimumVersion()
+                versionedResult.minimumVersion(),
+                result.completionInfo().sourceReaderProfiles()
             )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {

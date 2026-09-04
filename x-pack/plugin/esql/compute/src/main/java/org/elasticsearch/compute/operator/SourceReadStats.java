@@ -11,7 +11,7 @@ package org.elasticsearch.compute.operator;
  * Source of per-factory format-reader read stats. Implemented by operator factories that wrap a
  * shared format reader. The factory snapshots its reader's counters once when the last driver
  * finishes (at {@code releaseOperator} time), after which {@link #readNanos()} and
- * {@link #factoryReadCpuNanos()} return stable values.
+ * {@link #readCpuNanos()} return stable values.
  */
 public interface SourceReadStats {
     /** A short identifier for the source (dataset name or path). */

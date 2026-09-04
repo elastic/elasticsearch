@@ -1873,7 +1873,10 @@ public class ComputeService {
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
         String planString = needPlanString ? localPlan.toString() : null;
         return listener.map(ignored -> {
-            List<SourceReaderProfile> sourceReaderProfiles = buildSourceReaderProfiles(sourceReadStatsList);
+            List<SourceReaderProfile> sourceReaderProfiles = buildSourceReaderProfiles(
+                sourceReadStatsList,
+                transportService.getLocalNode().getName()
+            );
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
@@ -1902,13 +1905,13 @@ public class ComputeService {
         });
     }
 
-    private static List<SourceReaderProfile> buildSourceReaderProfiles(List<SourceReadStats> sourceReadStatsList) {
+    private static List<SourceReaderProfile> buildSourceReaderProfiles(List<SourceReadStats> sourceReadStatsList, String nodeName) {
         if (sourceReadStatsList == null || sourceReadStatsList.isEmpty()) {
             return List.of();
         }
         List<SourceReaderProfile> profiles = new ArrayList<>(sourceReadStatsList.size());
         for (SourceReadStats stats : sourceReadStatsList) {
-            profiles.add(new SourceReaderProfile(stats.sourceIdentifier(), stats.readNanos(), stats.readCpuNanos()));
+            profiles.add(new SourceReaderProfile(nodeName, stats.sourceIdentifier(), stats.readNanos(), stats.readCpuNanos()));
         }
         return profiles;
     }

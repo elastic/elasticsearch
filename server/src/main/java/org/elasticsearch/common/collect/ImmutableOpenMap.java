@@ -15,6 +15,9 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 import com.carrotsearch.hppc.procedures.ObjectProcedure;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -28,6 +31,7 @@ import java.util.Spliterators;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -35,7 +39,10 @@ import java.util.function.Consumer;
  * Can be constructed using a {@link #builder()}, or using {@link #builder(Map)} (which is an optimized
  * option to copy over existing content and modify it).
  */
-public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VType> {
+public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VType> implements Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ImmutableOpenMap.class) + RamUsageEstimator
+        .shallowSizeOfInstance(ObjectObjectHashMap.class);
 
     private final ObjectObjectHashMap<KType, VType> map;
 
@@ -124,6 +131,42 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
     public int hashCode() {
         // noop override to make checkstyle happy since we override equals
         return super.hashCode();
+    }
+
+    /**
+     * Estimates heap used by this map's open-hash structure ({@code keys}/{@code values} arrays) and retained entries.
+     * Keys and values are sized with {@link RamUsageEstimator#sizeOfObject(Object)}, which recursively uses
+     * {@link Accountable#ramBytesUsed()} when a value implements {@link Accountable}.
+     * <p>
+     * Unlike {@link RamUsageEstimator#sizeOfMap(Map)}, this does not attribute heap to ephemeral {@link Map.Entry}
+     * objects created by {@link #entrySet()}; those are not retained by the map.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed(RamUsageEstimator::sizeOfObject);
+    }
+
+    /**
+     * Like {@link #ramBytesUsed()}, but sizes each non-null value with {@code valueBytes} instead of
+     * {@link RamUsageEstimator#sizeOfObject(Object)}.
+     */
+    public long ramBytesUsed(ToLongFunction<? super VType> valueBytes) {
+        long size = BASE_RAM_BYTES_USED;
+        // Dominated by the open-hash keys/values arrays (and retained key/value objects). orderMixer is protected in
+        // ObjectObjectHashMap and is omitted; it is a small strategy object relative to the arrays and entries.
+        size += RamUsageEstimator.shallowSizeOf(map.keys);
+        size += RamUsageEstimator.shallowSizeOf(map.values);
+        if (entrySet != null) {
+            // Only the cached EntrySet wrapper is retained; individual Map.Entry instances are ephemeral.
+            size += RamUsageEstimator.shallowSizeOf(entrySet);
+        }
+        for (ObjectObjectCursor<KType, VType> cursor : map) {
+            size += RamUsageEstimator.sizeOfObject(cursor.key);
+            if (cursor.value != null) {
+                size += valueBytes.applyAsLong(cursor.value);
+            }
+        }
+        return RamUsageEstimator.alignObjectSize(size);
     }
 
     private static class EntrySet<KType, VType> extends AbstractSet<Map.Entry<KType, VType>> {

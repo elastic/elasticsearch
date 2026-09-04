@@ -197,12 +197,17 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public long count() {
-        var count = new long[] { 0 };
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.numDocs();
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
+        long count = 0;
+        for (SearchExecutionContext context : contexts) {
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                LeafReader reader = leafContext.reader();
+                if (reader.hasDeletions()) {
+                    return -1L;
+                }
+                count += reader.numDocs();
+            }
+        }
+        return count;
     }
 
     @Override
@@ -239,13 +244,22 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public long count(FieldName field, BytesRef value) {
-        var count = new long[] { 0 };
         Term term = new Term(field.string(), value);
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.docFreq(term);
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
+        long count = 0;
+        try {
+            for (SearchExecutionContext context : contexts) {
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    if (reader.hasDeletions()) {
+                        return -1L;
+                    }
+                    count += reader.docFreq(term);
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return count;
     }
 
     @Override
@@ -256,25 +270,15 @@ public class SearchContextStats implements SearchStats {
             return null;
         }
         if (stat.min == null) {
-            Long result = null;
-            try {
-                for (final SearchExecutionContext context : contexts) {
-                    if (context.isMappedField(field.string()) == false) {
-                        continue;
-                    }
-                    final MappedFieldType ctxFieldType = context.getFieldType(field.string());
-                    boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
-                    for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                        final Long minValue = ctxHasSkipper
-                            ? docValuesSkipperMinValue(leafContext, field.string())
-                            : pointMinValue(leafContext, field.string());
-                        result = nullableMin(result, minValue);
-                    }
-                }
-            } catch (IOException ex) {
-                throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
-            }
-            stat.min = result;
+            final Long[] result = new Long[] { null };
+            doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
+                final Long minValue = ctxFieldType.indexType().hasDocValuesSkipper()
+                    ? docValuesSkipperMinValue(reader, field.string())
+                    : pointMinValue(reader, field.string());
+                result[0] = nullableMin(result[0], minValue);
+                return true;
+            });
+            stat.min = result[0];
         }
         return stat.min;
     }
@@ -287,25 +291,15 @@ public class SearchContextStats implements SearchStats {
             return null;
         }
         if (stat.max == null) {
-            Long result = null;
-            try {
-                for (final SearchExecutionContext context : contexts) {
-                    if (context.isMappedField(field.string()) == false) {
-                        continue;
-                    }
-                    final MappedFieldType ctxFieldType = context.getFieldType(field.string());
-                    boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
-                    for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                        final Long maxValue = ctxHasSkipper
-                            ? docValuesSkipperMaxValue(leafContext, field.string())
-                            : pointMaxValue(leafContext, field.string());
-                        result = nullableMax(result, maxValue);
-                    }
-                }
-            } catch (IOException ex) {
-                throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
-            }
-            stat.max = result;
+            final Long[] result = new Long[] { null };
+            doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
+                final Long maxValue = ctxFieldType.indexType().hasDocValuesSkipper()
+                    ? docValuesSkipperMaxValue(reader, field.string())
+                    : pointMaxValue(reader, field.string());
+                result[0] = nullableMax(result[0], maxValue);
+                return true;
+            });
+            stat.max = result[0];
         }
         return stat.max;
     }
@@ -323,23 +317,23 @@ public class SearchContextStats implements SearchStats {
     }
 
     // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
-    private static Long docValuesSkipperMinValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMinValue(leafContext.reader(), field);
+    private static Long docValuesSkipperMinValue(final LeafReader reader, final String field) throws IOException {
+        long value = DocValuesSkipper.globalMinValue(reader, field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 
-    private static Long docValuesSkipperMaxValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        long value = DocValuesSkipper.globalMaxValue(leafContext.reader(), field);
+    private static Long docValuesSkipperMaxValue(final LeafReader reader, final String field) throws IOException {
+        long value = DocValuesSkipper.globalMaxValue(reader, field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
     }
 
-    private static Long pointMinValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        final byte[] minPackedValue = PointValues.getMinPackedValue(leafContext.reader(), field);
+    private static Long pointMinValue(final LeafReader reader, final String field) throws IOException {
+        final byte[] minPackedValue = PointValues.getMinPackedValue(reader, field);
         return (minPackedValue != null && minPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(minPackedValue, 0) : null;
     }
 
-    private static Long pointMaxValue(final LeafReaderContext leafContext, final String field) throws IOException {
-        final byte[] maxPackedValue = PointValues.getMaxPackedValue(leafContext.reader(), field);
+    private static Long pointMaxValue(final LeafReader reader, final String field) throws IOException {
+        final byte[] maxPackedValue = PointValues.getMaxPackedValue(reader, field);
         return (maxPackedValue != null && maxPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(maxPackedValue, 0) : null;
     }
 
@@ -348,91 +342,43 @@ public class SearchContextStats implements SearchStats {
         String fieldName = field.string();
         var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
-            // there's no such field so no need to worry about multi-value fields
-            if (stat.config.exists == false) {
-                stat.singleValue = true;
-            } else {
-                // fields are MV per default
-                var sv = new boolean[] { false };
-                try {
-                    for (SearchExecutionContext context : contexts) {
-                        MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
-                        if (mappedType == null) {
-                            continue;
-                        }
-                        sv[0] = true;
-                        for (LeafReaderContext leafCtx : context.searcher().getLeafContexts()) {
-                            if (detectSingleValue(leafCtx.reader(), mappedType, fieldName) == false) {
-                                sv[0] = false;
-                                break;
-                            }
-                        }
-                        if (sv[0] == false) {
-                            break;
-                        }
-                    }
-                } catch (IOException ex) {
-                    throw new UncheckedIOException(ex);
-                }
-                stat.singleValue = sv[0];
-            }
+            // a missing field is trivially single-valued; otherwise every leaf must prove it
+            stat.singleValue = stat.config.exists == false
+                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldName));
         }
         return stat.singleValue;
     }
 
-    private boolean detectSingleValue(IndexReader r, MappedFieldType fieldType, String name) throws IOException {
+    private boolean isSingleValueLeaf(MappedFieldType fieldType, LeafReader reader, String name) throws IOException {
         // types that are always single value (and are accessible through instanceof)
         if (fieldType instanceof ConstantFieldType || fieldType instanceof DocCountFieldType || fieldType instanceof TimestampFieldType) {
             return true;
         }
 
-        var typeName = fieldType.typeName();
-
-        // non-visible fields, check their names
-        boolean found = switch (typeName) {
-            case IdFieldMapper.NAME, SeqNoFieldMapper.NAME -> true;
-            default -> false;
-        };
-
-        if (found) {
+        final String typeName = fieldType.typeName();
+        if (typeName.equals(IdFieldMapper.NAME) || typeName.equals(SeqNoFieldMapper.NAME)) {
             return true;
         }
 
-        // check against doc size
-        DocCountTester tester = null;
         if (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) {
             if (fieldType.indexType().hasPoints()) {
-                tester = lr -> {
-                    PointValues values = lr.getPointValues(name);
-                    return values == null || values.size() == values.getDocCount();
-                };
-            } else if (fieldType.indexType().hasDocValuesSkipper()) {
-                tester = lr -> {
-                    DocValuesSkipper skipper = lr.getDocValuesSkipper(name);
-                    return skipper == null || skipper.maxValueCount() == 1;
-                };
+                final PointValues values = reader.getPointValues(name);
+                return values == null || values.size() == values.getDocCount();
             }
-            // else: neither points nor skippers → cannot prove single-valuedness; tester stays null
-        } else if (fieldType instanceof KeywordFieldType keywordFieldType) {
+            if (fieldType.indexType().hasDocValuesSkipper()) {
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(name);
+                return skipper == null || skipper.maxValueCount() == 1;
+            }
+            return false;
+        }
+
+        if (fieldType instanceof KeywordFieldType keywordFieldType) {
             // NOTE: Terms cannot prove value cardinality for these keyword storage shapes.
             if (canUseKeywordTermsForDocValueCountEquality(keywordFieldType) == false) {
                 return false;
             }
-            tester = lr -> {
-                Terms terms = lr.terms(name);
-                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
-            };
-        }
-
-        if (tester != null) {
-            // check each leaf
-            for (LeafReaderContext context : r.leaves()) {
-                if (tester.test(context.reader()) == false) {
-                    return false;
-                }
-            }
-            // field is missing or single value
-            return true;
+            final Terms terms = reader.terms(name);
+            return terms == null || terms.getSumDocFreq() == terms.getDocCount();
         }
 
         // unsupported type - default to MV
@@ -502,10 +448,6 @@ public class SearchContextStats implements SearchStats {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
     }
 
-    private interface DocCountTester {
-        Boolean test(LeafReader leafReader) throws IOException;
-    }
-
     //
     // @see org.elasticsearch.search.query.QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)
     //
@@ -543,23 +485,24 @@ public class SearchContextStats implements SearchStats {
         return count;
     }
 
-    private interface IndexReaderConsumer {
+    private interface FieldLeafReaderTester {
         /**
-         * Returns true if the consumer should keep on going, false otherwise.
+         * Returns true if iteration should continue, false to stop early. The field type is the one
+         * mapped by the context the leaf belongs to, so a decision is always made against the field
+         * type of the shard that produced the leaf.
          */
-        boolean consume(IndexReader reader) throws IOException;
+        boolean test(MappedFieldType fieldType, LeafReader reader) throws IOException;
     }
 
-    private boolean doWithContexts(IndexReaderConsumer consumer, boolean acceptsDeletions) {
+    private boolean doWithFieldLeafReaders(String field, FieldLeafReaderTester tester) {
         try {
             for (SearchExecutionContext context : contexts) {
+                if (context.isMappedField(field) == false) {
+                    continue;
+                }
+                MappedFieldType fieldType = context.getFieldType(field);
                 for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                    var reader = leafContext.reader();
-                    if (acceptsDeletions == false && reader.hasDeletions()) {
-                        return false;
-                    }
-                    // check if the looping continues or not
-                    if (consumer.consume(reader) == false) {
+                    if (tester.test(fieldType, leafContext.reader()) == false) {
                         return false;
                     }
                 }

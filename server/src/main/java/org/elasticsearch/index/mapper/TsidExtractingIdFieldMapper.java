@@ -317,7 +317,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

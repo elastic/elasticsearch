@@ -822,7 +822,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires strict-columnar mode, binary doc values only (no SortedSet ordinals).
         return indexSettings.getMode().isStrictColumnar()
             && supportsColumnarDocValues()
@@ -830,7 +830,6 @@ public class IpFieldMapper extends FieldMapper {
             && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
             && fieldType().isDimension() == false
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
@@ -881,7 +880,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         if (fieldType().hasDocValues() == false) {
             return;
         }

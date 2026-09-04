@@ -263,4 +263,25 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             batch("non-canonical numeric literal", 1L, doc("d1", 1L, "{\"f\":1.50}"), doc("d2", 2L, "{\"f\":\"2.0.0\"}"))
         );
     }
+
+    /**
+     * A {@code version} field carrying a keyword multi-field. Parity here covers the removal of this mapper's multi-field gate:
+     * the sub-mapper is driven from the parent's own source column.
+     */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "version");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "version parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"1.2.3\"}"),
+                doc("d2", 2L, "{\"f\":\"2.0.0-alpha\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
 }

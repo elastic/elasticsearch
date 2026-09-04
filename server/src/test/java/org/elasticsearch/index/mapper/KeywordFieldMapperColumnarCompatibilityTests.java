@@ -401,4 +401,137 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             )
         );
     }
+
+    // ---- multi-fields -------------------------------------------------------------------------
+
+    /** {@code keyword} parent with a plain {@code keyword} sub-field. */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("keyword sub-field", 1L, doc("d1", 1L, "{\"f\":\"hello\"}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":\"world\"}"))
+        );
+    }
+
+    /** Arrays and explicit nulls must produce the same array-order slots on the parent and on the sub-field. */
+    public void testKeywordSubFieldArraysAndNulls() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "keyword sub-field arrays and nulls",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"a\",\"b\",\"c\"]}"),
+                doc("d2", 2L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{\"f\":[]}"),
+                doc("d5", 5L, "{}")
+            )
+        );
+    }
+
+    /** {@code null_value} is resolved independently by the parent and the sub-field. */
+    public void testKeywordSubFieldWithOwnNullValue() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "PARENT_NULL");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").field("null_value", "SUB_NULL").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("sub-field null_value", 1L, doc("d1", 1L, "{\"f\":null}"), doc("d2", 2L, "{\"f\":\"present\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /**
+     * {@code ignore_above} is evaluated per mapper, so a value can be ignored by the parent, by the sub-field, by both, or by
+     * neither. Each combination must yield the same {@code _ignored} entries on both paths, and the sub-field must never write a
+     * synthetic-source fallback column.
+     */
+    public void testIgnoreAboveAcrossParentAndSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 10);
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("ignore_above", 4).endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "ignore_above parent and sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"tiny\"}"),                  // neither ignores
+                doc("d2", 2L, "{\"f\":\"medium_len\"}"),            // sub-field ignores
+                doc("d3", 3L, "{\"f\":\"way_too_long_value\"}"),    // both ignore
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    /** Several sub-fields under one parent are all driven from the same source column. */
+    public void testMultipleSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("raw").field("type", "keyword").endObject();
+            b.startObject("trimmed").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("multiple sub-fields", 1L, doc("d1", 1L, "{\"f\":\"ab\"}"), doc("d2", 2L, "{\"f\":\"abcdef\"}"), doc("d3", 3L, "{}"))
+        );
+    }
+
+    /** A {@code multi_value=false} sub-field under a multi-valued-capable parent. */
+    public void testSubFieldMultiValueFalse() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "sub-field multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"single\"}"),
+                doc("d2", 2L, "{\"f\":[\"solo\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    /** {@code index:false} on the sub-field only: it emits doc values but no terms column. */
+    public void testSubFieldNotIndexed() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").field("index", false).endObject().endObject();
+            b.endObject();
+        }), columnarSettings(), batch("sub-field index=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}")));
+    }
+
+    /**
+     * Two sub-fields of different types under one keyword parent, both fed from the same source column. Values stay strings so the
+     * numeric sub-field sees a STRING column rather than a UNION one.
+     */
+    public void testMixedTypeSubFields() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("as_long").field("type", "long").endObject();
+            b.startObject("as_keyword").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch("mixed-type sub-fields", 1L, doc("d1", 1L, "{\"f\":\"123\"}"), doc("d2", 2L, "{\"f\":\"456\"}"), doc("d3", 3L, "{}"))
+        );
+    }
 }

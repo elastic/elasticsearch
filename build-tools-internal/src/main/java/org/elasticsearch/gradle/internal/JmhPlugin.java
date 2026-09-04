@@ -23,6 +23,8 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
+import java.util.Map;
+
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
@@ -31,9 +33,6 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
  * Adds {@code benchmark} and {@code benchmarkTest} source sets and their runner tasks,
  * backed by JMH. {@code benchmarkTest} is wired to {@code check}; the {@code benchmark}
  * runner is developer-invoked.
- *
- * <p>Elasticsearch-specific wiring lives in the {@code elasticsearch.benchmark} convention
- * plugin.
  */
 public class JmhPlugin implements Plugin<Project> {
 
@@ -41,6 +40,10 @@ public class JmhPlugin implements Plugin<Project> {
     public static final String BENCHMARK_TEST_SOURCE_SET = "benchmarkTest";
     public static final String BENCHMARK_TASK = "benchmark";
     public static final String BENCHMARK_TEST_TASK = "benchmarkTest";
+
+    private static final String BENCHMARKS_COMMON_PROJECT = ":benchmarks:common";
+    private static final String BENCHMARKS_PROCESSOR_PROJECT = ":benchmarks:processor";
+    private static final String TEST_FRAMEWORK_PROJECT = ":test:framework";
 
     private final JavaToolchainService javaToolchains;
 
@@ -64,12 +67,12 @@ public class JmhPlugin implements Plugin<Project> {
         GradleUtils.extendSourceSet(project, BENCHMARK_SOURCE_SET, BENCHMARK_TEST_SOURCE_SET);
         GradleUtils.extendSourceSet(project, SourceSet.TEST_SOURCE_SET_NAME, BENCHMARK_TEST_SOURCE_SET);
 
-        wireJmhDependencies(project, benchmark);
+        wireDependencies(project, benchmark, benchmarkTest);
         registerRunnerTask(project, benchmark);
         registerCorrectnessTestTask(project, benchmarkTest);
     }
 
-    private static void wireJmhDependencies(Project project, SourceSet benchmark) {
+    private static void wireDependencies(Project project, SourceSet benchmark, SourceSet benchmarkTest) {
         DependencyHandler deps = project.getDependencies();
         String jmhVersion = requiredVersion("jmh");
         // jmh-core's runtime deps are stripped by ComponentMetadataRulesPlugin.
@@ -81,6 +84,18 @@ public class JmhPlugin implements Plugin<Project> {
         deps.add(benchmark.getAnnotationProcessorConfigurationName(), "org.openjdk.jmh:jmh-generator-annprocess:" + jmhVersion);
         deps.add(benchmark.getRuntimeOnlyConfigurationName(), "net.sf.jopt-simple:jopt-simple:" + joptSimpleVersion);
         deps.add(benchmark.getRuntimeOnlyConfigurationName(), "org.apache.commons:commons-math3:" + commonsMath3Version);
+
+        // Shared benchmark helpers (LoggerFactory bootstrap, BenchmarkConfigurationFactory, possibleValues).
+        // Guarded by findProject so this plugin can be applied in a bare TestKit fixture project.
+        if (project.findProject(BENCHMARKS_COMMON_PROJECT) != null) {
+            deps.add(benchmark.getImplementationConfigurationName(), deps.project(Map.of("path", BENCHMARKS_COMMON_PROJECT)));
+        }
+        if (project.findProject(BENCHMARKS_PROCESSOR_PROJECT) != null) {
+            deps.add(benchmark.getAnnotationProcessorConfigurationName(), deps.project(Map.of("path", BENCHMARKS_PROCESSOR_PROJECT)));
+        }
+        if (project.findProject(TEST_FRAMEWORK_PROJECT) != null) {
+            deps.add(benchmarkTest.getImplementationConfigurationName(), deps.project(Map.of("path", TEST_FRAMEWORK_PROJECT)));
+        }
     }
 
     private void registerRunnerTask(Project project, SourceSet benchmark) {

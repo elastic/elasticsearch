@@ -11,57 +11,23 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
-import org.gradle.testkit.runner.TaskOutcome
 
+/**
+ * Smoke test that applies the plugin in a real Gradle invocation. Detailed wiring assertions
+ * live in {@code JmhPluginSpec} (unit-level via {@code ProjectBuilder}); this test only
+ * guards against configuration-time errors that unit tests cannot surface.
+ */
 class JmhPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends Plugin> pluginClassUnderTest = JmhPlugin
 
-    def "creates benchmark and benchmarkTest source sets and their tasks"() {
+    def "plugin can be applied and Gradle can configure the project"() {
+        // Running `tasks --group benchmark` forces plugin apply and full configuration;
+        // the benchmark runner task is registered in that group so it must be listed.
         when:
-        def result = gradleRunner('tasks', '--all').build()
+        def result = gradleRunner('tasks', '--group', 'benchmark').build()
 
         then:
-        // compile<SourceSet>Java tasks are proxies for the source sets being wired
-        result.output.contains('compileBenchmarkJava')
-        result.output.contains('compileBenchmarkTestJava')
-        result.output.contains('benchmark -')       // JavaExec runner task
-        result.output.contains('benchmarkTest -')   // Test task
+        result.output.contains('benchmark -')
     }
-
-    def "wires jmh-core, annotation processor, and stripped transitive deps"() {
-        when:
-        def impl = gradleRunner('dependencies', '--configuration', 'benchmarkImplementation').build().output
-        def ap = gradleRunner('dependencies', '--configuration', 'benchmarkAnnotationProcessor').build().output
-        def rt = gradleRunner('dependencies', '--configuration', 'benchmarkRuntimeOnly').build().output
-
-        then:
-        impl.contains('org.openjdk.jmh:jmh-core:')
-        ap.contains('org.openjdk.jmh:jmh-generator-annprocess:')
-        // jmh-core's transitive deps are stripped by ComponentMetadataRulesPlugin,
-        // so the plugin must redeclare them explicitly.
-        rt.contains('net.sf.jopt-simple:jopt-simple:')
-        rt.contains('org.apache.commons:commons-math3:')
-    }
-
-    def "check runs benchmarkTest and does not run benchmark"() {
-        given:
-        // The plugin declares external JMH deps; the fixture project has no repositories
-        // of its own, so we add mavenCentral here to let the annotation-processor and
-        // runtime classpaths resolve when Gradle computes the task graph for `check`.
-        buildFile << """
-            repositories { mavenCentral() }
-        """.stripIndent()
-
-        when:
-        def result = gradleRunner('check').build()
-
-        then:
-        // With no benchmark or test sources, the Test task should skip gracefully.
-        def outcome = result.task(':benchmarkTest').outcome
-        outcome == TaskOutcome.NO_SOURCE || outcome == TaskOutcome.SUCCESS
-        // The benchmark runner is developer-invoked; check must not pull it in.
-        result.task(':benchmark') == null
-    }
-
 }

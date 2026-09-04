@@ -709,19 +709,17 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         throw new AssertionError("no terms_set in clause " + clause);
     }
 
-    /** The {@code terms_set} of a required-actions should-arm, unwrapping the {@code count >= 1} guard bool, or {@code null}. */
+    /** The {@code terms_set} inside a required-actions should-arm's {@code count >= 1} guard bool, or {@code null}. */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> termsSetOfShould(Map<String, Object> should) {
-        if (should.containsKey("terms_set")) {
-            return (Map<String, Object>) should.get("terms_set");
+        if (should.containsKey("bool") == false) {
+            return null;
         }
-        if (should.containsKey("bool")) {
-            Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
-            if (filters instanceof List) {
-                for (Map<String, Object> filter : (List<Map<String, Object>>) filters) {
-                    if (filter.containsKey("terms_set")) {
-                        return (Map<String, Object>) filter.get("terms_set");
-                    }
+        Object filters = ((Map<String, Object>) should.get("bool")).get("filter");
+        if (filters instanceof List) {
+            for (Map<String, Object> filter : (List<Map<String, Object>>) filters) {
+                if (filter.containsKey("terms_set")) {
+                    return (Map<String, Object>) filter.get("terms_set");
                 }
             }
         }

@@ -99,13 +99,13 @@ public class CodecTests extends ESTestCase {
             // The one intended difference.
             assertThat(
                 es.fieldInfosFormat(),
-                either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                instanceOf(CachingFieldInfosFormat.class)
             );
         }
     }
 
     /**
-     * The same read path with the per-directory cache switched off, where {@link DeduplicatingFieldInfosFormat} applies instead: field
+     * The same read path with the per-directory cache switched off, where {@link CachingFieldInfosFormat} applies instead: field
      * infos are still distinct objects per segment, but their names come from a node-wide intern. Before the default codec had an
      * Elasticsearch name it reached neither format, so segments shared nothing at all — this half of the fix is invisible to the test
      * above, which requires the flag.
@@ -217,7 +217,7 @@ public class CodecTests extends ESTestCase {
                         + readCodec.getClass().getName()
                         + "] on read",
                     readCodec.fieldInfosFormat(),
-                    either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                    instanceOf(CachingFieldInfosFormat.class)
                 );
             }
         }

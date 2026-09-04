@@ -80,23 +80,26 @@ public class CachingFieldInfosFormatTests extends ESTestCase {
         }
     }
 
-    public void testPassthroughWithoutCachingDirectory() throws Exception {
+    public void testNamesAndAttributesAreSharedWithoutACachingDirectory() throws Exception {
         try (Directory raw = newDirectory()) {
             indexSegments(raw, 2);
             CachingFieldInfosFormat format = newFormat();
             SegmentInfos sis = SegmentInfos.readLatestCommit(raw);
-            // Without the caching directory, two reads of the same segment produce equal-but-distinct FieldInfo instances.
             SegmentCommitInfo sci = sis.iterator().next();
             FieldInfos first = format.read(raw, sci.info, "", IOContext.DEFAULT);
             FieldInfos second = format.read(raw, sci.info, "", IOContext.DEFAULT);
             assertThat(first, Matchers.instanceOf(FieldInfosWithUsages.class));
             assertThat(second, Matchers.instanceOf(FieldInfosWithUsages.class));
             assertEquals("field count must match", first.size(), second.size());
-            // Passthrough does not intern; instances are distinct.
             for (FieldInfo fi1 : first) {
                 FieldInfo fi2 = second.fieldInfo(fi1.getName());
                 assertNotNull(fi2);
-                assertNotSame("passthrough must not intern FieldInfo across reads", fi1, fi2);
+                // No directory to hold them, so the instances differ; the parts that can be shared node-wide still are.
+                assertNotSame("no cache, so instances are not shared", fi1, fi2);
+                assertSame("field name must be interned", fi1.getName(), fi2.getName());
+                if (fi1.attributes().isEmpty() == false) {
+                    assertSame("attribute map must be interned", fi1.attributes(), fi2.attributes());
+                }
             }
         }
     }

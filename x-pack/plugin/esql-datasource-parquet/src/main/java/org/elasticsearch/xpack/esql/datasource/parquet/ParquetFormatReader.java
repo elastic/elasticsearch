@@ -407,13 +407,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         this.parsedFooters = parsedFooters;
     }
 
-    /**
-     * A copy identical to this reader that shares its footer caches but starts fresh
-     * instrumentation counters. Test-only: models the production pattern where the registry's
-     * root reader and its derived copies share one cache, while letting tests assert the
-     * hit/miss counts of one consumer in isolation.
-     */
-    ParquetFormatReader copySharingCachesForTests() {
+    @Override
+    public ParquetFormatReader freshCounters() {
         return new ParquetFormatReader(
             blockFactory,
             pushedFilter,
@@ -426,6 +421,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters
         );
+    }
+
+    /**
+     * A copy identical to this reader that shares its footer caches but starts fresh
+     * instrumentation counters. Test-only: models the production pattern where the registry's
+     * root reader and its derived copies share one cache, while letting tests assert the
+     * hit/miss counts of one consumer in isolation.
+     */
+    ParquetFormatReader copySharingCachesForTests() {
+        return freshCounters();
     }
 
     /**

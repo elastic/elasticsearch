@@ -74,9 +74,10 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
         // Wire a format-reader status with a known readNanos (42 ms) so parse.duration is a deterministic
-        // non-zero value, not just present. recordParseAndSplits() scrapes formatReaderStatus().readNanos()
-        // at close and records it as the parse.duration observation.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L), 0L));
+        // non-zero value, not just present. recordParseAndSplits() scrapes buffer.accReadNanos()
+        // at close and records it as the parse.duration observation. splitStart=true so the full
+        // snapshot value is accumulated (fresh reader, baseline=0).
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L), 0L), true);
 
         AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a");
 

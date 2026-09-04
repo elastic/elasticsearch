@@ -1480,7 +1480,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        return readerForMapping(fileSplit.columnMapping()).withReadConfig(readConfigFingerprinter.apply(fileSplit.readSchema()));
+        return readerForMapping(fileSplit.columnMapping()).withReadConfig(readConfigFingerprinter.apply(fileSplit.readSchema()))
+            .freshCounters();   // per-split isolation: each split's reads accumulate into exclusive counters
     }
 
     @Nullable
@@ -1552,7 +1553,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         buffer.setSplitsTotal(sliceQueue.totalSlices());
-        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit, formatReader);
+        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit);
         try {
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -1577,7 +1578,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
         }));
         buffer.setSplitsTotal(fileList.fileCount());
-        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit, formatReader);
+        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit);
         state.schemaInfo = schemaMap;
         try {
             producerExecutor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
@@ -1600,8 +1601,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final List<String> projectedColumns;
         final AsyncExternalSourceBuffer buffer;
         final DriverContext driverContext;
-        @Nullable
-        final FormatReader formatReader;
 
         int fileIndex;
         @Nullable
@@ -1627,6 +1626,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         long currentObjectBytesSnapshot;
         // 1-based index of the split / file the producer is currently working on (0 = not started).
         int currentSplitIndex;
+        /**
+         * The format reader for the split currently being processed, obtained from {@link #readerForFile}
+         * (or its multi-file equivalent). Always a fresh instance (via {@link FormatReader#freshCounters()})
+         * so its counters are exclusive to this driver/split. Set at split-open time; cleared after EOF.
+         */
+        @Nullable
+        FormatReader currentFileReader;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -1634,8 +1640,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             @Nullable List<String> projectedColumns,
             AsyncExternalSourceBuffer buffer,
             DriverContext driverContext,
-            int rowsRemaining,
-            @Nullable FormatReader formatReader
+            int rowsRemaining
         ) {
             if ((queue == null) == (fileList == null)) {
                 throw new IllegalArgumentException("ProducerState requires exactly one of queue or fileList");
@@ -1646,7 +1651,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.buffer = buffer;
             this.driverContext = driverContext;
             this.rowsRemaining = rowsRemaining;
-            this.formatReader = formatReader;
         }
     }
 
@@ -1692,12 +1696,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 boolean opened = StorageRetryCancellation.callWithCancellation(state.buffer::readCancelled, () -> advanceToNextUnit(state));
                 if (opened == false) {
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state);
+                    snapshotFormatReaderStatus(state, false);
                     l.onResponse(null);
                     return;
                 }
-                // Unit opened (iterator built, parser workers dispatched on this pool); drain it on the consumer
-                // pool so the parser workers cannot starve their own consumer.
+                // Unit opened; take the split-start snapshot so the buffer baseline is reset for the fresh reader.
+                snapshotFormatReaderStatus(state, true);
+                // Drain on the consumer pool so the parser workers cannot starve their own consumer.
                 try {
                     producerExecutor.execute(() -> drainCurrentUnit(state, l));
                 } catch (Exception e) {
@@ -1730,7 +1735,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
                     // close it before reporting completion so no resources leak on cancellation paths.
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state);
+                    snapshotFormatReaderStatus(state, false);
                     clearCurrentIterator(state);
                     completionListener.onResponse(null);
                 }
@@ -1738,9 +1743,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Finished consuming this unit: capture deltas, count the split as processed,
                     // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state);
+                    snapshotFormatReaderStatus(state, false);
                     state.buffer.incSplitsProcessed();
                     clearCurrentIterator(state);
+                    state.currentFileReader = null;   // release; next split sets a new one
                     state.currentObject = null;
                     state.currentObjectBytesSnapshot = 0L;
                     runProducerLoop(state, completionListener);
@@ -1748,7 +1754,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 case BLOCKED -> {
                     // A listener has been registered on waitForSpace that will re-submit the drain.
                     snapshotBytesRead(state);
-                    snapshotFormatReaderStatus(state);
+                    snapshotFormatReaderStatus(state, false);
                 }
             }
         } catch (Exception e) {
@@ -1785,15 +1791,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
-    /** Refreshes the buffer's view of the format reader's counter snapshot; best-effort. */
-    private static void snapshotFormatReaderStatus(ProducerState state) {
-        if (state.formatReader == null) {
+    /**
+     * Snapshots the per-split reader's counters and accumulates the timing delta into the buffer.
+     * {@code splitStart} must be {@code true} exactly once per split — immediately after
+     * {@code openNextSliceQueueLeaf} / the multi-file equivalent sets {@code state.currentFileReader} —
+     * so the buffer's baseline is reset before the split's first intermediate snapshot.
+     * Returns immediately when {@code currentFileReader} is null (no split open).
+     */
+    private static void snapshotFormatReaderStatus(ProducerState state, boolean splitStart) {
+        if (state.currentFileReader == null) {
             return;
         }
         try {
-            state.buffer.recordFormatReaderStatus(state.formatReader.statusSnapshot());
+            state.buffer.recordFormatReaderStatus(state.currentFileReader.statusSnapshot(), splitStart);
         } catch (Exception e) {
-            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.formatReader, e);
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.currentFileReader, e);
         }
     }
 
@@ -2025,6 +2037,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             FormatReader fileReader = readerForFile(fileSplit);
+            state.currentFileReader = fileReader;
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
                 String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
@@ -2316,7 +2329,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // mapping; pass null so pushedExpressions reach the reader unchanged, as before.
             FormatReader fileReader = readerForMapping(queryDataSchema.isEmpty() ? null : mapping).withReadConfig(
                 readConfigFingerprinter.apply(perFileReadSchema)
-            );
+            ).freshCounters();   // per-file isolation: each file's reads accumulate into exclusive counters
+            state.currentFileReader = fileReader;
             pages = openWithParallelism(
                 fileReader,
                 obj,
@@ -2435,10 +2449,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
-        FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
+        // freshCounters() is defensive: readerWithDynamicThreshold returns `this` when no threshold is set
+        // (the common case), so without it the local reader IS this.formatReader and its counters accumulate.
+        FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema))
+            .freshCounters();
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
             CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
-            consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
+            consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns, reader);
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
@@ -2463,7 +2480,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             // Split-less whole-file read, as in the native-async branch above: the unified schema is this file's.
-            FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
+            // freshCounters() is defensive: readerWithDynamicThreshold returns `this` when no threshold is set
+            // (the common case), so without it the local reader IS this.formatReader and its counters accumulate.
+            FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema))
+                .freshCounters();
             // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
             // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
             CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
@@ -2531,11 +2551,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // runAfter semantics.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(finalPages);
-                    recordSingleFileTelemetry(storageObject, buffer);
+                    recordSingleFileTelemetry(reader, storageObject, buffer);
                     buffer.finish(false);
                 }, e -> {
                     closeQuietly(finalPages);
-                    recordSingleFileTelemetry(storageObject, buffer);
+                    recordSingleFileTelemetry(reader, storageObject, buffer);
                     buffer.onFailure(e);
                 }), () -> {
                     driverContext.removeAsyncAction();
@@ -2550,7 +2570,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext,
         StorageObject storageObject,
-        List<String> projectedColumns
+        List<String> projectedColumns,
+        FormatReader reader
     ) {
         final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
@@ -2574,11 +2595,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // counters reach the operator status snapshot before isFinished() flips.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(wrapped);
-                    recordSingleFileTelemetry(storageObject, buffer);
+                    recordSingleFileTelemetry(reader, storageObject, buffer);
                     buffer.finish(false);
                 }, e -> {
                     closeQuietly(wrapped);
-                    recordSingleFileTelemetry(storageObject, buffer);
+                    recordSingleFileTelemetry(reader, storageObject, buffer);
                     buffer.onFailure(e);
                 }), () -> {
                     driverContext.removeAsyncAction();
@@ -2592,11 +2613,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Records final telemetry for the single-file producer paths
      * ({@link #startNativeAsyncRead}, {@link #startSyncWrapperRead}): increments
      * splits_processed, captures the storage object's cumulative bytes_read, and
-     * forwards the latest format-reader counter snapshot. Best-effort: any
-     * accessor that misbehaves (e.g. returns {@code null} from a test mock) is
-     * tolerated so telemetry can never short-circuit the lifecycle callbacks.
+     * forwards the format-reader counter snapshot. Best-effort: any accessor that
+     * misbehaves (e.g. returns {@code null} from a test mock) is tolerated so telemetry
+     * can never short-circuit the lifecycle callbacks.
+     *
+     * @param reader the local freshened reader that actually performed the read (not {@code this.formatReader})
      */
-    private void recordSingleFileTelemetry(StorageObject storageObject, AsyncExternalSourceBuffer buffer) {
+    private void recordSingleFileTelemetry(FormatReader reader, StorageObject storageObject, AsyncExternalSourceBuffer buffer) {
         buffer.incSplitsProcessed();
         try {
             if (storageObject != null) {
@@ -2612,9 +2635,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             logger.trace(() -> "telemetry: bytesRead snapshot failed for " + storageObject, e);
         }
         try {
-            buffer.recordFormatReaderStatus(formatReader.statusSnapshot());
+            // splitStart=true: single-file paths call this exactly once, at completion. The reader was
+            // freshened by Task C (FileSourceFactory) or D3, so its counters started at zero.
+            buffer.recordFormatReaderStatus(reader.statusSnapshot(), true);
         } catch (Exception e) {
-            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + formatReader, e);
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + reader, e);
         }
     }
 

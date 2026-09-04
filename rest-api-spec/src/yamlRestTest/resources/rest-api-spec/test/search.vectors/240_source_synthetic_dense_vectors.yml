@@ -21,6 +21,10 @@ setup:
                 type: dense_vector
                 dims: 3
                 similarity: l2_norm
+              vector_dv:
+                type: dense_vector
+                dims: 3
+                index: false
 
               nested:
                 type: nested
@@ -31,6 +35,10 @@ setup:
                     type: dense_vector
                     dims: 3
                     similarity: l2_norm
+                  vector_dv:
+                    type: dense_vector
+                    dims: 3
+                    index: false
 
   - do:
       index:
@@ -39,6 +47,7 @@ setup:
         body:
           name: cow.jpg
           vector: [1, 2, 3]
+          vector_dv: [4, 5, 6]
 
   - do:
       index:
@@ -49,6 +58,7 @@ setup:
           nested:
           - paragraph_id: 0
             vector: [1, 2, 3]
+            vector_dv: [4, 5, 6]
           - paragraph_id: 2
             vector: [4, 5, 6]
           - paragraph_id: 3
@@ -89,11 +99,13 @@ setup:
   - match:      { hits.hits.0._id: "1"}
   - match:      { hits.hits.0._source.name: "cow.jpg"}
   - not_exists:   hits.hits.0._source.vector
+  - not_exists:   hits.hits.0._source.vector_dv
 
   - match:      { hits.hits.1._id: "2"}
   - match:      { hits.hits.1._source.name: "moose.jpg"}
   - length:     { hits.hits.1._source.nested: 3 }
   - not_exists:   hits.hits.1._source.nested.0.vector
+  - not_exists:   hits.hits.1._source.nested.0.vector_dv
   - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
   - not_exists:   hits.hits.1._source.nested.1.vector
   - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
@@ -126,11 +138,13 @@ setup:
   - match:      { hits.hits.0._id: "1"}
   - match:      { hits.hits.0._source.name: "cow.jpg"}
   - exists:       hits.hits.0._source.vector
+  - length:     { hits.hits.0._source.vector_dv: 3 }
 
   - match:      { hits.hits.1._id: "2"}
   - match:      { hits.hits.1._source.name: "moose.jpg"}
   - length:     { hits.hits.1._source.nested: 3 }
   - exists:       hits.hits.1._source.nested.0.vector
+  - length:     { hits.hits.1._source.nested.0.vector_dv: 3 }
   - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
   - exists:       hits.hits.1._source.nested.1.vector
   - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
@@ -281,6 +295,33 @@ setup:
 
 ---
 "Partial update with synthetic vectors":
+  # a partial update rewrites the document from the _source it reads back, so the vectors it does not mention have to
+  # survive the round trip through the vector index and doc values
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
+        Content-Type: application/json
+      update:
+        index: test
+        id: "1"
+        body:
+          _source: true
+          doc: { "name": "cow2.jpg" }
+
+  - match: { get._source.name: cow2.jpg }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        _source_exclude_vectors: false
+        index: test
+        id: "1"
+
+  - match: { _source.name: cow2.jpg }
+  - match: { _source.vector: [1.0, 2.0, 3.0] }
+  - match: { _source.vector_dv: [4.0, 5.0, 6.0] }
+
   - do:
       headers:
         # Force JSON content type so that we use a parser that interprets the vectors as doubles
@@ -390,3 +431,24 @@ setup:
           _source: false
           fields: ["vector1"]
           docvalue_fields: ["vector2"]
+
+---
+"restored vectors keep their values":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+          sort: [ "name" ]
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._source.vector: [1.0, 2.0, 3.0] }
+  - match: { hits.hits.0._source.vector_dv: [4.0, 5.0, 6.0] }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1._source.nested.0.vector: [1.0, 2.0, 3.0] }
+  - match: { hits.hits.1._source.nested.0.vector_dv: [4.0, 5.0, 6.0] }

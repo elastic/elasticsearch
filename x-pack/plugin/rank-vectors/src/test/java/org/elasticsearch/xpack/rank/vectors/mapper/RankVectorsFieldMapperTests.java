@@ -22,16 +22,23 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -103,6 +110,41 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
+    }
+
+    /**
+     * In {@code columnar_stored} mode the source blob materialized at index time leaves out {@code rank_vectors} fields, at
+     * the root and inside a {@code nested} object alike: the vectors are already held in binary doc values, and are patched
+     * back into {@code _source} on read.
+     */
+    public void testColumnarStoredExcludesVectorsFromSourceBlob() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("vec").field("type", "rank_vectors").field("dims", 3).endObject();
+            b.startObject("nested").field("type", "nested").startObject("properties");
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("vec").field("type", "rank_vectors").field("dims", 3).endObject();
+            b.endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("kwd", "a");
+            b.field("vec", new float[][] { { 1.5f, 2.5f, 3.5f }, { 4.5f, 5.5f, 6.5f } });
+            b.startArray("nested");
+            b.startObject().field("kwd", "b").field("vec", new float[][] { { 7.5f, 8.5f, 9.5f } }).endObject();
+            b.startObject().field("kwd", "c").endObject();
+            b.endArray();
+        }));
+
+        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        String encoded = new BytesArray(blob).utf8ToString();
+        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
     }
 
     @Override

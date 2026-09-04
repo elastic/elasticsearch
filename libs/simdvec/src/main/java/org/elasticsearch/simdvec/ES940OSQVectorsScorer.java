@@ -18,6 +18,10 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
 public class ES940OSQVectorsScorer {
@@ -25,8 +29,8 @@ public class ES940OSQVectorsScorer {
     public static final int BULK_SIZE = 32;
 
     public static boolean supportsQuantization(byte queryBits, byte indexBits) {
-        return switch ((queryBits << 8) | indexBits) {
-            case (1 << 8) | 1, (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
+        return switch ((indexBits << 8) | queryBits) {
+            case D1Q1, D1Q4, D2Q4, D4Q4, (7 << 8) | 7 -> true;
             default -> false;
         };
     }
@@ -58,11 +62,11 @@ public class ES940OSQVectorsScorer {
         }
 
         public static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
-            return switch ((queryBits << 8) | indexBits) {
-                case (1 << 8) | 1 -> D1Q1;
-                case (4 << 8) | 1 -> D1Q4;
-                case (4 << 8) | 2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
-                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
+            return switch ((indexBits << 8) | queryBits) {
+                case BBQEncoding.D1Q1 -> D1Q1;
+                case BBQEncoding.D1Q4 -> D1Q4;
+                case BBQEncoding.D2Q2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
+                case BBQEncoding.D4Q4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
             };

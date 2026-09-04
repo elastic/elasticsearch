@@ -16,6 +16,12 @@ import org.elasticsearch.simdvec.SimdVecLibrary;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
+import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q2;
+import static org.elasticsearch.simdvec.BBQEncoding.D2Q4;
+import static org.elasticsearch.simdvec.BBQEncoding.D4Q4;
+
 /**
  * Native {@link BBQDotProduct}, using methods in {@link SimdVecLibrary}
  */
@@ -25,7 +31,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
 
     private static boolean supportedEncoding(BBQEncoding bbqEncoding) {
         return switch (bbqEncoding.toSwitchValue()) {
-            case (1 << 8) | 1, (1 << 8) | 4, (2 << 8) | 2, (2 << 8) | 4, (4 << 8) | 4 -> true;
+            case D1Q1, D1Q4, D2Q2, D2Q4, D4Q4 -> true;
             default -> false;
         };
     }
@@ -84,11 +90,11 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
         return IndexInputUtils.withSlice(in, docBytes, scratch, dataSegment -> switch (encoding.toSwitchValue()) {
-            case (1 << 8) | 1 -> DISTANCE_FUNCS.dotProductD1Q1(dataSegment, querySegment, docBytes);
-            case (1 << 8) | 4 -> DISTANCE_FUNCS.dotProductD1Q4(dataSegment, querySegment, docBytes);
-            case (2 << 8) | 2 -> DISTANCE_FUNCS.dotProductD2Q2(dataSegment, querySegment, docBytes);
-            case (2 << 8) | 4 -> DISTANCE_FUNCS.dotProductD2Q4(dataSegment, querySegment, docBytes);
-            case (4 << 8) | 4 -> DISTANCE_FUNCS.dotProductD4Q4(dataSegment, querySegment, docBytes);
+            case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1(dataSegment, querySegment, docBytes);
+            case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4(dataSegment, querySegment, docBytes);
+            case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2(dataSegment, querySegment, docBytes);
+            case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4(dataSegment, querySegment, docBytes);
+            case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4(dataSegment, querySegment, docBytes);
             default -> throw new AssertionError("Unsupported encoding: " + encoding);
         });
     }
@@ -100,11 +106,11 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         MemorySegment scoresSegment = scoresSegment(scores);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
-                case (1 << 8) | 1 -> DISTANCE_FUNCS.dotProductD1Q1Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
-                case (1 << 8) | 4 -> DISTANCE_FUNCS.dotProductD1Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
-                case (2 << 8) | 2 -> DISTANCE_FUNCS.dotProductD2Q2Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
-                case (2 << 8) | 4 -> DISTANCE_FUNCS.dotProductD2Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
-                case (4 << 8) | 4 -> DISTANCE_FUNCS.dotProductD4Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
+                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4Bulk(dataSegment, querySegment, docBytes, count, scoresSegment);
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
@@ -118,7 +124,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
         MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
-                case (1 << 8) | 1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
+                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
                     dataSegment,
                     querySegment,
                     docBytes,
@@ -127,7 +133,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                     offsetsCount,
                     scoresSegment
                 );
-                case (1 << 8) | 4 -> DISTANCE_FUNCS.dotProductD1Q4BulkWithOffsets(
+                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4BulkWithOffsets(
                     dataSegment,
                     querySegment,
                     docBytes,
@@ -136,7 +142,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                     offsetsCount,
                     scoresSegment
                 );
-                case (2 << 8) | 2 -> DISTANCE_FUNCS.dotProductD2Q2BulkWithOffsets(
+                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2BulkWithOffsets(
                     dataSegment,
                     querySegment,
                     docBytes,
@@ -145,7 +151,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                     offsetsCount,
                     scoresSegment
                 );
-                case (2 << 8) | 4 -> DISTANCE_FUNCS.dotProductD2Q4BulkWithOffsets(
+                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4BulkWithOffsets(
                     dataSegment,
                     querySegment,
                     docBytes,
@@ -154,7 +160,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                     offsetsCount,
                     scoresSegment
                 );
-                case (4 << 8) | 4 -> DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(
+                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(
                     dataSegment,
                     querySegment,
                     docBytes,

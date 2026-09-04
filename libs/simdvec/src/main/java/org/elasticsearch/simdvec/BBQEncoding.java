@@ -31,6 +31,13 @@ public record BBQEncoding(byte dataBits, byte queryBits) {
         return (dataBits << 8) | queryBits;
     }
 
+    /* Constants for use in switches with toSwitchValue() */
+    public static final int D1Q1 = (1 << 8) | 1;
+    public static final int D1Q4 = (1 << 8) | 4;
+    public static final int D2Q2 = (2 << 8) | 2;
+    public static final int D2Q4 = (2 << 8) | 4;
+    public static final int D4Q4 = (4 << 8) | 4;
+
     @Override
     public String toString() {
         return "BBQEncoding(D" + dataBits + "Q" + queryBits + ")";

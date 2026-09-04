@@ -21,7 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.openjdk.jmh.annotations.Benchmark;

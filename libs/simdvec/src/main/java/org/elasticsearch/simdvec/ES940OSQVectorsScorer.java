@@ -65,7 +65,7 @@ public class ES940OSQVectorsScorer {
             return switch ((indexBits << 8) | queryBits) {
                 case BBQEncoding.D1Q1 -> D1Q1;
                 case BBQEncoding.D1Q4 -> D1Q4;
-                case BBQEncoding.D2Q2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
+                case BBQEncoding.D2Q4 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
                 case BBQEncoding.D4Q4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);

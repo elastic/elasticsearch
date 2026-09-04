@@ -54,8 +54,8 @@ public class ExternalDistributionRotationTests extends ESTestCase {
         Map<String, Integer> rotated = new LinkedHashMap<>();
         Map<String, Integer> unrotated = new LinkedHashMap<>();
         for (int producer = 0; producer < 8; producer++) {
-            accumulate(rotated, strategy.planDistribution(context(createSplits(1), nodes, producer)));
-            accumulate(unrotated, strategy.planDistribution(context(createSplits(1), nodes, 0)));
+            accumulate(rotated, strategy.planDistribution(context(createSplits(1), nodes, producer, 8)));
+            accumulate(unrotated, strategy.planDistribution(context(createSplits(1), nodes, 0, 8)));
         }
 
         assertEquals(List.of(2, 2, 2, 2), List.copyOf(rotated.values()));
@@ -70,8 +70,8 @@ public class ExternalDistributionRotationTests extends ESTestCase {
         Map<String, Integer> rotated = new LinkedHashMap<>();
         Map<String, Integer> unrotated = new LinkedHashMap<>();
         for (int producer = 0; producer < 4; producer++) {
-            accumulate(rotated, strategy.planDistribution(context(createSplits(2), nodes, producer)));
-            accumulate(unrotated, strategy.planDistribution(context(createSplits(2), nodes, 0)));
+            accumulate(rotated, strategy.planDistribution(context(createSplits(2), nodes, producer, 4)));
+            accumulate(unrotated, strategy.planDistribution(context(createSplits(2), nodes, 0, 4)));
         }
 
         assertEquals(List.of(2, 2, 2, 2), List.copyOf(rotated.values()));
@@ -159,15 +159,20 @@ public class ExternalDistributionRotationTests extends ESTestCase {
     public void testNegativeProducerIndexRejected() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new ExternalDistributionContext(createPlan(), createSplits(2), createNodes(2), QueryPragmas.EMPTY, -1)
+            () -> new ExternalDistributionContext(createPlan(), createSplits(2), createNodes(2), QueryPragmas.EMPTY, -1, 4)
         );
         assertEquals("producerIndex must not be negative", e.getMessage());
     }
 
     // ---------------------------------------------------------------------------------------------
 
-    private static ExternalDistributionContext context(List<ExternalSplit> splits, DiscoveryNodes nodes, int producerIndex) {
-        return new ExternalDistributionContext(createPlan(), splits, nodes, QueryPragmas.EMPTY, producerIndex);
+    private static ExternalDistributionContext context(
+        List<ExternalSplit> splits,
+        DiscoveryNodes nodes,
+        int producerIndex,
+        int producerCount
+    ) {
+        return new ExternalDistributionContext(createPlan(), splits, nodes, QueryPragmas.EMPTY, producerIndex, producerCount);
     }
 
     private static List<DiscoveryNode> eligible(DiscoveryNodes nodes) {

@@ -669,12 +669,14 @@ public class ComputeService {
         Configuration configuration,
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled,
-        int producerIndex
+        int producerIndex,
+        int producerCount
     ) {
         return applyExternalDistributionStrategy(
             collectExternalSplits(plan, configuration, execInfo, isCancelled),
             configuration,
-            producerIndex
+            producerIndex,
+            producerCount
         );
     }
 
@@ -683,11 +685,14 @@ public class ComputeService {
      *
      * @param producerIndex position of this producer among a fan-in's source producers, which the strategy uses to
      *                      offset its node selection; zero when the query has a single external source.
+     * @param producerCount total number of source producers in the fan-in, which the strategy uses to tell a lone read
+     *                      from one of many concurrent reads; one when the query has a single external source.
      */
     ExternalDistributionResult applyExternalDistributionStrategy(
         CollectedSplits collected,
         Configuration configuration,
-        int producerIndex
+        int producerIndex,
+        int producerCount
     ) {
         // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
         // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
@@ -704,7 +709,8 @@ public class ComputeService {
             externalSplits,
             clusterService.state().nodes(),
             configuration.pragmas(),
-            producerIndex
+            producerIndex,
+            producerCount
         );
 
         ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
@@ -1587,8 +1593,8 @@ public class ComputeService {
             // already landed via recordExternalScanStats from the fan-out executor. Do not start
             // this timer before the hop: start and completion would be different threads.
             long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
-            // Single external source, so there are no siblings to spread against.
-            distributionResult = applyExternalDistributionStrategy(collected, configuration, 0);
+            // Single external source, so there are no siblings to spread against or to share the coordinator with.
+            distributionResult = applyExternalDistributionStrategy(collected, configuration, 0, 1);
             if (execInfo != null
                 && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
                 if (splitDiscoveryCpuStart >= 0) {
@@ -1970,6 +1976,7 @@ public class ComputeService {
                             executeSourceProducer(
                                 sessionId,
                                 producerIndex,
+                                fanInPlan.producers().size(),
                                 rootTask,
                                 flags,
                                 producer,
@@ -2005,6 +2012,7 @@ public class ComputeService {
     private void executeSourceProducer(
         String sessionId,
         int producerIndex,
+        int producerCount,
         CancellableTask rootTask,
         EsqlFlags flags,
         ExchangeSinkExec producer,
@@ -2023,7 +2031,14 @@ public class ComputeService {
         BooleanSupplier preparationCancelled = () -> rootTask.isCancelled() || execInfo.isStopped() || exchangeSource.isFinished();
         try {
             PhysicalPlan splitPlan = discoverSplits(producer, configuration, execInfo, preparationCancelled);
-            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, preparationCancelled, producerIndex);
+            distributionResult = applyExternalDistributionStrategy(
+                splitPlan,
+                configuration,
+                execInfo,
+                preparationCancelled,
+                producerIndex,
+                producerCount
+            );
             if (distributionResult.coordinatorSplits().isEmpty() == false || distributionResult.distributionPlan() != null) {
                 execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }

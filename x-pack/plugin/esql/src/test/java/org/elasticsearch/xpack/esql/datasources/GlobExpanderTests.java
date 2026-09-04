@@ -607,6 +607,34 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
     }
 
+    public void testRewriteGlobLiteralIsNotPinned() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/junk/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/2024/*/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobSpelledLeadingLiteralStillRewrites() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDoesNotTreatALeadingStarAsALiteral() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/logs/*/*/*.parquet", hints, config);
+        assertEquals("s3://bucket/*/logs/2024/*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobDeclinesWhenTheBucketIsNotAPathSlot() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        String pattern = "s3://logs/*/*/*.parquet";
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, hints, config));
+    }
+
     public void testExpandGlobWithPartitionConfig() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/2024/01/file1.parquet", 100),

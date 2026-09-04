@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
@@ -266,6 +267,53 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals(List.of("year", "month", "day"), TemplatePartitionDetector.parseTemplateColumns("{year}/{month}/{day}"));
         assertEquals(List.of("region"), TemplatePartitionDetector.parseTemplateColumns("{region}"));
         assertEquals(List.of(), TemplatePartitionDetector.parseTemplateColumns("no_placeholders"));
+        assertEquals(List.of("year", "month"), TemplatePartitionDetector.parseTemplateColumns("{year}/junk/{month}"));
+        assertEquals(List.of(), TemplatePartitionDetector.parseTemplateColumns("year={year}"));
+    }
+
+    public void testParseTemplateClassifiesPlaceholdersAndLiterals() {
+        assertEquals(
+            List.of(new TemplateSegment.Placeholder("year"), new TemplateSegment.Literal("junk"), new TemplateSegment.Placeholder("month")),
+            TemplatePartitionDetector.parseTemplate("{year}/junk/{month}")
+        );
+        assertEquals(List.of(new TemplateSegment.Literal("year={year}")), TemplatePartitionDetector.parseTemplate("year={year}"));
+        assertEquals(List.of(), TemplatePartitionDetector.parseTemplate(""));
+    }
+
+    public void testLiteralSegmentAnchorsTheBinding() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{month}");
+        PartitionMetadata result = detector.detect(List.of(entry("s3://bucket/logs/2024/junk/01/part-0.parquet")));
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("month"));
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/junk/01/part-0.parquet"));
+        assertEquals(2024, values.get("year"));
+        assertEquals(1, values.get("month"));
+    }
+
+    public void testLiteralMismatchReturnsEmpty() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{month}");
+        assertTrue(detector.detect(List.of(entry("s3://bucket/logs/2024/other/01/part-0.parquet"))).isEmpty());
+    }
+
+    public void testTooShortPathReturnsEmpty() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{month}");
+        assertTrue(detector.detect(List.of(entry("s3://bucket/2024/01/part-0.parquet"))).isEmpty());
+    }
+
+    public void testLeadingLiteralBindsWhenTheDirectoryMatches() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("logs/{year}/{month}");
+        PartitionMetadata result = detector.detect(List.of(entry("s3://bucket/logs/2024/01/part-0.parquet")));
+        assertFalse(result.isEmpty());
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/01/part-0.parquet"));
+        assertEquals(2024, values.get("year"));
+        assertEquals(1, values.get("month"));
+    }
+
+    public void testLeadingLiteralMismatchReturnsEmpty() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("logs/{year}/{month}");
+        assertTrue(detector.detect(List.of(entry("s3://bucket/data/2024/01/part-0.parquet"))).isEmpty());
     }
 
     public void testNullTemplateThrows() {

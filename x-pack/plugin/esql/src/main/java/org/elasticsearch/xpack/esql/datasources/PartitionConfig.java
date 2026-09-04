@@ -196,5 +196,18 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
                     + "] or enable partition detection"
             );
         }
+
+        if (hasTemplate && TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] ["
+                    + template
+                    + "] names no columns; a partition column must be a path segment that is exactly {name}, such as "
+                    + "[{year}/{month}]. For a key=value directory layout set ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] to [hive] instead of a template"
+            );
+        }
     }
 }

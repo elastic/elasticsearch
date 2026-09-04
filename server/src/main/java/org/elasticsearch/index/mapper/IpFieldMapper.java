@@ -1037,10 +1037,14 @@ public class IpFieldMapper extends FieldMapper {
             if (values.isEmpty() == false) {
                 EscfColumnData valuesData = values.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), BinaryDocValuesField.TYPE), valuesData);
+            } else {
+                values.discard();
             }
             success = true;
         } finally {
-            if (success == false) values.discard();
+            if (success == false) {
+                values.discard();
+            }
         }
     }
 

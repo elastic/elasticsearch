@@ -95,7 +95,6 @@ public class ListColumnParityTests extends ESTestCase {
     }
 
     public void testBaselineAndOptimizedProduceSameListsForAllCodecs() throws Exception {
-        ParquetStorageObjectAdapter.clearFooterCacheForTests();
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 
         // Mixed schema with both an int list and a string list, plus a flat scalar to exercise

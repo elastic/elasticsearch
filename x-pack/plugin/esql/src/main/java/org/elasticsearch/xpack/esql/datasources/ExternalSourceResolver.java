@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -208,10 +207,11 @@ public class ExternalSourceResolver {
      * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
      * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
      * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
-     * Messages are instead buffered here and replayed via {@code HeaderWarning} from {@link #resolve}'s completion
-     * listener, once {@link #restorableContext} has restored the caller's original context. Cleared at the start of
-     * each {@link #resolve} call; safe for concurrent per-file callbacks (see {@link #metadataReadConcurrency}) since
-     * it is append-only until the single flush at completion.
+     * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
+     * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
+     * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
+     * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
+     * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
      */
     private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 
@@ -429,7 +429,7 @@ public class ExternalSourceResolver {
         }
 
         // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
-        // clearing here (rather than after the previous call's flush) also covers a resolver instance reused
+        // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
 
@@ -445,21 +445,18 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
-        // Flush any Hive-partition shadow-column warnings buffered in pendingShadowWarnings (see its javadoc) before
-        // delegating to the caller's listener, so HeaderWarning.addWarning is called from here rather than from
-        // whatever executor thread actually ran the schema reconciliation.
-        ActionListener<ExternalSourceResolution> withShadowWarnings = ActionListener.runBefore(
-            listener,
-            () -> pendingShadowWarnings.forEach(HeaderWarning::addWarning)
-        );
+        // Hive-partition shadow-column warnings stay on the ExternalSourceResolution (see pendingShadowWarnings)
+        // rather than being flushed to HeaderWarning here: ContextPreservingActionListener restores a copy of the
+        // request context that close() then discards, so a resolve-time HeaderWarning write is racy
+        // (elastic/elasticsearch#153780).
+        //
         // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
         // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
         // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
-        // EsqlSession and into the compute transport send, and (per above) the shadow-warning flush itself. See the
-        // field javadoc on restorableContext for details.
+        // EsqlSession and into the compute transport send. See the field javadoc on restorableContext for details.
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
-            ? withShadowWarnings
-            : new ContextPreservingActionListener<>(restorableContext, withShadowWarnings);
+            ? listener
+            : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
             () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
@@ -481,7 +478,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (index == paths.size()) {
-            listener.onResponse(new ExternalSourceResolution(resolved));
+            listener.onResponse(new ExternalSourceResolution(resolved, List.copyOf(pendingShadowWarnings)));
             return;
         }
         String path = paths.get(index);
@@ -548,9 +545,8 @@ public class ExternalSourceResolver {
             return new ExternalUnavailableException(
                 unavailable.throttling(),
                 unavailable,
-                "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -565,7 +561,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+                ExternalFailures.locate("Failed to resolve external source", path, rejected.getMessage())
             );
             wrapped.initCause(rejected);
             return wrapped;
@@ -603,7 +599,9 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             String detail = ExternalFailures.rootDetail(e);
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-            return new ExternalClientException(e, "Failed to resolve external source [{}]: {}", path, detail);
+            // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
+            // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
+            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
@@ -611,7 +609,13 @@ public class ExternalSourceResolver {
         // print "java.io.IOException: Object not found: ..." at the user.
         String detail = ExternalFailures.rootDetail(e);
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
-        return new ExternalServerException(e, "Failed to resolve external source [{}]: {}", path, detail);
+        // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
+        // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
+        return new ExternalServerException(
+            ExternalFailures.rootCause(e),
+            "{}",
+            ExternalFailures.locate("Failed to resolve external source", path, detail)
+        );
     }
 
     private void resolveSource(
@@ -677,6 +681,7 @@ public class ExternalSourceResolver {
 
             ExternalSourceMetadata extMetadata;
             StorageEntry storageEntry;
+            SourceStatistics harvestedStatistics = null;
             if (isCacheable(provider)) {
                 // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
                 // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
@@ -684,14 +689,21 @@ public class ExternalSourceResolver {
                 FileMetadata meta = fileMetadataOf(storagePath, provider, config);
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
+                SourceStatistics[] computedStatistics = new SourceStatistics[1];
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
+                    SourceMetadata metadata = resolveSingleSource(path, config);
+                    computedStatistics[0] = metadata.statistics().orElse(null);
+                    return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
+                harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
-                extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+                extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
+                // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
+                // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
+                harvestedStatistics = metadata.statistics().orElse(null);
                 extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
                 StorageObject object = provider.newObject(storagePath);
                 storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
@@ -704,8 +716,12 @@ public class ExternalSourceResolver {
             List<Attribute> fileSchema = extMetadata.schema();
 
             FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
-            // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
-            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
+            // Single-file: degenerate case of the general flow, with a one-entry schemaMap and identity mapping.
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(
+                storagePath,
+                fileSchema,
+                SourceStatisticsSerializer.fromSource(extMetadata)
+            );
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -714,13 +730,14 @@ public class ExternalSourceResolver {
 
     private static Map<StoragePath, SchemaReconciliation.FileSchemaInfo> singleEntrySchemaMap(
         StoragePath path,
-        @Nullable List<Attribute> schema
+        @Nullable List<Attribute> schema,
+        @Nullable SourceStatistics statistics
     ) {
         if (schema == null || schema.isEmpty()) {
             return Map.of();
         }
         ColumnMapping identityMapping = new ColumnMapping(identityMapping(schema.size()), null);
-        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, null));
+        return Map.of(path, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(schema), identityMapping, statistics));
     }
 
     private void resolveMultiFileSource(
@@ -854,7 +871,7 @@ public class ExternalSourceResolver {
                             base,
                             config
                         );
-                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective)));
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective), config));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -869,9 +886,9 @@ public class ExternalSourceResolver {
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
                 // rather than consuming anchor stats as global). STATS_FILE_COUNT, stamped above, is preserved.
-                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base)));
+                listener.onResponse(finishFirstFileWins(listing, markStatsAsPartial(base), config));
             } else {
-                listener.onResponse(finishFirstFileWins(listing, base));
+                listener.onResponse(finishFirstFileWins(listing, base, config));
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -956,7 +973,11 @@ public class ExternalSourceResolver {
      * coordinator schema with partition columns, and pins the anchor's physical schema for every file via an
      * (identity or narrowing) per-file mapping. Purely CPU-bound.
      */
-    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(FileList listing, ExternalSourceMetadata extMetadata) {
+    private ExternalSourceResolution.ResolvedSource finishFirstFileWins(
+        FileList listing,
+        ExternalSourceMetadata extMetadata,
+        Map<String, Object> config
+    ) {
         // The anchor's pre-enrichment schema is the physical read schema every file's reader parses. Partition
         // columns are path-derived (injected by VirtualColumnIterator at read time), so they are never part of the
         // physical read schema; the data-only view below drives the mapping output width.
@@ -988,7 +1009,18 @@ public class ExternalSourceResolver {
                 ? new ColumnMapping(identityMapping(physicalSchema.size()), null)
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             for (int i = 0; i < listing.fileCount(); i++) {
-                perFileInfo.put(listing.path(i), new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, null));
+                // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
+                // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
+                // one-file listing, on the anchor metadata). That per-file harvest is what split
+                // discovery uses to skip a second footer open when readableUnitCount is 1.
+                perFileInfo.put(
+                    listing.path(i),
+                    new SchemaReconciliation.FileSchemaInfo(
+                        fileSchema,
+                        mapping,
+                        fileStatisticsForFirstFileWins(listing, i, extMetadata, config)
+                    )
+                );
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -996,6 +1028,46 @@ public class ExternalSourceResolver {
         }
 
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
+    }
+
+    /**
+     * Per-file harvest for the FIRST_FILE_WINS schema map. Prefers the schema-cache entry for this
+     * path (populated by an eager gather or a previous resolve). A one-file listing falls back to
+     * the anchor metadata: that harvest is the file's own, not a cross-file fold.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsForFirstFileWins(
+        FileList listing,
+        int index,
+        ExternalSourceMetadata extMetadata,
+        @Nullable Map<String, Object> config
+    ) {
+        SourceStatistics cached = fileStatisticsFromCache(listing.path(index), listing.lastModifiedMillis(index), config);
+        if (cached != null) {
+            return cached;
+        }
+        if (listing.fileCount() == 1) {
+            return SourceStatisticsSerializer.fromSource(extMetadata);
+        }
+        return null;
+    }
+
+    /**
+     * Reconstructs this file's harvest from the schema cache, or null when the cache is off or
+     * this path has no entry. Zero I/O: a miss leaves FileSchemaInfo.statistics null and split
+     * discovery opens the footer.
+     */
+    @Nullable
+    private SourceStatistics fileStatisticsFromCache(StoragePath path, long mtimeMillis, @Nullable Map<String, Object> config) {
+        if (cacheService == null || cacheService.isEnabled() == false) {
+            return null;
+        }
+        SchemaCacheKey key = SchemaCacheKey.build(path.toString(), mtimeMillis, detectFormatType(path), config);
+        SchemaCacheEntry entry = cacheService.getSchemaIfPresent(key);
+        if (entry == null) {
+            return null;
+        }
+        return SourceStatisticsSerializer.extractStatistics(entry.safeMetadata()).orElse(null);
     }
 
     private static int[] identityMapping(int n) {
@@ -1190,6 +1262,15 @@ public class ExternalSourceResolver {
         List<Attribute> schema,
         Map<String, Object> queryConfig
     ) {
+        return buildMetadataFromCache(entry, schema, queryConfig, null);
+    }
+
+    private static ExternalSourceMetadata buildMetadataFromCache(
+        SchemaCacheEntry entry,
+        List<Attribute> schema,
+        Map<String, Object> queryConfig,
+        @Nullable SourceStatistics harvestedStatistics
+    ) {
         // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
         // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
         Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
@@ -1237,6 +1318,11 @@ public class ExternalSourceResolver {
             @Override
             public Map<String, Object> config() {
                 return mergedConfig;
+            }
+
+            @Override
+            public Optional<SourceStatistics> statistics() {
+                return Optional.ofNullable(harvestedStatistics);
             }
         };
     }
@@ -1698,7 +1784,7 @@ public class ExternalSourceResolver {
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
             SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
-            return buildMetadataFromCache(entry, entry.toAttributes(), config);
+            return buildMetadataFromCache(entry, entry.toAttributes(), config, meta.statistics().orElse(null));
         }));
     }
 
@@ -2314,7 +2400,7 @@ public class ExternalSourceResolver {
 
     /**
      * Like {@link #enrichSchemaWithPartitionColumns(ExternalSourceMetadata, PartitionMetadata)}, but routes any
-     * shadowed-column warning through {@code warningSink} instead of writing to {@link HeaderWarning} directly —
+     * shadowed-column warning through {@code warningSink} instead of writing to {@code HeaderWarning} directly —
      * see {@link #warnOnShadowedColumns} for why that matters for callers running inside the async resolution chain.
      */
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(
@@ -2383,13 +2469,14 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered and
-     * replayed via {@link org.elasticsearch.common.logging.HeaderWarning} once back on a thread whose
-     * {@code ThreadContext} response headers actually feed the client response (see
-     * {@link #pendingShadowWarnings} and the flush in {@link #resolve}). A direct-to-{@code HeaderWarning}
-     * write (passing {@code null}) is only safe for callers that are themselves already on such a
-     * thread, e.g. tests exercising this method directly on the test thread. A no-op when nothing is
-     * shadowed.
+     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
+     * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
+     * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
+     * resolve-time {@code HeaderWarning} flush: that write is discarded when
+     * {@code ContextPreservingActionListener} closes (elastic/elasticsearch#153780). A
+     * direct-to-{@code HeaderWarning} write (passing {@code null}) is only safe for callers that
+     * are themselves already on a thread whose response headers feed the client, e.g. tests
+     * exercising this method directly on the test thread. A no-op when nothing is shadowed.
      */
     private static void warnOnShadowedColumns(List<String> shadowedColumns, @Nullable Consumer<String> warningSink) {
         if (shadowedColumns.isEmpty()) {
@@ -2515,7 +2602,8 @@ public class ExternalSourceResolver {
             List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);
+        // Strict declares the whole schema, so no per-file footer statistics were harvested.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema, null);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap);
     }
 
@@ -2757,7 +2845,8 @@ public class ExternalSourceResolver {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
         for (int i = 0; i < listing.fileCount(); i++) {
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema));
+            // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
+            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }

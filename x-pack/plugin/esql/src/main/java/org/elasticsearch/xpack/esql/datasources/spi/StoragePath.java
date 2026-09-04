@@ -165,6 +165,23 @@ public final class StoragePath {
             }
         }
 
+        // For HTTP/HTTPS, '?' and '#' are structural URL delimiters — they begin the query string and
+        // fragment, which are not part of the resource path. Strip them so that isPattern(), objectName(),
+        // and all derived operations see only the pure path. Object-store and file schemes are unchanged:
+        // there '?' is a legal key character that also doubles as a glob metacharacter (see #1841).
+        // toString(), equals(), and hashCode() remain on `location` so HTTP clients and URL-keyed caches
+        // continue to use the full URL verbatim.
+        if (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) {
+            int q = path.indexOf('?');
+            if (q >= 0) {
+                path = path.substring(0, q);
+            }
+            int h = path.indexOf('#');
+            if (h >= 0) {
+                path = path.substring(0, h);
+            }
+        }
+
         return new StoragePath(location, scheme, userInfo, host, port, path);
     }
 
@@ -190,6 +207,19 @@ public final class StoragePath {
         return port;
     }
 
+    /**
+     * Returns the path component of this location, without query string or fragment.
+     * <p>
+     * For {@code http}/{@code https} URIs, the query string ({@code ?...}) and fragment ({@code #...}) are stripped
+     * at parse time so that callers that do extension inference or glob pattern detection see only the resource path
+     * (e.g. {@code /data.csv} rather than {@code /data.csv?X-Goog-Signature=...}).
+     * <p>
+     * For all other schemes ({@code s3://}, {@code gs://}, {@code file://}, …) the path is returned verbatim:
+     * {@code ?} and {@code #} are legal key characters in object stores and must not be stripped.
+     * <p>
+     * {@link #toString()} always returns the original location verbatim — HTTP clients and URL-keyed caches must
+     * receive the full presigned URL including the query string.
+     */
     public String path() {
         return path;
     }

@@ -222,15 +222,13 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
         searchRequest.setOptions(context.bearerAuth());
         final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+        // The refusal comes from the authentication itself, so it names the version it requires rather than the remote or the account
         assertThat(
             exception.getMessage(),
             containsString(
-                "remote cluster ["
-                    + REMOTE_CLUSTER_ALIAS
-                    + "] does not support user-managed service accounts, so it cannot serve a request"
-                    + " authenticated by service account ["
-                    + context.principal()
-                    + "]"
+                "versions of Elasticsearch before ["
+                    + ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO.toReleaseVersion()
+                    + "] can't handle user-managed service account authentication"
             )
         );
     }

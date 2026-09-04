@@ -245,6 +245,36 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(uncapped.maybeRewriteForOlderVersion(olderVersion), notNullValue());
     }
 
+    /**
+     * An older node has no notion of a user-managed account. It parses one happily, because the marker that distinguishes it is an
+     * ordinary metadata entry, then discards the assigned roles and resolves the principal as a built-in account that cannot exist.
+     * Serialization must fail on the sending node rather than leave the remote to report a missing built-in account.
+     */
+    public void testUserManagedServiceAccountCannotBeSentToNodeThatResolvesItAsBuiltIn() {
+        final TransportVersion userManagedVersion = TransportVersion.fromName("user_managed_service_account_info");
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(userManagedVersion);
+        final Authentication userManaged = AuthenticationTestHelper.builder()
+            .userManagedServiceAccount(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8), "role_a")
+            .build();
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> userManaged.maybeRewriteForOlderVersion(olderVersion)).getMessage(),
+            containsString("can't handle user-managed service account authentication")
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(olderVersion);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> userManaged.writeTo(out)).getMessage(),
+                containsString("can't handle user-managed service account authentication")
+            );
+        }
+
+        // a built-in account authenticates through the same realm and must keep serializing to the same node
+        final Authentication builtIn = AuthenticationTestHelper.builder().serviceAccount().build();
+        assertThat(builtIn.maybeRewriteForOlderVersion(olderVersion), notNullValue());
+    }
+
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo1 = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(

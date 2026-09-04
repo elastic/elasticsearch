@@ -103,20 +103,19 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         t.getSignaturesFiles().plus(project.files(resourcesDir.toPath().resolve("forbidden/es-server-signatures.txt")))
                     );
                 }
-                // HC5 entity signatures only apply when httpcore5 is on the classpath
-                t.setSignaturesFiles(
-                    t.getSignaturesFiles()
-                        .plus(
-                            project.files(
-                                (Callable<List<File>>) () -> t.getClasspath()
-                                    .getFiles()
-                                    .stream()
-                                    .anyMatch(f -> f.getName().matches("httpcore5-.*\\.jar"))
-                                        ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile())
-                                        : List.of()
-                            )
-                        )
-                );
+                // Use resolutionResult (graph only, no artifact transforms) so patcher transforms
+                // like HdfsClassPatcher are not triggered before their inputs exist.
+                String runtimeConfigName = sourceSet.getRuntimeClasspathConfigurationName();
+                t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files((Callable<List<File>>) () -> {
+                    var config = project.getConfigurations().findByName(runtimeConfigName);
+                    boolean hasHc5 = config != null
+                        && config.getIncoming()
+                            .getResolutionResult()
+                            .getAllComponents()
+                            .stream()
+                            .anyMatch(r -> r.getModuleVersion() != null && "httpcore5".equals(r.getModuleVersion().getName()));
+                    return hasHc5 ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile()) : List.of();
+                })));
             });
             forbiddenTask.configure(t -> t.dependsOn(sourceSetTask));
         });

@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector", "-Xms10g", "-Xmx10g" })
+@Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector", "-Xms20g", "-Xmx20g" })
 @State(Scope.Thread)
 public class BytesRefSwissHashPartitionBenchmark {
     static {

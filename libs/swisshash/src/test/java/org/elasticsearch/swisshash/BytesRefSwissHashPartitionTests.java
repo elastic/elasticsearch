@@ -90,7 +90,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
                 final BytesRef[] keys = new BytesRef[positions];
                 boolean collisions = randomBoolean();
                 for (int v = 0; v < positions; v++) {
-                    final int len = collisions ? randomIntBetween(1, 5) : randomIntBetween(1, 20);
+                    final int len = collisions ? randomIntBetween(1, 3) : randomIntBetween(10, 20);
                     final byte[] bytes = new byte[len];
                     random().nextBytes(bytes);
                     keys[v] = new BytesRef(bytes);

@@ -57,7 +57,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;

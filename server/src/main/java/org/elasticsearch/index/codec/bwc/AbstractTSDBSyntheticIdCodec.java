@@ -7,8 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.bwc;
 
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ValidatingFieldInfosFormat;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;

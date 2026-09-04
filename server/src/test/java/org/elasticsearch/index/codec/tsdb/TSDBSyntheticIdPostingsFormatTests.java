@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;

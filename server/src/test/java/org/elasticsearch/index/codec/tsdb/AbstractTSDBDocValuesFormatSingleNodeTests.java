@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.index.DocValuesType;

@@ -49,6 +49,15 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("parquet", FormatNameResolver.resolve(null, "gs://bucket/file.parquet#frag"));
     }
 
+    /**
+     * Regression test for elastic/esql-planning#1854: a dotted query value in a presigned URL caused the
+     * last-dot scan to land inside the query string, yielding the wrong extension ("2" instead of "csv").
+     */
+    public void testExtensionWithDottedQueryString() {
+        assertEquals("csv", FormatNameResolver.resolve(null, "https://host/data.csv?v=1.2"));
+        assertEquals("csv", FormatNameResolver.resolve(null, "http://host/data.csv?X-Amz-Signature=a.b"));
+    }
+
     public void testFormatConfigOverridesExtension() {
         assertEquals("csv", FormatNameResolver.resolve(Map.of("format", "csv"), "file.orc"));
     }

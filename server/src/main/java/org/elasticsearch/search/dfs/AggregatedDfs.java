@@ -10,8 +10,8 @@
 package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.FieldStats;
+import org.apache.lucene.search.TermStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,8 +22,8 @@ import java.util.Map;
 
 public class AggregatedDfs implements Writeable {
 
-    private final Map<Term, TermStatistics> termStatistics;
-    private final Map<String, CollectionStatistics> fieldStatistics;
+    private final Map<Term, TermStats> termStatistics;
+    private final Map<String, FieldStats> fieldStatistics;
     private final long maxDoc;
 
     public AggregatedDfs(StreamInput in) throws IOException {
@@ -32,24 +32,24 @@ public class AggregatedDfs implements Writeable {
         for (int i = 0; i < size; i++) {
             // term constructor copies the bytes so we can work with a slice
             Term term = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(), in.readVLong(), DfsSearchResult.subOne(in.readVLong()));
+            TermStats stats = new TermStats(in.readBytesRef(), in.readVLong(), DfsSearchResult.subOne(in.readVLong()));
             termStatistics.put(term, stats);
         }
         fieldStatistics = DfsSearchResult.readFieldStats(in);
         maxDoc = in.readVLong();
     }
 
-    public AggregatedDfs(Map<Term, TermStatistics> termStatistics, Map<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(Map<Term, TermStats> termStatistics, Map<String, FieldStats> fieldStatistics, long maxDoc) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;
     }
 
-    public Map<Term, TermStatistics> termStatistics() {
+    public Map<Term, TermStats> termStatistics() {
         return termStatistics;
     }
 
-    public Map<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, FieldStats> fieldStatistics() {
         return fieldStatistics;
     }
 

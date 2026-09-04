@@ -254,3 +254,63 @@ setup:
         body:
           query: 'FROM nest_deep, obj_deep | STATS s = SUM(a.b.c), c = COUNT(a.b.c)'
   - match: { values.0: [ 12, 2 ] }
+
+---
+"include_in_root does not leak nested values":
+  # Same type so there is no INT-vs-LONG crash. Pre-fix, include_in_root copied
+  # values onto the parent and ES|QL returned them (n0=100, SUM=204).
+  - do:
+      indices.create:
+        index: nest_root
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              item:
+                type: nested
+                include_in_root: true
+                properties:
+                  value:
+                    type: long
+  - do:
+      indices.create:
+        index: obj_root
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              item:
+                properties:
+                  value:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nest_root" } }
+          - { "id": "n0", "item": [ { "value": 100 } ] }
+          - { "index": { "_index": "nest_root" } }
+          - { "id": "n1", "item": [ { "value": 101 } ] }
+          - { "index": { "_index": "obj_root" } }
+          - { "id": "o0", "item": { "value": 1 } }
+          - { "index": { "_index": "obj_root" } }
+          - { "id": "o1", "item": { "value": 2 } }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM nest_root, obj_root | KEEP id, item.value | SORT id | LIMIT 10'
+  - match: { columns.1.name: "item.value" }
+  - match: { columns.1.type: "long" }
+  - match: { values.0: [ "n0", null ] }
+  - match: { values.1: [ "n1", null ] }
+  - match: { values.2: [ "o0", 1 ] }
+  - match: { values.3: [ "o1", 2 ] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_root, obj_root | STATS s = SUM(item.value), c = COUNT(item.value)'
+  - match: { values.0: [ 3, 2 ] }

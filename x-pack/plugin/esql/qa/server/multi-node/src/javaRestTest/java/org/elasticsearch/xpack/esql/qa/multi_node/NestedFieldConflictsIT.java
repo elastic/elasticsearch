@@ -99,6 +99,18 @@ public class NestedFieldConflictsIT extends ESRestTestCase {
         testKeywordVsDate(nodeNames.get(0), nodeNames.get(0));
     }
 
+    /**
+     * Same type on both indices, but the nested mapping sets {@code include_in_root}.
+     * Pre-fix this leaked nested values into ES|QL; they must still be null.
+     */
+    public void testIncludeInRootSameType() throws Exception {
+        testIncludeInRootSameType(nodeNames.get(0), nodeNames.get(1));
+    }
+
+    public void testIncludeInRootSameTypeSameNode() throws Exception {
+        testIncludeInRootSameType(nodeNames.get(0), nodeNames.get(0));
+    }
+
     private void testIntegerVsLong(String node1, String node2) throws Exception {
         String nested = "nest_int_" + getTestName().toLowerCase(Locale.ROOT);
         String object = "obj_long_" + getTestName().toLowerCase(Locale.ROOT);
@@ -185,6 +197,43 @@ public class NestedFieldConflictsIT extends ESRestTestCase {
             """);
         assertThat(values.size(), equalTo(1));
         assertThat(values.get(0).get(0), equalTo(20));
+    }
+
+    private void testIncludeInRootSameType(String node1, String node2) throws Exception {
+        String nested = "nest_root_" + getTestName().toLowerCase(Locale.ROOT);
+        String object = "obj_root_" + getTestName().toLowerCase(Locale.ROOT);
+        createIndexPinned(nested, """
+            { "properties": { "id": { "type": "keyword" }, "item": {
+              "type": "nested", "include_in_root": true, "properties": { "value": { "type": "long" } } } } }""", node1);
+        createIndexPinned(object, """
+            { "properties": { "id": { "type": "keyword" }, "item": {
+              "properties": { "value": { "type": "long" } } } } }""", node2);
+        ensureGreen(nested);
+        ensureGreen(object);
+        for (int i = 0; i < 20; i++) {
+            indexDoc(nested, Integer.toString(i), Strings.format("""
+                {"id": "n%02d", "item": [{"value": %d}]}""", i, i + 100));
+            indexDoc(object, Integer.toString(i), Strings.format("""
+                {"id": "o%02d", "item": {"value": %d}}""", i, i + 1));
+        }
+        refresh(nested);
+        refresh(object);
+
+        String from = "FROM " + nested + ", " + object;
+        List<List<Object>> values = esql(from + """
+             | STATS s = SUM(item.value), c = COUNT(item.value)
+            """);
+        assertThat(values.size(), equalTo(1));
+        // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
+        assertThat(values.get(0).get(0), equalTo(210));
+        assertThat(values.get(0).get(1), equalTo(20));
+
+        values = esql(from + """
+             | KEEP id, item.value | SORT id | LIMIT 5
+            """);
+        assertThat(values.size(), equalTo(5));
+        assertThat(values.get(0).get(0), equalTo("n00"));
+        assertThat(values.get(0).get(1), nullValue());
     }
 
     private void createIndexPinned(String name, String mapping, String node) throws IOException {

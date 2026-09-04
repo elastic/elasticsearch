@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
-    /** Warning assertions go over HTTP, the channel a client actually reads. #153780 stays muted; see there. */
+    /** Warning assertions go over HTTP, the channel a client actually reads. */
     @Override
     protected boolean addMockHttpTransport() {
         return false;

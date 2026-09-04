@@ -52,7 +52,6 @@ public final class RegexpNfaRamEstimator {
                 // a{n,m}: up to m copies of the sub-expression. This multiplication is the blow-up we guard against.
                 return multiplySaturating(estimateStates(re.exp1), Math.max(1L, re.max));
             case REGEXP_COMPLEMENT:
-            case REGEXP_DEPRECATED_COMPLEMENT:
                 return estimateStates(re.exp1);
             case REGEXP_STRING:
                 return re.s == null ? 2L : addSaturating(re.s.length(), 1L);

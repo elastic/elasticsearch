@@ -1134,8 +1134,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
         // Assert our randomly generated regex actually matches the provided raw input.
-        int includeDeprecatedComplement = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
-        RegExp regex = new RegExp(result.toString(), includeDeprecatedComplement);
+        RegExp regex = new RegExp(result.toString(), RegExp.ALL);
         Automaton automaton = Operations.determinize(regex.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(randomValue);

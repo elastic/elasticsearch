@@ -765,7 +765,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-one*", "test"));
-        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)", RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+        Automaton patternAutomaton = new RegExp("\\.test-~(one.*)", RegExp.ALL).toAutomaton();
 
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".test-~(one*)", "test"));
         systemIndexDescriptors.add(SystemIndexDescriptorUtils.createUnmanaged(".pattern-test*", "test-1"));

@@ -89,7 +89,7 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
     protected Automaton doCreateAutomaton(boolean ignoreCase) {
         return ignoreCase
             ? Operations.determinize(
-                new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, RegExp.CASE_INSENSITIVE)
+                new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL, RegExp.CASE_INSENSITIVE)
                     .toAutomaton(),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             )

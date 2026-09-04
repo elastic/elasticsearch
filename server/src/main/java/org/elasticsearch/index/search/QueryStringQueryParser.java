@@ -773,7 +773,7 @@ public class QueryStringQueryParser extends QueryParser {
             }
             return currentFieldType.regexpQuery(
                 termStr,
-                RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT,
+                RegExp.ALL,
                 0,
                 getDeterminizeWorkLimit(),
                 getMultiTermRewriteMethod(),

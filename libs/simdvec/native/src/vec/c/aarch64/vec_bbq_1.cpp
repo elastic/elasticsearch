@@ -19,8 +19,6 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-
-
 static inline int32_t reduce_u8x16_neon(uint8x16_t vec) {
     // Split the vector into two halves and widen to `uint16x8_t`
     uint16x8_t low_half = vmovl_u8(vget_low_u8(vec));   // widen lower 8 elements

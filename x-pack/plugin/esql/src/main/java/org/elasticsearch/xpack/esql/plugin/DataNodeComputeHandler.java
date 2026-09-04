@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -917,12 +918,35 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         listener.onFailure(failure);
     }
 
+    /**
+     * Diagnoses an old coordinator placing external scan work on an index node during a rolling
+     * upgrade. Deliberately does not reject: rejecting without reassignment would fail the query
+     * or return partial results, and rolling-upgrade tests run with assertions enabled.
+     * A coordinator's own self-assignment is suppressed so it does not duplicate the coordinator warning.
+     */
+    static void warnIfRemoteIndexWorker(DiscoveryNode localNode, String parentNodeId) {
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false) {
+            return;
+        }
+        // An unset parent task carries the empty node id of TaskId.EMPTY_TASK_ID, which names no coordinator
+        // and so cannot be attributed to an old one.
+        if (parentNodeId.isEmpty() || parentNodeId.equals(localNode.getId())) {
+            return;
+        }
+        LOGGER.warn(
+            "index node [{}] received external ES|QL scan work from coordinator [{}]; expected only during a mixed-version transition",
+            localNode.getId(),
+            parentNodeId
+        );
+    }
+
     private void handleExternalSourceRequest(
         DataNodeRequest request,
         CancellableTask task,
         ActionListener<DataNodeComputeResponse> listener,
         PlanTimeProfile planTimeProfile
     ) {
+        warnIfRemoteIndexWorker(clusterService.localNode(), task.getParentTaskId().getNodeId());
         // Federation gate for the whole external request, not just the operators it ends up building. The backstop in
         // LocalExecutionPlanner.planExternalSource only fires for a plan that still contains an ExternalSourceExec, and
         // localPlan() below can consume it: PushStatsToExternalSource answers an ungrouped COUNT/MIN/MAX from the split

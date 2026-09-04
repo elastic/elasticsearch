@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,6 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MAX_NEW_TOKENS_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MAX_TEMPERATURE_TOP_P_TOP_K_VALUE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MIN_TEMPERATURE_TOP_P_TOP_K_VALUE;
@@ -47,7 +47,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TEMPERATURE_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
         Double topP = extractOptionalDoubleInRange(
@@ -55,7 +55,7 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TOP_P_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
         Double topK = extractOptionalDoubleInRange(
@@ -63,15 +63,10 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
             TOP_K_FIELD,
             MIN_TEMPERATURE_TOP_P_TOP_K_VALUE,
             MAX_TEMPERATURE_TOP_P_TOP_K_VALUE,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
-        Integer maxNewTokens = extractOptionalPositiveInteger(
-            settings,
-            MAX_NEW_TOKENS_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Integer maxNewTokens = extractOptionalPositiveInteger(settings, MAX_NEW_TOKENS_FIELD, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

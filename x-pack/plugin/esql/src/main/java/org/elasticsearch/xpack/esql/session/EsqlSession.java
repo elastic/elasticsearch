@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -48,6 +49,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -402,7 +404,7 @@ public class EsqlSession {
         ResolvedSettings resolved = QuerySettings.resolve(
             request.requestSettings(),
             statement,
-            SettingsValidationContext.from(remoteClusterService)
+            SettingsValidationContext.from(crossProjectModeDecider)
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -423,7 +425,7 @@ public class EsqlSession {
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
-                SettingsValidationContext.from(remoteClusterService),
+                SettingsValidationContext.from(crossProjectModeDecider),
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
@@ -517,7 +519,8 @@ public class EsqlSession {
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
+                    // nodes cannot deserialize.
                     // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
                     // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
@@ -551,6 +554,7 @@ public class EsqlSession {
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
+                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
@@ -576,14 +580,23 @@ public class EsqlSession {
                                 finalConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
-                                minimumVersion,
+                                physicalPlanOptimizer,
                                 planTimeProfile,
                                 l
                             );
                         })
-                        .<Versioned<Result>>andThen(
-                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
-                        )
+                        .<Versioned<Result>>andThen((l, r) -> {
+                            Boolean approximationApplied;
+                            if (QuerySettings.APPROXIMATION.get(finalConfiguration.resolvedSettings()) == null) {
+                                approximationApplied = null;
+                            } else {
+                                boolean approximationAppliedCoordinator = physicalPlanOptimizer.approximationApplied();
+                                boolean approximationAppliedDataNode = r.completionInfo() != null
+                                    && r.completionInfo().approximationApplied();
+                                approximationApplied = approximationAppliedCoordinator || approximationAppliedDataNode;
+                            }
+                            l.onResponse(attachAdditionalData(r, columnMetadata.get(), approximationApplied, minimumVersion));
+                        })
                         .addListener(listener);
                 }
             }
@@ -602,7 +615,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         Holder<ApproximationDriver> approximation,
-        TransportVersion minimumVersion,
+        PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
@@ -614,7 +627,6 @@ public class EsqlSession {
             // external source resolution.
             EsqlPlugin.externalBlobStorePool()
         );
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
@@ -684,9 +696,10 @@ public class EsqlSession {
         );
     }
 
-    private static Versioned<Result> attachMetadataAndVersion(
+    private static Versioned<Result> attachAdditionalData(
         Result result,
         Map<NameId, Map<String, Object>> columnMetadata,
+        Boolean approximationApplied,
         TransportVersion minimumVersion
     ) {
         return new Versioned<>(
@@ -696,7 +709,8 @@ public class EsqlSession {
                 columnMetadata,
                 result.configuration(),
                 result.completionInfo(),
-                result.executionInfo()
+                result.executionInfo(),
+                approximationApplied
             ),
             minimumVersion
         );
@@ -1054,7 +1068,8 @@ public class EsqlSession {
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSubqueryJoinSubPlan
+        boolean isSubqueryJoinSubPlan,
+        boolean isApproximationCalibration
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1089,7 +1104,7 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InnerJoin) {
             InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1100,7 +1115,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1111,7 +1126,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
             }
         }
 
@@ -1126,7 +1141,8 @@ public class EsqlSession {
                     subPlan,
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
-                    false
+                    false,
+                    true
                 );
             }
         }
@@ -1205,7 +1221,12 @@ public class EsqlSession {
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            completionInfoAccumulator.accumulate(result.completionInfo());
+            // Approximation subplans (to get the sample probability) may approximate internally to estimate
+            // the result count. This does not affect whether the final result is approximate or not.
+            DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
+                ? result.completionInfo().withoutApproximationApplied()
+                : result.completionInfo();
+            completionInfoAccumulator.accumulate(subPlanCompletionInfo);
             try {
                 var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
@@ -1236,7 +1257,7 @@ public class EsqlSession {
                             reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo, null)
                             );
                         })
                     );
@@ -1301,7 +1322,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+        return request.parse(parser, SettingsValidationContext.from(crossProjectModeDecider), inferenceService.inferenceSettings());
     }
 
     /**
@@ -2168,6 +2189,7 @@ public class EsqlSession {
             // cross-cluster state. After it completes we run the lenient pass over any
             // ViewShadowRelation patterns (CPS-only) so their results land in
             // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
+            Consumer<TargetProjects> routingInfoCapture = getRoutingInfoCapture(executionInfo);
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -2180,6 +2202,7 @@ public class EsqlSession {
                     trackUnmappedFieldIndices,
                     r,
                     requestFilter,
+                    routingInfoCapture,
                     l
                 ),
                 listener.delegateFailureAndWrap(
@@ -2203,6 +2226,19 @@ public class EsqlSession {
         }
     }
 
+    private static Consumer<TargetProjects> getRoutingInfoCapture(EsqlExecutionInfo executionInfo) {
+        // Capture routing info from the first successful field-caps round only. Multiple index patterns
+        // in the FROM clause each trigger a separate resolveFlatIndicesVersioned call; all share the
+        // same project_routing expression so only the first result is needed.
+        Holder<Boolean> routingCaptured = new Holder<>(false);
+        return tp -> {
+            if (routingCaptured.get() == false) {
+                routingCaptured.set(true);
+                executionInfo.setProjectRoutingInfo(tp.projectRoutingRequestInfo(), tp.hasLinkedProjects());
+            }
+        };
+    }
+
     private void preAnalyzeMainIndices(
         IndexPattern indexPattern,
         IndexMode indexMode,
@@ -2222,7 +2258,7 @@ public class EsqlSession {
                 indexPattern.indexPattern(),
                 result.fieldNames,
                 createQueryFilter(indexMode, requestFilter),
-                indexMode.isTsdb(),
+                includeAllDimensions(indexMode, preAnalysis),
                 // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
                 // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
                 // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
@@ -2289,6 +2325,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
+            null,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2309,6 +2346,7 @@ public class EsqlSession {
         boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
+        @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
@@ -2318,13 +2356,14 @@ public class EsqlSession {
             projectRouting,
             result.fieldNames,
             createQueryFilter(indexMode, requestFilter),
-            indexMode.isTsdb(),
+            includeAllDimensions(indexMode, preAnalysis),
             // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
             result.minimumTransportVersion(),
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
+            routingInfoCapture,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2345,11 +2384,20 @@ public class EsqlSession {
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
                         trackUnmappedFieldIndices,
+                        null,
                         retryListener
                     );
                 });
             })
         );
+    }
+
+    /**
+     * Whether to ask field caps for every time-series dimension of the index on top of the fields the query names. See
+     * {@link PreAnalyzer.PreAnalysis#requiresAllDimensionFields()} for who needs this and what it costs.
+     */
+    private static boolean includeAllDimensions(IndexMode indexMode, PreAnalyzer.PreAnalysis preAnalysis) {
+        return indexMode.isTsdb() && preAnalysis.requiresAllDimensionFields();
     }
 
     private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {

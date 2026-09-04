@@ -28,6 +28,8 @@ import org.junit.Before;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -72,7 +74,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         );
 
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredPathBinding(true)
+            .withDeclaredProvenanceBinding(true)
             .withSchema(declared);
 
         InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
@@ -119,5 +121,80 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         assertEquals("every data row must be read, across every chunk", rows, seenRows);
         // salary is row*2 — binding by position instead of name would have read emp_no here and halved this.
         assertEquals("salary must bind by name, not position", (long) (rows - 1) * rows, salarySum);
+    }
+
+    /**
+     * The row-width bound on a chunk after the first comes from the header columns the coordinator read once from
+     * chunk 0 and passed down, not from a header this chunk can see. This plants a row wider than the file's header
+     * deep enough to land past the first chunk and pins that the real coordinator-supplied width rejects it —
+     * the reader-level half is pinned by CsvFormatReaderTests#testDeclaredBindingRowWidthOnNonFirstSplit, which
+     * hands the header columns over by hand.
+     */
+    public void testDeclaredHeaderedCsvAppliesRowWidthBoundOnLaterChunks() throws Exception {
+        long chunkSize = new CsvFormatReader(blockFactory).minimumSegmentSize();
+        StringBuilder csv = new StringBuilder("emp_no,first_name,salary\n");
+        int rows = 0;
+        int raggedRowIndex = -1;
+        while (csv.length() < chunkSize * 2) {
+            // One row carrying a fourth field, planted once the content is already past the first chunk so the
+            // bound under test is the carried one rather than chunk 0's own header split.
+            if (raggedRowIndex < 0 && csv.length() > chunkSize + chunkSize / 2) {
+                csv.append(rows).append(",name").append(rows).append(',').append(rows * 2L).append(",SURPLUS\n");
+                raggedRowIndex = rows;
+            } else {
+                csv.append(rows).append(",name").append(rows).append(',').append(rows * 2L).append('\n');
+            }
+            rows++;
+        }
+        assertTrue("the ragged row must land past the first chunk", raggedRowIndex > 0);
+
+        List<Attribute> declared = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true)
+            .withSchema(declared);
+
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        long seenRows = 0;
+        try (
+            CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                (SegmentableFormatReader) reader,
+                stream,
+                null,
+                List.of("salary", "first_name"),
+                1000,
+                4,
+                executor,
+                ErrorPolicy.LENIENT,
+                declared,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                null,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                new StreamingParallelParsingCoordinator.WarningSinks(null, warnings::add)
+            )
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    seenRows += page.getPositionCount();
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertEquals("exactly the ragged row is dropped", rows - 1L, seenRows);
+        assertTrue(
+            "expected a header-width warning naming the file's 3 columns, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("CSV row has [4] columns but the file's header defines [3] columns"))
+        );
     }
 }

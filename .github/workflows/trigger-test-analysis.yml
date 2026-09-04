@@ -64,14 +64,14 @@ jobs:
             // Every other team gets the comment by default.
             const ANALYSIS_COMMENT_OPTOUT_TEAMS = ['Team:Analytics'];
 
-            // Teams that want the `needs:risk` triage label updated based on
+            // Labels that want the `needs:risk` triage label updated based on
             // the analysis result. Every other team is left untouched.
-            const TRIAGE_LABEL_OPTIN_TEAMS = ['Team:Core/Infra'];
+            const TRIAGE_LABEL_OPTIN = [];
 
             const issueLabels = context.payload.issue.labels.map((label) => label.name);
 
             const commentOptedOut = issueLabels.some((label) => ANALYSIS_COMMENT_OPTOUT_TEAMS.includes(label));
-            const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN_TEAMS.includes(label));
+            const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN.includes(label));
 
             core.setOutput('reportToPr', !commentOptedOut);
             core.setOutput('updateNeedsRiskLabel', labelUpdateOptedIn);
@@ -117,7 +117,7 @@ jobs:
             --header "Content-Type: application/json" \
             --data "$BODY"
 
-      - name: Mark issue as processed (:eyes: reaction)
+      - name: "Mark issue as processed (:eyes: reaction)"
         if: steps.check-processed.outputs.alreadyProcessed != 'true'
         uses: actions/github-script@v7
         with:

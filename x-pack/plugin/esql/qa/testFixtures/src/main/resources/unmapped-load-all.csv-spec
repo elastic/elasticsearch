@@ -854,10 +854,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | French                | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | Spanish
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | French
 ;
 
 // Coordinator LOOKUP JOIN: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
@@ -871,10 +871,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | French                | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | Spanish
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | French
 ;
 
 // KEEP wildcard before the join: the blob is preserved through the KEEP (special handling), and the *message* pattern
@@ -891,10 +891,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | message:keyword        | message_type:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | connection           | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | connection           | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 42                     | numeric              | 43
+@timestamp:datetime      | message:keyword        | unmapped_message:keyword   | message_type:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | connection
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | connection
+2024-10-23T13:33:34.937Z | 42                     | 43                         | numeric
 ;
 
 lookupJoinDropWildcardBeforeJoin
@@ -908,9 +908,9 @@ FROM partial_mapping_sample_data
 | LIMIT 2
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | Spanish
 ;
 
 // Expression-based join: lc_expr derives from the unmapped language_code; language_code is then dropped to avoid
@@ -948,10 +948,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | Spanish               | c                       | 8268154                         | Disconnection error
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                    | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                    | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_name:keyword
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error        | Spanish
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | Spanish
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | German
 ;
 
 // KEEP wildcard applied _after_ the join: can select both lookup-index fields and expanded unmapped source fields.
@@ -984,9 +984,9 @@ FROM partial_mapping_sample_data
 | LIMIT 2
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | Spanish
 ;
 
 // Lookup index field shadows an unmapped source field of the same name: the blob must not emit a second language_code column.
@@ -1020,10 +1020,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_name:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                  | null                  | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                  | null                  | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                  | null                  | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_code:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                  | g                       | 3450234                         | Disconnected from 10.1.0.3 | null
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                  | f                       | 2764890                         | Disconnected from 10.1.0.2 | null
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                  | e                       | 1232383                         | 43                         | null
 ;
 
 ###################################
@@ -1042,10 +1042,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | lc:integer | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | 4          | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | 3          | Spanish
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | 2          | French
 ;
 
 // ENRICH WITH (non-renamed output): language_name is explicitly requested without renaming, so it does not shadow
@@ -1062,10 +1062,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | lc:integer | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | 4          | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | 3          | Spanish
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | 2          | French
 ;
 
 // ENRICH WITH renaming: the renamed output (language_code = language_name) shadows the unmapped source field language_code,
@@ -1082,9 +1082,9 @@ FROM partial_mapping_sample_data
 | LIMIT 2
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | lc:integer | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1          | English               | a                       | 1756468                         | Disconnected from 10.1.0.1
-2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 1          | English               | b                       | 5033756                         | Disconnection error
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | lc:integer | language_code:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1 | 1          | English
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | b                       | 5033756                         | Disconnection error        | 1          | English
 ;
 
 // ENRICH + LOOKUP JOIN in the same query.
@@ -1121,10 +1121,10 @@ FROM partial_mapping_sample_data
 | LIMIT 3
 ;
 
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | lc:integer | language_name:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3 | 4          | German
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2 | 3          | Spanish
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43                         | 2          | French
 ;
 
 ###########################################################

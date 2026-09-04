@@ -60,7 +60,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         this.footerBytes = footerBytes;
         this.path = new Path(storageObject.path().toString());
         try {
-            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, storageObject.length());
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
@@ -165,7 +165,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
             this.storageObject = storageObject;
             this.tailCache = tailCache;
             this.length = storageObject.length();
-            this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
             this.position = 0;
             this.streamStartPosition = 0;
             this.currentStream = storageObject.newStream();

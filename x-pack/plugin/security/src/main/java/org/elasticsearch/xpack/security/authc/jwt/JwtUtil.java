@@ -312,9 +312,7 @@ public class JwtUtil {
                 if (statusCode == 200) {
                     final byte[] responseBody = result.getBodyBytes();
                     if (responseBody == null || responseBody.length == 0) {
-                        listener.onFailure(
-                            new ElasticsearchSecurityException("Get [" + uri + "] returned an empty body.")
-                        );
+                        listener.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] returned an empty body."));
                         return;
                     }
                     listener.onResponse(

@@ -1985,3 +1985,19 @@ FROM books
 highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
 John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
 ;
+
+
+# Same expected columns as explicitQueryNoOnKeepHighlightWildcard: an explicit ON * must match the no-ON fallback.
+explicitQueryOnStarExpandsToAllFields
+skip_flattened_rewrite: highlight_implicit_fields_exclude_flattened
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| HIGHLIGHT "Tolkien" ON *
+| WHERE book_no == "8875"
+| KEEP highlight_*
+;
+
+highlight_author:keyword           | highlight_author.keyword:keyword   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null                      | null                         | null                          | null                        | null
+;

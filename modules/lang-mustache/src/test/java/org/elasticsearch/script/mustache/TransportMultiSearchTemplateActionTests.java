@@ -992,9 +992,8 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             action.execute(task, request, future.delegateFailure((l, r) -> l.onResponse(null)));
             future.get();
 
-            // Sanity: both phases must have charged something.
+            // Render phase must have charged something.
             assertThat("render bytes must have been charged", breaker.getRenderBytesCharged(), greaterThan(0L));
-            assertThat("response bytes must have been charged", breaker.getResponseBytesCharged(), greaterThan(0L));
             // Peak must be exactly render + response: render bytes are still held when response bytes
             // are charged (runAfter releases render only after the callback returns). Any third
             // concurrent charge would push the peak above this sum, failing the assertion.

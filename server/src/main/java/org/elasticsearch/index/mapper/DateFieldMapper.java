@@ -1288,6 +1288,8 @@ public final class DateFieldMapper extends FieldMapper {
                 )
             );
         };
+        // The converted column owns its buffers; register it once even though several views may wrap it.
+        ctx.addResource(outData);
         final IndexableFieldType columnFieldType;
         if (fieldType().hasDocValuesSkipper()) {
             columnFieldType = SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE;
@@ -1310,22 +1312,22 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private EscfColumnData datesFromStrings(EscfColumn source) {
-        EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        builder.lockScalar(EscfColumnKind.LONG);
-        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
-        final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            final BytesRef value = cursor.value();
-            if (value == null) {
-                if (nullValue != null) {
-                    builder.setLong(doc, nullValue);
+        try (EscfColumnBuilder builder = newLongColumn()) {
+            // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+            final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final BytesRef value = cursor.value();
+                if (value == null) {
+                    if (nullValue != null) {
+                        builder.setLong(doc, nullValue);
+                    }
+                    // else leave absent — no slot written, validity bit stays clear
+                } else {
+                    builder.setLong(doc, fieldType().parse(value.utf8ToString()));
                 }
-                // else leave absent — no slot written, validity bit stays clear
-            } else {
-                builder.setLong(doc, fieldType().parse(value.utf8ToString()));
             }
+            return builder.finish(source.docCount());
         }
-        return builder.finish(source.docCount());
     }
 
     // TODO: This can be zero-copy.
@@ -1337,14 +1339,21 @@ public final class DateFieldMapper extends FieldMapper {
                 || dateFormatter.equals(DEFAULT_DATE_TIME_NANOS_FORMATTER)
                 || dateFormatter.equals(EPOCH_MILLIS_FORMATTER);
         }
+        try (EscfColumnBuilder builder = newLongColumn()) {
+            final LongTupleCursor cursor = source.longCursor();
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                final long raw = cursor.longValue();
+                builder.setLong(doc, epochCompatible ? resolution.convert(raw) : fieldType().parse(Long.toString(raw)));
+            }
+            return builder.finish(source.docCount());
+        }
+    }
+
+    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
+    private static EscfColumnBuilder newLongColumn() {
         EscfColumnBuilder builder = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         builder.lockScalar(EscfColumnKind.LONG);
-        final LongTupleCursor cursor = source.longCursor();
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            final long raw = cursor.longValue();
-            builder.setLong(doc, epochCompatible ? resolution.convert(raw) : fieldType().parse(Long.toString(raw)));
-        }
-        return builder.finish(source.docCount());
+        return builder;
     }
 
     @Override

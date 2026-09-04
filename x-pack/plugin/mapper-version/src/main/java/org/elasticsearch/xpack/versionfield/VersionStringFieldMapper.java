@@ -463,30 +463,32 @@ public class VersionStringFieldMapper extends FieldMapper {
         // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-        final EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
-        encoded.lockScalar(EscfColumnKind.STRING);
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            encoded.lockScalar(EscfColumnKind.STRING);
 
-        int doc;
-        while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            final BytesRef utf8Value = cursor.value();
-            if (utf8Value == null) {
-                // JSON null emits nothing, mirroring parseCreateField's VALUE_NULL / textOrNull() == null
-                // early returns. version has no null_value parameter.
-                continue;
+            int doc;
+            while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                final BytesRef utf8Value = cursor.value();
+                if (utf8Value == null) {
+                    // JSON null emits nothing, mirroring parseCreateField's VALUE_NULL / textOrNull() == null
+                    // early returns. version has no null_value parameter.
+                    continue;
+                }
+                // Repeated setString for the same doc promotes the row to an ARRAY cell (CollisionPolicy.MERGE),
+                // which becomes a SPARSE column emitting one tuple per element — matching the row path, which
+                // adds one Field + one SortedSetDocValuesField per array element.
+                encoded.setString(doc, encodeVersionValue(utf8Value));
             }
-            // Repeated setString for the same doc promotes the row to an ARRAY cell (CollisionPolicy.MERGE),
-            // which becomes a SPARSE column emitting one tuple per element — matching the row path, which
-            // adds one Field + one SortedSetDocValuesField per array element.
-            encoded.setString(doc, encodeVersionValue(utf8Value));
-        }
 
-        if (encoded.isEmpty() == false) {
-            // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
-            // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
-            // carries doc values (indexOptions == NONE).
-            final EscfColumnData data = encoded.finish(docCount);
-            ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
-            ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));
+            if (encoded.isEmpty() == false) {
+                // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
+                // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
+                // carries doc values (indexOptions == NONE). Ownership is registered once for the two wrappers.
+                final EscfColumnData data = encoded.finish(docCount);
+                ctx.addResource(data);
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));
+            }
         }
     }
 

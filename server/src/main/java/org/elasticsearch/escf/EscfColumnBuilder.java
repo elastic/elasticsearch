@@ -15,6 +15,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -35,9 +36,13 @@ import java.util.Arrays;
  * <b>positional</b> surface ({@code setX(row, value)}, non-decreasing rows) plus element-append
  * ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one {@code lastWrittenRow} cursor.
  *
+ * <p>Owns recycler-backed buffers until {@link #finish(int)} moves them into the returned
+ * {@link EscfColumnData}, so a builder should be declared in a try-with-resources header and
+ * finished inside the block; see {@link #close()}.
+ *
  * <p>Not thread-safe.
  */
-public final class EscfColumnBuilder {
+public final class EscfColumnBuilder implements Releasable {
 
     /** Selects the scalar&harr;array collision behavior; see the class Javadoc. */
     public enum CollisionPolicy {
@@ -65,6 +70,8 @@ public final class EscfColumnBuilder {
     private boolean arrayOpen;
     /** When set via {@link #lockScalar}, asserts that every scalar write uses this exact kind. {@code -1} = unrestricted. */
     private byte lockedKind = -1;
+    /** Set once {@link #finish} has moved this builder's buffers into an {@link EscfColumnData}; makes {@link #close()} a no-op. */
+    private boolean finished;
 
     public EscfColumnBuilder(CollisionPolicy policy) {
         this(policy, BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -456,9 +463,14 @@ public final class EscfColumnBuilder {
     /**
      * Determines the column kind and serialises it. An all-absent (or empty) column finishes as
      * {@link EscfColumnKind#LONG} with an all-absent bitset.
+     *
+     * <p>Ownership of this builder's buffers moves to the returned column: {@link #close()} becomes a
+     * no-op after this method returns successfully, and the buffers are released by closing the
+     * returned {@link EscfColumnData}.
      */
     public EscfColumnData finish(int docCount) {
         assert arrayOpen == false : "finish while an array is open";
+        assert finished == false : "finish called twice";
         if (current == null) {
             FixedNumericBuilder allAbsent = new FixedNumericBuilder(EscfColumnKind.LONG, recycler);
             backfillLeadingAbsents(allAbsent);
@@ -472,13 +484,21 @@ public final class EscfColumnBuilder {
         while (current.rowsConsumed() < docCount) {
             current.addAbsent();
         }
-        return current.finish(docCount);
+        EscfColumnData data = current.finish(docCount);
+        finished = true;
+        return data;
     }
 
-    /** Releases the active builder's stream without producing a column. */
-    public void discard() {
-        if (current != null) {
+    /**
+     * Releases the buffers this builder still owns. A no-op after a successful {@link #finish(int)},
+     * which moves ownership of every buffer to the returned {@link EscfColumnData}. Idempotent, so a
+     * builder can be declared in a try-with-resources header and finished inside the block.
+     */
+    @Override
+    public void close() {
+        if (finished == false && current != null) {
             current.discard();
+            current = null;
         }
     }
 

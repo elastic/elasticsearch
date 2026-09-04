@@ -110,33 +110,34 @@ public final class ColumnarOffsetsBuilder {
         String offsetsFieldName,
         Recycler<BytesRef> recycler
     ) {
-        final EscfColumnBuilder columnBuilder = newBinaryBuilder(recycler);
         final long[] slotValues = new long[maxSlotCount];
         final long[] sortScratch = new long[maxSlotCount];
         final int[] slotOrdinals = new int[maxSlotCount];
 
-        // One stream for the whole batch, rewound per document: bytes() is bounded by the stream position
-        // and setBinary copies immediately, so rewriting over the previous document is safe. The stream
-        // grows to the widest document's encoding and then stops allocating.
-        try (RecyclerBytesStreamOutput encoded = new RecyclerBytesStreamOutput(recycler)) {
-            for (int doc = 0; doc < docCount; doc++) {
-                final int slotCount = rowOffsets[doc + 1] - rowOffsets[doc];
-                // Drains skipped documents too: the cursor advances per element, so every document's slots
-                // are consumed to keep it in step with rowOffsets.
-                gatherSlots(cursor, doc, slotCount, slotValues);
-                if (slotCount < MIN_RECORDED_SLOTS) {
-                    continue;
-                }
-                copySorted(slotValues, slotCount, sortScratch);
-                final int distinctCount = dedupSorted(sortScratch, slotCount);
-                assignOrdinals(slotValues, slotCount, sortScratch, distinctCount, slotOrdinals);
+        try (EscfColumnBuilder columnBuilder = newBinaryBuilder(recycler)) {
+            // One stream for the whole batch, rewound per document: bytes() is bounded by the stream position
+            // and setBinary copies immediately, so rewriting over the previous document is safe. The stream
+            // grows to the widest document's encoding and then stops allocating.
+            try (RecyclerBytesStreamOutput encoded = new RecyclerBytesStreamOutput(recycler)) {
+                for (int doc = 0; doc < docCount; doc++) {
+                    final int slotCount = rowOffsets[doc + 1] - rowOffsets[doc];
+                    // Drains skipped documents too: the cursor advances per element, so every document's slots
+                    // are consumed to keep it in step with rowOffsets.
+                    gatherSlots(cursor, doc, slotCount, slotValues);
+                    if (slotCount < MIN_RECORDED_SLOTS) {
+                        continue;
+                    }
+                    copySorted(slotValues, slotCount, sortScratch);
+                    final int distinctCount = dedupSorted(sortScratch, slotCount);
+                    assignOrdinals(slotValues, slotCount, sortScratch, distinctCount, slotOrdinals);
 
-                encoded.seek(0);
-                writeSlotOrdinals(encoded, slotOrdinals, slotCount);
-                columnBuilder.setBinary(doc, encoded.bytes().toBytesRef());
+                    encoded.seek(0);
+                    writeSlotOrdinals(encoded, slotOrdinals, slotCount);
+                    columnBuilder.setBinary(doc, encoded.bytes().toBytesRef());
+                }
             }
+            return LuceneBinaryColumn.of(columnBuilder.finish(docCount), offsetsFieldName, OFFSETS_FIELD_TYPE);
         }
-        return LuceneBinaryColumn.of(columnBuilder.finish(docCount), offsetsFieldName, OFFSETS_FIELD_TYPE);
     }
 
     private static void gatherSlots(LongTupleCursor cursor, int doc, int slotCount, long[] slotValues) {

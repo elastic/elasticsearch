@@ -15,9 +15,11 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
@@ -403,118 +405,135 @@ public class PatternTextFieldMapper extends FieldMapper {
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
 
-        // Zero-copy path: when the source is a plain STRING column (no UNION wrapper for nulls)
-        // the analyzed column can share the column data directly. A builder is allocated lazily
-        // only when the source is UNION/other kind.
-        final EscfColumnBuilder analyzedBuilder = source.leafValueKind() != EscfColumnKind.STRING ? newStringBuilder() : null;
+        // Four of the six builders are created only when a document first needs them, so they cannot sit in
+        // the try-with-resources header; the group releases whichever ones were actually created.
+        try (GroupedReleasables pending = new GroupedReleasables(6)) {
+            // Zero-copy path: when the source is a plain STRING column (no UNION wrapper for nulls)
+            // the analyzed column can share the column data directly. A builder is allocated lazily
+            // only when the source is UNION/other kind.
+            final EscfColumnBuilder analyzedBuilder = source.leafValueKind() != EscfColumnKind.STRING
+                ? pending.add(newStringBuilder())
+                : null;
 
-        // Never written when templating is disabled, so do not allocate it in that case.
-        final EscfColumnBuilder templateIdBuilder = fieldType().disableTemplating() ? null : newStringBuilder();
-        // These are allocated when first needed (TEMPLATED path) to avoid waste for
-        // disable_templating=true or all-LENGTH_EXCEEDED batches.
-        EscfColumnBuilder templateBuilder = null;
-        EscfColumnBuilder argsInfoBuilder = null;
-        EscfColumnBuilder argsBuilder = null;
-        EscfColumnBuilder rawTextBuilder = null;
+            // Never written when templating is disabled, so do not allocate it in that case.
+            final EscfColumnBuilder templateIdBuilder = fieldType().disableTemplating() ? null : pending.add(newStringBuilder());
+            // These are allocated when first needed (TEMPLATED path) to avoid waste for
+            // disable_templating=true or all-LENGTH_EXCEEDED batches.
+            EscfColumnBuilder templateBuilder = null;
+            EscfColumnBuilder argsInfoBuilder = null;
+            EscfColumnBuilder argsBuilder = null;
+            EscfColumnBuilder rawTextBuilder = null;
 
-        final PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
-        boolean valuesProduced = false;
-        int currentDoc = -1;
-        boolean valueSeenThisDoc = false;
+            final PatternTextUtf8Splitter splitter = new PatternTextUtf8Splitter();
+            boolean valuesProduced = false;
+            int currentDoc = -1;
+            boolean valueSeenThisDoc = false;
 
-        while (true) {
-            final int nextDoc = cursor.nextDoc();
-            if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-            }
-            if (nextDoc != currentDoc) {
-                currentDoc = nextDoc;
-                valueSeenThisDoc = false;
-            }
+            while (true) {
+                final int nextDoc = cursor.nextDoc();
+                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                    break;
+                }
+                if (nextDoc != currentDoc) {
+                    currentDoc = nextDoc;
+                    valueSeenThisDoc = false;
+                }
 
-            final BytesRef v = cursor.value();
-            if (v == null) {
-                // JSON null: no fields emitted, mirroring the row path's textOrNull() == null check.
-                continue;
-            }
+                final BytesRef v = cursor.value();
+                if (v == null) {
+                    // JSON null: no fields emitted, mirroring the row path's textOrNull() == null check.
+                    continue;
+                }
 
-            if (valueSeenThisDoc) {
-                // pattern_text is single-valued; bail so ShardBatchMapper falls back to the
-                // row path which raises the correct per-doc error (on_failure=FAIL).
-                // TODO: Improve and handle this here.
-                throw new UnsupportedOperationException(
-                    "mapColumnBatch: pattern_text field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
-                );
-            }
-            valueSeenThisDoc = true;
-            valuesProduced = true;
+                if (valueSeenThisDoc) {
+                    // pattern_text is single-valued; bail so ShardBatchMapper falls back to the
+                    // row path which raises the correct per-doc error (on_failure=FAIL).
+                    // TODO: Improve and handle this here.
+                    throw new UnsupportedOperationException(
+                        "mapColumnBatch: pattern_text field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
+                    );
+                }
+                valueSeenThisDoc = true;
+                valuesProduced = true;
 
-            // Populate the analyzed column builder when we are not on the zero-copy path.
-            if (analyzedBuilder != null) {
-                analyzedBuilder.setString(currentDoc, v);
-            }
+                // Populate the analyzed column builder when we are not on the zero-copy path.
+                if (analyzedBuilder != null) {
+                    analyzedBuilder.setString(currentDoc, v);
+                }
 
-            if (fieldType().disableTemplating()) {
-                // Templating disabled: emit the analyzed value and the full raw text only.
-                rawTextBuilder = lazyBuilder(rawTextBuilder);
-                rawTextBuilder.setString(currentDoc, v);
-                continue;
-            }
+                if (fieldType().disableTemplating()) {
+                    // Templating disabled: emit the analyzed value and the full raw text only.
+                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending);
+                    rawTextBuilder.setString(currentDoc, v);
+                    continue;
+                }
 
-            // Run the byte-level split.
-            final PatternTextUtf8Splitter.Result result = splitter.split(v);
+                // Run the byte-level split.
+                final PatternTextUtf8Splitter.Result result = splitter.split(v);
 
-            templateIdBuilder.setString(currentDoc, splitter.templateId());
+                templateIdBuilder.setString(currentDoc, splitter.templateId());
 
-            if (result == PatternTextUtf8Splitter.Result.LENGTH_EXCEEDED) {
-                // Value exceeds the length limit: store the full original value as raw text.
-                rawTextBuilder = lazyBuilder(rawTextBuilder);
-                rawTextBuilder.setString(currentDoc, v);
-            } else {
-                // TEMPLATED: emit template, args_info, and (if present) args.
-                templateBuilder = lazyBuilder(templateBuilder);
-                templateBuilder.setString(currentDoc, splitter.template());
+                if (result == PatternTextUtf8Splitter.Result.LENGTH_EXCEEDED) {
+                    // Value exceeds the length limit: store the full original value as raw text.
+                    rawTextBuilder = lazyBuilder(rawTextBuilder, pending);
+                    rawTextBuilder.setString(currentDoc, v);
+                } else {
+                    // TEMPLATED: emit template, args_info, and (if present) args.
+                    templateBuilder = lazyBuilder(templateBuilder, pending);
+                    templateBuilder.setString(currentDoc, splitter.template());
 
-                argsInfoBuilder = lazyBuilder(argsInfoBuilder);
-                argsInfoBuilder.setString(currentDoc, splitter.argsInfo());
+                    argsInfoBuilder = lazyBuilder(argsInfoBuilder, pending);
+                    argsInfoBuilder.setString(currentDoc, splitter.argsInfo());
 
-                if (splitter.argCount() > 0) {
-                    argsBuilder = lazyBuilder(argsBuilder);
-                    argsBuilder.setString(currentDoc, splitter.joinedArgs());
+                    if (splitter.argCount() > 0) {
+                        argsBuilder = lazyBuilder(argsBuilder, pending);
+                        argsBuilder.setString(currentDoc, splitter.joinedArgs());
+                    }
                 }
             }
-        }
 
-        if (valuesProduced == false) {
-            return;
-        }
+            if (valuesProduced == false) {
+                return;
+            }
 
-        // Emit the analyzed column (zero-copy when source is plain STRING).
-        final EscfColumnData analyzedData = analyzedBuilder != null ? analyzedBuilder.finish(docCount) : source.columnData();
-        ctx.addColumn(LuceneBinaryColumn.of(analyzedData, fieldType().name(), fieldType));
+            // Emit the analyzed column (zero-copy when source is plain STRING). Only the built column owns
+            // buffers; the zero-copy branch aliases the source batch, which releases them itself.
+            final EscfColumnData analyzedData = analyzedBuilder != null ? analyzedBuilder.finish(docCount) : source.columnData();
+            if (analyzedBuilder != null) {
+                ctx.addColumn(LuceneBinaryColumn.of(analyzedData, fieldType().name(), fieldType), analyzedData);
+            } else {
+                ctx.addColumn(LuceneBinaryColumn.of(analyzedData, fieldType().name(), fieldType));
+            }
 
-        if (fieldType().disableTemplating() == false) {
-            ctx.addColumn(
-                LuceneBinaryColumn.of(templateIdBuilder.finish(docCount), fieldType().templateIdFieldName(), templateIdFieldType)
-            );
-        }
+            if (fieldType().disableTemplating() == false) {
+                addOwnedColumn(ctx, templateIdBuilder, docCount, fieldType().templateIdFieldName(), templateIdFieldType);
+            }
 
-        if (templateBuilder != null) {
-            ctx.addColumn(
-                LuceneBinaryColumn.of(templateBuilder.finish(docCount), fieldType().templateFieldName(), SortedSetDocValuesField.TYPE)
-            );
+            if (templateBuilder != null) {
+                addOwnedColumn(ctx, templateBuilder, docCount, fieldType().templateFieldName(), SortedSetDocValuesField.TYPE);
+            }
+            if (argsInfoBuilder != null) {
+                addOwnedColumn(ctx, argsInfoBuilder, docCount, fieldType().argsInfoFieldName(), SortedSetDocValuesField.TYPE);
+            }
+            if (argsBuilder != null) {
+                addOwnedColumn(ctx, argsBuilder, docCount, fieldType().argsFieldName(), BinaryDocValuesField.TYPE);
+            }
+            if (rawTextBuilder != null) {
+                addOwnedColumn(ctx, rawTextBuilder, docCount, fieldType().storedNamed(), BinaryDocValuesField.TYPE);
+            }
         }
-        if (argsInfoBuilder != null) {
-            ctx.addColumn(
-                LuceneBinaryColumn.of(argsInfoBuilder.finish(docCount), fieldType().argsInfoFieldName(), SortedSetDocValuesField.TYPE)
-            );
-        }
-        if (argsBuilder != null) {
-            ctx.addColumn(LuceneBinaryColumn.of(argsBuilder.finish(docCount), fieldType().argsFieldName(), BinaryDocValuesField.TYPE));
-        }
-        if (rawTextBuilder != null) {
-            ctx.addColumn(LuceneBinaryColumn.of(rawTextBuilder.finish(docCount), fieldType().storedNamed(), BinaryDocValuesField.TYPE));
-        }
+    }
+
+    /** Finishes {@code builder} into a binary column named {@code fieldName} and registers its buffers with the batch. */
+    private static void addOwnedColumn(
+        BatchMappingContext ctx,
+        EscfColumnBuilder builder,
+        int docCount,
+        String fieldName,
+        IndexableFieldType fieldType
+    ) {
+        final EscfColumnData data = builder.finish(docCount);
+        ctx.addColumn(LuceneBinaryColumn.of(data, fieldName, fieldType), data);
     }
 
     private static EscfColumnBuilder newStringBuilder() {
@@ -523,8 +542,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         return b;
     }
 
-    private static EscfColumnBuilder lazyBuilder(EscfColumnBuilder existing) {
-        return existing != null ? existing : newStringBuilder();
+    private static EscfColumnBuilder lazyBuilder(EscfColumnBuilder existing, GroupedReleasables pending) {
+        return existing != null ? existing : pending.add(newStringBuilder());
     }
 
     @Override

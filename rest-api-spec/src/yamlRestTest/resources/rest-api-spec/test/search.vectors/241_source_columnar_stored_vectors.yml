@@ -7,7 +7,7 @@ setup:
           capabilities: [ columnar_index_modes ]
         - method: GET
           path: /_search
-          capabilities: [ exclude_source_vectors_setting ]
+          capabilities: [ exclude_source_vectors_all_layouts ]
       reason: "columnar index mode and vector exclusion from _source are required"
   - skip:
       features: "headers"

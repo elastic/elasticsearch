@@ -9,7 +9,7 @@ setup:
           capabilities: [ columnar_index_modes ]
         - method: GET
           path: /_search
-          capabilities: [ exclude_source_vectors_setting ]
+          capabilities: [ exclude_source_vectors_all_layouts ]
   - skip:
       features: "headers"
 

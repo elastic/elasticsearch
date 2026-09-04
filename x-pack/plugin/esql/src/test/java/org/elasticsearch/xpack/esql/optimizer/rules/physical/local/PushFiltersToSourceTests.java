@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -33,14 +35,18 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -247,5 +253,42 @@ public class PushFiltersToSourceTests extends ESTestCase {
         public boolean dropsRowsUnderPushedFilter() {
             return true;
         }
+    }
+
+    // --- collectFieldsLoadedBeyondFilters ---
+
+    public void testFilterOnlyFieldNotIncluded() {
+        // EsQueryExec → FilterExec(url == "x") : url is only referenced by the filter, not by any operator above
+        FieldAttribute url = fieldAttr("url");
+        PhysicalPlan source = esQueryExec();
+        PhysicalPlan filter = new FilterExec(SRC, source, new Equals(SRC, url, new Literal(SRC, new BytesRef("x"), DataType.KEYWORD)));
+
+        assertThat(PushFiltersToSource.collectFieldsLoadedBeyondFilters(filter), empty());
+    }
+
+    public void testFieldLoadedByProjectIncluded() {
+        // EsQueryExec → FilterExec → ProjectExec(url) : url is loaded by the projection
+        FieldAttribute url = fieldAttr("url");
+        PhysicalPlan source = esQueryExec();
+        PhysicalPlan filter = new FilterExec(SRC, source, new Equals(SRC, url, new Literal(SRC, new BytesRef("x"), DataType.KEYWORD)));
+        PhysicalPlan project = new ProjectExec(SRC, filter, List.of(url));
+
+        assertThat(PushFiltersToSource.collectFieldsLoadedBeyondFilters(project), containsInAnyOrder("url"));
+    }
+
+    public void testFieldReferencedByBothFilterAndProjectIncluded() {
+        // When the same field appears in both the filter and a downstream operator it must be included,
+        // because the dual-pass concern applies regardless of the filter reference.
+        FieldAttribute url = fieldAttr("url");
+        FieldAttribute id = fieldAttr("id");
+        PhysicalPlan source = esQueryExec();
+        PhysicalPlan filter = new FilterExec(SRC, source, new Equals(SRC, url, new Literal(SRC, new BytesRef("x"), DataType.KEYWORD)));
+        PhysicalPlan project = new ProjectExec(SRC, filter, List.of(url, id));
+
+        assertThat(PushFiltersToSource.collectFieldsLoadedBeyondFilters(project), containsInAnyOrder("url", "id"));
+    }
+
+    private static EsQueryExec esQueryExec() {
+        return new EsQueryExec(SRC, "test", IndexMode.STANDARD, List.of(), null, null, null, List.of());
     }
 }

@@ -376,6 +376,17 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
                 return Translatable.NO;
             }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
+                // Binary-DV string equality/inequality rewrites to Lucene scans over the binary column
+                // (length query for "", term/contains two-phase otherwise). When the same field is also
+                // loaded for aggregation/projection/sort, that is a dual pass — keep the predicate in the
+                // compute engine and filter after extract. Empty-string checks are almost never selective
+                // enough to justify a Lucene pass even without a later extract, so those always stay out.
+                if ((this instanceof Equals || this instanceof NotEquals)
+                    && left() instanceof FieldAttribute fa
+                    && pushdownPredicates.usesBinaryDocValues(fa)
+                    && (isEmptyStringLiteral(right()) || pushdownPredicates.willLoadField(fa))) {
+                    return Translatable.NO;
+                }
                 return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
@@ -459,6 +470,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     @Override
     public Expression singleValueField() {
         return left();
+    }
+
+    /** True when {@code e} is a folded string/keyword literal with zero length. */
+    private static boolean isEmptyStringLiteral(Expression e) {
+        return e instanceof Literal lit && lit.value() instanceof BytesRef br && br.length == 0;
     }
 
     private Query translate(TranslatorHandler handler) {

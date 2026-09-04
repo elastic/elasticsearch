@@ -328,6 +328,53 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    public void testHighCardinalityKeywordUsesBinaryDocValues() throws IOException {
+        final MapperService mapperService = createMapperService(Settings.builder().put("index.mode", "columnar").build(), """
+            { "doc": { "properties": {
+                "url": { "type": "keyword", "index": false, "doc_values": { "cardinality": "high" } }
+            } } }""");
+        SearchExecutionContext ctx = createSearchExecutionContext(mapperService, null);
+        SearchStats stats = SearchContextStats.from(List.of(ctx));
+        assertTrue("high-cardinality keyword must use binary doc values", stats.usesBinaryDocValues(new FieldAttribute.FieldName("url")));
+    }
+
+    public void testDefaultCardinalityKeywordDoesNotUseBinaryDocValues() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": {
+                "kw": { "type": "keyword" }
+            } } }""");
+        SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, null);
+        SearchStats stats = SearchContextStats.from(List.of(ctx));
+        assertFalse(
+            "default-cardinality keyword (sorted-set) must not report binary doc values",
+            stats.usesBinaryDocValues(new FieldAttribute.FieldName("kw"))
+        );
+    }
+
+    public void testNumericFieldDoesNotUseBinaryDocValues() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": {
+                "n": { "type": "long" }
+            } } }""");
+        SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, null);
+        SearchStats stats = SearchContextStats.from(List.of(ctx));
+        assertFalse("numeric field must not report binary doc values", stats.usesBinaryDocValues(new FieldAttribute.FieldName("n")));
+    }
+
+    public void testMissingFieldDoesNotUseBinaryDocValues() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, null);
+        SearchStats stats = SearchContextStats.from(List.of(ctx));
+        assertFalse(
+            "unmapped field must not report binary doc values",
+            stats.usesBinaryDocValues(new FieldAttribute.FieldName("no_such_field"))
+        );
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);

@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.util.Set;
+
 /**
  * When deciding if a filter or topN can be pushed down to Lucene, we need to check a few things on the field.
  * Exactly what is checked depends on the type of field and the query. For example, we have the following possible combinations:
@@ -74,6 +76,24 @@ public interface LucenePushdownPredicates {
      * we only need to know if the field is indexed.
      */
     boolean isIndexed(FieldAttribute attr);
+
+    /**
+     * True when the field stores values in binary doc values on every relevant shard.
+     * Used to keep predicates that would become expensive binary-DV Lucene scans in the
+     * compute engine instead (especially when the field is also loaded for projection/aggregation).
+     */
+    default boolean usesBinaryDocValues(FieldAttribute attr) {
+        return false;
+    }
+
+    /**
+     * True when some non-filter operator in the local plan will load this field (e.g. {@code STATS … BY},
+     * {@code KEEP}, {@code EVAL}, {@code SORT}). Binary-DV {@code ==}/{@code !=} predicates on such fields
+     * should stay out of Lucene to avoid a dual pass over the string column (Lucene scan + extract).
+     */
+    default boolean willLoadField(FieldAttribute attr) {
+        return false;
+    }
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
@@ -204,6 +224,15 @@ public interface LucenePushdownPredicates {
      * pushed down. This should open up more opportunities for lucene pushdown.
      */
     static LucenePushdownPredicates from(SearchStats stats, EsqlFlags flags) {
+        return from(stats, flags, Set.of());
+    }
+
+    /**
+     * @param fieldsLoadedBeyondFilters names of fields referenced by non-filter plan operators
+     *                                  (aggregations, projections, evals, sorts, …). See
+     *                                  {@link #willLoadField(FieldAttribute)}.
+     */
+    static LucenePushdownPredicates from(SearchStats stats, EsqlFlags flags, Set<String> fieldsLoadedBeyondFilters) {
         // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
         // C.f. https://github.com/elastic/elasticsearch/issues/128905
         return new LucenePushdownPredicates() {
@@ -235,6 +264,16 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean usesBinaryDocValues(FieldAttribute attr) {
+                return stats.usesBinaryDocValues(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean willLoadField(FieldAttribute attr) {
+                return fieldsLoadedBeyondFilters.contains(attr.name());
             }
 
             @Override

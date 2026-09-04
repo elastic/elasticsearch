@@ -170,6 +170,9 @@ tests:
 - class: org.elasticsearch.search.fieldcaps.FieldCapsHasValueTests
   method: testUnmappedFieldsWithValueAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/158359
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
+  issue: https://github.com/elastic/elasticsearch/issues/158519
 
 # Examples:
 #

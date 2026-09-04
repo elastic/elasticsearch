@@ -757,15 +757,8 @@ public class ExternalSourceResolver {
                 return;
             }
 
-            int anchor = 0;
-            for (int i = 1; i < listing.fileCount(); i++) {
-                if (listing.path(i).toString().compareTo(listing.path(anchor).toString()) < 0) {
-                    anchor = i;
-                }
-            }
-
-            StoragePath anchorPath = listing.path(anchor);
-            long anchorMtime = listing.lastModifiedMillis(anchor);
+            StoragePath anchorPath = listing.path(0);
+            long anchorMtime = listing.lastModifiedMillis(0);
 
             // Glob expansion / cache listing above can be slow on wide globs; re-check before the anchor footer read.
             throwIfCancelled();
@@ -776,7 +769,7 @@ public class ExternalSourceResolver {
             // across the anchor footer read. Unlike the single-file getOrComputeSchema path this does not coalesce
             // concurrent misses for the same anchor key; that matches the fan-out's peek/put trade-off and is safe
             // because footer resolution is idempotent (see cachedResolveSingleSourceAsync).
-            ListingHint anchorHint = new ListingHint(listing.size(anchor), anchorMtime);
+            ListingHint anchorHint = new ListingHint(listing.size(0), anchorMtime);
             final FileList finalListing = listing;
             ActionListener<ExternalSourceMetadata> anchorListener = ActionListener.wrap(
                 anchorMetadata -> completeFirstFileWins(anchorMetadata, finalListing, config, requiresStats, cacheable, listener),

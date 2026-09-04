@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -54,6 +55,23 @@ public class GlobExpanderTests extends ESTestCase {
             settings.put(PartitionConfig.CONFIG_PARTITIONING_PATH, config.pathTemplate());
         }
         return settings;
+    }
+
+    private static Map<String, Object> ffw(Object... kv) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("schema_resolution", "first_file_wins");
+        for (int i = 0; i < kv.length; i += 2) {
+            settings.put((String) kv[i], kv[i + 1]);
+        }
+        return settings;
+    }
+
+    private static StubProvider literalProvider(String... paths) {
+        StubProvider provider = new StubProvider(List.of());
+        for (String path : paths) {
+            provider.existingPaths.add(path);
+        }
+        return provider;
     }
 
     // -- isMultiFile --
@@ -418,6 +436,150 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
         FileList result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
+    }
+
+    /**
+     * First-file-wins omitted knobs keep declaration order. {@code z,a} is the schema donor {@code z},
+     * not the lex-smallest path — that was the previous FFW default, escaped with {@code file_sort_by: name}.
+     */
+    public void testFfwCommaOmittedKnobsKeepDeclarationOrder() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList omitted = GlobExpander.expandCommaSeparated("s3://bucket/z.parquet,s3://bucket/a.parquet", provider, null, ffw());
+        assertEquals("s3://bucket/z.parquet", omitted.path(0).toString());
+        FileList explicit = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/z.parquet", explicit.path(0).toString());
+    }
+
+    public void testFfwCommaListDescIsLastNamed() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/a.parquet", result.path(0).toString());
+    }
+
+    public void testFfwCommaNameAscIsLexSmallest() throws IOException {
+        StubProvider provider = literalProvider("s3://bucket/z.parquet", "s3://bucket/a.parquet");
+        FileList result = GlobExpander.expandCommaSeparated(
+            "s3://bucket/z.parquet,s3://bucket/a.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A mocked lex LIST (S3/Azure/GCS) under FFW omitted knobs matches {@code name}+{@code asc}:
+     * provider order is already lexicographic, so {@code list} does not change the donor.
+     */
+    public void testFfwS3GlobOmittedKnobsMatchNameAscOnLexListing() throws IOException {
+        List<StorageEntry> lex = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        StubProvider provider = new StubProvider(lex);
+        FileList listAsc = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, ffw());
+        FileList nameAsc = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "asc")
+        );
+        assertEquals("s3://bucket/data/a.parquet", listAsc.path(0).toString());
+        assertEquals(nameAsc.path(0).toString(), listAsc.path(0).toString());
+    }
+
+    public void testFfwGlobListKeepsProviderOrderWhenNotLex() throws IOException {
+        List<StorageEntry> notLex = List.of(entry("s3://bucket/data/c.parquet", 300), entry("s3://bucket/data/a.parquet", 100));
+        StubProvider provider = new StubProvider(notLex);
+        FileList listAsc = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider, null, ffw());
+        FileList nameAsc = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")
+        );
+        assertEquals("s3://bucket/data/c.parquet", listAsc.path(0).toString());
+        assertEquals("s3://bucket/data/a.parquet", nameAsc.path(0).toString());
+    }
+
+    public void testFfwNameDescPicksLastHiveDate() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/dt=2024-01-01/part.parquet", 100),
+            entry("s3://bucket/data/dt=2026-09-04/part.parquet", 200)
+        );
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/dt=*/*.parquet",
+            new StubProvider(listing),
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/data/dt=2026-09-04/part.parquet", result.path(0).toString());
+    }
+
+    public void testFfwMtimeTiesBreakByNameAsc() throws IOException {
+        Instant same = Instant.ofEpochMilli(1_000);
+        List<StorageEntry> listing = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/z.parquet"), 100, same),
+            new StorageEntry(StoragePath.of("s3://bucket/data/a.parquet"), 100, same)
+        );
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/*.parquet",
+            new StubProvider(listing),
+            null,
+            ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "mtime", FileOrderConfig.CONFIG_FILE_ORDER, "desc")
+        );
+        assertEquals("s3://bucket/data/a.parquet", result.path(0).toString());
+    }
+
+    public void testFileSortByOnUnionByNameIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expandGlob(
+                "s3://bucket/data/*.parquet",
+                new StubProvider(List.of(entry("s3://bucket/data/a.parquet", 100))),
+                null,
+                Map.of("schema_resolution", "union_by_name", FileOrderConfig.CONFIG_FILE_SORT_BY, "list")
+            )
+        );
+        assertThat(e.getMessage(), containsString(FileOrderConfig.CONFIG_FILE_SORT_BY));
+        assertThat(e.getMessage(), containsString(FileOrderConfig.CONFIG_FILE_ORDER));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testDiscriminatorMovesWhenOnlyOrderFlips() {
+        String pattern = "s3://bucket/data/*.parquet";
+        Map<String, Object> asc = ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "asc");
+        Map<String, Object> desc = ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "list", FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+        assertNotEquals(
+            "flipping order must miss the listing cache",
+            GlobExpander.listingCacheDiscriminator(pattern, null, asc),
+            GlobExpander.listingCacheDiscriminator(pattern, null, desc)
+        );
+    }
+
+    public void testDiscriminatorSeparatesFfwDefaultFromUbn() {
+        String pattern = "s3://bucket/data/*.parquet";
+        assertNotEquals(
+            "FFW list+asc and UBN name+asc must not share a listing-cache entry",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw()),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of("schema_resolution", "union_by_name"))
+        );
+        assertEquals(
+            "FFW name+asc is the same listing order as UBN, so the keys match",
+            GlobExpander.listingCacheDiscriminator(pattern, null, ffw(FileOrderConfig.CONFIG_FILE_SORT_BY, "name")),
+            GlobExpander.listingCacheDiscriminator(pattern, null, Map.of())
+        );
     }
 
     // -- partition-aware glob rewriting --

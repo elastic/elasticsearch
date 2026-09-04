@@ -503,6 +503,68 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
+    public void testValidateDatasetFileSortByRequiresFirstFileWins() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "union_by_name", "file_sort_by", "list"))
+        );
+        assertThat(e.getMessage(), containsString("file_sort_by"));
+        assertThat(e.getMessage(), containsString("file_order"));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileOrderRequiresFirstFileWins() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "strict", "file_order", "desc"))
+        );
+        assertThat(e.getMessage(), containsString("file_sort_by"));
+        assertThat(e.getMessage(), containsString("file_order"));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
+        );
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("mtime", result.get("file_sort_by"));
+        assertEquals("desc", result.get("file_order"));
+    }
+
+    public void testValidateDatasetUnknownFileSortByRejected() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("schema_resolution", "first_file_wins", "file_sort_by", "created_time")
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown file_sort_by value [created_time]"));
+        assertThat(e.getMessage(), containsString("list, name, mtime"));
+    }
+
+    public void testValidateDatasetLegacySortByAndOrderAreUnknownSettings() {
+        var sortBy = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("sort_by", "name"))
+        );
+        assertThat(sortBy.getMessage(), containsString("unknown setting [sort_by]"));
+        var order = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("order", "desc")));
+        assertThat(order.getMessage(), containsString("unknown setting [order]"));
+    }
+
     public void testValidateDatasetMaxErrors() {
         assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
     }
@@ -780,6 +842,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(1));
         assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
+        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
+        assertThat(e.validationErrors().get(0), containsString("file_order"));
         assertThat(e.getMessage(), not(containsString("cannot determine format")));
     }
 

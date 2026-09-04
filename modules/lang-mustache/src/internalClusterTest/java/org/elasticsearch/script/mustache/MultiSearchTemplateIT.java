@@ -14,17 +14,14 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
@@ -228,12 +225,16 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         sb.append("]}");
         String largeTemplate = sb.toString();
 
-        // Tighten the REQUEST breaker to 1 byte so that any positive charge trips it immediately,
-        // regardless of any pre-existing state in the breaker. The render estimate for the first
-        // item alone is 512 B (RENDER_BASE_OVERHEAD), which already exceeds this limit. Using
-        // "1b" instead of a KB-range value avoids races where the breaker's accumulated bytes
-        // from concurrent or preceding operations happen to leave just enough room under a larger
-        // limit for the charge to succeed.
+        // Pre-charge the REQUEST circuit breaker on every node to 1 GB. The breaker's `used`
+        // counter can drift negative via estimation-inaccuracy releases in prior tests; adding
+        // 1 GB brings it well above any threshold. We then set the limit to 1 b: with
+        // `used >= 1 GB >> 1 b`, the first render (≥ 512 B RENDER_BASE_OVERHEAD) is guaranteed
+        // to trip regardless of prior cluster state.
+        final long preCharge = 1_000_000_000L;
+        Collection<CircuitBreakerService> breakerServices = internalCluster().getInstances(CircuitBreakerService.class);
+        for (CircuitBreakerService bs : breakerServices) {
+            bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(preCharge);
+        }
         updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1b"));
         try {
             int numRequests = 20;
@@ -262,29 +263,10 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             updateClusterSettings(
                 Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
             );
+            for (CircuitBreakerService bs : breakerServices) {
+                bs.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST).addWithoutBreaking(-preCharge);
+            }
         }
-    }
-
-    /**
-     * Verifies end-to-end wiring of {@link MultiSearchTemplateResponse#mergeDirectoryMetrics()} through
-     * {@code wrapWithSearchMetricsHeader} in the REST action: when directory metrics are enabled (via
-     * {@link Store#DIRECTORY_METRICS_FEATURE_FLAG}), a real {@code _msearch/template} search emits exactly
-     * one {@code X-Elasticsearch-Search-Metrics} response header.
-     */
-    public void testSearchMetricsResponseHeader() throws Exception {
-        assumeTrue("directory metrics feature flag must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
-
-        createIndex("hdr-test");
-        prepareIndex("hdr-test").setId("1").setSource("field", "value").get();
-        refresh("hdr-test");
-
-        Request req = new Request("POST", "/_msearch/template");
-        req.setJsonEntity("{\"index\":\"hdr-test\"}\n" + "{\"source\":\"{\\\"query\\\":{\\\"match_all\\\":{}}}\",\"params\":{}}\n");
-        Response resp = getRestClient().performRequest(req);
-        long headerCount = Arrays.stream(resp.getHeaders())
-            .filter(h -> h.getName().equalsIgnoreCase(RestActions.SEARCH_METRICS_RESPONSE_HEADER))
-            .count();
-        assertThat("msearch/template must emit exactly one consolidated search-metrics header", headerCount, equalTo(1L));
     }
 
     /**

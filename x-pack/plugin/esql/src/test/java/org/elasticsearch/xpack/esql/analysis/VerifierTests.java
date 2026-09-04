@@ -5011,7 +5011,7 @@ public class VerifierTests extends AnalyzerTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT",
-            allOf(containsString("HIGHLIGHT requires a query"), not(containsString("preceding full-text WHERE")))
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
         );
     }
 

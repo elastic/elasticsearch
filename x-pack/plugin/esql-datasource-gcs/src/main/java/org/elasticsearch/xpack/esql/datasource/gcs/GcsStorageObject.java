@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpResponseException;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -288,6 +290,30 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
+     * Best-effort extraction of a {@code Retry-After} hint from the GCS exception cause chain.
+     * Works for HTTP JSON transport (cause chain contains {@link HttpResponseException}); returns 0
+     * for gRPC transport or when the header is absent.
+     * <p>
+     * Walks the full chain rather than stopping on the first {@link HttpResponseException} that lacks the
+     * header, so a nested exception carrying the header is still found even if an outer wrapper has none.
+     */
+    static long retryAfterMsFromChain(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof HttpResponseException hre) {
+                HttpHeaders headers = hre.getHeaders();
+                if (headers != null) {
+                    String retryAfter = headers.getRetryAfter();
+                    if (retryAfter != null) {
+                        return ExternalUnavailableException.parseRetryAfterMs(retryAfter);
+                    }
+                }
+                // No header on this HRE — keep walking in case a deeper exception carries one.
+            }
+        }
+        return 0L;
+    }
+
+    /**
      * Maps a failure from the GCS client into the exception to surface to ES|QL. A retryable transport
      * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
      * retry, with the throttle flag set for 429/503); a missing object or any other failure becomes an
@@ -298,8 +324,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof StorageException se) {
             if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
                 return new ExternalUnavailableException(
                     throttling,
+                    retryAfterMs,
                     cause,
                     "GCS store unavailable reading [{}] (HTTP {})",
                     path,

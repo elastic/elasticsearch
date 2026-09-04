@@ -466,10 +466,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         // Create DataSourceModule with all discovered plugins.
-        // This executor backs SPI coordination, decompression, and async-I/O plugin callbacks (e.g. the HTTP
-        // client) — NOT the file-read path. Blocking external reads run on the esql_worker pool via
-        // OperatorFactoryRegistry#fileReadExecutor (wired in TransportEsqlQueryAction), bounded by the per-scheme
-        // permit semaphore in StorageProviderRegistry rather than a dedicated thread pool.
+        // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
+        // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
+        // (footer/probe) run on esql_external_io: SEARCH and GENERIC must not issue those GETs, and
+        // esql_external_io must not join its own fan-out (Phase-2 uses ThrottledIterator + ActionListener).
+        // Blocking data reads are bounded by the per-scheme permit semaphore in StorageProviderRegistry.
         dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
             dataSourceCapabilities,
@@ -482,7 +483,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.environment(),
             services.resourceWatcherService(),
             services.telemetryProvider().getMeterRegistry(),
-            localFileAccess
+            localFileAccess,
+            services.threadPool().executor(externalBlobStorePool())
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

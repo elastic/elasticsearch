@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -34,7 +35,7 @@ public class PercentileFloatGroupingAggregatorFunctionTests extends GroupingAggr
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileFloatAggregatorFunctionSupplier(percentile);
+        return new PercentileFloatAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, percentile);
     }
 
     @Override

@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
@@ -34,7 +37,7 @@ public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTe
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PercentileFloatAggregatorFunctionSupplier(percentile);
+        return new PercentileFloatAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, percentile);
     }
 
     @Override
@@ -55,5 +58,15 @@ public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTe
             double value = ((DoubleBlock) result).getDouble(0);
             assertThat(value, closeTo(expected, expected * 0.1));
         }
+    }
+
+    public void testNonFiniteInputReturnsNull() {
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(new SequenceFloatBlockSourceOperator(runner.blockFactory(), List.of(Float.NaN).stream()));
+
+        List<Page> results = runner.run(simple());
+
+        assertThat(results.size(), equalTo(1));
+        assertThat(results.get(0).getBlock(0).isNull(0), equalTo(true));
     }
 }

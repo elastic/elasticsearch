@@ -9,13 +9,19 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier() {
+  WarningSourceLocation warningsSource;
+
+  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(
+      WarningSourceLocation warningsSource) {
+    this.warningsSource = warningsSource;
   }
 
   @Override
@@ -31,13 +37,15 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier imple
   @Override
   public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(warnings, driverContext, channels);
   }
 
   @Override
   public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, driverContext);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(warnings, channels, driverContext);
   }
 
   @Override

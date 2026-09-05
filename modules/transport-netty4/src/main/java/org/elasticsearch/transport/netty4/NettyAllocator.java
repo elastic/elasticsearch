@@ -28,7 +28,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NettyAllocator {
@@ -256,7 +255,7 @@ public class NettyAllocator {
 
         private final ByteBufAllocator delegate;
 
-        private NoDirectBuffers(ByteBufAllocator delegate) {
+        NoDirectBuffers(ByteBufAllocator delegate) {
             this.delegate = delegate;
         }
 
@@ -364,63 +363,5 @@ public class NettyAllocator {
         public ByteBufAllocator getDelegate() {
             return delegate;
         }
-    }
-
-    static class TrashingCompositeByteBuf extends CompositeByteBuf {
-
-        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
-            super(alloc, direct, maxNumComponents);
-        }
-
-        @Override
-        protected void deallocate() {
-            TrashingByteBufAllocator.trashBuffer(this);
-            super.deallocate();
-        }
-    }
-
-    static class TrashingByteBufAllocator extends NoDirectBuffers {
-
-        static int DEFAULT_MAX_COMPONENTS = 16;
-
-        static void trashBuffer(ByteBuf buf) {
-            for (var nioBuf : buf.nioBuffers()) {
-                if (nioBuf.hasArray()) {
-                    var from = nioBuf.arrayOffset() + nioBuf.position();
-                    var to = from + nioBuf.remaining();
-                    Arrays.fill(nioBuf.array(), from, to, (byte) 0);
-                }
-            }
-        }
-
-        TrashingByteBufAllocator(ByteBufAllocator delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public ByteBuf heapBuffer() {
-            return new TrashingByteBuf(super.heapBuffer());
-        }
-
-        @Override
-        public ByteBuf heapBuffer(int initialCapacity) {
-            return new TrashingByteBuf(super.heapBuffer(initialCapacity));
-        }
-
-        @Override
-        public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
-            return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
-        }
-
-        @Override
-        public CompositeByteBuf compositeHeapBuffer() {
-            return new TrashingCompositeByteBuf(this, false, DEFAULT_MAX_COMPONENTS);
-        }
-
-        @Override
-        public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
-            return new TrashingCompositeByteBuf(this, false, maxNumComponents);
-        }
-
     }
 }

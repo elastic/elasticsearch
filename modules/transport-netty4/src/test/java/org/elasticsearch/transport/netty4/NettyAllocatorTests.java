@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
@@ -18,9 +19,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBufAllocator;
+import static org.elasticsearch.transport.netty4.TrashingByteBufAllocator.TrashingByteBuf;
 
 public class NettyAllocatorTests extends ESTestCase {
 
@@ -88,6 +93,161 @@ public class NettyAllocatorTests extends ESTestCase {
             buf.release();
             assertBufferTrashed(bytesRef);
         }
+    }
+
+    public void testRetainedSliceTrashedOnlyAfterRootAndSliceReleased() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+
+        var off = between(0, size - 2);
+        var len = between(1, size - off - 1);
+        var slice = root.retainedSlice(off, len);
+        var sliceRef = Netty4Utils.toBytesReference(slice);
+        var expected = Arrays.copyOfRange(content, off, off + len);
+
+        assertEquals(2, root.refCnt());
+        assertEquals(1, slice.refCnt());
+
+        root.release();
+        assertEquals("slice content must survive releasing the root, off=" + off + " len=" + len, 1, slice.refCnt());
+        assertArrayEquals(
+            "slice content must survive releasing the root, off=" + off + " len=" + len,
+            expected,
+            BytesReference.toBytes(sliceRef)
+        );
+
+        slice.release();
+        assertEquals(0, slice.refCnt());
+        assertBufferTrashed(sliceRef);
+    }
+
+    public void testRootContentSurvivesReleasingRetainedSlice() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+
+        var off = between(0, size - 2);
+        var len = between(1, size - off - 1);
+        var slice = root.retainedSlice(off, len);
+        var rootRef = Netty4Utils.toBytesReference(root);
+
+        slice.release();
+        assertEquals(0, slice.refCnt());
+        assertEquals(1, root.refCnt());
+        assertArrayEquals(
+            "root content must survive releasing the retained slice, off=" + off + " len=" + len,
+            content,
+            BytesReference.toBytes(rootRef)
+        );
+
+        root.release();
+        assertBufferTrashed(rootRef);
+    }
+
+    public void testTrashingStaysInsideOwnPooledRegion() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(64, 512);
+        var before = alloc.heapBuffer(size, size);
+        var victim = alloc.heapBuffer(size, size);
+        var after = alloc.heapBuffer(size, size);
+
+        var beforeContent = randomByteArrayOfLength(size);
+        var afterContent = randomByteArrayOfLength(size);
+        before.writeBytes(beforeContent);
+        victim.writeBytes(randomByteArrayOfLength(size));
+        after.writeBytes(afterContent);
+
+        assertSame("expected pooled buffers to share a chunk array", victim.array(), before.array());
+        assertSame("expected pooled buffers to share a chunk array", victim.array(), after.array());
+        assertEquals(
+            "expected three distinct slots in the chunk, offsets="
+                + before.arrayOffset()
+                + ","
+                + victim.arrayOffset()
+                + ","
+                + after.arrayOffset(),
+            3,
+            Set.of(before.arrayOffset(), victim.arrayOffset(), after.arrayOffset()).size()
+        );
+
+        var beforeRef = Netty4Utils.toBytesReference(before);
+        var afterRef = Netty4Utils.toBytesReference(after);
+
+        victim.release();
+
+        assertArrayEquals("preceding pooled buffer must not be trashed", beforeContent, BytesReference.toBytes(beforeRef));
+        assertArrayEquals("following pooled buffer must not be trashed", afterContent, BytesReference.toBytes(afterRef));
+
+        before.release();
+        after.release();
+    }
+
+    public void testRetainedSliceShouldNotTrashContentOnRelease() {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var buf = alloc.heapBuffer();
+        var data = randomByteArrayOfLength(between(1024, 2048));
+        buf.writeBytes(data);
+
+        var slice = buf.retainedSlice();
+
+        slice.release();
+
+        var actual = new byte[data.length];
+        buf.getBytes(buf.readerIndex(), actual);
+        assertArrayEquals("Original buffer content should be intact after releasing a retained slice", data, actual);
+
+        buf.release();
+    }
+
+    public void testFullyConsumedBufferIsTrashed() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(randomByteArrayOfLength(size));
+        var ref = Netty4Utils.toBytesReference(root);
+
+        root.skipBytes(size);
+        assertEquals("reader index must have caught up with writer index", 0, root.readableBytes());
+
+        root.release();
+        assertBufferTrashed(ref);
+    }
+
+    public void testNestedRetainedSlicesTrashOnlyAfterLastRelease() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var size = between(1024, 4096);
+        var content = randomByteArrayOfLength(size);
+        var root = alloc.heapBuffer(size, size);
+        root.writeBytes(content);
+        var rootRef = Netty4Utils.toBytesReference(root);
+
+        var bufs = new ArrayList<ByteBuf>();
+        bufs.add(root);
+        for (var i = 0; i < between(1, 6); i++) {
+            var parent = randomFrom(bufs);
+            var len = parent.readableBytes();
+            if (len < 2) {
+                continue;
+            }
+            var off = between(0, len - 2);
+            bufs.add(parent.retainedSlice(off, between(1, len - off - 1)));
+        }
+
+        Collections.shuffle(bufs, random());
+        for (var i = 0; i < bufs.size(); i++) {
+            assertArrayEquals(
+                "content must be intact with " + (bufs.size() - i) + " of " + bufs.size() + " references outstanding",
+                content,
+                BytesReference.toBytes(rootRef)
+            );
+            bufs.get(i).release();
+        }
+        assertBufferTrashed(rootRef);
     }
 
     public void testTrashingCompositeByteBuf() throws IOException {

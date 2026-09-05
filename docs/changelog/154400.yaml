@@ -1,0 +1,4 @@
+pr: 154400
+summary: "ES|QL: add `all_columns` REST parameter to suppress the `all_columns` response field"
+area: ES|QL
+type: enhancement

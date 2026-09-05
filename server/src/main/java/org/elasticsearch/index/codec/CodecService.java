@@ -41,6 +41,15 @@ public class CodecService implements CodecProvider {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        this(mapperService, bigArrays, threadPool, CodecMetrics.NOOP);
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ThreadPool threadPool,
+        CodecMetrics codecMetrics
+    ) {
         final var codecs = new HashMap<String, Codec>();
 
         var bestSpeedCodec = new PerFieldMapperCodec(
@@ -82,18 +91,15 @@ public class CodecService implements CodecProvider {
             codecs.put(codec, Codec.forName(codec));
         }
 
-        // A codec that does not share field infos gets a wrapper that does, under the codec's own name. Freshly written
-        // segments are read back through the instance that wrote them, so this reaches those reads.
-        this.codecs = codecs.entrySet()
-            .stream()
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    Map.Entry::getKey,
-                    e -> e.getValue().fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat
-                        ? e.getValue()
-                        : new SharedFieldInfosCodec(e.getValue())
-                )
-            );
+        this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
+            // A codec that does not share field infos gets a wrapper that does, under the codec's own name. Freshly written
+            // segments are read back through the instance that wrote them, so this reaches those reads.
+            Codec codec = e.getValue();
+            codec = codec.fieldInfosFormat() instanceof ElasticsearchFieldInfosFormat ? codec : new SharedFieldInfosCodec(codec);
+
+            // Skip the metrics layer when nothing records: keeps test codecs unwrapped and casts to the concrete codec working.
+            return codecMetrics == CodecMetrics.NOOP ? codec : new MetricingCodec(codec, codecMetrics);
+        }));
     }
 
     public Codec codec(String name) {

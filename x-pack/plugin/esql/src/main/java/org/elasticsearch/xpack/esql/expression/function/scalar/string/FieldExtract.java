@@ -88,8 +88,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
 
     @FunctionInfo(
         returnType = "keyword",
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.6.0") },
         briefSummary = "Extracts a sub-field value from a flattened field as a keyword.",
         description = """
             Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) \
@@ -125,8 +126,13 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             arrays](/reference/elasticsearch/mapping-reference/flattened.md#flattened-preserve-leaf-arrays), not to
             the function; use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md)
             if you need a defined order downstream. For the other flattened caveats - values are always `keyword`,
-            dotted-key resolution, and objects or missing keys returning `null` - see the [`flattened` field
-            type](/reference/elasticsearch/mapping-reference/flattened.md).
+            dotted-key resolution, and objects or missing keys returning `null` - see [ES|QL and flattened
+            fields](/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-behaviors).
+
+            `MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression and match it at
+            runtime. `KQL`, `QSTR`, and `KNN` require a directly mapped field, so they do not accept a
+            `FIELD_EXTRACT` expression as an argument; use `==`, `LIKE`, `RLIKE`, or `WILDCARD` to filter on an
+            extracted value with those.
             ::::""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )

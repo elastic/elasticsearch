@@ -173,7 +173,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertMap(
             sortBySomeLongsLimit(100000),
             matchesMap().entry("took", greaterThan(0))
-                .entry("is_partial", false)
+                .entry("is_partial", true) // TODO fake error for testing
                 .entry("columns", List.of(Map.of("name", "MAX(a)", "type", "long")))
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))

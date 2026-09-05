@@ -88,7 +88,9 @@ public class GradleRunner {
         BuildCanceller canceller = new BuildCanceller(tokenSource, projectDir);
         canceller.install();
 
-        TaskTracker tracker = new TaskTracker(canceller);
+        File taskStatusFile = new File(projectDir, "build/task-status-incremental.jsonl");
+        taskStatusFile.delete();
+        TaskTracker tracker = new TaskTracker(canceller, taskStatusFile);
 
         GradleConnector connector = GradleConnector.newConnector().forProjectDirectory(projectDir);
         if (gradleHome != null) {

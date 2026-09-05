@@ -149,6 +149,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequestTr
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DecryptNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.DeleteNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.GetNamedCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.PatchNamedCredentialAction;
+import org.elasticsearch.xpack.core.security.action.namedcredentials.PutNamedCredentialAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -235,6 +240,7 @@ import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceRegistry;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
@@ -250,6 +256,11 @@ import org.elasticsearch.xpack.security.action.apikey.TransportUpdateCrossCluste
 import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
+import org.elasticsearch.xpack.security.action.namedcredentials.TransportDecryptNamedCredentialAction;
+import org.elasticsearch.xpack.security.action.namedcredentials.TransportDeleteNamedCredentialAction;
+import org.elasticsearch.xpack.security.action.namedcredentials.TransportGetNamedCredentialsAction;
+import org.elasticsearch.xpack.security.action.namedcredentials.TransportPatchNamedCredentialAction;
+import org.elasticsearch.xpack.security.action.namedcredentials.TransportPutNamedCredentialAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectPrepareAuthenticationAction;
@@ -353,6 +364,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.namedcredentials.NamedCredentialsService;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -375,6 +387,11 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateApiKeyActio
 import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
+import org.elasticsearch.xpack.security.rest.action.namedcredentials.RestDecryptNamedCredentialAction;
+import org.elasticsearch.xpack.security.rest.action.namedcredentials.RestDeleteNamedCredentialAction;
+import org.elasticsearch.xpack.security.rest.action.namedcredentials.RestGetNamedCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.namedcredentials.RestPatchNamedCredentialAction;
+import org.elasticsearch.xpack.security.rest.action.namedcredentials.RestPutNamedCredentialAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -823,6 +840,7 @@ public class Security extends Plugin
         Collections.addAll(
             checks,
             new TokenSSLBootstrapCheck(),
+            new NamedCredentialsSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TransportTLSBootstrapCheck()
         );
@@ -849,6 +867,14 @@ public class Security extends Plugin
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
+
+        final NamedCredentialsService namedCredentialsService = new NamedCredentialsService(
+            client,
+            systemIndices.getNamedCredentialsIndexManager(),
+            EncryptionServiceRegistry::getEncryptionService,
+            Clock.systemUTC()
+        );
+        components.add(namedCredentialsService);
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
@@ -1848,6 +1874,11 @@ public class Security extends Plugin
             new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             new ActionHandler(GetSecurityStatsAction.INSTANCE, TransportSecurityStatsAction.class),
+            new ActionHandler(PutNamedCredentialAction.INSTANCE, TransportPutNamedCredentialAction.class),
+            new ActionHandler(PatchNamedCredentialAction.INSTANCE, TransportPatchNamedCredentialAction.class),
+            new ActionHandler(GetNamedCredentialsAction.INSTANCE, TransportGetNamedCredentialsAction.class),
+            new ActionHandler(DeleteNamedCredentialAction.INSTANCE, TransportDeleteNamedCredentialAction.class),
+            new ActionHandler(DecryptNamedCredentialAction.INSTANCE, TransportDecryptNamedCredentialAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1942,7 +1973,12 @@ public class Security extends Plugin
             new RestDisableProfileAction(settings, getLicenseState()),
             new RestGetSecuritySettingsAction(settings, getLicenseState()),
             new RestUpdateSecuritySettingsAction(settings, getLicenseState()),
-            new RestSecurityStatsAction(settings, getLicenseState(), clusterSupportsFeature)
+            new RestSecurityStatsAction(settings, getLicenseState(), clusterSupportsFeature),
+            new RestPutNamedCredentialAction(settings, getLicenseState()),
+            new RestPatchNamedCredentialAction(settings, getLicenseState()),
+            new RestGetNamedCredentialsAction(settings, getLicenseState()),
+            new RestDeleteNamedCredentialAction(settings, getLicenseState()),
+            new RestDecryptNamedCredentialAction(settings, getLicenseState())
         ).filter(Objects::nonNull).toList();
     }
 

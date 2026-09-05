@@ -21,6 +21,7 @@ module org.elasticsearch.security {
     requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
+    requires org.elasticsearch.encryption.spi;
 
     requires org.apache.commons.codec;
     requires org.apache.httpcomponents.httpcore;
@@ -71,6 +72,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.token to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.action.namedcredentials to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.stats to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;

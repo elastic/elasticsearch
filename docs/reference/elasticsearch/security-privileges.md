@@ -129,6 +129,12 @@ When creating roles, refer to this page for a complete list of available privile
     ::::
 
 
+`manage_named_credentials`
+:   All operations on named credentials, including reading decrypted secrets via the decrypt API. Intended for system principals such as `kibana_system`; the decrypt API returns plaintext secrets, so grant with care.
+
+`read_named_credentials`
+:   Read-only access to named credentials with secrets redacted. Does not allow reading decrypted secrets.
+
 `manage_oidc` {applies_to}`serverless: unavailable`
 :   Enables the use of {{es}} APIs ([OpenID connect prepare authentication](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-prepare-authentication), [OpenID connect authenticate](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-authenticate), and [OpenID connect logout](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-logout)) to initiate and manage OpenID Connect authentication on behalf of other users.
 

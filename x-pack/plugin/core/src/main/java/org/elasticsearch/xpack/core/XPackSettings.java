@@ -178,6 +178,16 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for enabling or disabling the named credentials store. Defaults to the value of
+     * https being enabled, because the APIs accept and return plaintext secrets.
+     */
+    public static final Setting<Boolean> NAMED_CREDENTIALS_ENABLED = Setting.boolSetting(
+        "xpack.security.named_credentials.enabled",
+        XPackSettings.HTTP_SSL_ENABLED,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling the api key service. Defaults to true */
     public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting(
         "xpack.security.authc.api_key.enabled",
@@ -411,6 +421,7 @@ public class XPackSettings {
         settings.add(REMOTE_CLUSTER_CLIENT_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(NAMED_CREDENTIALS_ENABLED);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(USER_SETTING);
         settings.add(PASSWORD_HASHING_ALGORITHM);

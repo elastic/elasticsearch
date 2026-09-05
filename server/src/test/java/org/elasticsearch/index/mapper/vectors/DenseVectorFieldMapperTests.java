@@ -93,6 +93,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -689,6 +690,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("oversample", 4f);
             b.endObject();
         }, hasToString(containsString("\"oversample\":4.0")));
+        registerIndexOptionsUpdate(
+            checker,
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.field("type", "bbq_disk").field("auto_calibrate", false),
+            b -> b.field("type", "bbq_disk").field("auto_calibrate", true),
+            hasToString(containsString("\"auto_calibrate\":true"))
+        );
+        // auto_calibrate is only serialized when enabled, so disabling it drops the field entirely
+        registerIndexOptionsUpdate(
+            checker,
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.field("type", "bbq_disk").field("auto_calibrate", true),
+            b -> b.field("type", "bbq_disk").field("auto_calibrate", false),
+            hasToString(not(containsString("auto_calibrate")))
+        );
     }
 
     @Override
@@ -939,7 +955,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             .getMapper("field")).fieldType().getIndexOptions();
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+        // auto_calibrate is updatable in both directions: it only steers merge-time calibration, and
+        // segments already written keep their persisted quantization and preconditioning metadata.
+        merge(mapperService, fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 128);
             b.field("index", true);
@@ -952,7 +970,29 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("oversample", 4f);
             b.endObject();
             b.endObject();
-        })));
+        }));
+        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
+            .getMapper("field")).fieldType().getIndexOptions();
+        assertFalse(indexOptions.autoCalibrate());
+        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("auto_calibrate")));
+
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 128);
+            b.field("index", true);
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.field("bits", 2);
+            b.field("precondition", false);
+            b.field("auto_calibrate", true);
+            b.startObject("rescore_vector");
+            b.field("oversample", 4f);
+            b.endObject();
+            b.endObject();
+        }));
+        indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) ((DenseVectorFieldMapper) mapperService.mappingLookup()
+            .getMapper("field")).fieldType().getIndexOptions();
+        assertTrue(indexOptions.autoCalibrate());
 
         expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
             b.field("type", "dense_vector");

@@ -137,6 +137,32 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("$checkAllocBytes"));
     }
 
+    public void testNoForEachIteratorChargeBytecodeWhenDisabled() {
+        // The loop codegen emits its own iterator() call, so it needs its own guard.
+        String asm = bytecode("long n = 0; List l = new ArrayList(); for (def e : l) { n++; } return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("iteratorBytes")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testForEachIteratorChargeBytecodePresentWhenEnabled() {
+        String asm = bytecode("long n = 0; List l = new ArrayList(); for (def e : l) { n++; } return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("iteratorBytes"));
+        assertThat(asm, containsString("sanitizeEstimate"));
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
+    public void testNoDefForEachIteratorChargeBytecodeWhenDisabled() {
+        String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+    }
+
+    public void testDefForEachIteratorChargeBytecodePresentWhenEnabled() {
+        // Charged inline, so there is no estimator call to look for.
+        String asm = bytecode("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("$checkAllocBytes"));
+    }
+
     public void testNoDefConcatChargeBytecodeWhenDisabled() {
         // A def '+' (possible runtime string concat) must be clean when tracking is off.
         String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", -1L);

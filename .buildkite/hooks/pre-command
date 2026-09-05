@@ -52,7 +52,9 @@ fi
 
 export GCP_PREEMPTION_EXIT_CODE=47
 
-source .buildkite/scripts/setup_node.sh
+if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-version-bump" ]]; then
+  source .buildkite/scripts/setup_node.sh
+fi
 
 vault_with_retry() {
   local attempt delays=(1 5 10)

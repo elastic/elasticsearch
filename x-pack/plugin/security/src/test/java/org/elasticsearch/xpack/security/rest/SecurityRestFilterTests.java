@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -460,6 +462,36 @@ public class SecurityRestFilterTests extends ESTestCase {
         ExecutionException ex = expectThrows(ExecutionException.class, future::get);
         assertTrue(ex.getCause() instanceof ElasticsearchStatusException);
         assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+    }
+
+    public void testCircuitBreakerTripDuringAuditBodyRenderPropagatesAsFailure() throws Exception {
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(randomByteArrayOfLength(20)),
+            XContentType.JSON
+        ).build();
+
+        var circuitBreakingException = new CircuitBreakingException("audit body breaker tripped", CircuitBreaker.Durability.TRANSIENT);
+
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        when(auditTrailService.get()).thenReturn(auditTrail);
+        doThrow(circuitBreakingException).when(auditTrail).authenticationSuccess(any());
+
+        SecurityRestFilter testFilter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            auditTrailService,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        testFilter.intercept(restRequest, channel, restHandler, future);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertThat(ex.getCause(), sameInstance(circuitBreakingException));
+        verifyNoMoreInteractions(restHandler);
     }
 
     /** When {@code authenticationSuccess} does not throw, the request proceeds normally. */

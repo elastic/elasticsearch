@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -234,6 +235,9 @@ public abstract class Plugin implements Closeable {
 
         /** The usage service for tracking cluster and endpoint usage statistics */
         UsageService usageService();
+
+        /** The service for managing circuit breakers to prevent out-of-memory conditions */
+        CircuitBreakerService circuitBreakerService();
     }
 
     /**

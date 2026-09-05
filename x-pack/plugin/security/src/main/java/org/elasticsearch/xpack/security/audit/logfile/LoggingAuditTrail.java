@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -32,6 +34,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
@@ -116,6 +120,7 @@ import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.RequestBodyRenderer;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -159,6 +164,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.base64EncodedLength;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.hasProtobufContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestRawContent;
@@ -299,14 +305,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Property.Dynamic
     );
     /**
-     * Maximum rendered body length (in characters) that may be included in audit events when
-     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the representation
-     * written to the log rather than the raw request bytes: the output of
-     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} for {@code request.body},
-     * or the base64 encoding for {@code request.raw_body}. It therefore accounts for format
-     * differences (e.g. SMILE expanding to JSON, base64 expanding by 4/3).
-     * Requests whose rendered body exceeds this limit are rejected with HTTP 413 to keep the
-     * audit log a complete record of every accepted request.
+     * Maximum size, in bytes, of the rendered JSON body that may be included in audit events when
+     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is enforced against the UTF-8 output of
+     * {@link org.elasticsearch.xpack.security.audit.RequestBodyRenderer#render} rather than the raw
+     * request bytes, so it accounts for format differences (e.g. SMILE expanding to JSON).
+     * Rendering is bounded mid-stream: requests whose rendered body would exceed this limit are
+     * rejected with HTTP 413 to keep the audit log a complete record of every accepted request.
      * <p>
      * {@code 0} disables the limit (no rejection); use with caution on endpoints that may receive
      * large bodies such as OTLP or Prometheus remote-write ingestion endpoints.
@@ -392,6 +396,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     volatile boolean includeRequestBody;
     /** Maximum bytes for {@code request.body}; {@code 0} means unlimited. Package-private for testing. */
     volatile int maxRequestBodyBytes;
+    private final CircuitBreaker circuitBreaker;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -401,15 +406,45 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP);
+        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
     }
 
-    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool, AuditLogCustomizer customizer) {
-        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext(), customizer);
+    public LoggingAuditTrail(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        AuditLogCustomizer customizer,
+        CircuitBreaker circuitBreaker
+    ) {
+        this(
+            settings,
+            clusterService,
+            LogManager.getLogger(LoggingAuditTrail.class),
+            threadPool.getThreadContext(),
+            customizer,
+            circuitBreaker
+        );
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
-        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP);
+        this(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            AuditLogCustomizer.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
+        );
+    }
+
+    LoggingAuditTrail(
+        Settings settings,
+        ClusterService clusterService,
+        Logger logger,
+        ThreadContext threadContext,
+        AuditLogCustomizer customizer
+    ) {
+        this(settings, clusterService, logger, threadContext, customizer, new NoopCircuitBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
     }
 
     @SuppressWarnings("this-escape")
@@ -418,9 +453,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         ClusterService clusterService,
         Logger logger,
         ThreadContext threadContext,
-        AuditLogCustomizer customizer
+        AuditLogCustomizer customizer,
+        CircuitBreaker circuitBreaker
     ) {
         this.customizer = customizer;
+        this.circuitBreaker = circuitBreaker;
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
@@ -1171,10 +1208,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return includeRequestBody;
     }
 
-    public int maxRequestBodyBytes() {
-        return maxRequestBodyBytes;
-    }
-
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1184,6 +1217,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final StringMapMessage logEntry;
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
         private boolean includeThreadContext = true;
+        @Nullable
+        private Releasable bodyReleasable;
 
         LogEntryBuilder() {
             this(true);
@@ -1739,9 +1774,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 if (hasProtobufContent(request)) {
                     withRawRequestBody(request);
                 } else {
-                    final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
-                    if (Strings.hasLength(requestContent)) {
-                        logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                    var renderer = new RequestBodyRenderer(maxRequestBodyBytes, circuitBreaker, "audit-body");
+                    try {
+                        final String requestContent = restRequestContent(request, MAX_REQUEST_BODY_SIZE.getKey(), renderer);
+                        assert bodyReleasable == null : "bodyReleasable already set";
+                        bodyReleasable = renderer;
+                        if (Strings.hasLength(requestContent)) {
+                            logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                        }
+                    } finally {
+                        if (bodyReleasable != renderer) {
+                            renderer.close();
+                        }
                     }
                 }
             }
@@ -1749,18 +1793,28 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private void withRawRequestBody(RestRequest request) {
-            final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
-            if (Strings.hasLength(rawContent) == false) {
-                return;
-            }
-            logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
-            final String contentType = request.header("Content-Type");
-            if (Strings.hasLength(contentType)) {
-                logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
-            }
-            final String contentEncoding = request.header("Content-Encoding");
-            if (Strings.hasLength(contentEncoding)) {
-                logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+            final long encodedLength = base64EncodedLength(request.content().length());
+            circuitBreaker.addEstimateBytesAndMaybeBreak(encodedLength, "audit-body");
+            Releasable release = () -> circuitBreaker.addWithoutBreaking(-encodedLength);
+            try {
+                final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+                if (Strings.hasLength(rawContent) == false) {
+                    return;
+                }
+                logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
+                final String contentType = request.header("Content-Type");
+                if (Strings.hasLength(contentType)) {
+                    logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
+                }
+                final String contentEncoding = request.header("Content-Encoding");
+                if (Strings.hasLength(contentEncoding)) {
+                    logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+                }
+                assert bodyReleasable == null : "bodyReleasable already set";
+                bodyReleasable = release;
+                release = null;
+            } finally {
+                Releasables.close(release);
             }
         }
 
@@ -1923,10 +1977,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         void build() {
-            if (includeThreadContext) {
-                withThreadContext();
+            try {
+                if (includeThreadContext) {
+                    withThreadContext();
+                }
+                logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
+            } finally {
+                Releasables.close(bodyReleasable);
             }
-            logger.info(AUDIT_MARKER, customizer.rewrite(eventContext, logEntry));
         }
 
         static String toQuotedJsonArray(Object[] values) {

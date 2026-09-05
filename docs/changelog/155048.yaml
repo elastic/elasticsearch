@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154146
+pr: 155048
+summary: Prevent invalid references after shadowing EVAL in RLIKE filters
+type: bug

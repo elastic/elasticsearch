@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -2261,8 +2262,9 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
-        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
-        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
             // Add scorer operator to add the filter expression scores to the overall scores
             Attribute scoreAttribute = null;
 
@@ -2292,6 +2294,14 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    /**
+     * Whether {@code condition} contains a scoring contributor that can be evaluated without a shard context, which
+     * today means a runtime full-text search.
+     */
+    private static boolean scoresWithoutShards(Expression condition) {
+        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
     }
 
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {

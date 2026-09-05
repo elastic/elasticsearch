@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tests the predicates that classify known generative-test failures as allowed failures.
@@ -162,5 +165,59 @@ public class GenerativeRestTestTests extends ESTestCase {
         String query = "FROM books, (FROM books | RENAME title AS title2) | WHERE match(title2, \"world\")";
         String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    /**
+     * Regression for #154058: LOOKUP JOIN embeds a RENAME to align the left key with the lookup index key name.
+     * The renamed key becomes a ReferenceAttribute, so match(key, {options}) is rejected by the server. The schema
+     * tracker must therefore mark it non-index-mapped even though its source column was index-mapped, otherwise the
+     * generator emits an invalid full-text query on it.
+     */
+    public void testLookupJoinEmbeddedRenameMarksKeyNonIndexMapped() {
+        CommandGenerator.CommandDescription lookupJoin = new CommandGenerator.CommandDescription(
+            LookupJoinGenerator.LOOKUP_JOIN,
+            null,
+            "| rename decade as language_code | lookup join languages_lookup on language_code",
+            Map.of()
+        );
+        List<Column> previous = List.of(
+            new Column("decade", "long", List.of("long"), true),
+            new Column("emp_no", "long", List.of("long"), true)
+        );
+        // The REST response carries no attribute info, so execute() defaults every output column to indexMapped=true.
+        List<Column> next = List.of(
+            new Column("language_code", "long", List.of("long"), true),
+            new Column("emp_no", "long", List.of("long"), true),
+            new Column("language_name", "keyword", List.of("keyword"), true)
+        );
+
+        List<Column> result = GenerativeRestTest.computeIndexMapped(next, previous, lookupJoin);
+
+        assertFalse("renamed join key must be non-index-mapped", indexMapped(result, "language_code"));
+        assertFalse("newly added lookup column must be non-index-mapped", indexMapped(result, "language_name"));
+        assertTrue("untouched index field survives as index-mapped", indexMapped(result, "emp_no"));
+    }
+
+    /**
+     * The previously-handled case still holds: a LOOKUP JOIN embedded rename whose source is already non-index-mapped
+     * keeps the target non-index-mapped.
+     */
+    public void testLookupJoinEmbeddedRenameFromNonIndexMappedStaysNonIndexMapped() {
+        CommandGenerator.CommandDescription lookupJoin = new CommandGenerator.CommandDescription(
+            LookupJoinGenerator.LOOKUP_JOIN,
+            null,
+            "| rename derived as language_code | lookup join languages_lookup on language_code",
+            Map.of()
+        );
+        List<Column> previous = List.of(new Column("derived", "long", List.of("long"), false));
+        List<Column> next = List.of(new Column("language_code", "long", List.of("long"), true));
+
+        List<Column> result = GenerativeRestTest.computeIndexMapped(next, previous, lookupJoin);
+
+        assertFalse(indexMapped(result, "language_code"));
+    }
+
+    private static boolean indexMapped(List<Column> schema, String name) {
+        return schema.stream().filter(c -> c.name().equals(name)).findFirst().orElseThrow().indexMapped();
     }
 }

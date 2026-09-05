@@ -31,9 +31,11 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -101,6 +103,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private final ThreadPool threadPool;
     private final boolean supportsMultipleProjects;
+    private final boolean securityEnabled;
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     protected final TransformFailureHandler failureHandler;
@@ -141,7 +144,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected volatile boolean indexerThreadShuttingDown = false;
     protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
-    @SuppressWarnings("this-escape")
     public TransformIndexer(
         ThreadPool threadPool,
         TransformServices transformServices,
@@ -155,11 +157,42 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformCheckpoint nextCheckpoint,
         TransformContext context
     ) {
+        this(
+            threadPool,
+            transformServices,
+            checkpointProvider,
+            transformConfig,
+            initialState,
+            initialPosition,
+            jobStats,
+            transformProgress,
+            lastCheckpoint,
+            nextCheckpoint,
+            context,
+            false
+        );
+    }
+
+    public TransformIndexer(
+        ThreadPool threadPool,
+        TransformServices transformServices,
+        CheckpointProvider checkpointProvider,
+        TransformConfig transformConfig,
+        AtomicReference<IndexerState> initialState,
+        TransformIndexerPosition initialPosition,
+        TransformIndexerStats jobStats,
+        TransformProgress transformProgress,
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint nextCheckpoint,
+        TransformContext context,
+        boolean securityEnabled
+    ) {
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
         this.threadPool = threadPool;
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
         this.supportsMultipleProjects = transformServices.projectResolver().supportsMultipleProjects();
+        this.securityEnabled = securityEnabled;
         this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.auditor();
@@ -184,7 +217,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (transformConfig.getSettings() != null && transformConfig.getSettings().getDocsPerSecond() != null) {
             docsPerSecond = transformConfig.getSettings().getDocsPerSecond();
         }
-        this.lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
+        // Use System.nanoTime() directly — do not call overridable getTimeNanos() from a ctor
+        // (that triggers JDK this-escape / -Werror).
+        this.lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(System.nanoTime());
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
@@ -314,6 +349,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             listener.onFailure(
                 new ElasticsearchSecurityException(
                     TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_PERMISSIONS, getConfig().getId())
+                )
+            );
+            return;
+        }
+
+        // Fail closed when security is on but the config has neither stored headers nor a UIAM
+        // credential id — empty headers fall through to TRANSFORM_ORIGIN and bypass DLS.
+        if (securityEnabled
+            && getConfig().getCredentialId() == null
+            && ClientHelper.filterSecurityHeaders(getConfig().getHeaders()).isEmpty()) {
+            listener.onFailure(
+                Exceptions.authorizationError(
+                    TransformMessages.getMessage(TransformMessages.TRANSFORM_CANNOT_START_WITHOUT_CREDENTIALS, getConfig().getId())
                 )
             );
             return;

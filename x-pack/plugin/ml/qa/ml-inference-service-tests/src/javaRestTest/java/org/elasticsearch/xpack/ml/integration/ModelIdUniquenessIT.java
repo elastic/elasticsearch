@@ -39,11 +39,11 @@ public class ModelIdUniquenessIT extends InferenceBaseRestTest {
     public void testPutTrainedModelFailsWhenInferenceModelWithIdAlreadyExists() throws Exception {
 
         String modelId = "duplicate_model_id";
+        putInferenceServiceModel(modelId, TaskType.SPARSE_EMBEDDING);
+
         putPyTorchModelTrainedModels(modelId);
         putPyTorchModelDefinitionTrainedModels(modelId);
         putPyTorchModelVocabularyTrainedModels(List.of("these", "are", "my", "words"), modelId);
-
-        putInferenceServiceModel(modelId, TaskType.SPARSE_EMBEDDING);
 
         var e = expectThrows(ResponseException.class, () -> startDeploymentTrainedModels(modelId));
         assertThat(

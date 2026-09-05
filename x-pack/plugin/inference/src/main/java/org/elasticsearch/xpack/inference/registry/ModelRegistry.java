@@ -315,8 +315,15 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var ids = new HashSet<>(metadataInferenceIds);
-        ids.addAll(Set.copyOf(defaultConfigIds.keySet()));
+        ids.addAll(defaultEndpointIds());
         return ids;
+    }
+
+    /**
+     * Service-provided default inference endpoint ids (not stored in cluster state metadata).
+     */
+    public Set<String> defaultEndpointIds() {
+        return Set.copyOf(defaultConfigIds.keySet());
     }
 
     /**

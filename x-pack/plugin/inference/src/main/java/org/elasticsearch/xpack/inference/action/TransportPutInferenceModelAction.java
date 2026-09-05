@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -61,6 +64,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -77,6 +82,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final Client client;
     private volatile boolean skipValidationAndStart;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
@@ -90,6 +96,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
+        Client client,
         Settings settings,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -107,6 +114,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
+        this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -208,8 +216,50 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        try {
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                GetTrainedModelsAction.INSTANCE,
+                new GetTrainedModelsAction.Request(request.getInferenceEntityId()),
+                ActionListener.wrap(trainedModelsResponse -> {
+                    if (trainedModelsResponse.getResources().count() > 0) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                                request.getInferenceEntityId()
+                            )
+                        );
+                        return;
+                    }
+                    parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+                }, e -> {
+                    if (isMissingTrainedModelLookup(e) || isUnregisteredMlAction(e)) {
+                        parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
+        } catch (IllegalStateException e) {
+            if (isUnregisteredMlAction(e)) {
+                parseAndStoreModelAfterTrainedModelLookup(service.get(), request, resolvedTaskType, requestAsMap, state, listener);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private void parseAndStoreModelAfterTrainedModelLookup(
+        InferenceService service,
+        PutInferenceModelAction.Request request,
+        TaskType resolvedTaskType,
+        Map<String, Object> requestAsMap,
+        ClusterState state,
+        ActionListener<PutInferenceModelAction.Response> listener
+    ) {
         parseAndStoreModel(
-            service.get(),
+            service,
             request.getInferenceEntityId(),
             resolvedTaskType,
             requestAsMap,
@@ -217,6 +267,30 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             state,
             listener
         );
+    }
+
+    /**
+     * Exact trained-model IDs are required matches even when {@code allow_no_match} is true, so a missing ID is a 404.
+     */
+    private static boolean isMissingTrainedModelLookup(Exception e) {
+        return ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException;
+    }
+
+    /**
+     * {@link GetTrainedModelsAction} is only registered when ML trained-model features are enabled; inference must still work
+     * when the action is absent (see {@code MachineLearning#getActions}).
+     */
+    private static boolean isUnregisteredMlAction(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof IllegalStateException == false) {
+                continue;
+            }
+            String message = current.getMessage();
+            if (message != null && message.contains("failed to find action")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void parseAndStoreModel(

@@ -41,6 +41,14 @@ dependencies {
   clusterModules project(':modules:data-streams')
 }
 
+tasks.named("yamlRestTest").configure {
+  ArrayList<String> blacklist = [
+    // Stateless-only shards_availability assertions
+    'health/50_stateless_shards_availability/*',
+  ]
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+}
+
 tasks.register('enforceYamlTestConvention').configure {
   def tree = fileTree('src/main/resources/rest-api-spec/test')
   doLast {

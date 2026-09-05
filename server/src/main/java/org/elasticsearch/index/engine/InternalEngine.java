@@ -287,7 +287,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
                 engineConfig.getThreadPoolMergeExecutorService(),
-                engineConfig.getMergeMetrics()
+                engineConfig.getShardMetrics().merge()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle(pauseIndexingOnThrottle);
@@ -855,7 +855,13 @@ public class InternalEngine extends Engine {
         ElasticsearchReaderManager internalReaderManager = null;
         try {
             try {
-                directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
+                directoryReader = ElasticsearchDirectoryReader.wrap(
+                    DirectoryReader.open(indexWriter),
+                    shardId,
+                    null,
+                    engineConfig.getShardMetrics().codec(),
+                    engineConfig.getIndexSettings().getMode()
+                );
                 internalReaderManager = createInternalReaderManager(directoryReader);
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;

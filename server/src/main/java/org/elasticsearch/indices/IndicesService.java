@@ -102,7 +102,6 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -137,6 +136,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -293,7 +293,7 @@ public class IndicesService extends AbstractLifecycleComponent
     final ActionLoggingFieldsProvider loggingFieldsProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
     private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     private final ThrottlingRecoveryService throttlingRecoveryService;
@@ -372,7 +372,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.requestCacheKeyDifferentiator = builder.requestCacheKeyDifferentiator;
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
-        this.mergeMetrics = builder.mergeMetrics;
+        this.shardMetrics = builder.shardMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -837,7 +837,7 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics,
+            shardMetrics,
             storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -937,7 +937,7 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics,
+            shardMetrics,
             storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));

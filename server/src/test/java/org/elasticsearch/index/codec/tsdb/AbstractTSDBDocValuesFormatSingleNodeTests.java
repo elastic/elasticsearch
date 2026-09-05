@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.MetricingCodec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -174,7 +175,10 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
     }
 
     private DocValuesFormat getDocValuesFormatForField(final IndexShard shard, final String field) {
-        final Codec codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+        Codec codec = shard.withEngineOrNull(engine -> engine.config().getCodec());
+        if (codec instanceof MetricingCodec metricingCodec) {
+            codec = metricingCodec.delegate();
+        }
 
         if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
             return es93104codec.getDocValuesFormatForField(field);

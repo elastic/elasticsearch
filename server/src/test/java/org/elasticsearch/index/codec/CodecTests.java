@@ -44,6 +44,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FieldInfoCachingDirectory;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matchers;
@@ -379,6 +380,22 @@ public class CodecTests extends ESTestCase {
             null
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    /**
+     * Every codec is wrapped in a {@link MetricingCodec} only when a recording {@link CodecMetrics} is given, and either way keeps the
+     * name that {@code segments_N} stores, so a segment written through it is read back through the SPI codec of that name.
+     */
+    public void testCodecsAreWrappedInMetricingCodecOnlyWhenRecording() {
+        CodecMetrics recording = new CodecMetrics(new RecordingMeterRegistry());
+        for (CodecMetrics codecMetrics : List.of(recording, CodecMetrics.NOOP)) {
+            CodecService codecService = new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null, codecMetrics);
+            for (String name : codecService.availableCodecs()) {
+                Codec codec = codecService.codec(name);
+                assertEquals(name, codecMetrics == recording, codec instanceof MetricingCodec);
+                assertEquals(name, codec.getName(), Codec.forName(codec.getName()).getName());
+            }
+        }
     }
 
     @SuppressForbidden(reason = "access violation required in order to read private field for this test")

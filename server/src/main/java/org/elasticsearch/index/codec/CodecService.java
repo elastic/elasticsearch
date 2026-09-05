@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
@@ -44,9 +45,19 @@ public class CodecService implements CodecProvider {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        this(mapperService, bigArrays, threadPool, CodecMetrics.NOOP);
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ThreadPool threadPool,
+        CodecMetrics codecMetrics
+    ) {
         final var codecs = new HashMap<String, Codec>();
 
         boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
+        IndexMode indexMode = mapperService != null ? mapperService.getIndexSettings().getMode() : IndexMode.STANDARD;
 
         var bestSpeedCodec = new DefaultCompressionPerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
@@ -91,7 +102,10 @@ public class CodecService implements CodecProvider {
             // Codecs that already expose a deduplicating format (directly, or via a delegate they wrap) must not be wrapped
             // again: each extra layer re-interns instances that are canonical already, once per segment open.
             Codec codec = e.getValue();
-            return isDeduplicating(codec.fieldInfosFormat()) ? codec : new DeduplicateFieldInfosCodec(codec.getName(), codec);
+            codec = isDeduplicating(codec.fieldInfosFormat()) ? codec : new DeduplicateFieldInfosCodec(codec.getName(), codec);
+
+            // Skip the metrics layer when nothing records: keeps test codecs unwrapped and casts to the concrete codec working.
+            return codecMetrics == CodecMetrics.NOOP ? codec : new MetricingCodec(codec, codecMetrics, indexMode);
         }));
     }
 

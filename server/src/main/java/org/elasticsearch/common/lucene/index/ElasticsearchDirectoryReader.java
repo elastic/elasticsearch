@@ -14,6 +14,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.codec.CodecMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ESCacheHelper;
 
@@ -69,21 +71,26 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
      */
     public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
-        return wrap(reader, shardId, null);
+        return wrap(reader, shardId, null, CodecMetrics.NOOP, IndexMode.STANDARD);
     }
 
     /**
-     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as
-     * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
-     * expose the given shard Id.
+     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as well as all it's sub-readers in {@link ElasticsearchLeafReader}
+     * to expose the given shard Id and count codec read failures seen by the leaf readers.
      * @param reader        the reader to wrap
      * @param shardId       the shard ID to expose via the elasticsearch internal reader wrappers.
-     * @param esCacheHelper the custom {@link ESCacheHelper} implementation that doesn't tie
-     *                      its lifecycle to that of the underlying reader
+     * @param esCacheHelper the custom {@link ESCacheHelper} implementation that doesn't tie its lifecycle to that of the underlying reader
+     * @param codecMetrics  where read failures are counted; {@link CodecMetrics#NOOP} to count nothing
+     * @param indexMode     the index mode recorded with each failure
      */
-    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId, @Nullable ESCacheHelper esCacheHelper)
-        throws IOException {
-        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId, esCacheHelper);
+    public static ElasticsearchDirectoryReader wrap(
+        DirectoryReader reader,
+        ShardId shardId,
+        @Nullable ESCacheHelper esCacheHelper,
+        CodecMetrics codecMetrics,
+        IndexMode indexMode
+    ) throws IOException {
+        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId, codecMetrics, indexMode), shardId, esCacheHelper);
     }
 
     /**
@@ -102,14 +109,18 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
         private final ShardId shardId;
+        private final CodecMetrics codecMetrics;
+        private final IndexMode indexMode;
 
-        SubReaderWrapper(ShardId shardId) {
+        SubReaderWrapper(ShardId shardId, CodecMetrics codecMetrics, IndexMode indexMode) {
             this.shardId = shardId;
+            this.codecMetrics = codecMetrics;
+            this.indexMode = indexMode;
         }
 
         @Override
         public LeafReader wrap(LeafReader reader) {
-            return new ElasticsearchLeafReader(reader, shardId);
+            return new ElasticsearchLeafReader(reader, shardId, codecMetrics, indexMode);
         }
     }
 

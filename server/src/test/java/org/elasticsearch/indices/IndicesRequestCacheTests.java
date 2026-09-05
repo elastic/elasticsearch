@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
+import org.elasticsearch.index.codec.CodecMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -536,7 +537,9 @@ public class IndicesRequestCacheTests extends ESTestCase {
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1),
-            customCacheHelper
+            customCacheHelper,
+            CodecMetrics.NOOP,
+            IndexMode.STANDARD
         );
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);

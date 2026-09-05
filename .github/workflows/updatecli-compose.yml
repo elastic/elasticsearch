@@ -16,7 +16,7 @@ jobs:
     outputs:
       branches: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: set-matrix
         run: |
           BRANCHES=$(jq -c '[.branches[].branch]' branches.json)
@@ -35,7 +35,7 @@ jobs:
       packages: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ matrix.branch }}
 

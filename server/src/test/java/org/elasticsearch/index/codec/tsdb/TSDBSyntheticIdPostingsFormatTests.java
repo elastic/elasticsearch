@@ -591,6 +591,76 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testGetMinAndGetMax() throws IOException {
+        // Reproduces the node crash observed during a serverless primary-shard relocation. On the relocation target,
+        // IndexEngine#prewarmIdLookups calls Terms#getMax() on the _id field. Lucene's default getMax() drills into the
+        // terms with incomplete probe keys via seekCeil(). When a probe's _tsid matches an indexed one,
+        // SyntheticIdTermsEnum#seekCeil used to call extractTimestampFromSyntheticId() on the probe, whose trailing
+        // 8 bytes are not a real (Long.MAX_VALUE - timestamp) delta, so the decoded delta is negative and tripped
+        // `assert timestamp >= 0`. The uncaught-exception handler turned that into a node exit.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var terms = reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                BytesRef expectedMin = null;
+                BytesRef expectedMax = null;
+                var iter = terms.iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (expectedMin == null) {
+                        expectedMin = BytesRef.deepCopyOf(term);
+                    }
+                    expectedMax = BytesRef.deepCopyOf(term);
+                }
+                assertThat(expectedMin, notNullValue());
+                assertThat(expectedMax, notNullValue());
+
+                assertThat(terms.getMin(), equalTo(expectedMin));
+                assertThat(terms.getMax(), equalTo(expectedMax));
+            }
+        });
+    }
+
+    public void testSeekCeilWithTsidOnlyPrefix() throws IOException {
+        // Defense in depth for the getMax crash: Lucene's default getMax probes with incomplete keys that can match a
+        // real _tsid without a timestamp/routing suffix. seekCeil must not call the asserting timestamp extractor on
+        // those probes — it pads with 0x00 and lands on the first term of that _tsid.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var termsEnum = LazyFilterTermsEnum.unwrap(reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME).iterator());
+                assertThat(termsEnum, instanceOf(SyntheticIdTermsEnum.class));
+
+                BytesRef previousTsidPrefix = null;
+                BytesRef firstTermOfTsid = null;
+                for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                    var tsidPrefix = new BytesRef(term.bytes, term.offset, term.length - Long.BYTES - Integer.BYTES);
+                    if (previousTsidPrefix != null && tsidPrefix.equals(previousTsidPrefix) == false) {
+                        // Use the first term of the second _tsid so the probe is not also the segment minimum.
+                        firstTermOfTsid = BytesRef.deepCopyOf(term);
+                        break;
+                    }
+                    previousTsidPrefix = BytesRef.deepCopyOf(tsidPrefix);
+                }
+                assertThat(firstTermOfTsid, notNullValue());
+
+                var tsidOnlyProbe = new BytesRef(
+                    firstTermOfTsid.bytes,
+                    firstTermOfTsid.offset,
+                    firstTermOfTsid.length - Long.BYTES - Integer.BYTES
+                );
+                assertThat(tsidOnlyProbe.length, greaterThan(0));
+                assertThat(tsidOnlyProbe.length, lessThan(firstTermOfTsid.length));
+
+                assertThat(termsEnum.seekCeil(tsidOnlyProbe), is(TermsEnum.SeekStatus.NOT_FOUND));
+                assertThat(termsEnum.term(), equalTo(firstTermOfTsid));
+            }
+        });
+    }
+
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
         // We rely on skippers being enabled
         runTest(false, (writer, parser) -> {
@@ -615,6 +685,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testConcurrentSeekExactRandomDirectory() throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         doTestConcurrentSeekExact(directory);
     }
@@ -668,6 +739,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTestWithRandomDocs(directory, test);
     }
@@ -763,10 +835,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static void runTest(boolean disableSkippers, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test)
         throws IOException {
         final var directory = newDirectory();
-        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-        // that is not supported in TSDBSyntheticIdFieldsProducer today.
-        //
-        // TODO would be nice to enable check-index-on-close
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTest(disableSkippers, directory, test);
     }

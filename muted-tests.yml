@@ -558,9 +558,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testSnapshotWithLargeSegmentFiles
   issue: https://github.com/elastic/elasticsearch/issues/156468
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTargetRecoversAfterMasterRestartDuringHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/156561
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569

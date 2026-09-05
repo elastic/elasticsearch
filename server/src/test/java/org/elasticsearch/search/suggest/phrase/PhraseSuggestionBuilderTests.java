@@ -9,14 +9,17 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -160,23 +163,43 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
     }
 
+    /**
+     * An older coordinating node may forward a {@code token_limit} above {@link NoisyChannelSpellChecker#MAX_TOKEN_LIMIT}
+     * during a rolling upgrade. The setter rejects such values, so the stream is forged via reflection. The value must be
+     * clamped on deserialization and the clamp must be logged so operators can see it happening.
+     */
     public void testTokenLimitDeserializationClampsOversizedValues() throws IOException {
-        // Simulate what an old coordinating node might send: a tokenLimit beyond MAX_TOKEN_LIMIT.
-        // The setter now rejects such values, so we bypass it via reflection to forge the stream.
         PhraseSuggestionBuilder original = new PhraseSuggestionBuilder("field");
+        int oversized = NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + randomIntBetween(1, 1_000_000);
         try {
-            java.lang.reflect.Field field = PhraseSuggestionBuilder.class.getDeclaredField("tokenLimit");
+            Field field = PhraseSuggestionBuilder.class.getDeclaredField("tokenLimit");
             field.setAccessible(true);
-            field.set(original, NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + 1);
+            field.set(original, oversized);
         } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                PhraseSuggestionBuilder deserialized = new PhraseSuggestionBuilder(in);
-                assertEquals(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, (int) deserialized.tokenLimit());
-            }
+            MockLog.assertThatLogger(() -> {
+                try (StreamInput in = out.bytes().streamInput()) {
+                    PhraseSuggestionBuilder deserialized = new PhraseSuggestionBuilder(in);
+                    assertEquals(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, (int) deserialized.tokenLimit());
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            },
+                PhraseSuggestionBuilder.class,
+                new MockLog.SeenEventExpectation(
+                    "token_limit clamp warning",
+                    PhraseSuggestionBuilder.class.getCanonicalName(),
+                    Level.WARN,
+                    "Received token_limit ["
+                        + oversized
+                        + "] exceeds maximum ["
+                        + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT
+                        + "]; clamping to maximum"
+                )
+            );
         }
     }
 

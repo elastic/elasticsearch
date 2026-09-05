@@ -15,17 +15,30 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 import java.io.IOException;
 
 final class CandidateScorer {
-    // Bounds the total number of scored paths to prevent exponential CPU exhaustion
+    /**
+     * Upper bound on the number of scoring steps (recursion entries plus fully scored combinations) a single request
+     * may perform in {@link #findCandidates}. The search space grows combinatorially with the number of tokens,
+     * {@code max_errors} and the number of candidates per term, none of which are otherwise bounded tightly enough to
+     * prevent a single request from consuming CPU indefinitely. The default configuration (10 tokens, 50% error rate,
+     * 5 candidates per term) needs well under one million steps, so this leaves ample headroom for legitimate queries.
+     */
     static final long MAX_SCORED_PATHS = 10_000_000L;
 
     private final WordScorer scorer;
     private final int maxNumCorrections;
     private final int gramSize;
+    private final long maxScoredPaths;
 
     CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize) {
+        this(scorer, maxNumCorrections, gramSize, MAX_SCORED_PATHS);
+    }
+
+    // Visible for testing: allows exercising the budget without performing MAX_SCORED_PATHS scoring steps.
+    CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize, long maxScoredPaths) {
         this.scorer = scorer;
         this.maxNumCorrections = maxNumCorrections;
         this.gramSize = gramSize;
+        this.maxScoredPaths = maxScoredPaths;
     }
 
     public Correction[] findBestCandiates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
@@ -65,19 +78,16 @@ final class CandidateScorer {
         final double pathScore,
         long[] pathsVisited
     ) throws IOException {
-        if (++pathsVisited[0] > MAX_SCORED_PATHS) {
-            throw new IllegalArgumentException(
-                "phrase suggester query is too complex and exceeded maximum combinations ["
-                    + MAX_SCORED_PATHS
-                    + "]; reduce token_limit"
-            );
-        }
+        checkBudget(pathsVisited);
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
             updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
             if (numMissspellingsLeft > 0) {
                 for (int i = 0; i < current.candidates.length; i++) {
+                    // Each alternative at the last position is a complete combination that is scored without a further
+                    // recursive call, so it must be counted here or a single position with many candidates escapes the budget.
+                    checkBudget(pathsVisited);
                     path[ord] = current.candidates[i];
                     updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
                 }
@@ -123,6 +133,14 @@ final class CandidateScorer {
             }
         }
 
+    }
+
+    private void checkBudget(long[] pathsVisited) {
+        if (++pathsVisited[0] > maxScoredPaths) {
+            throw new IllegalArgumentException(
+                "phrase suggester query is too complex and exceeded maximum combinations [" + maxScoredPaths + "]; reduce token_limit"
+            );
+        }
     }
 
     private void updateTop(

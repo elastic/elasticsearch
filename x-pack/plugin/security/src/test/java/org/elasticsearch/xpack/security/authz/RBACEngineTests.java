@@ -592,6 +592,122 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     /**
+     * The application-privilege resources and (resource-scoped) privileges a role grants are exposed on
+     * {@link RBACAuthorizationInfo} so a DLS query template can filter by them. Verifies:
+     * <ul>
+     *   <li>resources = the deterministically-sorted union of every granted privilege's resource patterns;</li>
+     *   <li>privileges = the sorted cross-product of each granted privilege's actions with the resources it
+     *       was granted on, joined as {@code <resource>|<action>} (so space and action are matched together,
+     *       never independently); and</li>
+     *   <li>both are memoized (repeated calls return the same cached instance).</li>
+     * </ul>
+     */
+    public void testApplicationResourcesAndPrivilegesExposedForDls() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        // "read" grants two actions, granted on the marketing + finance spaces.
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "kibana", "read", "saved_object:dashboard/get", "action:login");
+        // "discover" grants one (disjoint) action, granted on the finance space only. Because its action set
+        // is disjoint from "read", the two privileges do not match each other, so their resources stay separate.
+        final ApplicationPrivilege discover = defineApplicationPrivilege(privs, "kibana", "discover", "saved_object:index-pattern/get");
+        final Role role = Role.builder(RESTRICTED_INDICES, "kibana-dls")
+            .addApplicationPrivilege(read, newHashSet("space:marketing", "space:finance"))
+            .addApplicationPrivilege(discover, Collections.singleton("space:finance"))
+            .build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of("kibana", List.of("space:finance", "space:marketing"))));
+
+        assertThat(
+            authzInfo.getApplicationPrivileges(),
+            equalTo(
+                Map.of(
+                    "kibana",
+                    List.of(
+                        "space:finance|action:login",
+                        "space:finance|saved_object:dashboard/get",
+                        "space:finance|saved_object:index-pattern/get",
+                        "space:marketing|action:login",
+                        "space:marketing|saved_object:dashboard/get"
+                    )
+                )
+            )
+        );
+
+        // Memoized: the (automaton-backed) computation runs once and repeated reads return the cached instance.
+        assertSame(authzInfo.getApplicationResources(), authzInfo.getApplicationResources());
+        assertSame(authzInfo.getApplicationPrivileges(), authzInfo.getApplicationPrivileges());
+    }
+
+    /**
+     * When a role has both a broad privilege (whose automaton is a superset of a narrower one) and a
+     * narrow privilege granted on overlapping resources, {@code getApplicationResources} and
+     * {@code getApplicationPrivileges} must surface the full set of accessible resources/tokens.
+     * <p>
+     * {@code ApplicationPermission.getResourcePatterns(privilege)} uses {@code matchesPrivilege} semantics:
+     * it returns resources from any stored entry whose action automaton is a superset of the queried
+     * privilege's automaton. So if "all" (*) is on space:X and "read" is on space:Y, then
+     * {@code getResourcePatterns(read)} returns {@code {X, Y}} — X is included because the "all" grant
+     * covers "read" on space:X. This is the correct behaviour: a user with "all" on space:X genuinely has
+     * read-level access there, and a DLS query templated on {@code _user.application_privileges} should
+     * match a document tagged {@code space:X|read_action}.
+     */
+    public void testApplicationPrivilegesWithOverlappingBroadAndNarrowGrants() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        // "all" covers every action (wildcard automaton), granted on space:hr only.
+        final ApplicationPrivilege all = defineApplicationPrivilege(privs, "myapp", "all", "*");
+        // "read" is a narrower privilege (actions are a subset of "all"), granted on space:engineering only.
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "myapp", "read", "data:read/*");
+
+        final Role role = Role.builder(RESTRICTED_INDICES, "overlap-test")
+            .addApplicationPrivilege(all, Collections.singleton("space:hr"))
+            .addApplicationPrivilege(read, Collections.singleton("space:engineering"))
+            .build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        // Resources: both spaces are accessible (space:hr via "all", space:engineering via "read").
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of("myapp", List.of("space:engineering", "space:hr"))));
+
+        // Privilege tokens: "data:read/*" (read's action) appears for BOTH spaces because "all" on space:hr
+        // subsumes "read", so space:hr is included in getResourcePatterns(read) via matchesPrivilege.
+        // "*" (all's action) appears for space:hr directly. This correctly reflects what the user can do.
+        assertThat(
+            authzInfo.getApplicationPrivileges(),
+            equalTo(Map.of("myapp", List.of("space:engineering|data:read/*", "space:hr|*", "space:hr|data:read/*")))
+        );
+    }
+
+    /**
+     * A role that grants no application privileges exposes empty (short-circuited) maps, so existing DLS
+     * roles pay nothing for the new fields.
+     */
+    public void testApplicationResourcesAndPrivilegesEmptyWithoutApplicationPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "no-apps").cluster(Set.of("monitor"), Set.of()).build();
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of()));
+        assertThat(authzInfo.getApplicationPrivileges(), equalTo(Map.of()));
+    }
+
+    /**
+     * An API key's effective role is a {@link org.elasticsearch.xpack.core.security.authz.permission.LimitedRole}
+     * (its assigned role intersected with the owner's role), on which {@code application()} cannot be
+     * materialized. Enumeration must be skipped and return empty rather than throwing
+     * {@code UnsupportedOperationException} — otherwise a DLS search under an API key fails with a 500.
+     */
+    public void testApplicationResourcesAndPrivilegesEmptyForLimitedRole() {
+        final List<ApplicationPrivilegeDescriptor> privs = new ArrayList<>();
+        final ApplicationPrivilege read = defineApplicationPrivilege(privs, "kibana", "read", "saved_object:dashboard/get");
+        final Role limited = Role.builder(RESTRICTED_INDICES, "api-key")
+            .addApplicationPrivilege(read, newHashSet("space:marketing"))
+            .build()
+            .limitedBy(Role.builder(RESTRICTED_INDICES, "owner").addApplicationPrivilege(read, newHashSet("space:marketing")).build());
+        assertThat(limited.canEnumerateApplicationPrivileges(), is(false));
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(limited, null);
+        assertThat(authzInfo.getApplicationResources(), equalTo(Map.of()));
+        assertThat(authzInfo.getApplicationPrivileges(), equalTo(Map.of()));
+    }
+
+    /**
      * Wildcards in the request are treated as
      * <em>does the user have ___ privilege on every possible index that matches this pattern?</em>
      * Or, expressed differently,

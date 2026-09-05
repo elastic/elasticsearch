@@ -59,6 +59,20 @@ public interface Role {
 
     ApplicationPermission application();
 
+    /**
+     * Whether {@link #application()} can be materialized for this role. It is {@code false} for a role that is
+     * the intersection of two roles (e.g. an API key limited by its owner's role), whose effective application
+     * permission cannot be represented as a single {@link ApplicationPermission} and for which
+     * {@link #application()} therefore throws. Callers that surface application privileges on a best-effort
+     * basis (for example to a document-level-security query template via
+     * {@link org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo#getApplicationResources()})
+     * should check this before calling {@link #application()} and skip enumeration when it returns
+     * {@code false}, rather than triggering the exception.
+     */
+    default boolean canEnumerateApplicationPrivileges() {
+        return true;
+    }
+
     RunAsPermission runAs();
 
     RemoteIndicesPermission remoteIndices();

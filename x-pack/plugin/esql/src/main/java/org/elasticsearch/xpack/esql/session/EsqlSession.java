@@ -456,6 +456,96 @@ public class EsqlSession {
         );
     }
 
+    /**
+     * Parses, analyzes and optimizes a query without executing it — the coordinator-only completion path used by
+     * ES|QL suggestions ({@code TransportEsqlSuggestionsAction}, via {@code PlanExecutor.analyzeAndOptimize}).
+     * Reuses the very same private analysis/optimization stages {@link #execute} runs through ({@link #parse},
+     * {@link #analyzedPlan}, {@link #preOptimizedPlan}, {@link #optimizedPlan}, plus view resolution) so the two
+     * paths never diverge on how a plan actually gets resolved.
+     * <p>
+     * Deliberately <b>not</b> a drop-in replacement for the first half of {@link #execute}: it skips telemetry/
+     * metrics gathering ({@code gatherSettingsMetrics}/{@code gatherViewMetrics}/{@code gatherInSubqueryMetrics}/
+     * {@code gatherPlanTelemetry}) and the anonymized-failure-log plan snapshot, since a suggestions request is
+     * not a real query and shouldn't pollute either. It also does not wrap analysis in
+     * {@link EsqlCCSUtils.CssPartialErrorsActionListener}: that class's cross-cluster partial-result short-circuit
+     * only makes sense for a path that executes and returns rows, which this one never does. Callers are expected
+     * to have already rejected remote-qualified {@code FROM} targets before calling this — this method makes no
+     * attempt at cross-cluster resolution itself.
+     */
+    public void analyzeAndOptimize(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        EsqlStatement statement = parse(request);
+        ResolvedSettings resolved = QuerySettings.resolve(
+            request.requestSettings(),
+            statement,
+            SettingsValidationContext.from(remoteClusterService)
+        );
+        viewResolver.replaceViews(
+            statement.plan(),
+            QuerySettings.PROJECT_ROUTING.get(resolved),
+            (query, viewName) -> parser.parseView(
+                query,
+                request.params(),
+                SettingsValidationContext.from(remoteClusterService),
+                inferenceService.inferenceSettings(),
+                viewName
+            ).plan(),
+            listener.delegateFailureAndWrap((l, viewResolution) -> {
+                InSubqueryResolver.verify(viewResolution.plan());
+                requestIpLocationDownloads(viewResolution.plan());
+
+                ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+                Configuration configuration = new Configuration(
+                    Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
+                    request.locale() != null ? request.locale() : Locale.US,
+                    // TODO: plug-in security
+                    null,
+                    clusterName,
+                    request.pragmas(),
+                    analyzerSettings.resultTruncationMaxSize(),
+                    analyzerSettings.resultTruncationDefaultSize(),
+                    request.query(),
+                    request.profile(),
+                    request.tables(),
+                    System.nanoTime(),
+                    request.allowPartialResults(),
+                    analyzerSettings.timeseriesResultTruncationMaxSize(),
+                    analyzerSettings.timeseriesResultTruncationDefaultSize(),
+                    resolved,
+                    viewResolution.viewQueries()
+                );
+
+                LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+                if (plan instanceof Explain explain) {
+                    // Suggestions never runs EXPLAIN's own output-table rendering; analyze/optimize the inner query.
+                    plan = explain.query();
+                }
+                final FoldContext foldContext = configuration.newFoldContext();
+
+                analyzedPlan(
+                    plan,
+                    QuerySettings.UNMAPPED_FIELDS.get(resolved),
+                    configuration,
+                    executionInfo,
+                    request.filter(),
+                    l.delegateFailureAndWrap((ll, analyzedPlan) -> {
+                        LogicalPlan analyzed = analyzedPlan.inner();
+                        TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+                        var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
+                            new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
+                        );
+                        var logicalPlanOptimizer = new LogicalPlanOptimizer(
+                            new LogicalOptimizerContext(configuration, foldContext, minimumVersion)
+                        );
+                        preOptimizedPlan(analyzed, logicalPlanPreOptimizer, null, ll.delegateFailureAndWrap((lll, preOptimized) -> {
+                            lll.onResponse(optimizedPlan(preOptimized, logicalPlanOptimizer, null));
+                        }));
+                    })
+                );
+            })
+        );
+    }
+
     private void analyseAndExecute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,

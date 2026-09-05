@@ -148,6 +148,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
+        EnrichPolicyResolver enrichPolicyResolver,
         QueryMetricsListener metricsCollector
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -165,12 +166,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichPolicyResolver = new EnrichPolicyResolver(
-            clusterService,
-            transportService,
-            planExecutor.indexResolver(),
-            projectResolver
-        );
+        enrichPolicyResolver.registerTransportHandler(transportService);
+        this.enrichPolicyResolver = enrichPolicyResolver;
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
         PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);

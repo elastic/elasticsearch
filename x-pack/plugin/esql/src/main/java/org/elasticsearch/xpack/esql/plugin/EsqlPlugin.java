@@ -84,12 +84,15 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.EsqlSuggestionsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlSuggestionsAction;
+import org.elasticsearch.xpack.esql.action.TransportEsqlSuggestionsAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -130,6 +133,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -579,6 +583,29 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
+        PlanExecutor planExecutor = new PlanExecutor(
+            new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
+            services.telemetryProvider().getMeterRegistry(),
+            getLicenseState(),
+            new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
+            extraCheckers,
+            services.crossProjectModeDecider(),
+            dataSourceModule,
+            functionRegistry,
+            PromqlFunctionRegistry.INSTANCE,
+            parser,
+            cacheService,
+            services.indicesService().getAnalysis()
+        );
+        // Built here (rather than inside a TransportAction constructor) because it is shared by both
+        // TransportEsqlQueryAction and TransportEsqlSuggestionsAction; the transport-dependent part of its
+        // setup (registering its request handler) happens later, via #registerTransportHandler, the same
+        // two-phase shape ExchangeService below uses for the same reason.
+        EnrichPolicyResolver enrichPolicyResolver = new EnrichPolicyResolver(
+            services.clusterService(),
+            planExecutor.indexResolver(),
+            services.projectResolver()
+        );
         QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
             for (var c : metricsCollectors) {
                 c.onQueryCompleted(metrics);
@@ -586,20 +613,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         };
 
         return List.of(
-            new PlanExecutor(
-                new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
-                services.telemetryProvider().getMeterRegistry(),
-                getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
-                extraCheckers,
-                services.crossProjectModeDecider(),
-                dataSourceModule,
-                functionRegistry,
-                PromqlFunctionRegistry.INSTANCE,
-                parser,
-                cacheService,
-                services.indicesService().getAnalysis()
-            ),
+            planExecutor,
+            enrichPolicyResolver,
             new ExchangeService(
                 services.clusterService().getSettings(),
                 services.threadPool(),
@@ -695,6 +710,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler(EsqlSuggestionsAction.INSTANCE, TransportEsqlSuggestionsAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
@@ -728,6 +744,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         List<RestHandler> handlers = new ArrayList<>(
             List.of(
                 new RestEsqlQueryAction(capabilities),
+                new RestEsqlSuggestionsAction(),
                 new RestEsqlAsyncQueryAction(capabilities),
                 new RestEsqlGetAsyncResultAction(),
                 new RestEsqlStopAsyncAction(),

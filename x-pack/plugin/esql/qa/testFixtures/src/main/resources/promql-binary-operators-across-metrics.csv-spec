@@ -38,3 +38,67 @@ result:double | step:datetime            | _timeseries:keyword
 200.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
 400.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
 ;
+
+// A chain of raw operands: the first pair collapses eagerly, the third operand collapses alone and fuses with it.
+chained_addition_across_metrics
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total + mem_free + mem_total)
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+240.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+450.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;
+
+// A raw operand over an already collapsed one.
+raw_operand_over_nested_sum
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total / (mem_free + mem_total))
+| SORT _timeseries;
+
+result:double      | step:datetime            | _timeseries:keyword
+0.7142857142857143 | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+0.8                | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;
+
+// Two collapsed operands fuse into one aggregate; each side carries its own packing alias, rebound by name.
+nested_operands_on_both_sides
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=((mem_total - mem_free) - (mem_total + mem_free))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+-80.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+-100.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;
+
+// `or` matches series without `__name__` too: both branches drop the metric name, so the left branch wins per pod.
+scalar_arithmetic_in_or
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total / 1000 or mem_free / 1000)
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+0.1           | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+0.2           | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;
+
+sum_by_over_chained_subtraction
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(sum by (zone) (mem_total - mem_free - mem_free))
+| SORT zone;
+
+result:double | step:datetime            | zone:keyword
+20.0          | 2024-05-10T01:00:00.000Z | eu
+100.0         | 2024-05-10T01:00:00.000Z | us
+;

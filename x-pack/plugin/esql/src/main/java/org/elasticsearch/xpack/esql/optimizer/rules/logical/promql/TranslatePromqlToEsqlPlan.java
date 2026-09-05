@@ -113,6 +113,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
@@ -272,7 +273,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 // consumer assumes their layout matches output() exactly. An Eval below (e.g. the value double-cast)
                 // can name-shadow an existing column: the shadowed attribute leaves output() but its channel stays
                 // in the page. An explicit projection pins the page layout to the branch output (see #158164).
-                branchPlans.add(new Project(source, tagged, tagged.output()));
+                // A packing aliased to `_timeseries` above is projected away under its derived name: the union aligns
+                // columns by name, and the lowered packing would otherwise collide with its own alias.
+                Set<String> skip = ir.header().finestSkip();
+                Attribute aliasedPacking = skip == null || skip.isEmpty() ? null : ir.packed(skip);
+                List<Attribute> branchOutput = tagged.output()
+                    .stream()
+                    .filter(attribute -> aliasedPacking == null || attribute.id().equals(aliasedPacking.id()) == false)
+                    .toList();
+                branchPlans.add(new Project(source, tagged, branchOutput));
             }
 
             // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll output,
@@ -1022,9 +1031,29 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     );
                 }
 
+                // Grouping columns match by name. Relation fields share one attribute on both sides, but a packing alias
+                // (`_timeseries$__name__`) is minted per collapse: rebind the right side's keys to the left side's so the
+                // fused aggregate carries each key once and every reference resolves against the surviving grouping.
+                Map<String, Attribute> leftKeys = new HashMap<>();
+                for (Expression grouping : leftAgg.groupings()) {
+                    if (grouping instanceof NamedExpression ne) {
+                        leftKeys.put(ne.name(), ne.toAttribute());
+                    }
+                }
+                Map<NameId, Attribute> rightToLeft = new HashMap<>();
+                for (Expression grouping : rightAgg.groupings()) {
+                    if (grouping instanceof NamedExpression ne && leftKeys.containsKey(ne.name())) {
+                        rightToLeft.put(ne.toAttribute().id(), leftKeys.get(ne.name()));
+                    }
+                }
+                List<? extends Expression> rightAggregates = rightAgg.aggregates()
+                    .stream()
+                    .map(e -> e.transformUp(Attribute.class, a -> rightToLeft.getOrDefault(a.id(), a)))
+                    .toList();
+
                 var uniqueAggregates = new LinkedHashSet<Expression>();
                 uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-                uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.pendingFilter()));
+                uniqueAggregates.addAll(withFilter(rightAggregates, right.pendingFilter()));
 
                 // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
                 // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the

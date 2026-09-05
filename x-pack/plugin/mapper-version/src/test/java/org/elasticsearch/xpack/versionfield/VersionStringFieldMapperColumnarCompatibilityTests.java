@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 
@@ -261,6 +265,54 @@ public class VersionStringFieldMapperColumnarCompatibilityTests extends Abstract
             mapping(b -> b.startObject(FIELD).field("type", "version").endObject()),
             columnarSettings(),
             batch("non-canonical numeric literal", 1L, doc("d1", 1L, "{\"f\":1.50}"), doc("d2", 2L, "{\"f\":\"2.0.0\"}"))
+        );
+    }
+
+    private static final BytesRef TS_TSID = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+    private static final int TS_ROUTING_HASH = 42;
+    private static final String TS_ROUTING = TimeSeriesRoutingHashFieldMapper.encode(TS_ROUTING_HASH);
+    // epoch millis: 2024-01-15T12:00:00.000Z, 2024-06-01T00:00:00.000Z
+    private static final long TS_A = 1705320000000L;
+    private static final long TS_B = 1717200000000L;
+
+    private static Settings tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+    }
+
+    public void testTsdbSingleValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(TS_ROUTING_HASH, TS_TSID, TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "version").endObject();
+        }),
+            tsdbSettings(),
+            batch("tsdb single value", 1L, doc(idA, TS_ROUTING, TS_TSID, 1L, "{\"@timestamp\":" + TS_A + ",\"f\":\"1.2.3\"}"))
+        );
+    }
+
+    public void testTsdbAbsentAndMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(TS_ROUTING_HASH, TS_TSID, TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(TS_ROUTING_HASH, TS_TSID, TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "version").endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "tsdb absent and multi-value",
+                1L,
+                doc(idA, TS_ROUTING, TS_TSID, 1L, "{\"@timestamp\":" + TS_A + ",\"f\":[\"2.0.0\",\"1.0.0-alpha\"]}"),
+                doc(idB, TS_ROUTING, TS_TSID, 2L, "{\"@timestamp\":" + TS_B + "}")
+            )
         );
     }
 }

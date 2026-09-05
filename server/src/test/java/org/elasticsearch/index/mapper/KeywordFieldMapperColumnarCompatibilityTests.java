@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -401,6 +402,86 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d3", 3L, "{}")
             )
         );
+    }
+
+    public void testColumnarDimensionSingleValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch("columnar keyword dimension single value", 1L, doc("d1", 1L, "{\"f\":\"host-0\"}"))
+        );
+    }
+
+    public void testColumnarDimensionAbsentDocsMixed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension absent docs mixed",
+                1L,
+                doc("d1", 1L, "{\"f\":\"host-0\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"host-1\"}")
+            )
+        );
+    }
+
+    public void testColumnarDimensionExplicitNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject()),
+            columnarSettings(),
+            batch(
+                "columnar keyword dimension explicit null",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"host-1\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testDimensionRoutingPathIsNotColumnar() throws IOException {
+        // index.routing_path resolves to ForRoutingPath, whose extractDimensionsWhileMapping() is true, so
+        // the row path writes the dimension to the routing fields and the columnar path must refuse.
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_ROUTING_PATH.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "a dimension whose routing is extracted while mapping must not be columnar",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+    }
+
+    public void testTsdbIsNotYetColumnar() throws IOException {
+        // The mode gate admits TIME_SERIES, but every keyword field in a TSDB index resolves to
+        // DocValuesDiskFormat.SORTED_SET, which supportsColumnarDocValues() does not accept yet. Flip this
+        // assertion when SORTED_SET emission lands; the dimension gate itself is already routing-aware.
+        final MapperService mapperService = createMapperService(tsdbSettings(IndexMetadata.INDEX_DIMENSIONS.getKey()), mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject(FIELD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        final FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper(FIELD);
+        assertFalse(
+            "TSDB keyword fields use SORTED_SET doc values, which the columnar path cannot emit yet",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+        assertEquals(
+            "precondition: the gap is the doc-values format, not the dimension gate",
+            KeywordFieldMapper.KeywordFieldType.DocValuesDiskFormat.SORTED_SET,
+            ((KeywordFieldMapper.KeywordFieldType) mapper.fieldType()).diskFormat()
+        );
+    }
+
+    /** TIME_SERIES settings listing {@code f} under the given dimension-source setting. */
+    private static Settings tsdbSettings(String dimensionSettingKey) {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(dimensionSettingKey, FIELD)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .build();
     }
 
     // =========================================================================

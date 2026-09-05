@@ -1038,7 +1038,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
     }
 
-    public void testTimeSeriesIndexViaBatchMode() throws IOException {
+    public void testTimeSeriesRoutingPathFallsBackFromBatchMode() throws IOException {
         String index = "test-batch-tsdb";
 
         // Create a time series index

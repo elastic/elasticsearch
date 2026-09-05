@@ -74,7 +74,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testReturnsSameResultWhenNoUnmappedFieldsAttribute() {
         BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr()), List.of(page(bf, List.of(row(1)))));
+        Result result = singlePage(bf, List.of(intAttr()), row(1));
 
         Result expanded = expand(result, bf);
         try {
@@ -86,9 +86,12 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNullAndEmptyUnmappedValuesContributeNoFields() {
         BlockFactory bf = blockFactory();
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, null), row(2, jsonObject("{}")), row(3, jsonObject("{'a':'x'}")))))
+            row(1, null),
+            row(2, jsonObject("{}")),
+            row(3, jsonObject("{'a':'x'}"))
         );
 
         Result expanded = expand(result, bf);
@@ -105,7 +108,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testAllNullUnmappedProducesNoExpandedColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, null), row(2, null)))));
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, null), row(2, null));
 
         Result expanded = expand(result, bf);
         try {
@@ -119,10 +122,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNetZeroProjectionEmptyJsonProducesZeroColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(unmappedAttr()),
-            List.of(page(bf, List.of(row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")))))
-        );
+        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{}")), row(jsonObject("{}")), row(jsonObject("{}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -154,10 +154,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testNetZeroProjectionWithUnmappedNamesExpandsToUnmappedColumnsOnly() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(unmappedAttr()),
-            List.of(page(bf, List.of(row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")))))
-        );
+        Result result = singlePage(bf, List.of(unmappedAttr()), row(jsonObject("{'a':'x','b':'y'}")), row(jsonObject("{'a':'z'}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -170,10 +167,7 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     public void testRetainedColumnWithEmptyJsonRowsProducesNoExpandedColumns() {
         BlockFactory bf = blockFactory();
-        Result result = result(
-            List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{}")), row(2, jsonObject("{}")))))
-        );
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{}")), row(2, jsonObject("{}")));
 
         Result expanded = expand(result, bf);
         try {
@@ -188,9 +182,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         BlockFactory bf = blockFactory();
         String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
         String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
-        Result result = result(
+        Result result = singlePage(
+            bf,
             List.of(intAttr(), unmappedAttr(), keywordAttr("extra"), keywordAttr(ci), keywordAttr(certified)),
-            List.of(page(bf, List.of(row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes"))))
+            row(1, jsonObject("{'pet':'Rex','city':'Berlin'}"), "after", "ci", "yes")
         );
 
         Result expanded = expand(result, bf);
@@ -228,19 +223,145 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         }
     }
 
-    public void testNonStringJsonValuesAreStringified() {
+    /**
+     * The coordinator trusts the data node to only send keys that hold a value - {@code UnmappedFieldsBlockLoaderTests} pins down that
+     * end of the contract. This is the guard rail for the other end: were a value-less key to arrive anyway, it would expand into a
+     * column that is null in every row, which reads as "every document has this field, with no value" where the truth is "no document
+     * has this field". That must not pass silently.
+     */
+    public void testAllNullExpandedColumnTripsGuardRail() {
         BlockFactory bf = blockFactory();
         Result result = result(
             List.of(intAttr(), unmappedAttr()),
-            List.of(page(bf, List.of(row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}")))))
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}")), row(2, jsonObject("{'a':null,'b':'y'}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+
+        // No manual release here: the point is that expand must have released both the input pages and the half-built expansion.
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Approximation columns are copied after the expansion, so the expanded columns are neither first nor last in the schema. The
+     * guard rail has to find them wherever they landed, rather than at some fixed offset that only holds without approximation.
+     */
+    public void testAllNullExpandedColumnTripsGuardRailBehindApproximationColumns() {
+        BlockFactory bf = blockFactory();
+        String ci = ApproximationPlan.CONFIDENCE_INTERVAL_COLUMN_PREFIX + "extra)";
+        String certified = ApproximationPlan.CERTIFIED_COLUMN_PREFIX + "extra)";
+        Result result = result(
+            List.of(intAttr(), unmappedAttr(), keywordAttr(ci), keywordAttr(certified)),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':null}"), "ci", "yes"), row(2, jsonObject("{'a':null,'b':'y'}"), "ci", "yes"))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** The column has to be null in every row of every page, so the guard rail only trips once all pages agree. */
+    public void testAllNullExpandedColumnAcrossPagesTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'a':null}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':null,'b':'y'}")))),
+                page(bf, List.of(row(3, jsonObject("{'b':'z'}"))))
+            )
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Expanded unmapped field 'a' into a column that is null in every row"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The flip side of {@link #testAllNullExpandedColumnAcrossPagesTripsGuardRail}: a single value in a single page is enough to
+     * justify the column, so the guard rail must stay quiet however many other pages are null throughout.
+     */
+    public void testValueInOnePageOnlyDoesNotTripGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(
+                page(bf, List.of(row(1, jsonObject("{'b':'y'}")))),
+                page(bf, List.of(row(2, jsonObject("{'a':'x'}")), row(3, jsonObject("{'b':'z'}")))),
+                page(bf, List.of(row(4, jsonObject("{'b':'w'}"))))
+            )
         );
 
         Result expanded = expand(result, bf);
         try {
-            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested")));
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "b")));
             assertThat(
                 nonNullRows(expanded),
-                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested", "{x=1}"))
+                contains(
+                    matchesMap().entry(INT_ATTR, 1).entry("b", "y"),
+                    matchesMap().entry(INT_ATTR, 2).entry("a", "x"),
+                    matchesMap().entry(INT_ATTR, 3).entry("b", "z"),
+                    matchesMap().entry(INT_ATTR, 4).entry("b", "w")
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    /**
+     * The data node strips nulls out of the arrays it keeps, because appendRow renders the whole value and a surviving null would
+     * reach the user as a literal "null" inside a stringified array. This is the guard rail for that half of the contract.
+     */
+    public void testNullInsideArrayTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':[null,'x']}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Same guard rail, for a null buried under an object rather than sitting in an array. */
+    public void testNullInsideObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(
+            List.of(intAttr(), unmappedAttr()),
+            List.of(page(bf, List.of(row(1, jsonObject("{'a':{'keep':'me','drop':[]}}")))))
+        );
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** An object that pruned away to nothing should never have been sent, let alone rendered as a literal "{}". */
+    public void testEmptyObjectTripsGuardRail() {
+        BlockFactory bf = blockFactory();
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(page(bf, List.of(row(1, jsonObject("{'a':{}}"))))));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> expand(result, bf));
+        assertThat(e.getMessage(), containsString("Unmapped field 'a' carries a null or an empty array or object"));
+        assertThat("the guard rail leaked pages", bf.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testNestedObjectFlattensToLeafAndScalarsStringify() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr()),
+            row(1, jsonObject("{'count':5,'active':true,'nested':{'x':1}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            // A nested object contributes no column of its own; its leaf becomes a dotted column (nested.x). Non-string scalars
+            // (number, boolean) still render through toString.
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "active", "count", "nested.x")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("active", "true").entry("count", "5").entry("nested.x", "1"))
             );
         } finally {
             Releasables.close(expanded.pages());
@@ -273,25 +394,233 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
         });
     }
 
+    public void testFlattenedLeafCollidingWithQueryColumnIsDropped() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(keywordAttr("network.eth0.rx"), unmappedAttr()),
+            row("7", jsonObject("{'network':{'bytes_in':10,'eth0':{'tx':5,'rx':7}}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of("network.eth0.rx", "network.bytes_in", "network.eth0.tx")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry("network.eth0.rx", "7").entry("network.bytes_in", "10").entry("network.eth0.tx", "5"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testArrayOfObjectsFlattensElementWiseToDottedLeafMultivalue() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr()),
+            row(1, jsonObject("{'tags':['a','b'],'samples':[{'nested':'x'},{'nested':'y'}]}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested", "tags")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("samples.nested", List.of(new BytesRef("x"), new BytesRef("y")))
+                        .entry("tags", List.of(new BytesRef("a"), new BytesRef("b")))
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testArrayRecursionFlattensNestedArraysAndMixedScalarObjectElements() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a':['s',{'b':'o'}],'nums':[[1,2],[3]]}")));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a", "a.b", "nums")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(
+                    matchesMap().entry(INT_ATTR, 1)
+                        .entry("a", "s")
+                        .entry("a.b", "o")
+                        .entry("nums", List.of(new BytesRef("1"), new BytesRef("2"), new BytesRef("3")))
+                )
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testDuplicateLeafFromLiteralAndNestedKeyMergesToMultivalue() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(bf, List.of(intAttr(), unmappedAttr()), row(1, jsonObject("{'a.b':'literal','a':{'b':'nested'}}")));
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "a.b")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("a.b", List.of(new BytesRef("literal"), new BytesRef("nested"))))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExactExcludeOfParentStillKeepsObjectDottedLeaves() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped", INT_ATTR)))),
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testChildWildcardIncludeExpandsObjectLeavesAndDropsSiblings() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("unmapped.*")))),
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'},'other':'o'}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf", "unmapped.foo")));
+            assertThat(
+                nonNullRows(expanded),
+                contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v").entry("unmapped.foo", "f"))
+            );
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testNestedWildcardDropRemovesOnlyItsSubtree() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("unmapped.deep*", INT_ATTR)))),
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'},'foo':'f'}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.foo")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.foo", "f")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testFixedSuffixExcludeKeepsObjectLeavesThatDoNotShareTheSuffix() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.excludes(List.of("*ped", INT_ATTR)))),
+            row(1, jsonObject("{'unmapped':{'deep':{'leaf':'v'}}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "unmapped.deep.leaf")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("unmapped.deep.leaf", "v")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testPrefixConstrainedChildWildcardExpandsOnlyMatchingLeaves() {
+        BlockFactory bf = blockFactory();
+        // "samples.n*" should expand "samples.nested" but not "samples.value".
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples.n*")))),
+            row(1, jsonObject("{'samples':{'nested':'x','value':'y'}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR, "samples.nested")));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1).entry("samples.nested", "x")));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
+    public void testExactObjectFieldNameProducesNoColumn() {
+        BlockFactory bf = blockFactory();
+        Result result = singlePage(
+            bf,
+            List.of(intAttr(), unmappedAttr(UnmappedFieldsPattern.includes(List.of("samples")))),
+            row(1, jsonObject("{'samples':{'nested':'x'}}"))
+        );
+
+        Result expanded = expand(result, bf);
+        try {
+            assertThat(names(expanded), equalTo(List.of(INT_ATTR)));
+            assertThat(nonNullRows(expanded), contains(matchesMap().entry(INT_ATTR, 1)));
+        } finally {
+            Releasables.close(expanded.pages());
+        }
+    }
+
     public void testExpandReleasesInputPagesWhenExpansionFails() {
         BlockFactory bf = blockFactory();
-        // Query column "a" collides with the "a" key discovered in the _unmapped_fields JSON, so buildSchema throws.
-        Result result = result(List.of(keywordAttr("a"), unmappedAttr()), List.of(page(bf, List.of(row("v", jsonObject("{'a':'x'}"))))));
+        Block intBlock;
+        try (var builder = bf.newIntBlockBuilder(1)) {
+            builder.appendInt(1);
+            intBlock = builder.build();
+        }
+        BytesRefBlock unmappedBlock;
+        try (BytesRefBlock.Builder builder = bf.newBytesRefBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef(jsonObject("{'a':'x'}")));
+            builder.appendBytesRef(new BytesRef(jsonObject("{'b':'y'}")));
+            builder.endPositionEntry();
+            unmappedBlock = builder.build();
+        }
+        Result result = result(List.of(intAttr(), unmappedAttr()), List.of(new Page(intBlock, unmappedBlock)));
         assertThat("input pages should reserve breaker memory before expand runs", bf.breaker().getUsed(), greaterThan(0L));
 
         var e = expectThrows(IllegalStateException.class, () -> expand(result, bf));
-        assertThat(e.getMessage(), containsString("Conflict in unmapped field name"));
+        assertThat(e.getMessage(), containsString("Expected exactly one value"));
 
         // No manual release here: the point is that expand must have released the input pages on its failure path.
         assertThat("expand leaked the input pages on failure", bf.breaker().getUsed(), equalTo(0L));
     }
 
+    // No ordering recipe: these exercise the expansion mechanics, so the natural real-then-discovered fallback applies. The ordering
+    // itself is covered against real plans in DetermineUnmappedFieldsToKeepTests.
     private static Result expand(Result result, BlockFactory blockFactory) {
-        return ExpandUnmappedFieldsPostProcessor.expand(result, blockFactory, PlannerSettings.DEFAULTS);
+        return ExpandUnmappedFieldsPostProcessor.expand(result, null, blockFactory, PlannerSettings.DEFAULTS);
     }
 
     private static Result result(List<Attribute> schema, List<Page> pages) {
         return new Result(schema, pages, Map.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, null, null);
+    }
+
+    /** A {@link Result} of one {@link #page}: what most of these tests need, without nesting {@link #row}s two lists deep. */
+    @SafeVarargs
+    @SuppressWarnings("varargs") // rows is only read, never stored or published, so passing it on cannot pollute the heap
+    private static Result singlePage(BlockFactory bf, List<Attribute> schema, List<Object>... rows) {
+        return result(schema, List.of(page(bf, List.of(rows))));
     }
 
     private static Attribute intAttr() {
@@ -304,6 +633,10 @@ public class ExpandUnmappedFieldsPostProcessorTests extends ComputeTestCase {
 
     private static UnmappedFieldsAttribute unmappedAttr() {
         return new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL);
+    }
+
+    private static UnmappedFieldsAttribute unmappedAttr(UnmappedFieldsPattern pattern) {
+        return new UnmappedFieldsAttribute(Source.EMPTY, pattern);
     }
 
     /** Builds a single page whose blocks are inferred from {@code rows} (one {@link #row} per position). */

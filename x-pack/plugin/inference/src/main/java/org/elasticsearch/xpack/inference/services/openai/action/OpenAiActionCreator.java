@@ -11,19 +11,19 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
 import java.util.Map;
@@ -38,9 +38,9 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
     public static final String COMPLETION_ERROR_PREFIX = "OpenAI chat completions";
     public static final String USER_ROLE = "user";
 
-    static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+    static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         "openai completion",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiCompletionResponseEntity::fromResponse
     );
     public static final ResponseHandler EMBEDDINGS_HANDLER = new OpenAiResponseHandler(
         "openai embedding",
@@ -79,7 +79,7 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
             overriddenModel,
             COMPLETION_HANDLER,
             (inputs) -> new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);

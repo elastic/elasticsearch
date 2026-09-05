@@ -59,11 +59,42 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     public void testSupportsNativeAsyncWithAsyncClient() {
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
         assertTrue(obj.supportsNativeAsync());
+        assertTrue(obj.readBytesAsyncReleasesExecutor());
     }
 
     public void testSupportsNativeAsyncWithoutAsyncClient() {
         S3StorageObject obj = new S3StorageObject(mockSyncClient, BUCKET, KEY, PATH);
         assertFalse(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
+    }
+
+    /**
+     * {@code readBytesAsync} forwards to {@code startReadBytesAsync}. The sync-only fallback must
+     * call the interface default {@code readBytesAsync}, not {@code super.startReadBytesAsync},
+     * or the two methods recurse until the stack overflows.
+     */
+    public void testStartReadBytesAsyncWithoutAsyncClientDoesNotRecurse() throws Exception {
+        when(mockSyncClient.getObject(any(GetObjectRequest.class))).thenThrow(new RuntimeException("sync get"));
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, BUCKET, KEY, PATH);
+        CountDownLatch latch = new CountDownLatch(1);
+        try {
+            obj.startReadBytesAsync(0, 1, FACTORY, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    buffer.close();
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                }
+            });
+        } catch (StackOverflowError e) {
+            fail("sync-only S3StorageObject must not recurse between readBytesAsync and startReadBytesAsync");
+        }
+        assertTrue("default async fallback must complete the listener", latch.await(5, TimeUnit.SECONDS));
     }
 
     @SuppressWarnings("unchecked")

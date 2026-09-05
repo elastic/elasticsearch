@@ -51,7 +51,8 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         .capabilities(
             // Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
             "ul_fixes",
-            "int_overflow_warns"
+            "int_overflow_warns",
+            "negative_decimals_round_up"
         )
         .name("round");
 
@@ -146,7 +147,9 @@ public class Round extends EsqlScalarFunction implements OptionalArgument, AnyNu
         return Math.toIntExact(Maths.round(val, decimals));
     }
 
-    @Evaluator(extraName = "Long")
+    // rounding a long up at a negative precision can exceed Long.MAX_VALUE, which is reported the same
+    // way the unsigned_long path reports it: a warning and a null rather than a failed query
+    @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static long process(long val, long decimals) {
         return Maths.round(val, decimals);
     }

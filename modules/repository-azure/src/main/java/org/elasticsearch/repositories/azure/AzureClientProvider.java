@@ -399,11 +399,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             }
 
             @Override
-            public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(executorService);
-            }
-
-            @Override
             public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
                 return Schedulers.fromExecutor(executorService);
             }

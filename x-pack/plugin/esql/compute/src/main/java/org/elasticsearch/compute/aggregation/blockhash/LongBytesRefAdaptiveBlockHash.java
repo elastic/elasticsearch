@@ -214,11 +214,11 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                             groupIdsBuilder.appendNull();
                             continue;
                         }
-                        int groupId = (int) longLongHash.find(batchIds[i], longsVector.getLong(offset + i));
+                        final long groupId = longLongHash.find(batchIds[i], longsVector.getLong(offset + i));
                         if (groupId < 0) {
                             groupIdsBuilder.appendNull();
                         } else {
-                            groupIdsBuilder.appendInt(groupId);
+                            groupIdsBuilder.appendInt(Math.toIntExact(groupId));
                         }
                     }
                     try (var groupIds = groupIdsBuilder.build()) {

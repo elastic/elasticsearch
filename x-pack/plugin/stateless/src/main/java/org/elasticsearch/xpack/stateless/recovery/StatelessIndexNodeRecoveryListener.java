@@ -30,6 +30,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -178,6 +180,9 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
         final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
         final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
+        final Map<String, BlobFileRanges> blobFileRanges = recoveryInfoFromSource == null
+            ? Map.of()
+            : recoveryInfoFromSource.blobFileRanges();
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
@@ -186,7 +191,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             }
 
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
+            if (lastCommitBlobs != null && lastCommitIsHollow == false && blobFileRanges.isEmpty()) {
                 warmingService.warmCacheForBCCHeadersRead(
                     indexShard,
                     directory,
@@ -208,6 +213,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
                 bccHeaderReadExecutor,
                 true,
                 sourceBlobsInfo,
+                blobFileRanges,
                 l
             );
         }).<Void>andThen((l, state) -> {

@@ -56,6 +56,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
@@ -175,7 +176,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
-            if (similarityToUse.equals(similarityFromModel) && embeddingSize == serviceSettings.dimensions()) {
+            if (similarityToUse.equals(similarityFromModel) && Objects.equals(embeddingSize, serviceSettings.dimensions())) {
                 // Avoid creating a new model if similarity and embedding size are unchanged
                 return model;
             }

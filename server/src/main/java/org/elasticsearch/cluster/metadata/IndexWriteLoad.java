@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +28,9 @@ import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 
-public class IndexWriteLoad implements Writeable, ToXContentFragment {
+public class IndexWriteLoad implements Writeable, ToXContentFragment, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexWriteLoad.class);
 
     public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("loads");
     public static final ParseField SHARDS_UPTIME_IN_MILLIS = new ParseField("uptimes");
@@ -212,6 +216,12 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
 
     public int numberOfShards() {
         return shardWriteLoad.length;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shardWriteLoad) + RamUsageEstimator.sizeOf(shardUptimeInMillis)
+            + RamUsageEstimator.sizeOf(shardRecentWriteLoad) + RamUsageEstimator.sizeOf(shardPeakWriteLoad);
     }
 
     private void assertShardInBounds(int shardId) {

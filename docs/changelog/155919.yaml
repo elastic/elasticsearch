@@ -1,0 +1,6 @@
+pr: 155919
+summary: Add `index.store.fs.direct_io.vector_merge` to read and write raw vectors with direct I/O during merges
+area: Vector Search
+type: enhancement
+issues:
+ - 155021

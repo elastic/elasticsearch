@@ -90,6 +90,9 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        // the raw format decides for itself whether a merge writes its files with direct I/O
+        // (DirectIOCapableFlatVectorsFormat#directIOMergeWriteState); this format's own metadata
+        // file and everything else written for the field keep the original context
         return new ES93GenericFlatVectorsWriter(META, writeFormat.getName(), useDirectIO, state, writeFormat.fieldsWriter(state));
     }
 

@@ -15,9 +15,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 
 import java.io.IOException;
 
@@ -45,27 +43,6 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
-    }
-
-    @Override
-    public FlatVectorsReader fieldsReader(SegmentReadState state, boolean useDirectIO) throws IOException {
-        if (state.context.context() == IOContext.Context.DEFAULT && useDirectIO && canUseDirectIO(state)) {
-            // only override the context for the random-access use case
-            SegmentReadState directIOState = new SegmentReadState(
-                state.directory,
-                state.segmentInfo,
-                state.fieldInfos,
-                new DirectIOContext(state.context.hints()),
-                state.segmentSuffix
-            );
-            // Use mmap for merges and direct I/O for searches.
-            return new MergeReaderWrapper(
-                new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
-                new Lucene99FlatVectorsReader(state, vectorsScorer)
-            );
-        } else {
-            return new Lucene99FlatVectorsReader(state, vectorsScorer);
-        }
+        return new Lucene99FlatVectorsWriter(directIOMergeWriteState(state), vectorsScorer);
     }
 }

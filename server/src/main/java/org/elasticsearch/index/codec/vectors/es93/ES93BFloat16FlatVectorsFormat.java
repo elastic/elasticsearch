@@ -54,7 +54,7 @@ public final class ES93BFloat16FlatVectorsFormat extends DirectIOCapableFlatVect
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES93BFloat16FlatVectorsWriter(state, vectorsScorer);
+        return new ES93BFloat16FlatVectorsWriter(directIOMergeWriteState(state), vectorsScorer);
     }
 
     @Override

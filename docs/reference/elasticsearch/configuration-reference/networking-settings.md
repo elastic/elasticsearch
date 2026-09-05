@@ -150,6 +150,8 @@ Use the following settings to control the low-level parameters of the TCP connec
 `network.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Configures the `SO_KEEPALIVE` option for network sockets, which determines whether each connection sends TCP keepalive probes. Defaults to `true`.
 
+    TCP keepalives are very important for Elasticsearch to operate correctly and efficiently. Elasticsearch uses TCP keepalives to determine when a remote task will never send back a response, and to determine if the results of a local task are no longer needed. If you turn them off, restart your nodes frequently to clear any in-progress work which is waiting on remote responses that will never arrive.
+
 `network.tcp.keep_idle`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) Configures the `TCP_KEEPIDLE` option for network sockets, which determines the time in seconds that a connection must be idle before starting to send TCP keepalive probes. Defaults to `-1`, which means to use the system default. This value cannot exceed `300` seconds. Only applicable on Linux and macOS.
 
@@ -287,6 +289,8 @@ $$$http-cors-allow-credentials$$$
 `http.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Configures the `SO_KEEPALIVE` option for this socket, which determines whether it sends TCP keepalive probes. Defaults to `network.tcp.keep_alive`.
 
+    TCP keepalives on HTTP connections are very important for Elasticsearch to operate efficiently. Elasticsearch uses TCP keepalives to determine if the results of an inbound request are no longer needed. If you turn them off, Elasticsearch may perform unnecessary additional work.
+
 `http.tcp.keep_idle`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) Configures the `TCP_KEEPIDLE` option for HTTP sockets, which determines the time in seconds that a connection must be idle before starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle`, which uses the system default. This value cannot exceed `300` seconds. Only applicable on Linux and macOS.
 
@@ -368,6 +372,8 @@ $$$transport-settings-compression-scheme$$$
 
 `transport.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Configures the `SO_KEEPALIVE` option for transport sockets, which determines whether they send TCP keepalive probes. Defaults to `network.tcp.keep_alive`.
+
+    TCP keepalives on transport connections are very important for Elasticsearch to operate correctly and efficiently. Elasticsearch uses TCP keepalives to determine when a remote task will never send back a response, and to determine if the results of a local task are no longer needed. If you turn them off, restart your nodes frequently to clear any in-progress work which is waiting on remote responses that will never arrive.
 
 `transport.tcp.keep_idle`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) Configures the `TCP_KEEPIDLE` option for transport sockets, which determines the time in seconds that a connection must be idle before starting to send TCP keepalive probes. Defaults to `network.tcp.keep_idle` if set, or the system default otherwise. This value cannot exceed `300` seconds. In cases where the system default is higher than `300`, the value is automatically lowered to `300`. Only applicable on Linux and macOS.
@@ -465,6 +471,8 @@ For client settings that control how your local cluster connects to remote clust
 
 `remote_cluster.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Configures the `SO_KEEPALIVE` option for remote cluster sockets, which determines whether they send TCP keepalive probes. Defaults to `transport.tcp.keep_alive`.
+
+    TCP keepalives on remote cluster connections are very important for Elasticsearch to operate correctly and efficiently. Elasticsearch uses TCP keepalives to determine when a remote task will never send back a response, and to determine if the results of a local task are no longer needed. If you turn them off, restart your nodes frequently to clear any in-progress work which is waiting on remote responses that will never arrive.
 
 `remote_cluster.tcp.keep_idle`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) Configures the `TCP_KEEPIDLE` option for transport sockets, which determines the time in seconds that a connection must be idle before starting to send TCP keepalive probes. Defaults to `transport.tcp.keep_idle` if set, or the system default otherwise. This value cannot exceed `300` seconds. In cases where the system default is higher than `300`, the value is automatically lowered to `300`. Only applicable on Linux and macOS.

@@ -2904,7 +2904,14 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
-        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
+            source,
+            type,
+            coerce(),
+            ctx.recycler(),
+            nullSortableLong,
+            ctx::addResource
+        );
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed) {
@@ -2915,7 +2922,10 @@ public class NumberFieldMapper extends FieldMapper {
                     EscfColumn.from(outData),
                     ctx.recycler()
                 );
-                ctx.addColumn(LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE));
+                ctx.addColumn(
+                    LuceneBinaryColumn.of(halfFloatPointData, fieldType().name(), HALF_FLOAT_POINT_FIELD_TYPE),
+                    halfFloatPointData
+                );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), indexableFieldType(type), numericKind(type)));
             }
@@ -2930,7 +2940,13 @@ public class NumberFieldMapper extends FieldMapper {
                     ctx.recycler()
                 );
                 ctx.addColumn(
-                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
+                    LuceneLongColumn.of(
+                        halfFloatStoredData,
+                        fieldType().name(),
+                        FLOAT_STORED_ONLY_FIELD_TYPE,
+                        LongColumn.NumericKind.FLOAT
+                    ),
+                    halfFloatStoredData
                 );
             } else {
                 ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));

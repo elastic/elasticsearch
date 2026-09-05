@@ -256,8 +256,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
      * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
      * that included a different unmapped field but not this one, making the second one legitimately unknown.
-     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
-     * the suggested column must also be an unmapped field name.
+     * We allow this error when the unknown column is one of the names {@code KeepGenerator} injects on purpose;
+     * the suggestion is deliberately NOT checked, since it names whichever loaded column happens to be closest.
      */
     private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
         ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
@@ -741,8 +741,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
-            String suggestedColumn = matcher.group(2);
-            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+            // Only the unknown column is checked. The suggestion is whichever in-scope name is closest, so it depends on
+            // which datasets happen to be loaded - a field named `unmapped.*` in any index makes it a real column rather
+            // than one of ours. What makes the error expected is that the MISSING column is a name KeepGenerator injects
+            // on purpose; those four names exist in no index, so a genuine missing-column bug still names a real column
+            // and still fails here.
+            return UNMAPPED_NAMES.contains(unknownColumn);
         }
 
         matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);

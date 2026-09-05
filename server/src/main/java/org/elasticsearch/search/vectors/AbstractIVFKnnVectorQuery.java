@@ -46,10 +46,12 @@ import java.util.concurrent.atomic.LongAccumulator;
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 /**
- * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore); per-segment
- * preconditioning and oversample expansion come from {@link IvfQueryConfigResolver#resolve}.
+ * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
+ * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
+ * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
+ * expansion produces is reported by {@link #postFilterExpectedBaseQueryDocMatches(List)}.
  */
-abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
+abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -58,8 +60,24 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
+    /**
+     * True when this instance is a post-filter delegate or retry rather than the query the user asked for.
+     * Such instances exist to produce an approximate candidate pool for {@link PostFilterKnnQuery} to filter,
+     * so {@link #rewrite} stashes the raw per-leaf candidates and skips the auto-calibrate exact rescore -
+     * the orchestrator applies it after filtering instead, via {@link #finalizeTopK}. Note the oversample
+     * <em>expansion</em> is not skipped: the enlarged pool is exactly what gets filtered.
+     */
+    protected final boolean postFilterDelegate;
     protected int vectorOpsCount;
     protected final IvfQueryConfigResolver ivfQueryConfigResolver;
+
+    // Stashed during rewrite() so the post-filter orchestrator can read back the raw per-leaf
+    // candidates without re-running: one TopDocs per leaf, doc ids already shifted to global by
+    // searchLeaf (buildPerLeafCandidates regroups them by leaf via ReaderUtil.subIndex).
+    // Only populated for a delegate - nothing reads them otherwise, and retaining
+    // them would keep the pool and the reader's leaf contexts alive for the whole search context.
+    private List<LeafReaderContext> leaves;
+    private TopDocs[] rawPerLeafResults;
 
     protected AbstractIVFKnnVectorQuery(
         String field,
@@ -68,6 +86,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int numCands,
         Query filter,
         IvfQueryConfigResolver ivfQueryConfigResolver
+    ) {
+        this(field, visitRatio, k, numCands, filter, ivfQueryConfigResolver, false);
+    }
+
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        IvfQueryConfigResolver ivfQueryConfigResolver,
+        boolean postFilterDelegate
     ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
@@ -83,6 +113,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
+        this.postFilterDelegate = postFilterDelegate;
         this.ivfQueryConfigResolver = Objects.requireNonNull(ivfQueryConfigResolver, "ivfQueryConfigResolver should not be null");
     }
 
@@ -100,6 +131,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
             && numCands == that.numCands
+            && postFilterDelegate == that.postFilterDelegate
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio)
@@ -108,7 +140,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
+        return Objects.hash(field, k, numCands, postFilterDelegate, filter, providedVisitRatio, ivfQueryConfigResolver);
     }
 
     @Override
@@ -132,6 +164,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+        if (postFilterDelegate) {
+            this.leaves = leafReaderContexts;
+        }
 
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
@@ -167,6 +202,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
+        if (postFilterDelegate) {
+            this.rawPerLeafResults = perLeafResults;
+        }
 
         int mergeK = tasks.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
@@ -174,17 +212,24 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
-        if (ivfQueryConfigResolver.isAutoCalibrate()) {
-            return getAutoRescoreQuery(indexSearcher, topK, mergeK);
+        Query approxTopN = new KnnScoreDocQuery(topK.scoreDocs, reader);
+        // A post-filter delegate's pool is filtered before it is scored, so rescoring here would be thrown
+        // away: PostFilterKnnQuery applies the exact pass afterwards through finalizeTopK instead.
+        if (ivfQueryConfigResolver.isAutoCalibrate() && postFilterDelegate == false) {
+            return getAutoRescoreQuery(indexSearcher, approxTopN, k, mergeK);
         }
-        return new KnnScoreDocQuery(topK.scoreDocs, reader);
+        return approxTopN;
     }
 
     /**
-     * Returns a query that performs exact rescoring of oversampled candidates.
-     * Implementations can return {@code null} when rescoring is unavailable.
+     * Returns a query that exact-rescores the top {@code rescoreK} of {@code approxTopN} down to
+     * {@code finalK}, using this query's own (raw, un-preconditioned) vector. Implementations can return
+     * {@code null} when rescoring is unavailable.
+     * <p>
+     * Called from {@link #rewrite} for ordinary auto-calibrated queries and from {@link #finalizeTopK} for
+     * post-filter delegates, where the pool has already been filtered.
      */
-    abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK);
+    abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK);
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
@@ -251,6 +296,109 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio,
         boolean usePrecondition
     ) throws IOException;
+
+    /**
+     * Rebuilds this query as a new instance of the same concrete type via {@link IVFKnnQueryFactory}.
+     * Everything the source carries - query vector, slice ids, parents filter, visit ratio, config
+     * resolver - is copied across; only {@code filter}, {@code k}, {@code numCands} and
+     * {@code postFilterDelegate} are taken from the arguments. Final so a subclass cannot inherit a
+     * sibling's reconstruction by forgetting to override.
+     */
+    final AbstractIVFKnnVectorQuery clone(Query filter, int k, int numCands, boolean postFilterDelegate) {
+        var query = IVFKnnQueryFactory.cloneWithParams(this, filter, k, numCands, postFilterDelegate);
+        assert query.getClass() == getClass()
+            : "type mismatch: [cloneWithParams] should have generated a " + getClass() + ", got " + query.getClass();
+        return query;
+    }
+
+    @Override
+    public int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) throws IOException {
+        float maxOversample = Float.NaN;
+        for (LeafReaderContext context : leaves) {
+            FieldInfo fieldInfo = context.reader().getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null) {
+                float segmentOversample = ivfQueryConfigResolver.resolve(fieldInfo, context.reader()).rescoreOversample();
+                maxOversample = Float.isNaN(maxOversample) ? segmentOversample : Math.max(maxOversample, segmentOversample);
+            }
+        }
+        // No leaf carries the field, so there is nothing to resolve and nothing to search either; fall back to
+        // what configuration declares rather than silently collapsing the pool to k.
+        float oversample = Float.isNaN(maxOversample) ? ivfQueryConfigResolver.declaredRescoreOversample() : maxOversample;
+        return IvfSegmentConfig.shardMergeBudget(k, oversample);
+    }
+
+    /**
+     * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
+     *  during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
+     */
+    @Override
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
+        Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        // numCands scales down with k: for IVF the numCands/k ratio is the codec's visit-ratio signal, so
+        // carrying the full numCands into a small retry would make the retry explore harder than round 0.
+        return clone(retryFilter, remainingK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, remainingK), true);
+    }
+
+    @Override
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        int scaledK = PostFilterableKnnQuery.computeScaledK(k, filterSelectivity);
+        return clone(null, scaledK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, scaledK), true);
+    }
+
+    @Override
+    public ScoreDoc[] finalizeTopK(IndexSearcher searcher, ScoreDoc[] candidatePool, int finalK) throws IOException {
+        if (ivfQueryConfigResolver.isAutoCalibrate() == false || candidatePool.length == 0) {
+            // Either an outer RescoreKnnVectorQuery owns final scoring, or the field is not rescored at all.
+            return candidatePool;
+        }
+        Query approxTopN = new KnnScoreDocQuery(candidatePool, searcher.getIndexReader());
+        Query rescoreQuery = getAutoRescoreQuery(searcher, approxTopN, finalK, candidatePool.length);
+        if (rescoreQuery == null) {
+            return candidatePool;
+        }
+        TopDocs rescored = searcher.search(rescoreQuery, finalK);
+        // Exact comparisons performed here are ours to report; PostFilterKnnQuery accumulates totalVectorOps().
+        vectorOpsCount += candidatePool.length;
+        return rescored.scoreDocs;
+    }
+
+    @Override
+    public ScoreDoc[][] getPostFilterCandidates() {
+        if (leaves == null) {
+            return new ScoreDoc[0][];
+        }
+        if (rawPerLeafResults == null) {
+            return new ScoreDoc[leaves.size()][];
+        }
+        // rewrite() queues exactly one task per leaf, in leaf order, so entry i is leaf i's result
+        assert rawPerLeafResults.length == leaves.size()
+            : "expected one TopDocs per leaf, got " + rawPerLeafResults.length + " for " + leaves.size() + " leaves";
+        ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
+        for (int leafOrd = 0; leafOrd < rawPerLeafResults.length; leafOrd++) {
+            ScoreDoc[] scoreDocs = rawPerLeafResults[leafOrd].scoreDocs;
+            if (scoreDocs.length > 0) {
+                // cloned so the orchestrator can sort in place without mutating our TopDocs
+                perLeafCandidates[leafOrd] = scoreDocs.clone();
+            }
+        }
+        return perLeafCandidates;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return k;
+    }
+
+    @Override
+    public int numCands() {
+        return numCands;
+    }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
         return new IVFCollectorManager(k, longAccumulator);

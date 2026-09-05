@@ -361,6 +361,26 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         assertThat(checkpoint.getTimeUpperBound(), is(equalTo(expectedTimeUpperBound)));
     }
 
+    public void testCreateNextCheckpointPassesTimeoutToGetCheckpointRequest() throws InterruptedException {
+        String transformId = getTestName();
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap(), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        TransformConfig transformConfig = new TransformConfig.Builder(
+            TransformConfigTests.randomTransformConfig(transformId, TransformConfigVersion.CURRENT)
+        ).setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, TimeValue.timeValueSeconds(60)))
+            .build();
+        TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
+
+        TimeValue timeout = TimeValue.timeValueMinutes(2);
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, timeout, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(requestCaptor.getValue().getTimeout(), equalTo(timeout));
+    }
+
     private void testCreateNextCheckpoint(
         String transformId,
         String dateHistogramField,

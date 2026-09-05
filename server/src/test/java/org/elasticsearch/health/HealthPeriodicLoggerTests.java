@@ -236,11 +236,17 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         });
         assertTrue(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
 
-        // Changing the health node should cancel the run
+        // When health node disappears but local node is master-eligible, job stays scheduled (preflight fallback)
         ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
         testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, stateWithLocalHealthNode));
         assertFalse(testHealthPeriodicLogger.isHealthNode());
-        assertFalse(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+        assertTrue(testHealthPeriodicLogger.hasNoHealthNode());
+        assertTrue(scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME));
+
+        // When health node reappears, the preflight fallback flag is cleared
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, noHealthNode));
+        assertTrue(testHealthPeriodicLogger.isHealthNode());
+        assertFalse(testHealthPeriodicLogger.hasNoHealthNode());
     }
 
     public void testEnabled() {
@@ -784,6 +790,101 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         assertEquals(0, logs.size());
         assertEquals(4, metrics.size());
+    }
+
+    public void testMasterEligibleNodeSchedulesJobWhenNoHealthNode() throws Exception {
+        HealthService testHealthService = this.getMockedHealthService();
+
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, true);
+
+        // node2 is master-eligible and the local node; emit a cluster state with no health node
+        ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, ClusterState.EMPTY_STATE));
+
+        assertFalse(testHealthPeriodicLogger.isHealthNode());
+        assertTrue(testHealthPeriodicLogger.hasNoHealthNode());
+
+        AtomicReference<SchedulerEngine> scheduler = new AtomicReference<>();
+        assertBusy(() -> {
+            var s = testHealthPeriodicLogger.getScheduler();
+            assertNotNull(s);
+            scheduler.set(s);
+        });
+        assertTrue(
+            "master-eligible node should schedule job when no health node exists",
+            scheduler.get().scheduledJobIds().contains(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME)
+        );
+    }
+
+    public void testNonMasterEligibleNodeDoesNotScheduleJobWhenNoHealthNode() throws Exception {
+        DiscoveryNode dataOnlyNode = DiscoveryNodeUtils.builder("data_only").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+        ClusterState stateWithDataOnlyLocal = ClusterStateCreationUtils.state(
+            dataOnlyNode,
+            node1,
+            new DiscoveryNode[] { node1, dataOnlyNode }
+        );
+        ClusterService dataNodeClusterService = createClusterService(stateWithDataOnlyLocal, this.threadPool, clusterSettings);
+        try {
+            HealthService testHealthService = this.getMockedHealthService();
+            HealthPeriodicLogger dataNodeLogger = createAndInitHealthPeriodicLogger(dataNodeClusterService, testHealthService, true);
+            try {
+                // No health node in cluster state
+                ClusterState noHealthNode = ClusterStateCreationUtils.state(
+                    dataOnlyNode,
+                    node1,
+                    new DiscoveryNode[] { node1, dataOnlyNode }
+                );
+                dataNodeLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, ClusterState.EMPTY_STATE));
+
+                assertFalse(dataNodeLogger.isHealthNode());
+                assertFalse("data-only node should not activate preflight fallback", dataNodeLogger.hasNoHealthNode());
+            } finally {
+                dataNodeLogger.stop();
+                dataNodeLogger.close();
+            }
+        } finally {
+            dataNodeClusterService.close();
+        }
+    }
+
+    public void testPreflightFallbackClearedWhenHealthNodeAppears() throws Exception {
+        HealthService testHealthService = this.getMockedHealthService();
+
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(clusterService, testHealthService, true);
+
+        // Start with no health node -- master-eligible node enters preflight fallback
+        ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue(testHealthPeriodicLogger.hasNoHealthNode());
+        assertFalse(testHealthPeriodicLogger.isHealthNode());
+
+        // Health node appears -- preflight fallback should be cleared
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", stateWithLocalHealthNode, noHealthNode));
+        assertFalse(testHealthPeriodicLogger.hasNoHealthNode());
+        assertTrue(testHealthPeriodicLogger.isHealthNode());
+    }
+
+    public void testPreflightFallbackTriggersHealthLogging() throws Exception {
+        AtomicBoolean calledGetHealth = new AtomicBoolean();
+        HealthService testHealthService = this.getMockedHealthService();
+        doAnswer(invocation -> {
+            ActionListener<List<HealthIndicatorResult>> listener = invocation.getArgument(4);
+            assertNotNull(listener);
+            calledGetHealth.set(true);
+            listener.onResponse(getTestIndicatorResults());
+            return null;
+        }).when(testHealthService).getHealth(any(), isNull(), anyBoolean(), anyInt(), any());
+
+        testHealthPeriodicLogger = createAndInitHealthPeriodicLogger(this.clusterService, testHealthService, true);
+
+        // No health node -- master-eligible node enters preflight fallback
+        ClusterState noHealthNode = ClusterStateCreationUtils.state(node2, node1, new DiscoveryNode[] { node1, node2 });
+        testHealthPeriodicLogger.clusterChanged(new ClusterChangedEvent("test", noHealthNode, ClusterState.EMPTY_STATE));
+        assertTrue(testHealthPeriodicLogger.hasNoHealthNode());
+
+        SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
+        testHealthPeriodicLogger.triggered(event);
+        assertBusy(() -> assertTrue("getHealth should be called during preflight fallback", calledGetHealth.get()));
     }
 
     private void verifyLoggerIsReadyToRun(HealthPeriodicLogger healthPeriodicLogger) {

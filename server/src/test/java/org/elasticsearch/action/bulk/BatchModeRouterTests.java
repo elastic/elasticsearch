@@ -277,6 +277,11 @@ public class BatchModeRouterTests extends ESTestCase {
         }
 
         @Override
+        public int estimatedBytes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void close() {}
     }
 

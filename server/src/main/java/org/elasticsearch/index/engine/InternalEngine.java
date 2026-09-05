@@ -1608,7 +1608,11 @@ public class InternalEngine extends Engine {
 
     private void processSubBatch(int subBatchIdx, int subBatchSize, EngineBatch engineBatch, IndexResult[] allResults) throws IOException {
         final IndexOperationBatch indexBatch = engineBatch.batch();
-        final IndexOperationBatch subBatch = indexBatch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+        final IndexOperationBatch subBatch = indexBatch.slice(
+            subBatchIdx,
+            subBatchIdx + subBatchSize,
+            relativeTimeInNanosSupplier.getAsLong()
+        );
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
@@ -1785,8 +1789,6 @@ public class InternalEngine extends Engine {
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
 
-                // subBatch.startTime() is the start time of the first sub-batch.
-                // The numerator below is the cumulative time which includes all sub batches before the current one
                 // TODO: Add a BatchResult which contains the item level results but has a top level took time
                 result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();

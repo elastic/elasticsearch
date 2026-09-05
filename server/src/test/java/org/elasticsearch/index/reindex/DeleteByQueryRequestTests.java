@@ -12,10 +12,16 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.containsString;
@@ -24,6 +30,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DeleteByQueryRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<DeleteByQueryRequest> {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
@@ -109,19 +122,25 @@ public class DeleteByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
         );
     }
 
-    // TODO: Implement standard to/from x-content parsing tests
-
     @Override
     protected DeleteByQueryRequest createTestInstance() {
-        return newRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+        if (randomBoolean()) {
+            deleteByQueryRequest.setMaxDocs(randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setAbortOnVersionConflict(false);
+        }
+        if (randomBoolean()) {
+            deleteByQueryRequest.setBatchSize(randomIntBetween(1, 1000));
+        }
+        deleteByQueryRequest.setQuery(new TermQueryBuilder("foo", "fooval"));
+        return deleteByQueryRequest;
     }
 
     @Override
     protected DeleteByQueryRequest doParseInstance(XContentParser parser) throws IOException {
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != null) {
-        }
-        return newRequest();
+        return DeleteByQueryRequest.fromXContent(parser, Predicates.never());
     }
 
     @Override
@@ -130,5 +149,10 @@ public class DeleteByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
     }
 
     @Override
-    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {}
+    protected void assertEqualInstances(DeleteByQueryRequest expectedInstance, DeleteByQueryRequest newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
+        assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
+        assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
+    }
 }

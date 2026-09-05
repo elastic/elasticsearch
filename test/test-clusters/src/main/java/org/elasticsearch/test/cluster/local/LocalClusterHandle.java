@@ -129,4 +129,10 @@ public interface LocalClusterHandle extends ClusterHandle {
      * storage is currently supported
      */
     void updateStoredSecureSettings();
+
+    /**
+     * Returns whether all node processes in this cluster are still alive. This is a fast, non-blocking OS-level check.
+     * Returns {@code false} if any node process has exited.
+     */
+    boolean areAllNodesAlive();
 }

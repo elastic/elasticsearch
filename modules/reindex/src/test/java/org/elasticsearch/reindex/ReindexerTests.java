@@ -143,6 +143,19 @@ import static org.mockito.Mockito.when;
 @SuppressForbidden(reason = "use a http server")
 public class ReindexerTests extends ESTestCase {
 
+    public void testIsSliceEnabledPitFailure() {
+        assertTrue(
+            Reindexer.isSliceEnabledPitFailure(
+                new RuntimeException(
+                    new IllegalArgumentException(
+                        "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [slice-source]"
+                    )
+                )
+            )
+        );
+        assertFalse(Reindexer.isSliceEnabledPitFailure(new IllegalArgumentException("a different search failure")));
+    }
+
     // --- wrapWithMetrics tests ---
 
     public void testWrapWithMetricsSuccess() {

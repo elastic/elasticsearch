@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 154592
+pr: 155044
+summary: Fall back to scroll when reindex PIT pagination is incompatible with index slicing
+type: bug

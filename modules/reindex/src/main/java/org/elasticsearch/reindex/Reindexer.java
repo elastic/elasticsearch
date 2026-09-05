@@ -19,6 +19,7 @@ import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -124,6 +125,7 @@ import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
 public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
+    private static final String PIT_SLICE_ENABLED_ERROR = "[point in time] is not supported when [index.slice.enabled] is true";
 
     private final ClusterService clusterService;
     private final ReindexSettings reindexSettings;
@@ -275,7 +277,7 @@ public class Reindexer {
                 executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
                 normalizeRequestOnOpeningPit(request);
-                openPitAndExecute(task, request, bulkClient, responseListener);
+                openPitAndExecute(task, request, bulkClient, responseListener, workerAction);
             }
         }
     }
@@ -356,16 +358,21 @@ public class Reindexer {
     }
 
     /**
-     * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done.
+     * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done. If the source contains a
+     * slice-enabled index, PIT is not supported and the request falls back to scroll pagination.
      */
     private void openPitAndExecute(
         BulkByPaginatedSearchTask task,
         ReindexRequest request,
         Client bulkClient,
-        ActionListener<BulkByPaginatedSearchResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener,
+        Consumer<Version> workerAction
     ) {
         SearchRequest searchRequest = request.getSearchRequest();
-        String[] indices = searchRequest.indices();
+        String[] indices = searchRequest.indices().clone();
+        TimeValue scroll = searchRequest.scroll();
+        String projectRouting = searchRequest.getProjectRouting();
+        String[] sourceIndicesForDescription = request.getSourceIndicesForDescription();
 
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
         // so for parity we assert here in case that changes
@@ -389,19 +396,68 @@ public class Reindexer {
         }
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
-        client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
+        client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, ActionListener.wrap(pitResponse -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
             request.convertSearchRequestToUsePit(pitId, reindexSettings.pitKeepAlive());
+            ActionListener<BulkByPaginatedSearchResponse> pitListener = new ActionListener<>() {
+                @Override
+                public void onResponse(BulkByPaginatedSearchResponse response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception failure) {
+                    if (isSliceEnabledPitFailure(failure)) {
+                        restoreRequestAfterPitFailure(request, indices, scroll, projectRouting, sourceIndicesForDescription);
+                        executePaginatedSearch(task, request, listener, workerAction, null);
+                    } else {
+                        listener.onFailure(failure);
+                    }
+                }
+            };
             ActionListener<BulkByPaginatedSearchResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
-                l,
+                pitListener,
                 this::closeLocalPit,
                 task,
                 shouldNotClosePitOnResponse(task)
             );
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
+        }, failure -> {
+            if (isSliceEnabledPitFailure(failure)) {
+                executePaginatedSearch(task, request, listener, workerAction, null);
+            } else {
+                listener.onFailure(failure);
+            }
         }));
+    }
+
+    static boolean isSliceEnabledPitFailure(Exception failure) {
+        return ExceptionsHelper.unwrapCausesAndSuppressed(
+            failure,
+            cause -> cause instanceof IllegalArgumentException
+                && cause.getMessage() != null
+                && cause.getMessage().startsWith(PIT_SLICE_ENABLED_ERROR)
+        ).isPresent();
+    }
+
+    private static void restoreRequestAfterPitFailure(
+        ReindexRequest request,
+        String[] indices,
+        @Nullable TimeValue scroll,
+        @Nullable String projectRouting,
+        @Nullable String[] sourceIndicesForDescription
+    ) {
+        SearchRequest searchRequest = request.getSearchRequest();
+        searchRequest.source().pointInTimeBuilder(null);
+        searchRequest.indices(indices);
+        searchRequest.scroll(scroll);
+        searchRequest.clearProjectRouting();
+        if (projectRouting != null) {
+            searchRequest.setProjectRouting(projectRouting);
+        }
+        request.setSourceIndicesForDescription(sourceIndicesForDescription);
     }
 
     /**

@@ -191,7 +191,7 @@ public class FollowingEngine extends InternalEngine {
         if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
             return OptionalLong.empty();
         }
-        refreshIfNeeded("lookup_primary_term", seqNo);
+        refreshIfNeeded(OperationPurpose.MUTATION, "lookup_primary_term", seqNo);
         try (Searcher engineSearcher = acquireSearcher("lookup_primary_term", SearcherScope.INTERNAL)) {
             final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
             final IndexSearcher searcher = new IndexSearcher(reader);

@@ -655,6 +655,45 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
         flush(indexName);
 
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
+        assertBusyFilesLocations(
+            blobStoreCacheDirectory,
+            Map.ofEntries(
+                // BCC3
+                entry("segments_3", 3L),
+                // BCC4
+                entry("segments_4", 4L),
+                entry("_0.cfe", 4L),
+                entry("_0.cfs", 4L),
+                entry("_0.si", 4L),
+                // BCC5
+                entry("segments_5", 5L),
+                entry("_1.cfe", 5L),
+                entry("_1.cfs", 5L),
+                entry("_1.si", 5L),
+                // BCC6
+                entry("segments_6", 6L),
+                entry("_2.cfe", 6L),
+                entry("_2.cfs", 6L),
+                entry("_2.si", 6L),
+                // BCC7
+                entry("segments_7", 7L),
+                entry("_3.cfe", 7L),
+                entry("_3.cfs", 7L),
+                entry("_3.si", 7L),
+                entry("_0_1_Lucene90_0.dvd", 7L),
+                entry("_0_1_Lucene90_0.dvm", 7L),
+                entry("_0_1_Lucene90_0.dvs", 7L),
+                entry("_0_1.fnm", 7L)
+            )
+        );
+
+        // Wait until the background merge tries to read _0_1_Lucene90_0.dvd from BCC7
+        safeAwait(bccContainingFirstGenFileReadFirstMergeBlocked);
+
+        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_5")));
+        flush(indexName);
+
         assertThat(indexEngine.getCurrentGeneration(), equalTo(8L));
         assertBusyFilesLocations(
             blobStoreCacheDirectory,
@@ -677,51 +716,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_2.cfs", 6L),
                 entry("_2.si", 6L),
                 // BCC7
-                // Deletes might cause a refresh when InternalEngine.getVersionFromMap is called,
-                // that will generate an empty commit (segments_7)
                 entry("segments_7", 7L),
-                entry("segments_8", 7L),
-                entry("_3.cfe", 7L),
-                entry("_3.cfs", 7L),
-                entry("_3.si", 7L),
-                entry("_0_1_Lucene90_0.dvd", 7L),
-                entry("_0_1_Lucene90_0.dvm", 7L),
-                entry("_0_1_Lucene90_0.dvs", 7L),
-                entry("_0_1.fnm", 7L)
-            )
-        );
-
-        // Wait until the background merge tries to read _0_1_Lucene90_0.dvd from BCC7
-        safeAwait(bccContainingFirstGenFileReadFirstMergeBlocked);
-
-        executeBulk(bulkRequest -> bulkRequest.add(client().prepareIndex(indexName).setSource("segment", "_5")));
-        flush(indexName);
-
-        // The commit with generation 8 was reserved for the background merge, hence the jump to generation 9
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
-        assertBusyFilesLocations(
-            blobStoreCacheDirectory,
-            Map.ofEntries(
-                // BCC3
-                entry("segments_3", 3L),
-                // BCC4
-                entry("segments_4", 4L),
-                entry("_0.cfe", 4L),
-                entry("_0.cfs", 4L),
-                entry("_0.si", 4L),
-                // BCC5
-                entry("segments_5", 5L),
-                entry("_1.cfe", 5L),
-                entry("_1.cfs", 5L),
-                entry("_1.si", 5L),
-                // BCC6
-                entry("segments_6", 6L),
-                entry("_2.cfe", 6L),
-                entry("_2.cfs", 6L),
-                entry("_2.si", 6L),
-                // BCC7
-                entry("segments_7", 7L),
-                entry("segments_8", 7L),
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
@@ -730,11 +725,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_0_1_Lucene90_0.dvm", 7L),
                 entry("_0_1_Lucene90_0.dvs", 7L),
                 entry("_0_1.fnm", 7L),
-                // BCC9 (segment _4 is reserved by the previous background merge)
-                entry("segments_9", 9L),
-                entry("_5.cfe", 9L),
-                entry("_5.cfs", 9L),
-                entry("_5.si", 9L)
+                // BCC8 (segment _4 is reserved by the previous background merge)
+                entry("segments_8", 8L),
+                entry("_5.cfe", 8L),
+                entry("_5.cfs", 8L),
+                entry("_5.si", 8L)
             )
         );
 
@@ -769,7 +764,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // Wait until the second background merge tries to read BCC7
         safeAwait(bccContainingFirstGenFileReadSecondMergeBlocked);
 
-        assertThat(indexEngine.getCurrentGeneration(), equalTo(10L));
+        assertThat(indexEngine.getCurrentGeneration(), equalTo(9L));
         assertBusyFilesLocations(
             blobStoreCacheDirectory,
             Map.ofEntries(
@@ -792,7 +787,6 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_2.si", 6L),
                 // BCC7
                 entry("segments_7", 7L),
-                entry("segments_8", 7L),
                 entry("_3.cfe", 7L),
                 entry("_3.cfs", 7L),
                 entry("_3.si", 7L),
@@ -801,20 +795,20 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 entry("_0_1_Lucene90_0.dvm", 7L),
                 entry("_0_1_Lucene90_0.dvs", 7L),
                 entry("_0_1.fnm", 7L),
-                // BCC9 (segment _4 is reserved by the previous background merge)
+                // BCC8 (segment _4 is reserved by the previous background merge)
+                entry("segments_8", 8L),
+                entry("_5.cfe", 8L),
+                entry("_5.cfs", 8L),
+                entry("_5.si", 8L),
+                // BCC9 (It includes the new generational file with new deletions)
                 entry("segments_9", 9L),
-                entry("_5.cfe", 9L),
-                entry("_5.cfs", 9L),
-                entry("_5.si", 9L),
-                // BCC10 (It includes the new generational file with new deletions)
-                entry("segments_a", 10L),
-                entry("_6.cfe", 10L),
-                entry("_6.cfs", 10L),
-                entry("_6.si", 10L),
-                entry("_0_2_Lucene90_0.dvd", 10L),
-                entry("_0_2_Lucene90_0.dvm", 10L),
-                entry("_0_2_Lucene90_0.dvs", 10L),
-                entry("_0_2.fnm", 10L)
+                entry("_6.cfe", 9L),
+                entry("_6.cfs", 9L),
+                entry("_6.si", 9L),
+                entry("_0_2_Lucene90_0.dvd", 9L),
+                entry("_0_2_Lucene90_0.dvm", 9L),
+                entry("_0_2_Lucene90_0.dvs", 9L),
+                entry("_0_2.fnm", 9L)
             )
         );
 

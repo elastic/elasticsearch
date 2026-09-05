@@ -251,7 +251,6 @@ public class InternalEngine extends Engine {
     private final boolean useTsdbSyntheticId;
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
-    protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
     @SuppressWarnings("this-escape")
@@ -918,7 +917,7 @@ public class InternalEngine extends Engine {
     @Override
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
         try (Releasable ignore = versionMap.acquireLock(uid)) {
-            final var versionValue = getVersionFromMap(uid);
+            final var versionValue = getVersionFromMap(uid, OperationPurpose.SEARCHABLE_DOCS_CHECK);
             return versionValue != null;
         }
     }
@@ -933,7 +932,7 @@ public class InternalEngine extends Engine {
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
-                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, true);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, OperationPurpose.REALTIME_GET, true);
                 assert result != null : "real-time get result must not be null";
                 return result;
             } else {
@@ -951,7 +950,7 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE, true);
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, OperationPurpose.MUTATION, true);
         }
     }
 
@@ -963,7 +962,7 @@ public class InternalEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, REAL_TIME_GET_REFRESH_SOURCE, false);
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, OperationPurpose.GET_FROM_TRANSLOG, false);
         }
     }
 
@@ -976,7 +975,7 @@ public class InternalEngine extends Engine {
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper,
-        String refreshSource,
+        OperationPurpose purpose,
         boolean getFromSearcher
     ) {
         assert isDrainedForClose() == false;
@@ -984,7 +983,7 @@ public class InternalEngine extends Engine {
         final VersionValue versionValue;
         try (Releasable ignore = versionMap.acquireLock(get.uid())) {
             // we need to lock here to access the version map to do this truly in RT
-            versionValue = getVersionFromMap(get.uid());
+            versionValue = getVersionFromMap(get.uid(), purpose);
         }
         try {
             boolean getFromSearcherIfNotInTranslog = getFromSearcher;
@@ -1041,7 +1040,7 @@ public class InternalEngine extends Engine {
                     }
                 }
                 assert versionValue.seqNo >= 0 : versionValue;
-                refreshIfNeeded(refreshSource, versionValue.seqNo);
+                refreshIfNeeded(purpose, REAL_TIME_GET_REFRESH_SOURCE, versionValue.seqNo);
             }
             if (getFromSearcherIfNotInTranslog) {
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
@@ -1088,7 +1087,7 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
-        VersionValue versionValue = getVersionFromMap(op.uid());
+        VersionValue versionValue = getVersionFromMap(op.uid(), OperationPurpose.from(op));
         assert incrementVersionLookup();
         if (versionValue != null) {
             status = compareOpToVersionMapOnSeqNo(op.id(), op.seqNo(), op.primaryTerm(), versionValue);
@@ -1122,7 +1121,7 @@ public class InternalEngine extends Engine {
     private VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
         notifyLastDocIdAndVersionLookup();
-        VersionValue versionValue = getVersionFromMap(op.uid());
+        VersionValue versionValue = getVersionFromMap(op.uid(), OperationPurpose.from(op));
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
@@ -1150,14 +1149,14 @@ public class InternalEngine extends Engine {
         return versionValue;
     }
 
-    private VersionValue getVersionFromMap(BytesRef id) {
+    protected VersionValue getVersionFromMap(BytesRef id, OperationPurpose purpose) {
         if (versionMap.isUnsafe()) {
             synchronized (versionMap) {
                 // we are switching from an unsafe map to a safe map. This might happen concurrently
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
-                    refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                    refreshInternalSearcher(purpose, UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
                     // After the refresh, the doc that triggered it must now be part of the last commit.
                     // In rare cases, there could be other flush cycles completed in between the above line
                     // and the line below which push the last commit generation further. But that's OK.
@@ -1825,7 +1824,7 @@ public class InternalEngine extends Engine {
             anyNeedsVersionLookup = true;
             assert incrementVersionLookup();
             notifyLastDocIdAndVersionLookup();
-            VersionValue v = getVersionFromMap(subBatch.uid(i));
+            VersionValue v = getVersionFromMap(subBatch.uid(i), OperationPurpose.MUTATION);
             if (v == null) {
                 // genuine versionMap miss: must go to Lucene
                 assert incrementIndexVersionLookup();
@@ -2743,7 +2742,7 @@ public class InternalEngine extends Engine {
         ActionListener.completeWith(listener, () -> refresh(source, SearcherScope.EXTERNAL, false));
     }
 
-    protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
+    protected RefreshResult refreshInternalSearcher(OperationPurpose purpose, String source, boolean block) throws EngineException {
         return refresh(source, SearcherScope.INTERNAL, block);
     }
 
@@ -3987,7 +3986,7 @@ public class InternalEngine extends Engine {
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         ensureOpen();
-        refreshIfNeeded(source, toSeqNo);
+        refreshIfNeeded(OperationPurpose.RECOVERY, source, toSeqNo);
         try (Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL)) {
             return LuceneChangesSnapshot.countOperations(searcher, engineConfig.getIndexSettings(), fromSeqNo, toSeqNo);
         } catch (Exception e) {
@@ -4018,7 +4017,7 @@ public class InternalEngine extends Engine {
             );
         }
         ensureOpen();
-        refreshIfNeeded(source, toSeqNo);
+        refreshIfNeeded(OperationPurpose.MUTATION, source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             final Translog.Snapshot snapshot;
@@ -4146,11 +4145,11 @@ public class InternalEngine extends Engine {
     /**
      * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
      */
-    protected final void refreshIfNeeded(String source, long requestingSeqNo) {
+    protected final void refreshIfNeeded(OperationPurpose purpose, String source, long requestingSeqNo) {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
             synchronized (refreshIfNeededMutex) {
                 if (lastRefreshedCheckpoint() < requestingSeqNo) {
-                    refreshInternalSearcher(source, true);
+                    refreshInternalSearcher(purpose, source, true);
                 }
             }
         }

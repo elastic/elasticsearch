@@ -276,15 +276,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-        /** Scale for a quantization of the given bit width, for scorers that are not fixed to one encoding */
-        static float bitScale(int bits) {
-            return ES940OSQVectorsScorer.BIT_SCALES[bits - 1];
-        }
-
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
         protected final int bulkSize;
+
+        protected static float bitScale(int bits) {
+            return ES940OSQVectorsScorer.bitScale(bits);
+        }
 
         protected final BufferScratch scratch = new BufferScratch();
 

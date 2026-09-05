@@ -109,7 +109,9 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
         throws IOException {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        return new ESNextAshBBQVectorsScorer(NativeBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
+        return new ESNextAshBBQVectorsScorer(
+            NativeBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+        );
     }
 
     @Override

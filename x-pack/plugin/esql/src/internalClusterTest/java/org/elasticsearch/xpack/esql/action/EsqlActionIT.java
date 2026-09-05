@@ -13,6 +13,9 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -53,6 +56,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,7 +74,6 @@ import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -129,8 +132,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuiteScopeTestCase
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
-    long epoch = System.currentTimeMillis();
+    static long epoch;
 
     // Column indices for EXPLAIN output rows — derived from Explain.OUTPUT_ATTRIBUTES so any
     // reordering of the attribute list breaks here at class-load time rather than silently.
@@ -149,8 +153,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         throw new IllegalStateException("No column named '" + name + "' in EXPLAIN output attributes");
     }
 
-    @Before
-    public void setupIndex() throws IOException {
+    @Override
+    protected void setupSuiteScopeCluster() {
+        epoch = System.currentTimeMillis();
         createAndPopulateIndex("test");
     }
 
@@ -214,6 +219,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("field", "long", null))));
             assertThat(getValuesList(response), equalTo(List.of(List.of(value))));
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     public void testInvalidRowWithFilter() {
@@ -336,18 +342,19 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromGroupingByNumericFieldWithNulls() {
+        String index = cloneTestIndex("test-numeric-nulls");
         for (int i = 0; i < 5; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
-                .add(new IndexRequest("test").id("no_count_new_" + i).source("data", 99, "data_d", 1d))
-                .add(new IndexRequest("test").id("no_data_" + i).source("count", 12, "count_d", 12d))
+                .add(new IndexRequest(index).id("no_count_old_" + i).source("data", between(1, 2), "data_d", 1d))
+                .add(new IndexRequest(index).id("no_count_new_" + i).source("data", 99, "data_d", 1d))
+                .add(new IndexRequest(index).id("no_data_" + i).source("count", 12, "count_d", 12d))
                 .get();
             if (randomBoolean()) {
-                client().admin().indices().prepareRefresh("test").get();
+                client().admin().indices().prepareRefresh(index).get();
             }
         }
-        client().admin().indices().prepareRefresh("test").get();
-        try (EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data")) {
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | stats avg(count) by data | sort data")) {
             logger.info(results);
 
             assertThat(results.columns(), hasSize(2));
@@ -361,6 +368,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
             assertThat(actualGroups, equalTo(expectedGroups));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     public void testFromStatsGroupingByKeyword() {
@@ -387,19 +395,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromStatsGroupingByKeywordWithNulls() {
+        String index = cloneTestIndex("test-keyword-nulls");
         for (int i = 0; i < 5; i++) {
             client().prepareBulk()
-                .add(new IndexRequest("test").id("no_color_" + i).source("data", 12, "count", 120, "data_d", 2d, "count_d", 120d))
-                .add(new IndexRequest("test").id("no_count_red_" + i).source("data", 2, "data_d", 2d, "color", "red"))
-                .add(new IndexRequest("test").id("no_count_yellow_" + i).source("data", 2, "data_d", 2d, "color", "yellow"))
+                .add(new IndexRequest(index).id("no_color_" + i).source("data", 12, "count", 120, "data_d", 2d, "count_d", 120d))
+                .add(new IndexRequest(index).id("no_count_red_" + i).source("data", 2, "data_d", 2d, "color", "red"))
+                .add(new IndexRequest(index).id("no_count_yellow_" + i).source("data", 2, "data_d", 2d, "color", "yellow"))
                 .get();
             if (randomBoolean()) {
-                client().admin().indices().prepareRefresh("test").get();
+                client().admin().indices().prepareRefresh(index).get();
             }
         }
-        client().admin().indices().prepareRefresh("test").get();
+        client().admin().indices().prepareRefresh(index).get();
         for (String field : List.of("count", "count_d")) {
-            try (EsqlQueryResponse results = run("from test | stats avg = avg(" + field + ") by color")) {
+            try (EsqlQueryResponse results = run("from " + index + " | stats avg = avg(" + field + ") by color")) {
                 logger.info(results);
                 assertEquals(2, results.columns().size());
                 assertEquals(5, getValuesList(results).size());
@@ -426,6 +435,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat(actualGroups, equalTo(expectedGroups));
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     public void testFromStatsMultipleAggs() {
@@ -731,15 +741,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFilterWithNullAndEvalFromIndex() {
+        String index = cloneTestIndex("test-null-count");
         // append entry, with an absent count, to the index
-        client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
+        client().prepareBulk().add(new IndexRequest(index).id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
 
-        client().admin().indices().prepareRefresh("test").get();
+        client().admin().indices().prepareRefresh(index).get();
         // sanity
-        try (EsqlQueryResponse results = run("from test")) {
+        try (EsqlQueryResponse results = run("from " + index)) {
             assertEquals(41, getValuesList(results).size());
         }
-        try (EsqlQueryResponse results = run("from test | eval newCount = count + 1 | where newCount > 1")) {
+        try (EsqlQueryResponse results = run("from " + index + " | eval newCount = count + 1 | where newCount > 1")) {
             logger.info(results);
             assertEquals(40, getValuesList(results).size());
             assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("count", "long", null))));
@@ -748,6 +759,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("data_d", "double", null))));
             assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("time", "long", null))));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     public void testMultiConditionalWhere() {
@@ -919,6 +931,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertThat(getValuesList(results).get(0), equalTo(List.of(totalValues.get())));
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     public void testESFilter() throws Exception {
@@ -958,6 +971,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat(getValuesList(results).get(0).get(0), nullValue());
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     public void testExtractFields() throws Exception {
@@ -997,6 +1011,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             }
             assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     public void testEvalWithNullAndAvg() {
@@ -1103,6 +1118,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(5L, getValuesList(results).get(0).get(0));
             assertEquals(40000L, getValuesList(results).get(0).get(1));
         }
+        assertAcked(client().admin().indices().prepareDelete(indexNames));
     }
 
     public void testDataStreamPatterns() throws Exception {
@@ -1264,8 +1280,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         return new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE).id(id).source("@timestamp", ts, "count", count);
     }
 
-    public void testOverlappingIndexPatterns() throws Exception {
-        String[] indexNames = { "test_overlapping_index_patterns_1", "test_overlapping_index_patterns_2" };
+    public void testOverlappingIndexPatterns() {
 
         assertAcked(
             client().admin()
@@ -1274,12 +1289,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("field", "type=long")
         );
-        ensureYellow("test_overlapping_index_patterns_1");
-        client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .add(new IndexRequest("test_overlapping_index_patterns_1").id("1").source("field", 10))
-            .get();
-
         assertAcked(
             client().admin()
                 .indices()
@@ -1287,13 +1296,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("field", "type=keyword")
         );
-        ensureYellow("test_overlapping_index_patterns_2");
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest("test_overlapping_index_patterns_1").id("1").source("field", 10))
             .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
             .get();
 
         assertThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
+
+        assertAcked(client().admin().indices().prepareDelete("test_overlapping_index_patterns_1", "test_overlapping_index_patterns_2"));
     }
 
     public void testErrorMessageForUnknownColumn() {
@@ -1315,6 +1326,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             );
             assertThat(getValuesList(results), empty());
         }
+        assertAcked(client().admin().indices().prepareDelete("test_empty"));
     }
 
     public void testShowInfo() {
@@ -1344,24 +1356,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTopNPushedToLucene() {
+        String index = cloneTestIndex("test-top-n");
         for (int i = 5; i < 11; i++) {
             var yellowDocId = "yellow_" + i;
             var yellowNullCountDocId = "yellow_null_count_" + i;
             var yellowNullDataDocId = "yellow_null_data_" + i;
 
             client().prepareBulk()
-                .add(new IndexRequest("test").id(yellowDocId).source("data", i, "count", i * 10, "color", "yellow"))
-                .add(new IndexRequest("test").id(yellowNullCountDocId).source("data", i, "color", "yellow"))
-                .add(new IndexRequest("test").id(yellowNullDataDocId).source("count", i * 10, "color", "yellow"))
+                .add(new IndexRequest(index).id(yellowDocId).source("data", i, "count", i * 10, "color", "yellow"))
+                .add(new IndexRequest(index).id(yellowNullCountDocId).source("data", i, "color", "yellow"))
+                .add(new IndexRequest(index).id(yellowNullDataDocId).source("count", i * 10, "color", "yellow"))
                 .get();
             if (randomBoolean()) {
-                client().admin().indices().prepareRefresh("test").get();
+                client().admin().indices().prepareRefresh(index).get();
             }
         }
-        client().admin().indices().prepareRefresh("test").get();
+        client().admin().indices().prepareRefresh(index).get();
 
-        try (EsqlQueryResponse results = run("""
-                from test
+        try (EsqlQueryResponse results = run("from " + index + """
+
                 | where color == "yellow"
                 | sort data desc nulls first, count asc nulls first
                 | limit 10
@@ -1401,6 +1414,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .toList();
             assertThat(actualGroups, equalTo(expectedGroups));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1436,6 +1450,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
             assertThat(actual, equalTo(expected));
         }
+        assertAcked(client().admin().indices().prepareDelete("sorted_test_index"));
     }
 
     /*
@@ -1467,6 +1482,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertNoNestedDocuments("from " + alias, docsCount * 2, 0L, 100L);
         // simple query against alias with filter that gets pushed to ES
         assertNoNestedDocuments("from " + alias + " | where data >= 50", Arrays.stream(countValuesGreaterThanFifty).sum(), 50L, 100L);
+        assertAcked(client().admin().indices().prepareDelete(indexName1, indexName2));
     }
 
     public void testGroupingMultiValueByOrdinals() {
@@ -1495,6 +1511,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
             run(query).close();
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     /**
@@ -1528,6 +1545,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where not mv_like(v, \"ann*\") | keep id | sort id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "f", "h", "i"));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1572,6 +1590,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 );
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1630,6 +1649,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 );
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1682,6 +1702,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 );
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1719,6 +1740,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30, " + open + ") | keep id | sort id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "g"));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1741,6 +1763,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0, {\"include_lower\": false}) | keep id")) {
             assertThat(getValuesList(results), empty());
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1760,6 +1783,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(f, 1.00000001, 2.0) | keep id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1777,6 +1801,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 0.3, 1.0, {\"include_lower\": false}) | keep id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1799,6 +1824,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 6, " + open + ") | keep id")) {
             assertThat(getValuesList(r), empty()); // no integer strictly between 5 and 6
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     /**
@@ -1909,6 +1935,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat("NOT " + predicate, getValuesList(r).stream().map(row -> row.get(0)).toList(), equalTo(expectedNot));
             }
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     public void testLoadId() {
@@ -1953,6 +1980,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat(actual, equalTo(groups));
             }
         }
+        assertAcked(client().admin().indices().prepareDelete("index-1", "index-2"));
     }
 
     public void testFilterNestedFields() {
@@ -1963,6 +1991,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(2, resp.columns().size());
             assertEquals(0, valuesList.size());
         }
+        assertAcked(client().admin().indices().prepareDelete("index-1", "index-2"));
     }
 
     public void testStatsNestFields() {
@@ -2004,6 +2033,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             assertThat(valuesList.get(0), contains(null, null));
         }
+        assertAcked(client().admin().indices().prepareDelete("index-1", "index-2"));
     }
 
     public void testStatsMissingFieldWithStats() {
@@ -2019,14 +2049,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate("foo-index")
+                .prepareCreate("index-1")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
                 .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
         );
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate("bar-index")
+                .prepareCreate("index-2")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
@@ -2035,7 +2065,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (String field : fields) {
             for (String function : functions) {
                 String stat = String.format(Locale.ROOT, "stats s = %s(%s)", function, field);
-                String command = String.format(Locale.ROOT, "from foo-index,bar-index | where %s is not null | %s", field, stat);
+                String command = String.format(Locale.ROOT, "from index-1,index-2 | where %s is not null | %s", field, stat);
                 try (var resp = run(command)) {
                     var valuesList = getValuesList(resp);
                     assertEquals(1, resp.columns().size());
@@ -2043,6 +2073,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
+        assertAcked(client().admin().indices().prepareDelete("index-1", "index-2"));
     }
 
     public void testStatsMissingFieldKeepApp() {
@@ -2058,24 +2089,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate("foo-index")
+                .prepareCreate("index-1")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
                 .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
         );
         assertAcked(
             client().admin()
                 .indices()
-                .prepareCreate("bar-index")
+                .prepareCreate("index-2")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
-        String command = String.format(Locale.ROOT, "from foo-index,bar-index");
+        String command = String.format(Locale.ROOT, "from index-1,index-2");
         try (var resp = run(command)) {
             var valuesList = getValuesList(resp);
             assertEquals(8, resp.columns().size());
             assertEquals(0, valuesList.size());
             assertEquals(Collections.emptyList(), valuesList);
         }
+        assertAcked(client().admin().indices().prepareDelete("index-1", "index-2"));
     }
 
     public void testCountTextField() {
@@ -2102,6 +2134,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(row.next(), equalTo((long) numDocs));
             assertFalse(row.hasNext());
         }
+        assertAcked(client().admin().indices().prepareDelete("test_count"));
     }
 
     public void testQueryOnEmptyMappingIndex() {
@@ -2132,6 +2165,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertFalse(resp.values().hasNext());
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("<no-fields>", "null", null))));
         }
+        assertAcked(client().admin().indices().prepareDelete("empty-test", "empty-test2"));
     }
 
     public void testQueryOnEmptyDataIndex() {
@@ -2172,6 +2206,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertFalse(resp.values().hasNext());
             assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("name", "text", null))));
         }
+        assertAcked(client().admin().indices().prepareDelete("empty_data-test", "empty_data-test2"));
     }
 
     public void testGroupingStatsOnMissingFields() {
@@ -2206,6 +2241,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertNull(rows.get(3).get(1));
             assertNull(rows.get(3).get(2));
         }
+        assertAcked(client().admin().indices().prepareDelete("missing_field_index"));
     }
 
     private void assertEmptyIndexQueries(String from) {
@@ -2321,6 +2357,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat((Long) row.get(0), allOf(greaterThanOrEqualTo(minValue), lessThanOrEqualTo(maxValue)));
             }
         }
+    }
+
+    private String cloneTestIndex(String targetName) {
+        assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.write", true)));
+        assertAcked(
+            client().execute(
+                TransportResizeAction.TYPE,
+                new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.CLONE, "test", targetName)
+            ).actionGet()
+        );
+        // The clone inherits index.blocks.write from the source; clear it on both indices together.
+        assertAcked(indicesAdmin().prepareUpdateSettings("test", targetName).setSettings(Settings.builder().putNull("index.blocks.write")));
+        ensureYellow(targetName);
+        return targetName;
     }
 
     private void createAndPopulateIndex(String indexName) {
@@ -2449,6 +2499,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(ex.getMessage(), containsString("grok pattern matching was interrupted after"));
         } finally {
             clearPersistentSettings(EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME);
+            assertAcked(client().admin().indices().prepareDelete(indexName));
         }
     }
 
@@ -2503,6 +2554,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             }
             assertThat(meterColumn, equalTo(expectedMeterColumn));
         }
+        assertAcked(client().admin().indices().prepareDelete("test-script"));
     }
 
     public void testAggregationEmitPartialResultPeriodically() {
@@ -2581,6 +2633,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
             assertThat(partialAgg.emitCount(), equalTo(1L));
         }
+        assertAcked(client().admin().indices().prepareDelete(index));
     }
 
     public void testPushTopNToAggregate() {
@@ -2655,6 +2708,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .get();
             assertThat(status.rowsEmitted(), equalTo((long) counts.size()));
         }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 
     public void testLookupJoin() {
@@ -2684,6 +2738,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat("wrong color_name for color=" + color, colorName, equalTo(expectedColorNames.get(color)));
             }
         }
+        assertAcked(client().admin().indices().prepareDelete("color_names"));
     }
 
     private void clearPersistentSettings(Setting<?>... settings) {
@@ -3473,5 +3528,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 )
             );
         }
+        assertAcked(client().admin().indices().prepareDelete("test_mapped", "test_unmapped"));
     }
 }

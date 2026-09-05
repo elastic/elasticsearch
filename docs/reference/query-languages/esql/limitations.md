@@ -298,11 +298,6 @@ Work around this limitation by converting the field to single value with one of 
 [multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md).
 
 
-## Timezone support [esql-limitations-timezone]
-
-{{esql}} only supports the UTC timezone.
-
-
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
 [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.

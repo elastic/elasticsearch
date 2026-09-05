@@ -540,6 +540,28 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Returns a copy identical in configuration but with reset counters. Called by
+     * {@code readerForFile} so each split gets its own counter instance; without this,
+     * successive splits sharing {@link #counters} via {@link #withReadConfig} would cause
+     * the split-start delta baseline to be non-zero, double-counting earlier splits' I/O time.
+     */
+    @Override
+    public NdJsonFormatReader freshCounters() {
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig,
+            null
+        );
+    }
+
+    /**
      * Returns an immutable typed snapshot of the NDJSON reader's counters for the operator-status
      * envelope. Zeroed counters when no decoders have run.
      */

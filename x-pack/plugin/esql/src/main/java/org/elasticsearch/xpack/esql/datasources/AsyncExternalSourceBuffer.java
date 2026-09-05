@@ -132,6 +132,16 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean partial = false;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
+    // Per-split baseline: the snapshot values seen at the most recent split-open event for this buffer.
+    // Used to compute the incremental contribution of each intermediate snapshot (BLOCKED calls) within
+    // the same split. Reset to zero when a new split starts. Plain long: updated only from the single
+    // producer thread for this buffer.
+    private long baseReadNanos = 0L;
+    private long baseReadCpuNanos = 0L;
+    // Buffer-local cumulative totals: sum of all splits' read_nanos / read_cpu_nanos attributable to
+    // operators backed by this buffer.
+    private final LongAdder accReadNanos = new LongAdder();
+    private final LongAdder accReadCpuNanos = new LongAdder();
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
     // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
     // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
@@ -511,9 +521,41 @@ public final class AsyncExternalSourceBuffer {
         return bytesInBuffer.get();
     }
 
-    /** Records the latest format-reader counter snapshot for the operator's status view. */
+    /**
+     * Resets the format-reader baseline to zero at the start of a new split (fresh reader, counters at zero).
+     * Must be followed by {@link #recordFormatReaderStatus(FormatReaderStatus)} to accumulate the snapshot.
+     */
+    public void resetBufferBaseline() {
+        baseReadNanos = 0L;
+        baseReadCpuNanos = 0L;
+    }
+
+    /**
+     * Records an incremental format-reader counter snapshot (mid-split, e.g. at BLOCKED drain events).
+     * Accumulates only the delta since the last snapshot into this buffer's counters.
+     * The latest snapshot is also kept for non-timing fields (row groups, footer cache, etc.).
+     *
+     * @param snapshot  live snapshot from the reader; may be null (no-op)
+     */
     public void recordFormatReaderStatus(FormatReaderStatus snapshot) {
+        if (snapshot == null) return;
+        long deltaNanos = snapshot.readNanos() - baseReadNanos;
+        long deltaCpuNanos = snapshot.readCpuNanos() - baseReadCpuNanos;
+        if (deltaNanos > 0) accReadNanos.add(deltaNanos);
+        if (deltaCpuNanos > 0) accReadCpuNanos.add(deltaCpuNanos);
+        baseReadNanos = snapshot.readNanos();
+        baseReadCpuNanos = snapshot.readCpuNanos();
         this.formatReaderStatus = snapshot;
+    }
+
+    /** Cumulative read wall-clock nanos across all splits processed by this buffer. */
+    public long accReadNanos() {
+        return accReadNanos.sum();
+    }
+
+    /** Cumulative read CPU nanos across all splits processed by this buffer. */
+    public long accReadCpuNanos() {
+        return accReadCpuNanos.sum();
     }
 
     /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */

@@ -341,16 +341,18 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());
 
+        // Reset variant: new split, baseline reset to 0; full snapshot value is the delta.
+        buffer.resetBufferBaseline();
         buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L, 0L));
         assertEquals(new NdJsonReaderStatus(3L, 0L, 0L, 0L), buffer.formatReaderStatus());
 
-        // Latest snapshot replaces (does not merge) the prior one.
+        // Latest snapshot replaces the prior one in formatReaderStatus (latest-split diagnostic view).
         buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L, 0L));
         assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
 
-        // Null clears the recorded snapshot.
+        // Null is a no-op: previous snapshot is retained.
         buffer.recordFormatReaderStatus(null);
-        assertNull(buffer.formatReaderStatus());
+        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L, 0L), buffer.formatReaderStatus());
     }
 
     public void testBytesReadAccumulatesPositiveDeltas() {

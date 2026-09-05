@@ -2008,6 +2008,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Returns a copy identical in configuration but with reset counters. Called by
+     * {@code readerForFile} so each split gets its own counter instance; without this,
+     * successive splits sharing {@link #counters} via {@link #withReadConfig} would cause
+     * the split-start delta baseline to be non-zero, double-counting earlier splits' I/O time.
+     */
+    @Override
+    public CsvFormatReader freshCounters() {
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding
+        );
+    }
+
+    /**
      * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
      * envelope. Zero-valued counters when no batches have run.
      */

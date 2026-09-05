@@ -92,12 +92,17 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         void setHandler(ChunkHandler chunkHandler);
 
         /**
-         * Request next chunk of data from the network. The size of the chunk depends on following
-         * factors. If request is not compressed then chunk size will be up to
-         * {@link HttpTransportSettings#SETTING_HTTP_MAX_CHUNK_SIZE}. If request is compressed then
-         * chunk size will be up to max_chunk_size * compression_ratio. Multiple calls can be
-         * deduplicated when next chunk is not yet available. It's recommended to call "next" once
-         * for every chunk.
+         * Requests the next chunk of the body from the network. At most one {@link ChunkHandler#onNext} call follows
+         * each invocation, so a handler must be set via {@link #setHandler} first, and callers should call this once
+         * for every chunk they are ready to handle. Nothing is delivered once the stream is closed.
+         * <p>
+         * Calls made while no chunk is available are deduplicated: several invocations before the next chunk arrives
+         * still yield a single {@code onNext}. Do not rely on this to request chunks in advance.
+         * <p>
+         * A chunk is not a wire chunk. The transport may combine several network chunks into a single chunk, so its
+         * size is not bounded by {@link HttpTransportSettings#SETTING_HTTP_MAX_CHUNK_SIZE}. Combining never spans more
+         * than one request, so the bound is {@link HttpTransportSettings#SETTING_HTTP_MAX_CONTENT_LENGTH}, measured
+         * after decompression for a compressed body. Callers that need a tighter bound must enforce it themselves.
          * <pre>
          * {@code
          *     stream.setHandler((chunk, isLast) -> {

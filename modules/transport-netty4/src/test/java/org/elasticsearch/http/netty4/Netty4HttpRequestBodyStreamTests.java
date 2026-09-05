@@ -18,7 +18,6 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -50,9 +49,9 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
     @Before
     public void initStream() throws Exception {
         channel = new EmbeddedChannel();
-        readSniffer = new ReadSniffer();
-        channel.pipeline().addLast(new FlowControlHandler(), readSniffer);
         channel.config().setAutoRead(false);
+        readSniffer = new ReadSniffer();
+        channel.pipeline().addLast(new Netty4HttpFlowControlHandler(), readSniffer);
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
             public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -122,8 +121,9 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         try {
             // activity tracker requires stream execution in the same thread, setting up stream inside event-loop
             eventLoop.submit(() -> {
-                channel = new EmbeddedChannel(new FlowControlHandler());
+                channel = new EmbeddedChannel();
                 channel.config().setAutoRead(false);
+                channel.pipeline().addLast(new Netty4HttpFlowControlHandler());
                 channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
                     @Override
                     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -149,23 +149,20 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
                         headers.set(threadContext.getHeaders());
                     }
                 });
-                channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
             }).await();
 
-            channel.writeInbound(randomContent(chunkSize));
-            channel.writeInbound(randomLastContent(chunkSize));
-
+            // one chunk is requested and delivered at a time, so that each next() gets the context captured when it was called
             threadContext.putHeader("header2", "value2");
             stream.next();
 
-            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            eventLoop.submit(() -> channel.writeInbound(randomContent(chunkSize))).await();
             assertThat(headers.get(), hasEntry("header1", "value1"));
             assertThat(headers.get(), hasEntry("header2", "value2"));
 
             threadContext.putHeader("header3", "value3");
             stream.next();
 
-            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            eventLoop.submit(() -> channel.writeInbound(randomLastContent(chunkSize))).await();
             assertThat(headers.get(), hasEntry("header1", "value1"));
             assertThat(headers.get(), hasEntry("header2", "value2"));
             assertThat(headers.get(), hasEntry("header3", "value3"));

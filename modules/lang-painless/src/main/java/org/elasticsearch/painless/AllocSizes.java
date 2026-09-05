@@ -57,7 +57,7 @@ public final class AllocSizes {
     }
 
     /** Signed add that saturates to {@link Long#MAX_VALUE}/{@link Long#MIN_VALUE} on overflow instead of wrapping. */
-    private static long addSat(long a, long b) {
+    public static long addSat(long a, long b) {
         try {
             return Math.addExact(a, b);
         } catch (ArithmeticException overflow) {

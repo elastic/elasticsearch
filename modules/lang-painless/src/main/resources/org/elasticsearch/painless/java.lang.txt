@@ -753,13 +753,13 @@ class java.lang.String {
   String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
-  String format(Locale,String,def[])
-  String format(String,def[])
+  String format(Locale,String,def[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="formatBytes"]
+  String format(String,def[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="formatBytes"]
   void getChars(int,int,char[],int)
   int org.elasticsearch.painless.api.Augmentation indexOf(String) @script_aware
   int org.elasticsearch.painless.api.Augmentation indexOf(String,int) @script_aware
   boolean isEmpty()
-  String join(CharSequence,Iterable)
+  String join(CharSequence,Iterable) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="joinBytes"]
   int org.elasticsearch.painless.api.Augmentation lastIndexOf(String) @script_aware
   int org.elasticsearch.painless.api.Augmentation lastIndexOf(String,int) @script_aware
   int offsetByCodePoints(int,int)
@@ -781,7 +781,7 @@ class java.lang.String {
 
 class java.lang.StringBuffer {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBufferShellBytes"]
-  (CharSequence)
+  (CharSequence) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBufferBytes"]
   StringBuffer append(def)
   StringBuffer append(CharSequence,int,int)
   StringBuffer appendCodePoint(int)
@@ -802,13 +802,13 @@ class java.lang.StringBuffer {
   StringBuffer reverse()
   void setCharAt(int,char)
   void setLength(int)
-  String substring(int)
-  String substring(int,int)
+  String substring(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
+  String substring(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
 }
 
 class java.lang.StringBuilder {
   () @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBuilderShellBytes"]
-  (CharSequence)
+  (CharSequence) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="stringBuilderBytes"]
   StringBuilder append(def)
   StringBuilder append(CharSequence,int,int)
   StringBuilder appendCodePoint(int)
@@ -829,8 +829,8 @@ class java.lang.StringBuilder {
   StringBuilder reverse()
   void setCharAt(int,char)
   void setLength(int)
-  String substring(int)
-  String substring(int,int)
+  String substring(int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
+  String substring(int,int) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
 }
 
 class java.lang.System {

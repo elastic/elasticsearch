@@ -32,6 +32,7 @@ class org.elasticsearch.painless.AllocationInheritanceObject {
   ()
   int inheritedConstant()
   int inheritedDynamic(int)
+  int constantAllocating()
 }
 
 # An augmented method's estimator matches the underlying Java static signature (receiver first), not the Painless surface.

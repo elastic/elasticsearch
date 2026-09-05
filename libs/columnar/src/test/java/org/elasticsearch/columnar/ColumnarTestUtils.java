@@ -28,9 +28,11 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 
@@ -187,6 +189,15 @@ public final class ColumnarTestUtils {
         type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, fieldType.name());
         type.freeze();
         return type;
+    }
+
+    /**
+     * One value as the {@link StringBinaryPayload} a string field is written as. The surface carries slots
+     * rather than bare bytes — the count travels with them, so a document holding several is not a document
+     * holding one long one — so a test building documents encodes even a single value the same way.
+     */
+    public static BytesRef stringPayload(final String value) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(new BytesRef(value))));
     }
 
     /**

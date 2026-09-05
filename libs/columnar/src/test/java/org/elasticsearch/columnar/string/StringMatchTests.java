@@ -579,6 +579,64 @@ public class StringMatchTests extends ColumnarStringTestCase {
         return docs;
     }
 
+    /**
+     * Documents holding several slots, some of them null, matched under both layouts. A document matches on
+     * any one of its slots, and a null on none of them — including the empty term, which it stores the same
+     * no bytes as. That is what the two layouts keep apart differently: a dictionary names a null with an
+     * ordinal below every term's, while a plain column has only its null-slot table to go on.
+     */
+    public void testMultiValuedWithNullSlots() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final List<BytesRef> slots = new ArrayList<>();
+            // At least one value, so the document is one the mapper would have written a field for.
+            slots.add(new BytesRef(TERMS[d % (TERMS.length - 1)]));
+            for (int extra = between(0, 2); extra > 0; extra--) {
+                slots.add(randomBoolean() ? null : new BytesRef(TERMS[randomInt(TERMS.length - 1)]));
+            }
+            java.util.Collections.shuffle(slots, random());
+            docSlots[d] = slots.toArray(new BytesRef[0]);
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                }
+                for (String probe : new String[] { "al", "b", "zzz", "" }) {
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+            });
+        }
+    }
+
+    /** The documents a scan over the slots themselves would find, a null being no value to compare. */
+    private static List<Integer> expectedOfSlots(BytesRef[][] docSlots, String probe, boolean exact) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < docSlots.length; d++) {
+            for (BytesRef slot : docSlots[d]) {
+                if (slot == null) {
+                    continue;
+                }
+                final String value = slot.utf8ToString();
+                if (exact ? value.equals(probe) : value.startsWith(probe)) {
+                    docs.add(d);
+                    break;
+                }
+            }
+        }
+        return docs;
+    }
+
     private static final String[] TERMS = { "alpha", "alpine", "bravo", "charlie", "delta", "" };
 
     private BytesRef[] repeated(int count) {

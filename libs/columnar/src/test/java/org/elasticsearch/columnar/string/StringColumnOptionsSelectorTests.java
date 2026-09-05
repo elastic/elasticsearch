@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarFieldTypeSelector;
@@ -32,6 +31,7 @@ import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 
 /**
  * Two fields of the same values written into one segment, each under the options its own name asks for. What
@@ -110,13 +110,12 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             selector
         );
         final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
-        final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(format)))) {
             for (String value : values) {
                 final Document doc = new Document();
-                builder.copyChars(value);
-                doc.add(new Field(NAMED, BytesRef.deepCopyOf(builder.get()), type));
-                doc.add(new Field(STORED, BytesRef.deepCopyOf(builder.get()), type));
+                final BytesRef payload = stringPayload(value);
+                doc.add(new Field(NAMED, payload, type));
+                doc.add(new Field(STORED, payload, type));
                 writer.addDocument(doc);
             }
             writer.commit();
@@ -129,9 +128,12 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
 
     private static List<String> valuesOf(LeafReader leaf, String field) throws IOException {
         final ColumnarStringBinaryDocValues values = (ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(field);
+        // The surface carries slots, so the payload is decoded rather than read as the value's own bytes.
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         final List<String> read = new ArrayList<>();
         for (int doc = values.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            read.add(values.binaryValue().utf8ToString());
+            assertEquals("one slot a document", 1, decoder.reset(values.binaryValue()));
+            read.add(decoder.next().utf8ToString());
         }
         return read;
     }

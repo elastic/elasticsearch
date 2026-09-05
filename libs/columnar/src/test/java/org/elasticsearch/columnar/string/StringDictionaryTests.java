@@ -458,6 +458,57 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         return docValues;
     }
 
+    /**
+     * A multi-valued column that takes the dictionary. How a document's slots are found is decided apart from
+     * how its values are named, so both have to hold at once: the ordinals address slots one-for-one while the
+     * value-address table addresses documents, and a null slot is named like any other value while the
+     * null-slot table is what still tells it from the empty term beside it.
+     */
+    public void testMultiValuedColumnTakesTheDictionary() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 5)];
+            for (int s = 0; s < slots.length; s++) {
+                // A null now and then, and a value the dictionary will not name now and then, so the two
+                // ways a slot leaves the ordinals both happen alongside multi-valued documents.
+                if (slots.length > 1 && d % 11 == s) {
+                    continue;
+                }
+                slots[s] = d % 17 == s ? new BytesRef("escape-" + d + "-" + s) : new BytesRef(terms[(d + s) % terms.length]);
+            }
+            if (slots.length == 1 && slots[0] == null) {
+                slots[0] = new BytesRef(terms[d % terms.length]);
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertEquals("numValues counts slots", numValues(docSlots), reader.numValues());
+            assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
+
+            final ColumnIterator iterator = reader.iterator();
+            int seen = 0;
+            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                final int rank = iterator.rank();
+                assertEquals("slot count at doc " + doc, docSlots[doc].length, reader.valueCount(rank));
+                final long first = reader.firstValueAddress(rank);
+                for (int slot = 0; slot < docSlots[doc].length; slot++) {
+                    final long address = first + slot;
+                    if (docSlots[doc][slot] == null) {
+                        assertTrue("doc " + doc + " slot " + slot + " is null", reader.isNullSlot(address));
+                    } else {
+                        assertFalse("doc " + doc + " slot " + slot + " is a value", reader.isNullSlot(address));
+                        assertEquals("doc " + doc + " slot " + slot, docSlots[doc][slot], reader.valueAt(address));
+                    }
+                }
+                seen++;
+            }
+            assertEquals("documents with a value", numDocsWithField(docSlots), seen);
+        });
+    }
+
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, check);
     }

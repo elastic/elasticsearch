@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 
@@ -158,12 +159,24 @@ public final class ColumnarStringAutomatonQuery extends Query {
                 }
 
                 // An overlay rather than the column, as an updated field is: the values are read one
-                // document at a time and run through the automaton.
+                // document at a time and run through the automaton. The surface carries a document's slots as
+                // one payload, so each is run separately and any of them accepted accepts the document.
+                final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
-                        final BytesRef candidate = values.binaryValue();
-                        return automaton.run(candidate.bytes, candidate.offset, candidate.length);
+                        final int slots = decoder.reset(values.binaryValue());
+                        for (int slot = 0; slot < slots; slot++) {
+                            final BytesRef candidate = decoder.next();
+                            // A null has no bytes to run an automaton over, not even the empty ones.
+                            if (candidate == null) {
+                                continue;
+                            }
+                            if (automaton.run(candidate.bytes, candidate.offset, candidate.length)) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
 
                     @Override

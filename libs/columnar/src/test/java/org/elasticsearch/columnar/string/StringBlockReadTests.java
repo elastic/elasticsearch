@@ -205,7 +205,8 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             for (int d = 0; d < docs.length; d++) {
                 docs[d] = d;
             }
-            final int dictionarySize = reader.dictionarySize();
+            // The terms start above the reserved null, so the escape marker is one past the last of them.
+            final int escapeOrdinal = reader.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
             final java.util.Map<String, Integer> byTerm = new java.util.HashMap<>();
             final BytesRef scratch = new BytesRef();
             final int page = 128;
@@ -220,7 +221,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                 for (int i = 0; i < count; i++) {
                     final String value = docValues[from + i].utf8ToString();
                     final int ordinal = ordinals[i];
-                    if (ordinal >= dictionarySize) {
+                    if (ordinal >= escapeOrdinal) {
                         final long address = reader.firstValueAddress(ranks[i]);
                         assertEquals("escaped [" + value + "]", value, dictionary.resolveEscape(address, scratch).utf8ToString());
                     } else {

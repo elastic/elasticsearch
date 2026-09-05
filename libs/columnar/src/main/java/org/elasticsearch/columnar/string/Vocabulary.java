@@ -129,6 +129,13 @@ public final class Vocabulary {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
                 final BytesRef value = values.value();
+                if (value == null) {
+                    // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
+                    // and its bytes are not bytes the column would otherwise store. Counting it would credit
+                    // the empty term with occurrences it does not have, and could win it an entry — or
+                    // displace a real term — on the strength of values that are not empty strings.
+                    continue;
+                }
                 columnBytes += value.length;
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {

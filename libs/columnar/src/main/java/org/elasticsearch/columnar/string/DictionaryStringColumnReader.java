@@ -32,6 +32,12 @@ import java.util.function.Predicate;
  * <p>A value the dictionary has no term for escapes it: the ordinal records that, and the bytes live in a
  * stream of their own. Everything here has to allow for that, since an escaped value can only be decided by
  * reading it.
+ *
+ * <p>A null is named too, by {@link StringColumnMetadata.Dictionary#NULL_ORDINAL}, so the terms run from
+ * {@link StringColumnMetadata.Dictionary#FIRST_TERM_ORDINAL} up and {@link #escapeOrdinal} follows them. A
+ * null is therefore in no term's ordinal range and among no term's escapes, which is what lets a filter
+ * resolved against the dictionary answer from the ordinals alone without ever confusing a null with the
+ * empty term.
  */
 public final class DictionaryStringColumnReader extends StringColumnReader {
 
@@ -43,6 +49,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private final LongValues escapeRanks;
 
     private final int dictionarySize;
+    /** The ordinal marking a value no term names, one past the last term. */
+    private final int escapeOrdinal;
     private final long escapeCount;
 
     /** The last value {@link #escapeRankOf} answered, and its rank, so an ascending pass carries on. */
@@ -62,6 +70,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         this.dictionary = column.dictionary().open(data);
         this.ordinals = new NumericColumnReader(column.ordinals(), data);
         this.dictionarySize = column.dictionarySize();
+        this.escapeOrdinal = column.escapeOrdinal();
         if (column.hasEscapes()) {
             this.escapes = column.escapes().open(data);
             this.escapeCount = column.escapes().numValues();
@@ -104,11 +113,20 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return dictionarySize;
     }
 
+    /** Whether the slot is null, which the ordinal already read to resolve the value settles outright. */
+    @Override
+    public boolean isNullSlot(long valueAddress) throws IOException {
+        return ordinals.valueAt(valueAddress) == StringColumnMetadata.Dictionary.NULL_ORDINAL;
+    }
+
     @Override
     public BytesRef valueAt(long valueAddress) throws IOException {
         // The ordinals are one per value in the same order, so a value address addresses them directly.
         final long ordinal = ordinals.valueAt(valueAddress);
-        if (ordinal == dictionarySize) {
+        if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+            return null;
+        }
+        if (ordinal == escapeOrdinal) {
             escapes.get(escapeRankOf(valueAddress), value);
         } else {
             termAt((int) ordinal, value);
@@ -116,9 +134,17 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return value;
     }
 
-    /** The term at {@code ordinal}. The dictionary keeps an offset for each, so its bytes are read where they lie. */
+    /**
+     * The term at {@code ordinal}. The dictionary keeps an offset for each, so its bytes are read where they
+     * lie. The {@link #dictionarySize()} terms take the ordinals from
+     * {@link StringColumnMetadata.Dictionary#FIRST_TERM_ORDINAL} up, so the term a caller wants the
+     * {@code i}th of is at {@code FIRST_TERM_ORDINAL + i}.
+     */
     public BytesRef termAt(int ordinal, BytesRef dst) throws IOException {
-        dictionary.get(ordinal, dst);
+        assert ordinal >= StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            && ordinal < dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            : "ordinal [" + ordinal + "] names no term in a dictionary of " + dictionarySize;
+        dictionary.get(ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
         return dst;
     }
 
@@ -140,7 +166,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             rank = escapeRanks.get(block);
         }
         for (; at < valueAddress; at++) {
-            if (ordinals.valueAt(at) == dictionarySize) {
+            if (ordinals.valueAt(at) == escapeOrdinal) {
                 rank++;
             }
         }
@@ -150,7 +176,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * The ordinal the value at {@code valueAddress} takes, or {@link #dictionarySize()} when it escaped.
+     * The ordinal the value at {@code valueAddress} takes: a term's,
+     * {@link StringColumnMetadata.Dictionary#NULL_ORDINAL} when the slot is null, or {@link #escapeOrdinal}
+     * when it escaped.
      */
     public int ordinalAt(long valueAddress) throws IOException {
         return Math.toIntExact(ordinals.valueAt(valueAddress));
@@ -202,9 +230,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      */
     @Override
     protected DocIdSetIterator valueMatches(Predicate<BytesRef> matcher) throws IOException {
-        final FixedBitSet matching = new FixedBitSet(dictionarySize);
+        // Indexed by column ordinal, so a block of them selects straight into it. The reserved null keeps
+        // its bit clear throughout, which is what stops a null answering for whatever the matcher accepts.
+        final FixedBitSet matching = new FixedBitSet(dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL);
         final BytesRef scratchTerm = new BytesRef();
-        for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
+        for (int i = 0; i < dictionarySize; i++) {
+            final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;
             if (matcher.test(termAt(ordinal, scratchTerm))) {
                 matching.set(ordinal);
             }
@@ -283,11 +314,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      */
     @Override
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
-        final int size = dictionarySize;
+        // Bisected in column ordinals, so the range these produce needs no shifting to test a block of them
+        // against — and cannot reach the reserved null, which sorts below every term by construction.
+        final int end = dictionarySize + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
         final BytesRef target = exact != null ? exact : prefix;
-        final int from = firstTermAtLeast(target, size);
+        final int from = firstTermAtLeast(target, end);
         final int lowOrdinal = from;
-        final int highOrdinal = endOfRun(prefix, exact, from, size);
+        final int highOrdinal = endOfRun(prefix, exact, from, end);
         // Nothing in the dictionary matches, and nothing escaped, so nothing can.
         if (lowOrdinal == highOrdinal && escapeCount == 0) {
             return DocIdSetIterator.empty();
@@ -329,7 +362,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         for (long i = 0; i < count; i++) {
             final long address = first + i;
             final int ordinal = ordinalAt(address);
-            if (ordinal != dictionarySize) {
+            if (ordinal != escapeOrdinal) {
+                // A null takes the ordinal below every term's, so this passes over it without a test of
+                // its own: it is in no range a bisection over the terms can produce.
                 if (ordinal >= lowOrdinal && ordinal < highOrdinal) {
                     return true;
                 }
@@ -352,13 +387,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      * whose end is a boundary in that order like its start, so it is bisected rather than walked. A prefix
      * that most of the vocabulary carries would otherwise cost a term read apiece.
      */
-    private int endOfRun(BytesRef prefix, BytesRef exact, int from, int size) throws IOException {
+    private int endOfRun(BytesRef prefix, BytesRef exact, int from, int end) throws IOException {
         final BytesRef term = new BytesRef();
         if (exact != null) {
-            return from < size && matches(termAt(from, term), prefix, exact) ? from + 1 : from;
+            return from < end && matches(termAt(from, term), prefix, exact) ? from + 1 : from;
         }
         int low = from;
-        int high = size;
+        int high = end;
         while (low < high) {
             final int mid = (low + high) >>> 1;
             if (matches(termAt(mid, term), prefix, exact)) {
@@ -370,10 +405,10 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return low;
     }
 
-    private int firstTermAtLeast(BytesRef target, int size) throws IOException {
+    private int firstTermAtLeast(BytesRef target, int end) throws IOException {
         final BytesRef term = new BytesRef();
-        int low = 0;
-        int high = size;
+        int low = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+        int high = end;
         while (low < high) {
             final int mid = (low + high) >>> 1;
             if (termAt(mid, term).compareTo(target) < 0) {
@@ -392,7 +427,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         for (int i = 0; i < count; i++) {
             final int ordinal = cursor.at(pageRanks[i]);
             pageOrdinals[i] = ordinal;
-            if (ordinal >= dictionarySize) {
+            if (ordinal >= escapeOrdinal) {
                 escapedInPage++;
             }
         }
@@ -403,13 +438,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         pageBytesLength = 0;
         int slot = 0;
         for (; slot < distinct; slot++) {
-            dictionary.get(touched[slot], scratch);
+            termAt(touched[slot], scratch);
             appendToPage(slot, scratch);
         }
         startPageSlots(escapedInPage);
         for (int i = 0; i < count; i++) {
             final int ordinal = pageOrdinals[i];
-            if (ordinal < dictionarySize) {
+            if (ordinal < escapeOrdinal) {
                 pageOrdinals[i] = slotOf(ordinal, distinct);
             } else {
                 // Nothing names an escaped value but its bytes, so two documents holding the same ones are
@@ -442,6 +477,10 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
      * many there are. A dictionary no larger than the page is indexed directly and stamped with the page it
      * was written for, so it never has to be cleared; a larger one is not indexed at all and the page's own
      * ordinals are sorted instead. Either way nothing here grows with the dictionary beyond the page.
+     *
+     * <p>{@link #touched} holds column ordinals, which is what {@link #slotOf} bisects and what reads a term.
+     * The direct index is the one thing in term-index space, so it stays the size of the dictionary rather
+     * than of the ordinal space around it.
      */
     private int distinctOrdinals(int count, int dictionarySize) {
         if (touched.length < count) {
@@ -460,20 +499,24 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
             for (int i = 0; i < count; i++) {
                 final int ordinal = pageOrdinals[i];
-                if (ordinal < dictionarySize && stampByOrdinal[ordinal] != generation) {
-                    stampByOrdinal[ordinal] = generation;
+                if (ordinal >= escapeOrdinal) {
+                    continue;
+                }
+                final int term = ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+                if (stampByOrdinal[term] != generation) {
+                    stampByOrdinal[term] = generation;
                     touched[distinct++] = ordinal;
                 }
             }
             Arrays.sort(touched, 0, distinct);
             for (int i = 0; i < distinct; i++) {
-                slotByOrdinal[touched[i]] = i;
+                slotByOrdinal[touched[i] - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL] = i;
             }
             directSlots = true;
             return distinct;
         }
         for (int i = 0; i < count; i++) {
-            if (pageOrdinals[i] < dictionarySize) {
+            if (pageOrdinals[i] < escapeOrdinal) {
                 touched[distinct++] = pageOrdinals[i];
             }
         }
@@ -490,7 +533,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
     /** Where the page put the value for {@code ordinal}, which {@link #distinctOrdinals} accounted for. */
     private int slotOf(int ordinal, int distinct) {
-        return directSlots ? slotByOrdinal[ordinal] : Arrays.binarySearch(touched, 0, distinct, ordinal);
+        return directSlots
+            ? slotByOrdinal[ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL]
+            : Arrays.binarySearch(touched, 0, distinct, ordinal);
     }
 
     /**
@@ -550,11 +595,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 }
                 for (int i = 0; i < block.length; i++) {
                     final long ordinal = block[i];
-                    if (ordinal < dictionarySize) {
+                    if (ordinal < escapeOrdinal) {
+                        // The reserved null indexes a bit no term ever set, so it selects nothing.
                         if (selected.get((int) ordinal)) {
                             matches.set(i);
                         }
-                    } else if (escapedAt != null && ordinal == dictionarySize) {
+                    } else if (escapedAt != null && ordinal == escapeOrdinal) {
                         escapedAt.set(i);
                     }
                 }

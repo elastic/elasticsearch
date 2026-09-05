@@ -210,7 +210,7 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewFailsOnOneCluster}: the dataset lives only on
+     * The dataset lives only on
      * cluster-a; a query spanning cluster-a (matching the dataset) and remote-b (matching only a plain index) FAILS,
      * and the rejection message names ONLY {@code cluster-a:remote_employees} — remote-b contributes no dataset to
      * the matched set.

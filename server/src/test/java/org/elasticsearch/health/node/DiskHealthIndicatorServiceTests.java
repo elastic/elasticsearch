@@ -14,11 +14,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -56,6 +59,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -106,11 +110,17 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     );
 
     private FeatureService featureService;
+    private boolean multiProject;
+    private Set<ProjectId> projectIds;
 
     @Before
-    public void initFeatureService() throws Exception {
+    public void initFeatureService() {
         featureService = Mockito.mock(FeatureService.class);
         Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        multiProject = randomBoolean();
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(Collectors.toSet())
+            : Set.of(randomProjectIdOrDefault());
     }
 
     public void testServiceBasics() {
@@ -214,7 +224,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 .collect(Collectors.toList());
             assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
             assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-            assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexNameToNodeIdsMap.keySet().toArray(new String[0])));
+            assertThat(
+                affectedResources.get(1).getValues(),
+                containsInAnyOrder(indexNameList(indexNameToNodeIdsMap.keySet()).toArray(String[]::new))
+            );
         }
         {
             Diagnosis diagnosis = result.diagnosisList().get(1);
@@ -308,12 +321,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
         assertThat(
             affectedResources.get(1).getValues(),
-            is(
-                indexNameToNodeIdsMap.keySet()
-                    .stream()
-                    .sorted(HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName(clusterService.state().metadata()))
-                    .collect(Collectors.toList())
-            )
+            containsInAnyOrder(indexNameList(indexNameToNodeIdsMap.keySet()).toArray(String[]::new))
         );
 
         Map<String, Object> details = xContentToMap(result.details());
@@ -342,8 +350,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated. The cluster is recovering and ingest capabilities should be restored within a "
-                    + "few minutes."
+                (projectIds.size() == 1
+                    ? "1 index is not allowed to be updated."
+                    : projectIds.size() + " indices are not allowed to be updated.")
+                    + " The cluster is recovering and ingest capabilities should be restored within a few minutes."
             )
         );
         assertThat(result.impacts().size(), equalTo(1));
@@ -359,14 +369,14 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), is(1));
         assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.INDEX));
-        assertThat(affectedResources.get(0).getValues(), iterableWithSize(1));
+        assertThat(affectedResources.get(0).getValues(), iterableWithSize(projectIds.size()));
 
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
         assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
-        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(projectIds.size()));
     }
 
     /*
@@ -387,7 +397,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated. "
+                (projectIds.size() == 1
+                    ? "1 index is not allowed to be updated. "
+                    : projectIds.size() + " indices are not allowed to be updated. ")
                     + (numberOfYellowNodes == 1 ? "1 node is" : numberOfYellowNodes + " nodes are")
                     + " out of disk or running low on disk space."
             )
@@ -407,13 +419,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
         assertThat(affectedResources.get(0).getNodes().size(), is(numberOfYellowNodes));
         assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-        assertThat(affectedResources.get(1).getValues(), iterableWithSize(1));
+        assertThat(affectedResources.get(1).getValues(), iterableWithSize(projectIds.size()));
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfYellowNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(numberOfYellowNodes));
         assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
-        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(projectIds.size()));
     }
 
     /*
@@ -460,11 +472,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         DiskHealthIndicatorService diskHealthIndicatorService = createDiskHealthIndicatorService(clusterService);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
+        int blockedIndexCount = numberOfBlockedIndices * projectIds.size();
         assertThat(
             result.symptom(),
             equalTo(
-                (numberOfBlockedIndices == 1 ? "1 index is" : numberOfBlockedIndices + " indices are")
-                    + " not allowed to be updated. "
+                (blockedIndexCount == 1
+                    ? "1 index is not allowed to be updated. "
+                    : blockedIndexCount + " indices are not allowed to be updated. ")
                     + (numberOfRedNodes == 1 ? "1 node is" : numberOfRedNodes + " nodes are")
                     + " out of disk or running low on disk space."
             )
@@ -474,7 +488,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
         assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(numberOfRedNodes));
-        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(blockedIndices.size()));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(blockedIndices.size() * projectIds.size()));
     }
 
     public void testRedNodesWithoutAnyBlockedIndices() throws IOException {
@@ -691,7 +705,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated. "
+                (projectIds.size() == 1
+                    ? "1 index is not allowed to be updated. "
+                    : projectIds.size() + " indices are not allowed to be updated. ")
                     + (numberOfYellowDataNodes + (numberOfYellowDataNodes == 1 ? " node is" : " nodes are"))
                     + " out of disk or running low on disk space. "
                     + (numberOfRedMasterNodes + numberOfRedOtherNodes)
@@ -724,13 +740,17 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
             assertThat(dataAffectedResources.get(0).getNodes().size(), is(numberOfYellowDataNodes));
             assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-            assertThat(dataAffectedResources.get(1).getValues().size(), is(1));
+            assertThat(dataAffectedResources.get(1).getValues().size(), is(projectIds.size()));
             Diagnosis.Definition dataDiagnosisDefinition = diagnosis.definition();
             assertThat(
                 dataDiagnosisDefinition.cause(),
                 equalTo(
-                    "1 index resides on nodes that have run or are likely to run out of disk space, "
-                        + "this can temporarily disable writing on this index."
+                    projectIds.size() == 1
+                        ? "1 index resides on nodes that have run or are likely to run out of disk space, "
+                            + "this can temporarily disable writing on this index."
+                        : projectIds.size()
+                            + " indices reside on nodes that have run or are likely to run out of disk space, "
+                            + "this can temporarily disable writing on these indices."
                 )
             );
             assertThat(
@@ -949,7 +969,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
                 assertThat(dataAffectedResources.get(0).getNodes().size(), is(10));
                 assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
-                assertThat(dataAffectedResources.get(1).getValues().size(), is(1));
+                assertThat(dataAffectedResources.get(1).getValues().size(), is(projectIds.size()));
             }
             {
                 Diagnosis diagnosis = diagnosisList.get(1);
@@ -1057,15 +1077,29 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of(), FileSettingsHealthInfo.INDETERMINATE);
     }
 
-    private static DiskHealthIndicatorService createDiskHealthIndicatorService(ClusterService clusterService) {
-        return new DiskHealthIndicatorService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+    private DiskHealthIndicatorService createDiskHealthIndicatorService(ClusterService clusterService) {
+        return new DiskHealthIndicatorService(
+            clusterService,
+            multiProject ? TestProjectResolvers.allProjects() : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next())
+        );
     }
 
-    private static Set<ProjectIndexName> toProjectIndices(Set<String> indexNames) {
-        return indexNames.stream().map(name -> new ProjectIndexName(Metadata.DEFAULT_PROJECT_ID, name)).collect(Collectors.toSet());
+    private List<String> indexNameList(Collection<String> indexNames) {
+        if (multiProject == false) {
+            return List.copyOf(indexNames);
+        }
+        return indexNames.stream()
+            .flatMap(indexName -> projectIds.stream().map(id -> id.id() + "/" + indexName).sorted())
+            .toList();
     }
 
-    private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {
+    private Set<ProjectIndexName> toProjectIndices(Set<String> indexNames) {
+        return projectIds.stream()
+            .flatMap(projectId -> indexNames.stream().map(name -> new ProjectIndexName(projectId, name)))
+            .collect(Collectors.toSet());
+    }
+
+    private ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {
         int numberOfIndices = 1;
         int numberOfBlockedIndices = withBlockedIndex ? 1 : 0;
         Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
@@ -1080,7 +1114,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         return createClusterService(blockedIndices, nodes, indexNameToNodeIdsMap);
     }
 
-    private static ClusterService createClusterService(
+    private ClusterService createClusterService(
         Set<String> blockedIndices,
         Collection<DiscoveryNode> nodes,
         Map<String, Set<String>> indexNameToNodeIdsMap
@@ -1091,7 +1125,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         return clusterService;
     }
 
-    static ClusterState createClusterState(
+    ClusterState createClusterState(
         Set<String> blockedIndices,
         Collection<DiscoveryNode> nodes,
         Map<String, Set<String>> indexNameToNodeIdsMap
@@ -1102,35 +1136,42 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         nodesBuilder.masterNodeId(randomFrom(nodes).getId());
         ClusterBlocks.Builder clusterBlocksBuilder = new ClusterBlocks.Builder();
         Metadata.Builder metadata = Metadata.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        for (String index : indexNameToNodeIdsMap.keySet()) {
-            int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
-            IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(
-                    indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
-                        .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
-                )
-                .build();
-            if (blockedIndices.contains(index)) {
-                clusterBlocksBuilder.addBlocks(indexMetadata);
-            }
+        GlobalRoutingTable.Builder globalRoutingTable = GlobalRoutingTable.builder();
+        for (ProjectId projectId : projectIds) {
+            ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(projectId);
+            RoutingTable.Builder routingTable = RoutingTable.builder();
+            for (String index : indexNameToNodeIdsMap.keySet()) {
+                int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
+                IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                    .settings(
+                        indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                            .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
+                    )
+                    .build();
+                if (blockedIndices.contains(index)) {
+                    clusterBlocksBuilder.addBlocks(projectId, indexMetadata);
+                }
 
-            IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
-            int shardAutoincrementNumber = 0;
-            for (String nodeId : indexNameToNodeIdsMap.get(index)) {
-                ShardId shardId = new ShardId(indexMetadata.getIndex(), shardAutoincrementNumber);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED));
-                indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
-            }
+                IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+                int shardAutoincrementNumber = 0;
+                for (String nodeId : indexNameToNodeIdsMap.get(index)) {
+                    ShardId shardId = new ShardId(indexMetadata.getIndex(), shardAutoincrementNumber);
+                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                    indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED));
+                    indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
+                }
 
-            metadata.put(indexMetadata, false);
-            routingTable.add(indexRoutingTable);
+                projectMetadata.put(indexMetadata, false);
+                routingTable.add(indexRoutingTable);
+            }
+            metadata.put(projectMetadata);
+            globalRoutingTable.put(projectId, routingTable.build());
         }
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(nodesBuilder);
         state.metadata(metadata.generateClusterUuidIfNeeded().build());
-        state.routingTable(routingTable.build());
+        state.routingTable(globalRoutingTable.build());
         state.blocks(clusterBlocksBuilder);
         return state.build();
     }

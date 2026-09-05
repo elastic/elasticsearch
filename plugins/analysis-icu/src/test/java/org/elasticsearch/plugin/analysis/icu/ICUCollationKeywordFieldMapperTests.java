@@ -22,7 +22,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -424,7 +423,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * is marked in {@code _ignored}.
      */
     public void testOnFailureIgnoreRedirectsExtraValue() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject())
         );
@@ -447,7 +445,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
      * override, which previously always returned {@code FAIL} regardless of the configured value.
      */
     public void testOnFailureIgnoreHonoredForNullabilityViolation() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             icuMultiFieldMapping(b -> b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject())
         );

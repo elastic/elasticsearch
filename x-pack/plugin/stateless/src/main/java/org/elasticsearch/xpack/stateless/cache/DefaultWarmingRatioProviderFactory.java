@@ -49,7 +49,8 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
 
         @Override
         public double getWarmingRatio(
-            ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCompoundCommit,
+            ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+            long resolvedCCTimestampMillis,
             long nowMillis
         ) {
             return ratio;

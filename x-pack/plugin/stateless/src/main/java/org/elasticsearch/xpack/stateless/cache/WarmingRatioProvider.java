@@ -18,6 +18,15 @@ public interface WarmingRatioProvider {
      * Computes the warming ratio for a compound commit, determining what fraction of its data
      * should be pre-warmed into the shared blob cache. Currently, only used on search nodes.
      * A ratio of 0 means no pre-warming; 1 means full pre-warming.
+     *
+     * @param referencedCC the referenced compound commit
+     * @param resolvedCCTimestampMillis representative timestamp for the CC, as resolved by
+     *        {@link org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#resolveRegionTimestampMillis}
+     * @param nowMillis current time in epoch millis
      */
-    double getWarmingRatio(ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCompoundCommit, long nowMillis);
+    double getWarmingRatio(
+        ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
+        long resolvedCCTimestampMillis,
+        long nowMillis
+    );
 }

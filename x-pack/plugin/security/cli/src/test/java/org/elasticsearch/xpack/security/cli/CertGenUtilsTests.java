@@ -9,11 +9,22 @@ package org.elasticsearch.xpack.security.cli;
 
 import com.unboundid.util.ssl.cert.KeyUsageExtension;
 
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
+import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
+import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.asn1.x509.SubjectKeyIdentifier;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
@@ -29,6 +40,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -126,6 +138,51 @@ public class CertGenUtilsTests extends ESTestCase {
             assertThat(generalNameArray.length, is(1));
             assertThat(generalNameArray[0].getTagNo(), is(GeneralName.iPAddress));
         }
+    }
+
+    public void testIssuerSubjectKeyIdentifierIsUsedForAuthorityKeyIdentifier() throws Exception {
+        final byte[] issuerSubjectKeyIdentifier = new byte[32];
+        random().nextBytes(issuerSubjectKeyIdentifier);
+        final KeyPair issuerKeyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate issuerCertificate = generateCaCertificate(issuerKeyPair, issuerSubjectKeyIdentifier);
+
+        final X509Certificate certificate = CertGenUtils.generateSignedCertificate(
+            new X500Principal("CN=child"),
+            null,
+            CertGenUtils.generateKeyPair(2048),
+            issuerCertificate,
+            issuerKeyPair.getPrivate(),
+            1
+        );
+
+        final SubjectKeyIdentifier subjectKeyIdentifier = SubjectKeyIdentifier.fromExtensions(
+            new X509CertificateHolder(issuerCertificate.getEncoded()).getExtensions()
+        );
+        final AuthorityKeyIdentifier authorityKeyIdentifier = AuthorityKeyIdentifier.fromExtensions(
+            new X509CertificateHolder(certificate.getEncoded()).getExtensions()
+        );
+
+        assertArrayEquals(issuerSubjectKeyIdentifier, subjectKeyIdentifier.getKeyIdentifier());
+        assertArrayEquals(subjectKeyIdentifier.getKeyIdentifier(), authorityKeyIdentifier.getKeyIdentifier());
+    }
+
+    public void testIssuerWithoutSubjectKeyIdentifierIsRejected() throws Exception {
+        final KeyPair issuerKeyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate issuerCertificate = generateCaCertificate(issuerKeyPair, null);
+
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> CertGenUtils.generateSignedCertificate(
+                new X500Principal("CN=child"),
+                null,
+                CertGenUtils.generateKeyPair(2048),
+                issuerCertificate,
+                issuerKeyPair.getPrivate(),
+                1
+            )
+        );
+
+        assertThat(exception.getMessage(), equalTo("ca certificate does not contain a subject key identifier"));
     }
 
     @SuppressForbidden(reason = "need to use getHostName to resolve DNS name and getHostAddress to ensure we resolved the name")
@@ -283,6 +340,28 @@ public class CertGenUtilsTests extends ESTestCase {
         assertThat(isValidKeyUsage("keyAgreement "), is(true));
         assertThat(isValidKeyUsage("keyCertSign\n"), is(true));
         assertThat(isValidKeyUsage("\tcRLSign  "), is(true));
+    }
+
+    private static X509Certificate generateCaCertificate(KeyPair keyPair, byte[] subjectKeyIdentifier) throws Exception {
+        final X500Name subject = X500Name.getInstance(new X500Principal("CN=issuer").getEncoded());
+        final Date notBefore = Date.from(ZonedDateTime.now(ZoneOffset.UTC).toInstant());
+        final Date notAfter = Date.from(ZonedDateTime.now(ZoneOffset.UTC).plusDays(1).toInstant());
+        final JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+            subject,
+            BigInteger.ONE,
+            notBefore,
+            notAfter,
+            subject,
+            keyPair.getPublic()
+        );
+        builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+        if (subjectKeyIdentifier != null) {
+            builder.addExtension(Extension.subjectKeyIdentifier, false, new SubjectKeyIdentifier(subjectKeyIdentifier));
+        }
+
+        final ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").setProvider(new BouncyCastleProvider())
+            .build(keyPair.getPrivate());
+        return new JcaX509CertificateConverter().getCertificate(builder.build(signer));
     }
 
     public static void assertExpectedKeyUsage(X509Certificate certificate, List<String> expectedKeyUsage) {

@@ -208,13 +208,22 @@ public class MetadataRolloverService {
 
     public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
+    /**
+     * Resolves the concrete name of the index a rollover will create from an unresolved (possibly date-math)
+     * name. An index being created can only carry date math, since wildcard and alias expansion do not apply
+     * to a new index name, so this is the complete name resolution for a rollover index.
+     */
+    public static String resolveRolloverIndexName(String unresolvedName) {
+        return IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+    }
+
     private static NameResolution resolveAliasRolloverNames(ProjectMetadata project, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = project.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
         final String unresolvedName = (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName);
-        final String rolloverIndexName = IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        final String rolloverIndexName = resolveRolloverIndexName(unresolvedName);
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 

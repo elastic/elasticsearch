@@ -112,6 +112,7 @@ public class CsvTestsDataLoader {
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
         new TestDataset("apps"),
         new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),
+        new TestDataset("cross_cluster_failures", "mapping-cross_cluster_failures.json", "cross_cluster_failures.csv"),
         new TestDataset("languages"),
         new TestDataset("languages").withIndex("languages_lookup").withSetting("lookup-settings.json"),
         new TestDataset("languages").withIndex("languages_lookup_non_unique_key")

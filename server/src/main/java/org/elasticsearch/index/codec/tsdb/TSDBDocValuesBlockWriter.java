@@ -252,7 +252,7 @@ public final class TSDBDocValuesBlockWriter {
             IOUtils.close(disiAccumulator);
         }
 
-        return new DocValueFieldCountStats(numDocsWithValue, numValues);
+        return new DocValueFieldCountStats(numDocsWithValue, numValues, false);
     }
 
     /**

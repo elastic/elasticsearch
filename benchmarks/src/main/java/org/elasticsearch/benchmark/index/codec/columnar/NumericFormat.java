@@ -87,7 +87,8 @@ public enum NumericFormat {
                     useLargeNumericBlockSize,
                     useLargeBinaryBlockSize,
                     writePartitions,
-                    (f, bs) -> es95FieldContext(workload, f, bs)
+                    (f, bs) -> es95FieldContext(workload, f, bs),
+                    false
                 );
             }
             case COLUMNAR -> new ColumNARDocValuesFormat((f, t) -> bs -> selectPipeline(workload, bs), blockSize);
@@ -182,12 +183,12 @@ public enum NumericFormat {
 
     static FieldContext es95FieldContext(String workload, String fieldName, int blockSize) {
         return switch (workload) {
-            case "SENSOR_DOUBLES", "DOUBLE_GAUGE" -> new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE);
-            case "DOUBLE_COUNTER" -> new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER);
-            case "COUNTER_STEADY" -> new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER);
-            case "GAUGE" -> new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.GAUGE);
-            case "TSDB_SPLIT", "MONOTONIC_TIMESTAMPS" -> new FieldContext(blockSize, "@timestamp", null, null);
-            default -> new FieldContext(blockSize, fieldName, null, null);
+            case "SENSOR_DOUBLES", "DOUBLE_GAUGE" -> new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE, false);
+            case "DOUBLE_COUNTER" -> new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER, false);
+            case "COUNTER_STEADY" -> new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER, false);
+            case "GAUGE" -> new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.GAUGE, false);
+            case "TSDB_SPLIT", "MONOTONIC_TIMESTAMPS" -> new FieldContext(blockSize, "@timestamp", null, null, false);
+            default -> new FieldContext(blockSize, fieldName, null, null, false);
         };
     }
 

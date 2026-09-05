@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.index.SegmentReadState;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
+import org.elasticsearch.index.codec.tsdb.DefaultSortedCodec;
+import org.elasticsearch.index.codec.tsdb.DefaultSortedSetCodec;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBNumericBlockCodec;
@@ -45,7 +47,8 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             formatConfig,
             docOffsetsDecoder,
             new TSDBNumericBlockCodec(),
-            new TSDBOrdinalBlockCodec()
+            new DefaultSortedCodec(new TSDBOrdinalBlockCodec()),
+            new DefaultSortedSetCodec(new TSDBOrdinalBlockCodec())
         );
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -1107,6 +1108,28 @@ public final class IndexSettings {
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
+    /** Feature flag gating the run-table ordinal TSDB doc values encoding. */
+    public static final FeatureFlag ES95_RUNTABLE_ENCODING_FEATURE_FLAG = new FeatureFlag("es95_runtable_encoding");
+
+    /**
+     * Controls whether the run-table ordinal encoding is used for TSDB dimension fields in the ES95 codec,
+     * allowing per-index opt-out. Registered only when {@link #ES95_RUNTABLE_ENCODING_FEATURE_FLAG} is enabled.
+     * Defaults to {@code true} for time series indices when the feature flag is enabled, {@code false} otherwise.
+     */
+    public static final Setting<Boolean> TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.run_table_ordinal.enabled",
+        settings -> Boolean.toString(runTableOrdinalEnabledByDefault(settings)),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    private static boolean runTableOrdinalEnabledByDefault(final Settings settings) {
+        if (settings == null || MODE.get(settings).isTsdb() == false) {
+            return false;
+        }
+        return ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled();
+    }
+
     /**
      * Controls whether the ColumNAR doc values codec is used for a given index, as an explicit opt-in.
      * Defaults to {@code false}. This setting is only registered while the {@code columnar_codec} feature
@@ -1447,6 +1470,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean timeSeriesRunTableOrdinalEnabled;
     private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
@@ -1674,6 +1698,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        timeSeriesRunTableOrdinalEnabled = ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING);
         columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
             && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
@@ -2520,6 +2546,16 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
+     * Checks if run-table ordinal encoding is enabled for TSDB dimension fields, as resolved from
+     * {@link #TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING}.
+     *
+     * @return {@code true} if run-table ordinal encoding is active; {@code false} otherwise.
+     */
+    public boolean isTimeSeriesRunTableOrdinalEnabled() {
+        return timeSeriesRunTableOrdinalEnabled;
     }
 
     /**

@@ -275,6 +275,7 @@ public class IndexVersions {
     // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
     // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).
     public static final IndexVersion DEDUPLICATED_FIELD_INFOS_CODEC = def(9_113_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT = def(9_114_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

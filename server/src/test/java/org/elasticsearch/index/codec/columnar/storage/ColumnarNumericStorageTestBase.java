@@ -116,13 +116,13 @@ abstract class ColumnarNumericStorageTestBase extends ESTestCase {
 
     static DocValuesFormat es95Format(String workload, boolean useLargeNumericBlockSize) {
         return ES95TSDBDocValuesFormatFactory.create(useLargeNumericBlockSize, false, false, (f, bs) -> switch (workload) {
-            case "SENSOR_DOUBLES", "DOUBLE_GAUGE" -> new FieldContext(bs, f, DataType.DOUBLE, MetricRole.GAUGE);
-            case "DOUBLE_COUNTER" -> new FieldContext(bs, f, DataType.DOUBLE, MetricRole.COUNTER);
-            case "COUNTER_STEADY" -> new FieldContext(bs, f, DataType.LONG, MetricRole.COUNTER);
-            case "GAUGE" -> new FieldContext(bs, f, DataType.LONG, MetricRole.GAUGE);
-            case "TSDB_SPLIT", "MONOTONIC_TIMESTAMPS" -> new FieldContext(bs, "@timestamp", null, null);
-            default -> new FieldContext(bs, f, null, null);
-        });
+            case "SENSOR_DOUBLES", "DOUBLE_GAUGE" -> new FieldContext(bs, f, DataType.DOUBLE, MetricRole.GAUGE, false);
+            case "DOUBLE_COUNTER" -> new FieldContext(bs, f, DataType.DOUBLE, MetricRole.COUNTER, false);
+            case "COUNTER_STEADY" -> new FieldContext(bs, f, DataType.LONG, MetricRole.COUNTER, false);
+            case "GAUGE" -> new FieldContext(bs, f, DataType.LONG, MetricRole.GAUGE, false);
+            case "TSDB_SPLIT", "MONOTONIC_TIMESTAMPS" -> new FieldContext(bs, "@timestamp", null, null, false);
+            default -> new FieldContext(bs, f, null, null, false);
+        }, false);
     }
 
     private static SegmentWriteState segmentWriteState(ByteBuffersDirectory dir, FieldInfo fieldInfo, int maxDoc) throws IOException {

@@ -474,6 +474,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es95.ES95RunTableTSDBDocValuesFormat,
             org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with

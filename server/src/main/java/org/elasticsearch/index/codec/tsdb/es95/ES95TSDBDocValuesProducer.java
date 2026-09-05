@@ -13,7 +13,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.NumericBlockCodec;
-import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.SortedOrdinalCodec;
+import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.io.IOException;
 /**
  * Doc values producer for the ES95 TSDB format. Delegates all shared wire-format reading logic to
  * {@link AbstractTSDBDocValuesProducer} with ES95-specific pipeline-based numeric decoding via
- * {@link NumericBlockCodec} and the shared {@link OrdinalBlockCodec} for ordinals.
+ * {@link NumericBlockCodec} and the {@link SortedOrdinalCodec}/{@link SortedSetOrdinalCodec} for ordinals.
  */
 final class ES95TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
 
@@ -36,7 +37,8 @@ final class ES95TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Decoder docOffsetsDecoder,
         final NumericBlockCodec numericCodec,
-        final OrdinalBlockCodec ordinalCodec
+        final SortedOrdinalCodec sortedCodec,
+        final SortedSetOrdinalCodec sortedSetCodec
     ) throws IOException {
         super(
             state,
@@ -49,7 +51,8 @@ final class ES95TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             formatConfig,
             docOffsetsDecoder,
             numericCodec,
-            ordinalCodec
+            sortedCodec,
+            sortedSetCodec
         );
     }
 

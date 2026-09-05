@@ -33,6 +33,8 @@ public class IndexFeatures implements FeatureSpecification {
 
     public static final NodeFeature TIME_SERIES_ES95_CODEC = new NodeFeature("index.time_series_es95_codec");
 
+    public static final NodeFeature TIME_SERIES_RUN_TABLE_ORDINAL = new NodeFeature("index.time_series_run_table_ordinal");
+
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
     private static final NodeFeature THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION = new NodeFeature(
@@ -79,6 +81,9 @@ public class IndexFeatures implements FeatureSpecification {
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             features.add(SLICE_INDEXING);
+        }
+        if (IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()) {
+            features.add(TIME_SERIES_RUN_TABLE_ORDINAL);
         }
         return Set.copyOf(features);
     }

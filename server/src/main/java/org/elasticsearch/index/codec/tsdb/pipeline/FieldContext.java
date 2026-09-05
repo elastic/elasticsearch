@@ -15,20 +15,23 @@ import org.elasticsearch.core.Nullable;
  * Context about the field being encoded, passed to the {@link PipelineConfigResolver}
  * for pipeline selection.
  *
- * @param blockSize   the number of values per numeric block
- * @param fieldName   the name of the field being encoded
- * @param dataType    the underlying doc-values storage type of the field, or
- *                    {@code null} when unknown (e.g. construction sites without
- *                    mapper access). All integer-domain numeric mapper types
- *                    (long, integer, short, byte) collapse to
- *                    {@link PipelineDescriptor.DataType#LONG} because doc values
- *                    back-store them as long.
- * @param metricRole  the {@link MetricRole} of the field, or {@code null} when the
- *                    field is not a time-series metric
+ * @param blockSize    the number of values per numeric block
+ * @param fieldName    the name of the field being encoded
+ * @param dataType     the underlying doc-values storage type of the field, or
+ *                     {@code null} when unknown (e.g. construction sites without
+ *                     mapper access). All integer-domain numeric mapper types
+ *                     (long, integer, short, byte) collapse to
+ *                     {@link PipelineDescriptor.DataType#LONG} because doc values
+ *                     back-store them as long.
+ * @param metricRole   the {@link MetricRole} of the field, or {@code null} when the
+ *                     field is not a time-series metric
+ * @param isDimension  {@code true} when the field is a time-series dimension field;
+ *                     {@code false} for metric and non-TSDB fields
  */
 public record FieldContext(
     int blockSize,
     String fieldName,
     @Nullable PipelineDescriptor.DataType dataType,
-    @Nullable MetricRole metricRole
+    @Nullable MetricRole metricRole,
+    boolean isDimension
 ) {}

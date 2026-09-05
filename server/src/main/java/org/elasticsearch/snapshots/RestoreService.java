@@ -214,6 +214,8 @@ public final class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
+    private volatile RestoreLifecycleListener lifecycleListener = RestoreLifecycleListener.NOOP;
+
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
@@ -251,6 +253,14 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * Registers the {@link RestoreLifecycleListener}, replacing any previous one. The listener runs
+     * inside master-service cluster-state updates and must not block or perform I/O.
+     */
+    public void setLifecycleListener(RestoreLifecycleListener listener) {
+        this.lifecycleListener = Objects.requireNonNull(listener);
+    }
+
+    /**
      * Restores snapshot specified in the restore request.
      *
      * @param projectId project for the restore
@@ -280,6 +290,35 @@ public final class RestoreService implements ClusterStateApplier {
         final ActionListener<RestoreCompletionResponse> listener,
         final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, UUIDs.randomBase64UUID(), listener, updater);
+    }
+
+    /**
+     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
+     * with an external record (e.g. a persistent task). A UUID matching an existing
+     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
+     *
+     * @param projectId   project for the restore
+     * @param request     restore request
+     * @param restoreUUID caller-supplied UUID for the restore entry; must not be
+     *                    {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}
+     * @param listener    restore listener
+     * @param updater     handler that allows callers to make modifications to {@link ProjectMetadata}
+     *                    in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
+        Objects.requireNonNull(restoreUUID);
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
+            throw new IllegalArgumentException(
+                "restore UUID must not be the reserved value [" + SnapshotRecoverySource.NO_API_RESTORE_UUID + "]"
+            );
+        }
         assert Repository.assertSnapshotMetaThread();
 
         if (clusterService.state().metadata().hasProject(projectId) == false) {
@@ -345,6 +384,7 @@ public final class RestoreService implements ClusterStateApplier {
                     repositoryRef.get(),
                     request,
                     repositoryDataRef.get(),
+                    restoreUUID,
                     updater,
                     responseListener
                 )
@@ -382,6 +422,7 @@ public final class RestoreService implements ClusterStateApplier {
         Repository repository,
         RestoreSnapshotRequest request,
         RepositoryData repositoryData,
+        String restoreUUID,
         BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
@@ -549,6 +590,7 @@ public final class RestoreService implements ClusterStateApplier {
         submitUnbatchedTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
             new RestoreSnapshotStateTask(
+                listener,
                 request,
                 snapshot,
                 featureStatesToRestore.keySet(),
@@ -567,7 +609,8 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamsToRestore.values(),
                 updater,
                 clusterService.getSettings(),
-                listener
+                restoreUUID,
+                List.of()
             )
         );
     }
@@ -1417,29 +1460,40 @@ public final class RestoreService implements ClusterStateApplier {
      */
     private volatile boolean cleanupInProgress = false;
 
+    /**
+     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
+     * then removes those entries. The listener fires before removal so its writes publish atomically
+     * with the entry disappearing. Package-private for unit tests.
+     */
+    ClusterState executeRestoreCleanup(ClusterState currentState) {
+        RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
+        boolean changed = false;
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
+            if (entry.state().completed()) {
+                logger.log(
+                    entry.quiet() ? Level.DEBUG : Level.INFO,
+                    "completed restore of snapshot [{}] with state [{}]",
+                    entry.snapshot(),
+                    entry.state()
+                );
+                // Notify the listener before the entry disappears from cluster state.
+                currentState = lifecycleListener.onRestoreCompleted(entry, currentState);
+                changed = true;
+            } else {
+                restoreInProgressBuilder.add(entry);
+            }
+        }
+        return changed == false
+            ? currentState
+            : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+    }
+
     // run a cluster state update that removes all completed restores from the cluster state
     private void removeCompletedRestoresFromClusterState() {
         submitUnbatchedTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
-                boolean changed = false;
-                for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
-                    if (entry.state().completed()) {
-                        logger.log(
-                            entry.quiet() ? Level.DEBUG : Level.INFO,
-                            "completed restore of snapshot [{}] with state [{}]",
-                            entry.snapshot(),
-                            entry.state()
-                        );
-                        changed = true;
-                    } else {
-                        restoreInProgressBuilder.add(entry);
-                    }
-                }
-                return changed == false
-                    ? currentState
-                    : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+                return executeRestoreCleanup(currentState);
             }
 
             @Override
@@ -1611,34 +1665,6 @@ public final class RestoreService implements ClusterStateApplier {
 
         @Nullable
         private RestoreInfo restoreInfo;
-
-        RestoreSnapshotStateTask(
-            RestoreSnapshotRequest request,
-            Snapshot snapshot,
-            Set<String> featureStatesToRestore,
-            Map<String, IndexId> indicesToRestore,
-            SnapshotInfo snapshotInfo,
-            Metadata metadata,
-            Collection<DataStream> dataStreamsToRestore,
-            BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
-            Settings settings,
-            ActionListener<RestoreCompletionResponse> listener
-        ) {
-            this(
-                listener,
-                request,
-                snapshot,
-                featureStatesToRestore,
-                indicesToRestore,
-                snapshotInfo,
-                metadata,
-                dataStreamsToRestore,
-                updater,
-                settings,
-                UUIDs.randomBase64UUID(),
-                List.of()
-            );
-        }
 
         RestoreSnapshotStateTask(
             ActionListener<RestoreCompletionResponse> listener,
@@ -1836,20 +1862,22 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             final ClusterState.Builder builder = ClusterState.builder(currentState);
+            final RestoreInProgress.Entry restoreEntry;
             if (shards.isEmpty() == false) {
+                restoreEntry = new RestoreInProgress.Entry(
+                    restoreUUID,
+                    snapshot,
+                    overallState(RestoreInProgress.State.INIT, shards),
+                    request.quiet(),
+                    List.copyOf(indicesToRestore.keySet()),
+                    Map.copyOf(shards)
+                );
                 builder.putCustom(
                     RestoreInProgress.TYPE,
-                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(
-                        new RestoreInProgress.Entry(
-                            restoreUUID,
-                            snapshot,
-                            overallState(RestoreInProgress.State.INIT, shards),
-                            request.quiet(),
-                            List.copyOf(indicesToRestore.keySet()),
-                            Map.copyOf(shards)
-                        )
-                    ).build()
+                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(restoreEntry).build()
                 );
+            } else {
+                restoreEntry = null;
             }
 
             applyDataStreamRestores(currentState, mdBuilder, projectId);
@@ -1871,12 +1899,16 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             updater.accept(currentState, mdBuilder.getProject(projectId));
-            final ClusterState updatedClusterState = builder.metadata(mdBuilder)
+            ClusterState updatedClusterState = builder.metadata(mdBuilder)
                 .blocks(blocks)
                 .putRoutingTable(projectId, rtBuilder.build())
                 .build();
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
+            }
+
+            if (restoreEntry != null) {
+                updatedClusterState = lifecycleListener.onRestoreInitialized(restoreEntry, updatedClusterState);
             }
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }

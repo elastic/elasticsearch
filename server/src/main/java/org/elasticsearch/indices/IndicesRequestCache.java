@@ -12,6 +12,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -26,6 +27,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,6 +38,7 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 /**
@@ -47,6 +52,8 @@ import java.util.function.Consumer;
  * level setting that can be dynamically changed and defaults to false.
  */
 public final class IndicesRequestCache implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -107,7 +114,7 @@ public final class IndicesRequestCache implements Closeable {
      *                              This allows waiting threads to be notified instantly when their task is cancelled,
      *                              rather than polling.
      * @return the cached or computed value
-     * @throws Exception if the computation fails or the operation is cancelled
+     * @throws Exception if the computation fails or this request is cancelled
      */
     BytesReference getOrCompute(
         CacheEntity cacheEntity,
@@ -121,7 +128,7 @@ public final class IndicesRequestCache implements Closeable {
         assert cacheHelper != null;
         final Key key = new Key(cacheEntity, mappingCacheKey, cacheHelper.getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
-        BytesReference value = cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
+        BytesReference value = compute(key, cacheLoader, cancellationRegistrar);
         if (cacheLoader.isLoaded()) {
             key.entity.onMiss();
             // see if it's the first time we see this reader, and make sure to register a cleanup key
@@ -148,6 +155,27 @@ public final class IndicesRequestCache implements Closeable {
     }
 
     /**
+     * Loads the entry through the cache. A {@link TaskCancelledException} inherited from a computation started by another request
+     * belongs to that request, so the value is loaded again rather than failed. A cancellation thrown by this thread's own load is
+     * propagated.
+     */
+    private BytesReference compute(Key key, Loader cacheLoader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
+        while (true) {
+            try {
+                return cache.computeIfAbsent(key, cacheLoader, cancellationRegistrar);
+            } catch (ExecutionException e) {
+                if (cacheLoader.isLoadAttempted() || ExceptionsHelper.unwrap(e, TaskCancelledException.class) == null) {
+                    throw e;
+                }
+                logger.debug(
+                    "loading [{}] again, the computation it waited on was cancelled by another request",
+                    key.entity.getCacheIdentity()
+                );
+            }
+        }
+    }
+
+    /**
      * Invalidates the given cache entry for the given key and its context
      * @param cacheEntity the cache entity to invalidate for
      * @param mappingCacheKey the mapping cache key to invalidate the cache entry for
@@ -164,6 +192,7 @@ public final class IndicesRequestCache implements Closeable {
 
         private final CacheEntity entity;
         private final CheckedSupplier<BytesReference, IOException> loader;
+        private boolean loadAttempted;
         private boolean loaded;
 
         Loader(CacheEntity entity, CheckedSupplier<BytesReference, IOException> loader) {
@@ -175,8 +204,17 @@ public final class IndicesRequestCache implements Closeable {
             return this.loaded;
         }
 
+        /**
+         * Whether this loader ran, whatever the outcome. Unlike {@link #isLoaded()} this is true for a load which threw, which tells
+         * the caller that a failure is its own.
+         */
+        public boolean isLoadAttempted() {
+            return this.loadAttempted;
+        }
+
         @Override
         public BytesReference load(Key key) throws Exception {
+            loadAttempted = true;
             BytesReference value = loader.get();
             entity.onCached(key, value);
             loaded = true;

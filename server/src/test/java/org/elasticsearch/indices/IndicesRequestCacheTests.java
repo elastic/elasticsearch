@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -23,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +42,8 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -51,9 +55,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class IndicesRequestCacheTests extends ESTestCase {
 
@@ -758,6 +766,100 @@ public class IndicesRequestCacheTests extends ESTestCase {
             if (done == false) {
                 executor.shutdownNow();
             }
+            IOUtils.close(reader, writer, dir, cache);
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:DEBUG",
+        reason = "asserts that the inherited cancellation was actually retried"
+    )
+    public void testWaitingThreadsDoNotInheritLoaderCancellation() throws Exception {
+        final int threads = 8;
+        final int rounds = 20;
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        // a fresh cache key per round, so that every round has one computing thread and the rest waiting on it
+        List<BytesReference> keyPerRound = new ArrayList<>(rounds);
+        for (int round = 0; round < rounds; round++) {
+            keyPerRound.add(XContentHelper.toXContent(new TermQueryBuilder("id", "round-" + round), XContentType.JSON, false));
+        }
+
+        try {
+            // a waiter only reaches the retry when it loses the put-if-absent race, so pin that the path was really taken
+            MockLog.assertThatLogger(() -> {
+                for (int round = 0; round < rounds; round++) {
+                    BytesReference termBytes = keyPerRound.get(round);
+
+                    // released once every thread but the computing one is parked on the in-flight computation
+                    CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+                    AtomicReference<Thread> cancelledThread = new AtomicReference<>();
+                    List<Throwable> failures = new ArrayList<>();
+                    List<String> values = new ArrayList<>();
+                    AtomicInteger loads = new AtomicInteger();
+
+                    CheckedSupplier<BytesReference, IOException> loader = () -> {
+                        loads.incrementAndGet();
+                        if (cancelledThread.compareAndSet(null, Thread.currentThread())) {
+                            safeAwait(waitersParked);
+                            throw new TaskCancelledException("task cancelled [http channel [some other client] closed]");
+                        }
+                        try (BytesStreamOutput out = new BytesStreamOutput()) {
+                            out.writeString("computed_value");
+                            return out.bytes();
+                        }
+                    };
+
+                    startInParallel(threads, i -> {
+                        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                        try {
+                            // the callback is registered where this thread starts waiting on another thread's computation
+                            BytesReference value = cache.getOrCompute(
+                                entity,
+                                loader,
+                                mappingKey,
+                                reader,
+                                termBytes,
+                                callback -> waitersParked.countDown()
+                            );
+                            synchronized (values) {
+                                values.add(value.streamInput().readString());
+                            }
+                        } catch (Exception e) {
+                            if (Thread.currentThread() != cancelledThread.get()) {
+                                synchronized (failures) {
+                                    failures.add(e);
+                                }
+                            }
+                        }
+                    });
+
+                    assertNotNull("one thread must have computed the entry", cancelledThread.get());
+                    for (Throwable failure : failures) {
+                        fail("a thread which was never cancelled failed with " + ExceptionsHelper.stackTrace(failure));
+                    }
+                    assertThat(values, hasSize(threads - 1));
+                    assertThat(values, everyItem(equalTo("computed_value")));
+                    // the waiters retry as a group rather than each recomputing, so the cancelled load costs exactly one extra load
+                    assertEquals("the cancelled load must be retried exactly once", 2, loads.get());
+                }
+            },
+                IndicesRequestCache.class,
+                new MockLog.SeenEventExpectation(
+                    "inherited cancellation retried",
+                    IndicesRequestCache.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "loading * again, the computation it waited on was cancelled by another request"
+                )
+            );
+        } finally {
             IOUtils.close(reader, writer, dir, cache);
         }
     }

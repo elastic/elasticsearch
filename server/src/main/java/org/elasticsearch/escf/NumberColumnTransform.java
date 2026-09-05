@@ -34,11 +34,12 @@ public final class NumberColumnTransform {
     private NumberColumnTransform() {}
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
      * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
      * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
-     * the points column for an indexed {@code half_float} field.
+     * the points column for an indexed {@code half_float} field. An ARRAY source yields an ARRAY of
+     * BINARY, one element per source element.
      */
     public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
         assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
@@ -55,15 +56,17 @@ public final class NumberColumnTransform {
     }
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
      * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
      * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
      * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
-     * column for a {@code half_float} field.
+     * column for a {@code half_float} field. An ARRAY source yields an ARRAY of LONG, one element per
+     * source element.
      */
     public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
+            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
         EscfColumnBuilder builder = newLongBuilder(recycler);
         LongTupleCursor cursor = source.longCursor();
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {

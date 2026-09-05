@@ -411,6 +411,121 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         );
     }
 
+    public void testLongField_multiValue_duplicatesAndOrder() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "long duplicates",
+                1L,
+                doc("d1", 1L, "{\"f\":[2,1,2]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[5,5,5,5]}"),
+                doc("d4", 4L, "{\"f\":[-1,7]}")
+            )
+        );
+    }
+
+    public void testIntegerField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "integer multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[2147483647,-2147483648,0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[7]}")
+            )
+        );
+    }
+
+    public void testShortField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "short").endObject()),
+            multiValueColumnarSettings(),
+            batch("short multi-value", 1L, doc("d1", 1L, "{\"f\":[32767,-32768,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[1,1]}"))
+        );
+    }
+
+    public void testByteField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "byte").endObject()),
+            multiValueColumnarSettings(),
+            batch("byte multi-value", 1L, doc("d1", 1L, "{\"f\":[127,-128,0]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[9,9]}"))
+        );
+    }
+
+    public void testFloatField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "float multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.75]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testDoubleField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "double multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,2.718281828]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValueIndexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value indexed",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValueStringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value string",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"1.5\",\"-2.25\",\"3.0\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"0.5\",\"0.5\"]}")
+            )
+        );
+    }
+
     /**
      * As {@link #testLongField_multiValue}, for a null value. A null makes the column a UNION rather
      * than a plain LONG, which the same kind switch rejects.
@@ -545,6 +660,68 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         }),
             tsdbSettings(),
             batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
+        );
+    }
+
+    public void testLongField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "long stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[42,7,42]}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":[1]}")
+            )
+        );
+    }
+
+    public void testIntegerField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "integer").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("integer stored multi-value", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[7,-3,7]}"))
+        );
+    }
+
+    public void testDoubleField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "double").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "double stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[2.718281828,-1.5,2.718281828]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "half_float stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[1.5,-2.25,1.5]}")
+            )
         );
     }
 }

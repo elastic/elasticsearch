@@ -70,6 +70,7 @@ public class Constants {
         "cluster:admin/repository/put",
         "cluster:admin/repository/verify",
         "cluster:admin/reroute",
+        "cluster:admin/run_workload_issuer_test",
         "cluster:admin/script/delete",
         "cluster:admin/script/get",
         "cluster:admin/script/put",

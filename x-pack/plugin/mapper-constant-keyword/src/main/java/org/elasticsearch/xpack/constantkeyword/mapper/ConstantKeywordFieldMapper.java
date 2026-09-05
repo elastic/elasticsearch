@@ -40,6 +40,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneLongColumn;
@@ -423,8 +424,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 }
             }
             if (markers != null) {
+                EscfColumnData markersData = markers.finish(ctx.docCount());
                 ctx.addColumn(
-                    LuceneLongColumn.of(markers.finish(ctx.docCount()), fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG)
+                    LuceneLongColumn.of(markersData, fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG),
+                    markersData
                 );
             }
             success = true;

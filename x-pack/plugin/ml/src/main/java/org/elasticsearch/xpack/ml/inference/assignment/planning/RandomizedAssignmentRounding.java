@@ -367,7 +367,7 @@ class RandomizedAssignmentRounding {
                             resourceTracker.remainingModelAllocations.get(m),
                             m.findOptimalAllocations(
                                 resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
-                                resourceTracker.remainingModelAllocations.get(m)
+                                resourceTracker.remainingNodeMemory.get(n)
                             )
                         )
                     );

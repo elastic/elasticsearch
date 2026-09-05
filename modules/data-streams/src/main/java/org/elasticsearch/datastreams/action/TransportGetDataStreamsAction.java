@@ -200,7 +200,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
         ProjectState state,
         IndexSettingProviders indexSettingProviders,
         DataStream dataStream,
-        Settings settings,
+        Settings indexTemplateAndDataStreamSettings,
+        Settings templateSettings,
         ComposableIndexTemplate indexTemplate
     ) {
         IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
@@ -214,7 +215,8 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                 indexTemplate.isRegistryInstalled(),
                 state.metadata(),
                 Instant.now(),
-                settings,
+                indexTemplateAndDataStreamSettings,
+                templateSettings,
                 List.of(),
                 indexVersion,
                 builder
@@ -226,7 +228,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             }
         }
         if (indexMode == null) {
-            String rawMode = settings.get(IndexSettings.MODE.getKey());
+            String rawMode = indexTemplateAndDataStreamSettings.get(IndexSettings.MODE.getKey());
             if (rawMode != null) {
                 indexMode = IndexMode.fromString(rawMode);
             }
@@ -271,6 +273,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                             indexSettingProviders,
                             dataStream,
                             settings,
+                            settings,
                             dataStreamDescriptor.getComposableIndexTemplate()
                         );
                     }
@@ -302,6 +305,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
                                 indexSettingProviders,
                                 dataStream,
                                 settings,
+                                templateSettings,
                                 dataStream.getEffectiveIndexTemplate(state.metadata())
                             );
                         } catch (IOException e) {

@@ -624,6 +624,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
+            Settings templateSettings,
             List<CompressedXContent> combinedTemplateMappings,
             IndexVersion indexVersion,
             Settings.Builder additionalSettings

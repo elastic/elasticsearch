@@ -1384,6 +1384,7 @@ public class MetadataCreateIndexService {
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
+                    combinedTemplateSettings,
                     combinedTemplateMappings,
                     createdVersion,
                     builder

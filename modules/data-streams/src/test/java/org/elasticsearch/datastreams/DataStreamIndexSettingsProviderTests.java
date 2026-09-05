@@ -135,6 +135,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent(mapping)),
             indexVersion,
             additionalSettings
@@ -194,6 +195,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent(mapping)),
             indexVersion,
             additionalSettings
@@ -274,6 +276,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
             indexVersion,
             additionalSettings
@@ -313,6 +316,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(),
             indexVersion,
             additionalSettings
@@ -346,6 +350,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent("{}")),
             indexVersion,
             additionalSettings
@@ -379,6 +384,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent("{}")),
             indexVersion,
             additionalSettings
@@ -418,6 +424,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent("{}")),
             indexVersion,
             additionalSettings
@@ -462,6 +469,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 projectMetadata,
                 now,
                 settings,
+                Settings.EMPTY,
                 null,
                 indexVersion,
                 builder()
@@ -492,6 +500,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
+            Settings.EMPTY,
             null,
             indexVersion,
             additionalSettings
@@ -519,6 +528,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(),
             indexVersion,
             additionalSettings
@@ -555,6 +565,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             false,
             projectMetadata,
             Instant.ofEpochMilli(1L),
+            Settings.EMPTY,
             Settings.EMPTY,
             List.of(),
             indexVersion,
@@ -1069,6 +1080,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             projectMetadata,
             now,
             settings,
+            Settings.EMPTY,
             List.of(new CompressedXContent(mapping)),
             indexVersion,
             additionalSettings
@@ -1136,6 +1148,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings
@@ -1156,6 +1169,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings
@@ -1172,6 +1186,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false).build(),
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings
@@ -1201,6 +1216,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings
@@ -1221,6 +1237,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.EMPTY,
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings
@@ -1237,6 +1254,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             emptyProject(),
             now,
             Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build(),
+            Settings.EMPTY,
             List.of(),
             version,
             additionalSettings

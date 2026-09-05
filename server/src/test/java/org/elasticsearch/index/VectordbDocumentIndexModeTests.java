@@ -118,6 +118,7 @@ public class VectordbDocumentIndexModeTests extends ESTestCase {
             ProjectMetadata.builder(ProjectId.fromId("test_project")).build(),
             Instant.now(),
             userSettings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             additional

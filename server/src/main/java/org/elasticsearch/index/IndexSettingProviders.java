@@ -44,6 +44,7 @@ public final class IndexSettingProviders {
                     projectMetadata,
                     resolvedAt,
                     indexTemplateAndCreateRequestSettings,
+                    templateSettings,
                     combinedTemplateMappings,
                     indexVersion,
                     additionalSettings) -> settingsBuilderConsumer.accept(additionalSettings)

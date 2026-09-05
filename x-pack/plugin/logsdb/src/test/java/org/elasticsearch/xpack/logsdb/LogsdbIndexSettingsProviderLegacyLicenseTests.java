@@ -72,6 +72,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             null,
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder
@@ -94,6 +95,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             null,
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder
@@ -115,6 +117,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 null,
                 null,
                 settings,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder
@@ -133,6 +136,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
                 null,
                 null,
                 settings,
+                Settings.EMPTY,
                 List.of(),
                 IndexVersion.current(),
                 builder
@@ -155,6 +159,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             null,
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder
@@ -199,6 +204,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
             null,
             null,
             settings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             builder

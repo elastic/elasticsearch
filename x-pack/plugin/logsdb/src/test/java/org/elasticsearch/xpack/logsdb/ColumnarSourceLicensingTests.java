@@ -113,6 +113,7 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
             emptyProject(),
             Instant.now(),
             indexSettings,
+            Settings.EMPTY,
             List.of(),
             IndexVersion.current(),
             settingsBuilder

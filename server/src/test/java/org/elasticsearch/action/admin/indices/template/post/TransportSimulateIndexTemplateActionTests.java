@@ -71,6 +71,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings allSettings,
+                Settings templateSettings,
                 List<CompressedXContent> combinedTemplateMappings,
                 IndexVersion indexVersion,
                 Settings.Builder additionalSettings
@@ -87,6 +88,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
+                Settings templateSettings,
                 List<CompressedXContent> combinedTemplateMappings,
                 IndexVersion indexVersion,
                 Settings.Builder additionalSettings

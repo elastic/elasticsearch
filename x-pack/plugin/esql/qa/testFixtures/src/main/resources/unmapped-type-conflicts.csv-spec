@@ -1407,6 +1407,31 @@ heights        | null
 # Mapped x 2 and unmapped #
 ###########################
 
+typeConflictScalarUnmappedCoexistsWithConflictedLeaf
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_object_value
+
+SET unmapped_fields="load"\;
+FROM unmapped_multi_*
+| KEEP id, unmapped, unmapped.foo
+| SORT id
+;
+
+id:keyword | unmapped:keyword | unmapped.foo:unsupported
+1          | null             | null
+10         | null             | null
+11         | null             | null
+12         | null             | null
+2          | null             | null
+3          | null             | null
+4          | scalar4          | null
+5          | null             | null
+6          | null             | null
+7          | null             | null
+8          | null             | null
+9          | null             | null
+;
+
 // #151525, small numeric variant: short is mapped as short (all_types), as long (all_types_short_as_long), and unmapped
 // (all_types_no_short). Without a cast the conflict is unsupported; an explicit cast must resolve all three legs.
 typeConflictShortLongUnmappedNotCast

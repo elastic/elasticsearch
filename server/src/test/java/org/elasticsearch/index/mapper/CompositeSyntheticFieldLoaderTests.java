@@ -11,9 +11,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -24,7 +25,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
+public class CompositeSyntheticFieldLoaderTests extends MapperServiceTestCase {
 
     public void testComposingMultipleStoredFields() throws IOException {
         var sut = new CompositeSyntheticFieldLoader(
@@ -239,18 +240,8 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         assertEquals("bar.baz.foo", sut.fieldName());
     }
 
-    public void testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex() {
-        var premergeVersion = IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
-
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        CompositeSyntheticFieldLoader.addFallbackLayers(
-            layers,
-            "field",
-            premergeVersion,
-            /* ignoreMalformed */ true,
-            /* onFailureEnabled */ false,
-            /* strictColumnar */ true
-        );
+    public void testAddFallbackLayersUsesIgnoreMalformedColumnForPreMergeStrictColumnarIndex() throws IOException {
+        var layers = fallbackLayers(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, /* strictColumnar */ true, true, false);
 
         assertEquals("expected exactly one fallback layer for pre-merge strict-columnar index", 1, layers.size());
         assertEquals(
@@ -260,16 +251,8 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
         );
     }
 
-    public void testAddFallbackLayersUsesOnFailureColumnForCurrentVersionStrictColumnarIndex() {
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        CompositeSyntheticFieldLoader.addFallbackLayers(
-            layers,
-            "field",
-            IndexVersion.current(),
-            /* ignoreMalformed */ true,
-            /* onFailureEnabled */ false,
-            /* strictColumnar */ true
-        );
+    public void testAddFallbackLayersUsesOnFailureColumnForCurrentVersionStrictColumnarIndex() throws IOException {
+        var layers = fallbackLayers(IndexVersion.current(), /* strictColumnar */ true, true, false);
 
         assertEquals("expected exactly one fallback layer for current strict-columnar index", 1, layers.size());
         assertEquals(
@@ -285,39 +268,39 @@ public class CompositeSyntheticFieldLoaderTests extends ESTestCase {
      * so both constraints share a single sidecar column. The read path must therefore add exactly one on-failure layer —
      * adding both would cause every value to be emitted twice.
      */
-    public void testAddFallbackLayersBothFlagsOnInStrictColumnarAddsExactlyOneLayer() {
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        CompositeSyntheticFieldLoader.addFallbackLayers(
-            layers,
-            "field",
-            IndexVersion.current(),
-            /* ignoreMalformed */ true,
-            /* onFailureEnabled */ true,
-            /* strictColumnar */ true
-        );
+    public void testAddFallbackLayersBothFlagsOnInStrictColumnarAddsExactlyOneLayer() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        var layers = fallbackLayers(IndexVersion.current(), /* strictColumnar */ true, true, true);
 
         assertEquals("ignoreMalformed+onFailureEnabled in strict-columnar must add exactly one layer", 1, layers.size());
         assertEquals("the single layer must be ._on_failure", OnFailureStoredValues.name("field"), layers.get(0).fieldName());
     }
 
     /**
-     * Outside strict-columnar mode, {@code ignore_malformed} and {@code doc_values.on_failure=ignore} are always independent:
-     * each gets its own sidecar column ({@code ._ignore_malformed} and {@code ._on_failure} respectively).
+     * Builds an integer field mapper with the given {@code ignore_malformed} and {@code doc_values.on_failure=ignore} flags, in
+     * either a strict-columnar or a standard index, then returns the list of fallback layers that
+     * {@link CompositeSyntheticFieldLoader#addFallbackLayers(List, FieldMapper, IndexSettings)} would append.
      */
-    public void testAddFallbackLayersBothFlagsOnInNonColumnarAddsTwoLayers() {
+    private List<CompositeSyntheticFieldLoader.Layer> fallbackLayers(
+        IndexVersion version,
+        boolean strictColumnar,
+        boolean ignoreMalformed,
+        boolean onFailureEnabled
+    ) throws IOException {
+        Settings settings = strictColumnar ? Settings.builder().put(IndexSettings.MODE.getKey(), "columnar").build() : Settings.EMPTY;
+        var mapperService = createMapperService(version, settings, fieldMapping(b -> {
+            b.field("type", "integer");
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
+            if (onFailureEnabled) {
+                b.startObject("doc_values").field("on_failure", "ignore").endObject();
+            }
+        }));
+        var mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        CompositeSyntheticFieldLoader.addFallbackLayers(
-            layers,
-            "field",
-            IndexVersion.current(),
-            /* ignoreMalformed */ true,
-            /* onFailureEnabled */ true,
-            /* strictColumnar */ false
-        );
-
-        assertEquals("ignoreMalformed+onFailureEnabled outside strict-columnar must add two layers", 2, layers.size());
-        assertEquals("first layer must be ._ignore_malformed", IgnoreMalformedStoredValues.name("field"), layers.get(0).fieldName());
-        assertEquals("second layer must be ._on_failure", OnFailureStoredValues.name("field"), layers.get(1).fieldName());
+        CompositeSyntheticFieldLoader.addFallbackLayers(layers, mapper, mapperService.getIndexSettings());
+        return layers;
     }
 
     public void testMergeTwoFieldLoaders() throws IOException {

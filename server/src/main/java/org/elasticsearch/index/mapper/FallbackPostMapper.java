@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -158,13 +157,9 @@ public final class FallbackPostMapper {
      * {@code ._ignore_malformed} column (all other indices). Older strict-columnar indices retain their
      * {@code ._ignore_malformed} data after an upgrade; the version guard ensures the write and read paths stay consistent.
      */
-    public static boolean malformedUsesOnFailureColumn(IndexVersion indexVersion, boolean strictColumnar) {
-        return strictColumnar && indexVersion.onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
-    }
-
-    /** Convenience overload that reads index version and mode from {@code indexSettings}. */
     public static boolean malformedUsesOnFailureColumn(IndexSettings indexSettings) {
-        return malformedUsesOnFailureColumn(indexSettings.getIndexVersionCreated(), indexSettings.getMode().isStrictColumnar());
+        return indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.MALFORMED_VALUES_IN_ON_FAILURE_COLUMN);
     }
 
     /**

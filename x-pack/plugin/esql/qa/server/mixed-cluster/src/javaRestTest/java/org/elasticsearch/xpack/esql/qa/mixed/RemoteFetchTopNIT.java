@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -90,7 +91,6 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
             builder.startObject();
             builder.startObject("settings");
             builder.field("number_of_shards", 4);
-            builder.field("number_of_replicas", 0);
             builder.endObject();
             builder.startObject("mappings");
             builder.startObject("properties");
@@ -130,10 +130,17 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
 
     /**
      * Mixed-cluster and serverless BWC tests can index on one tier while the coordinator runs on another.
-     * Wait until every shard copy is queryable before issuing {@code FROM} against a pinned coordinator.
+     * Yellow is not enough on serverless: {@code INDEX_ONLY} primaries satisfy cluster health while
+     * {@code searchShards()} — used by field-caps and ES|QL {@code FROM} — still sees no searchable copy.
+     * Wait until field-caps succeeds before issuing {@code FROM} against a pinned coordinator.
      */
-    private static void waitForIndexReady(String index) throws IOException {
+    private void waitForIndexReady(String index) throws Exception {
         ensureYellowAndNoInitializingShards(index, "120s");
+        assertBusy(() -> {
+            Request request = new Request("GET", "/" + index + "/_field_caps");
+            request.addParameter("fields", "unique_sort,payload");
+            assertOK(client().performRequest(request));
+        }, 120, TimeUnit.SECONDS);
     }
 
     private static void fieldMapping(XContentBuilder builder, String field, String type) throws IOException {
@@ -164,10 +171,9 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
      * Build a REST client pinned to current-version nodes that support remote-fetch TopN.
      * <p>
      * Hosts are resolved from {@code GET /_nodes}, following the same live lookup pattern as the mixed-cluster
-     * csv-spec coordinator helpers. Among capable nodes, prefer ones that hold shard copies (stateful {@code data}
-     * nodes or stateless {@code index} tier nodes), mirroring the role split handled by
-     * {@link org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase#supportsNodeAssignment()}.
-     * Search-only coordinators are kept as a fallback for stateless clusters whose sole current node is on the search tier.
+     * csv-spec coordinator helpers. Among capable nodes, prefer ones that can serve {@code searchShards()}
+     * (stateful {@code data} nodes or stateless {@code search} tier nodes). Index-only coordinators are
+     * kept as a fallback: their {@code INDEX_ONLY} primaries are not searchable.
      */
     private RestClient currentNodeClient() throws IOException {
         ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
@@ -185,7 +191,7 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
             }
             HttpHost host = HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address"));
             List<?> roles = nodes.evaluate("nodes." + id + ".roles");
-            if (nodeHoldsShardCopies(roles)) {
+            if (nodeCanServeSearch(roles)) {
                 preferred.add(host);
             } else {
                 fallback.add(host);
@@ -199,21 +205,22 @@ public class RemoteFetchTopNIT extends ESRestTestCase {
     }
 
     /**
-     * Whether a node is likely to host active shard copies for a freshly created index. Stateful data nodes qualify;
-     * stateless index-tier nodes hold {@code INDEX_ONLY} primaries; combined index+search nodes qualify as well.
+     * Whether a node hosts searchable shard copies. Stateful data nodes qualify; stateless search-tier
+     * nodes hold the copies {@code searchShards()} can use. Combined index+search nodes qualify via
+     * the search role. Index-only nodes do not.
      */
-    private static boolean nodeHoldsShardCopies(List<?> roles) {
+    private static boolean nodeCanServeSearch(List<?> roles) {
         boolean hasData = false;
-        boolean hasIndex = false;
+        boolean hasSearch = false;
         for (Object role : roles) {
             String roleName = role.toString();
             if ("data".equals(roleName)) {
                 hasData = true;
-            } else if ("index".equals(roleName)) {
-                hasIndex = true;
+            } else if ("search".equals(roleName)) {
+                hasSearch = true;
             }
         }
-        return hasData || hasIndex;
+        return hasData || hasSearch;
     }
 
     private static boolean containsRemoteFetchOperator(Object value) {

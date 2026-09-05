@@ -68,6 +68,20 @@ const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[])
   return true;
 };
 
+// Include the pipeline if ANY of the changed files in the PR is in at least one touched region.
+//
+// This is deliberately different from included-regions, which requires EVERY changed file to match
+// and so detects docs-only-style PRs. touched-regions answers the other question: "does this PR go
+// anywhere near my area?" - which is what an area-scoped optional pipeline wants.
+const changedFilesTouchedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
+  if (pipeline.config?.["touched-regions"]) {
+    return changedFiles.some((file) =>
+      getArray(pipeline.config?.["touched-regions"]).some((region) => file.match(region)),
+    );
+  }
+  return true;
+};
+
 const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
   if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
     return true;
@@ -191,6 +205,7 @@ export const generatePipelines = (
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
+    (pipeline) => changedFilesTouchedCheck(pipeline, changedFiles),
   ];
 
   // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc

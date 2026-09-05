@@ -97,7 +97,12 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard: a replica that peer-recovers after
+            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
+            # which would make the newer version searchable and hide the expected conflict.
             index.refresh_interval: -1
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
   - do:
       index:
         index:   test
@@ -149,7 +154,12 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard: a replica that peer-recovers after
+            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
+            # which would make the newer version searchable and hide the expected conflict.
             index.refresh_interval: -1
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
   - do:
       index:
         index:   test
@@ -200,6 +210,9 @@
         index: test
         body:
           settings:
+            # Keep this on a single un-replicated shard: a replica that peer-recovers after
+            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
+            # which would make the newer version searchable and hide the expected conflict.
             index.refresh_interval: -1
             index.number_of_replicas: 0
             index.number_of_shards: 1

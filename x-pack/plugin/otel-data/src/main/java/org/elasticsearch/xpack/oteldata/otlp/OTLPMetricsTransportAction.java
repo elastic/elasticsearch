@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -67,9 +68,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings settings
     ) {
-        super(NAME, transportService, actionFilters, threadPool, client);
+        super(NAME, transportService, actionFilters, threadPool, client, settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {

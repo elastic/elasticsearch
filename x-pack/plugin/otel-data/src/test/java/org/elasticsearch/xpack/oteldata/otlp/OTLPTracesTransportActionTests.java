@@ -11,29 +11,47 @@ import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
+import io.opentelemetry.proto.trace.v1.Span;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionTests {
 
     @Override
     protected AbstractOTLPTransportAction createAction() {
-        return new OTLPTracesTransportAction(mock(TransportService.class), mock(ActionFilters.class), mock(ThreadPool.class), client);
+        return new OTLPTracesTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            Settings.EMPTY
+        );
     }
 
     @Override
@@ -161,6 +179,42 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         Map<String, Object> attributes = (Map<String, Object>) eventRequest.sourceAsMap().get("attributes");
         assertThat(attributes.get("event.attr.foo"), equalTo("event.attr.bar"));
         assertThat(attributes.get("event.name"), equalTo("exception"));
+    }
+
+    public void testAttributeFanoutReturns413() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        OTLPTracesTransportAction action = new OTLPTracesTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            mock(ThreadPool.class),
+            client,
+            settings
+        );
+
+        // ~1 KiB resource attribute × 15 spans ≈ 15 KiB, exceeds the 10 KiB limit
+        String largeValue = "x".repeat(1024);
+        List<Span> spans = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            spans.add(OtlpTraceUtils.createSpan("span-" + i));
+        }
+        OTLPActionRequest request = new OTLPActionRequest(
+            new BytesArray(
+                OtlpTraceUtils.createTracesRequest(List.of(OtlpUtils.keyValue("resource.large", largeValue)), spans).toByteArray()
+            )
+        );
+
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class);
+        action.doExecute(null, request, responseListener);
+
+        ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exception.capture());
+        assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        assertThat(exception.getValue().getMessage(), containsString("attribute data written across all documents would exceed limit"));
+        verify(client, never()).execute(any(), any(), any());
     }
 
     public void testPrepareBulkRequestUsesSpanEventDocumentIdAttribute() throws Exception {

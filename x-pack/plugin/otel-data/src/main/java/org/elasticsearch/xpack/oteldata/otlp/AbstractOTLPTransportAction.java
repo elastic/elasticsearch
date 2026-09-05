@@ -20,6 +20,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -38,6 +40,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     private static final Logger logger = LogManager.getLogger(AbstractOTLPTransportAction.class);
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
+    protected final long maxExpandedContentLength;
 
     @Inject
     public AbstractOTLPTransportAction(
@@ -45,10 +48,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(name, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
+        this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -83,6 +88,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             listener.onFailure(
                 new ElasticsearchStatusException("Invalid OTLP protobuf payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
             );
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);
             listener.onFailure(e);

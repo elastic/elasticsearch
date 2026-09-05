@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 157544
+summary: Charge the request breaker for the coordinator retained search source
+type: bug

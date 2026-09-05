@@ -911,6 +911,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             LogicalPlan plan;
             Expression filter;
             if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
+                if (left.plan().collect(Aggregate.class).size() != 1 || right.plan().collect(Aggregate.class).size() != 1) {
+                    // Fusion merges two aggregates over one source into one aggregate. An operand that is itself an
+                    // aggregate over a collapsed pair (`sum by (k) (a / b)`) has two levels and cannot be merged, so the
+                    // sides match through the join instead, each as its own finished table.
+                    return doTranslateBinOpInnerJoin(binaryOp);
+                }
                 plan = emitBinaryOperatorAggregateExpression(left, right);
                 filter = null;
             } else {

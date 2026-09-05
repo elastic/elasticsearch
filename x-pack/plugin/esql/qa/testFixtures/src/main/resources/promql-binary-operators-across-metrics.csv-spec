@@ -115,6 +115,31 @@ result:double | step:datetime            | _timeseries:keyword
 -80.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
 ;
 
+// An aggregate over a collapsed pair regroups the paired table.
+aggregate_over_division
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(sum(mem_total / mem_free))
+| SORT step;
+
+result:double | step:datetime
+6.5           | 2024-05-10T01:00:00.000Z
+;
+
+// A single-level aggregate against a two-level one cannot fuse into one aggregate; the sides match through the join.
+aggregate_ratio_over_division
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(sum by (zone) (mem_total) / sum by (zone) (mem_total / mem_free))
+| SORT zone;
+
+result:double | step:datetime            | zone:keyword
+40.0          | 2024-05-10T01:00:00.000Z | eu
+50.0          | 2024-05-10T01:00:00.000Z | us
+;
+
 sum_by_over_chained_subtraction
 required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing

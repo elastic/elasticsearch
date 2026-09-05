@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157956
+summary: Fold nested CASE without recursion
+type: bug

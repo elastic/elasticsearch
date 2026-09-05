@@ -378,6 +378,33 @@ public class CaseExtraTests extends ESTestCase {
         assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
     }
 
+    /**
+     * Nested {@code CASE} of {@code DATE_PERIOD}/{@code TIME_DURATION} used to recurse in
+     * {@link Case#fold(FoldContext)} until the JVM threw {@link StackOverflowError}.
+     */
+    public void testDeeplyNestedTemporalAmountFoldDoesNotStackOverflow() {
+        boolean nestInTrueBranch = randomBoolean();
+        DataType type = randomBoolean() ? DataType.DATE_PERIOD : DataType.TIME_DURATION;
+        Object expected = type == DataType.DATE_PERIOD ? Period.ofDays(1) : Duration.ofHours(1);
+        Literal expectedLit = new Literal(Source.EMPTY, expected, type);
+        Literal unusedLit = new Literal(Source.EMPTY, type == DataType.DATE_PERIOD ? Period.ofYears(1) : Duration.ofHours(2), type);
+        Literal condition = new Literal(Source.EMPTY, nestInTrueBranch, DataType.BOOLEAN);
+
+        Expression nested = expectedLit;
+        // Deep enough that recursive fold/foldable blows the test JVM stack (often 1–8MB).
+        int depth = 50_000;
+        for (int i = 0; i < depth; i++) {
+            Case c = nestInTrueBranch
+                ? new Case(Source.EMPTY, condition, List.of(nested, unusedLit))
+                : new Case(Source.EMPTY, condition, List.of(unusedLit, nested));
+            // Resolve types one level at a time so this test targets fold recursion, not type resolution.
+            c.dataType();
+            nested = c;
+        }
+        assertTrue(nested.foldable());
+        assertThat(nested.fold(FoldContext.small()), equalTo(expected));
+    }
+
     private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {
         return new Case(
             Source.EMPTY,

@@ -53,7 +53,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 
 /**
- * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
+ * {@link RoutingNodes} represents a copy of the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
  * (see {@link RoutingNodes#mutable(GlobalRoutingTable, DiscoveryNodes)},
  *      {@link RoutingNodes#immutable(GlobalRoutingTable, DiscoveryNodes)}, and {@link #mutableCopy()})

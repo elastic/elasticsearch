@@ -69,9 +69,8 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
         assertNull(GoogleVertexAiSecretSettings.fromMap(null));
     }
 
-    public void testFromMap_ThrowsError_IfServiceAccountJsonIsMissing() {
-        var exception = expectThrows(ValidationException.class, () -> GoogleVertexAiSecretSettings.fromMap(new HashMap<>()));
-        assertValidationError(exception, missingServiceAccountJsonError());
+    public void testFromMap_ReturnsNull_WhenServiceAccountJsonIsMissing() {
+        assertNull(GoogleVertexAiSecretSettings.fromMap(new HashMap<>()));
     }
 
     public void testFromMap_ThrowsError_IfServiceAccountJsonIsEmpty() {
@@ -125,14 +124,6 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
     private static void assertValidationError(ValidationException exception, String expectedError) {
         assertThat(exception.validationErrors().size(), is(1));
         assertThat(exception.validationErrors().getFirst(), is(expectedError));
-    }
-
-    private static String missingServiceAccountJsonError() {
-        return Strings.format(
-            "[%s] does not contain the required setting [%s]",
-            ModelConfigurations.SERVICE_SETTINGS,
-            GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON
-        );
     }
 
     private static String emptyServiceAccountJsonError() {

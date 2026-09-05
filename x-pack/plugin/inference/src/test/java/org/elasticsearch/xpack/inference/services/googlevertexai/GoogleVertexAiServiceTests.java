@@ -195,6 +195,47 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testParseRequestConfig_CreatesGoogleVertexAiEmbeddingsModel_WithoutSecrets() throws IOException {
+        var projectId = "project";
+        var location = "location";
+        var modelId = "model";
+
+        try (var service = createInferenceService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(GoogleVertexAiEmbeddingsModel.class));
+
+                var embeddingsModel = (GoogleVertexAiEmbeddingsModel) model;
+
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
+                assertThat(embeddingsModel.getServiceSettings().location(), is(location));
+                assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
+                // No service account key was supplied, so the endpoint falls back to Application
+                // Default Credentials rather than requiring one.
+                assertThat(embeddingsModel.getSecretSettings(), Matchers.nullValue());
+            }, e -> fail("Model parsing should have succeeded without secrets, but failed: " + e.getMessage()));
+
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    new HashMap<>(
+                        Map.of(
+                            ServiceFields.MODEL_ID,
+                            modelId,
+                            GoogleVertexAiServiceFields.LOCATION,
+                            location,
+                            GoogleVertexAiServiceFields.PROJECT_ID,
+                            projectId
+                        )
+                    ),
+                    getTaskSettingsMap(true, InputType.INGEST),
+                    new HashMap<>()
+                ),
+                modelListener
+            );
+        }
+    }
+
     public void testParseRequestConfig_CreatesAGoogleVertexAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         var projectId = "project";
         var location = "location";
@@ -1134,9 +1175,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                            "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                            "configurations": {
                                "service_account_json": {
-                                   "description": "API Key for the provider you're connecting to.",
+                                   "description": "API Key for the provider you're connecting to. If omitted, the endpoint falls back to Application Default Credentials.",
                                    "label": "Credentials JSON",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": true,
                                    "updatable": true,
                                    "type": "str",

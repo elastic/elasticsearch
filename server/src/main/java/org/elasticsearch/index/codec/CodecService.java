@@ -112,17 +112,14 @@ public class CodecService implements CodecProvider {
     }
 
     /**
-     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment: whole {@code FieldInfo} instances
-     * against the per-directory cache when the feature flag is on, otherwise just their names and attribute maps. Codecs that declare
-     * their own {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
+     * Wraps {@code delegate} so that field infos are shared rather than re-created per segment. Codecs that declare their own
+     * {@code fieldInfosFormat()} must route it through here, or their segments get no sharing on the read path.
      */
     public static FieldInfosFormat deduplicating(FieldInfosFormat delegate) {
         if (isDeduplicating(delegate)) {
             return delegate;
         }
-        return org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
-            ? new CachingFieldInfosFormat(delegate)
-            : new DeduplicatingFieldInfosFormat(delegate);
+        return new CachingFieldInfosFormat(delegate);
     }
 
     /**
@@ -130,7 +127,7 @@ public class CodecService implements CodecProvider {
      * canonical already, once per segment open.
      */
     static boolean isDeduplicating(FieldInfosFormat format) {
-        return format instanceof CachingFieldInfosFormat || format instanceof DeduplicatingFieldInfosFormat;
+        return format instanceof CachingFieldInfosFormat;
     }
 
     public static class DeduplicateFieldInfosCodec extends FilterCodec {

@@ -151,15 +151,5 @@ public interface Operator extends Releasable {
         default long bytesRead() {
             return 0;
         }
-
-        /** Format-reader wall time on the producer thread; external-source operators only. */
-        default long readNanos() {
-            return 0;
-        }
-
-        /** Format-reader CPU time on the producer thread (no IO wait); external-source operators only. */
-        default long readCpuNanos() {
-            return 0;
-        }
     }
 }

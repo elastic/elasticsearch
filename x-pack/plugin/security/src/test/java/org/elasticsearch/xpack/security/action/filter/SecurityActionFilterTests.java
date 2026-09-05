@@ -51,6 +51,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -122,7 +123,8 @@ public class SecurityActionFilterTests extends ESTestCase {
             threadPool,
             securityContext,
             destructiveOperations,
-            () -> Set.of("_action_secondary_auth")
+            () -> Set.of("_action_secondary_auth"),
+            Map.of()
         );
     }
 
@@ -382,6 +384,89 @@ public class SecurityActionFilterTests extends ESTestCase {
         assertEquals(
             "es-secondary-authorization header must be used to call action [" + actionName + "]",
             exceptionCaptor.getValue().getMessage()
+        );
+        verifyNoInteractions(authcService);
+        verifyNoInteractions(authzService);
+    }
+
+    public void testContextConstrainedActionDeniedWithoutOriginatingAction() {
+        String constrainedAction = "indices:admin/test/constrained";
+        SecurityActionFilter constrainedFilter = new SecurityActionFilter(
+            authcService,
+            authzService,
+            auditTrailService,
+            licenseState,
+            mock(ThreadPool.class, invocation -> {
+                if (invocation.getMethod().getName().equals("getThreadContext")) {
+                    return threadContext;
+                }
+                return null;
+            }),
+            new SecurityContext(Settings.EMPTY, threadContext),
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            () -> Set.of("_action_secondary_auth"),
+            Map.of(constrainedAction, s -> s.startsWith("indices:data/read/"))
+        );
+
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        constrainedFilter.apply(task, constrainedAction, request, listener, chain);
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertThat(
+            exceptionCaptor.getValue().getMessage(),
+            is(
+                "action ["
+                    + constrainedAction
+                    + "] may only be executed as a child of a permitted originating action but originating action was [null]"
+            )
+        );
+        verifyNoInteractions(authcService);
+        verifyNoInteractions(authzService);
+    }
+
+    public void testContextConstrainedActionDeniedWithWrongOriginatingAction() {
+        String constrainedAction = "indices:admin/test/constrained";
+        SecurityActionFilter constrainedFilter = new SecurityActionFilter(
+            authcService,
+            authzService,
+            auditTrailService,
+            licenseState,
+            mock(ThreadPool.class, invocation -> {
+                if (invocation.getMethod().getName().equals("getThreadContext")) {
+                    return threadContext;
+                }
+                return null;
+            }),
+            new SecurityContext(Settings.EMPTY, threadContext),
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            ),
+            () -> Set.of("_action_secondary_auth"),
+            Map.of(constrainedAction, s -> s.startsWith("indices:data/read/"))
+        );
+
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "cluster:admin/other");
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        constrainedFilter.apply(task, constrainedAction, request, listener, chain);
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertThat(
+            exceptionCaptor.getValue().getMessage(),
+            is(
+                "action ["
+                    + constrainedAction
+                    + "] may only be executed as a child of a permitted originating action but originating action was [cluster:admin/other]"
+            )
         );
         verifyNoInteractions(authcService);
         verifyNoInteractions(authzService);

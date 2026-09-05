@@ -653,6 +653,14 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
+    /**
+     * Actions that can only be dispatched as child actions (i.e. from within an already-authorized parent action).
+     * Maps each constrained action name to a predicate matching allowed originating actions.
+     */
+    static final Map<String, Predicate<String>> CONTEXT_CONSTRAINED_ACTIONS = Map.of(
+        "indices:admin/inference/fields/get",
+        Regex.simpleMatcher("indices:data/read/*")
+    );
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -1246,7 +1254,8 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteClusterTransportInterceptor
+                remoteClusterTransportInterceptor,
+                CONTEXT_CONSTRAINED_ACTIONS
             )
         );
 
@@ -1259,7 +1268,8 @@ public class Security extends Plugin
                 threadPool,
                 securityContext.get(),
                 destructiveOperations,
-                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get()
+                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get(),
+                CONTEXT_CONSTRAINED_ACTIONS
             )
         );
 

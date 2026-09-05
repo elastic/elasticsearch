@@ -3446,7 +3446,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
 
         final var indexName = randomIndexName();
-        createIndex(indexName, 1, 0);
+        // test that allocator max retry doesn't block target shard recovery
+        createIndex(indexName, indexSettings(1, 0).put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0).build());
         ensureGreen(indexName);
 
         // allow placement on target node after shard 0 has been placed on source node

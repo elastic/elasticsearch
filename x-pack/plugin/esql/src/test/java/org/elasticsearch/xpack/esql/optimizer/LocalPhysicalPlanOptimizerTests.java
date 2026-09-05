@@ -369,8 +369,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * Keyword MV field: detectSingleValue has a false positive when terms.size() == terms.getDocCount().
-     * See SearchContextStats.detectSingleValue(IndexReader, MappedFieldType, String) where this check was wrong for KeywordFieldType.
+     * Keyword MV field: isSingleValueLeaf has a false positive when terms.size() == terms.getDocCount().
+     * See SearchContextStats.isSingleValueLeaf(MappedFieldType, LeafReader, String) where this check was wrong for KeywordFieldType.
      *
      * doc1: first_name=["A","B"]
      * doc2: first_name=["A"]

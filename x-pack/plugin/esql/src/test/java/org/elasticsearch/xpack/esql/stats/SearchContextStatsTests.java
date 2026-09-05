@@ -41,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -408,7 +409,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
      * columnar or {@code use_doc_values_skipper} mode) is correctly detected as single-valued.
      * <p>
      * The codec records {@code globalMaxValueCount = 1} at flush time; {@code maxValueCount()}
-     * returning {@code 1} lets {@code detectSingleValue} return {@code true}, enabling
+     * returning {@code 1} lets {@code isSingleValueLeaf} return {@code true}, enabling
      * {@code PushStatsToSource} to push {@code COUNT(n)} down to an exists-doc-count query for an
      * exact result.
      */
@@ -622,7 +623,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     /**
      * A single-valued numeric field with a point index must be reported as single-valued via the
      * {@code PointValues.size() == PointValues.getDocCount()} check. Covers the points branch of
-     * {@code detectSingleValue}, as opposed to the doc-values-skipper branch.
+     * {@code isSingleValueLeaf}, as opposed to the doc-values-skipper branch.
      */
     public void testPointIndexedSingleValuedNumericIsDetectedAsSingleValued() throws IOException {
         final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
@@ -687,6 +688,249 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 "multi-valued numeric field must not be reported as single-valued",
                 stats.isSingleValue(new FieldAttribute.FieldName("lng"))
             );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testFieldWithoutValuesIsSingleValued() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" }, "k": { "type": "keyword" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("k", "a", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            assertNull(reader.leaves().get(0).reader().getPointValues("n"));
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("missing")));
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testFieldMappedInSomeShardsSingleValued() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            assertTrue(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testFieldMappedInSomeShardsMultiValued() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO), new LongField("n", 2L, Field.Store.NO)));
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testMinMaxFromMappedShard() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "d": { "type": "date" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final long[] values = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
+        final Directory mappedDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            for (final long value : values) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            writer.forceMerge(1);
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader))
+                )
+            );
+            final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
+            assertEquals(Arrays.stream(values).min().getAsLong(), stats.min(d));
+            assertEquals(Arrays.stream(values).max().getAsLong(), stats.max(d));
+        } finally {
+            IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
+        }
+    }
+
+    public void testDocValuesOnlyNumericSingleValueNotProvable() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 1L)));
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 2L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            final LeafReader leafReader = reader.leaves().get(0).reader();
+            assertNull(leafReader.getPointValues("n"));
+            assertNull(leafReader.getDocValuesSkipper("n"));
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("n")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testMinMaxMixedPointsAndSkipper() throws IOException {
+        final MapperService pointsService = createMapperService("""
+            { "doc": { "properties": { "d": { "type": "date" } } } }""");
+        final Settings skipperSettings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService skipperService = createMapperService(skipperSettings, """
+            { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
+
+        final long[] pointsValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < pointsValues.length; i++) {
+            pointsValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+        final long[] skipperValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < skipperValues.length; i++) {
+            skipperValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
+        final Directory pointsDir = newDirectory();
+        final Directory skipperDir = newDirectory();
+        final DirectoryReader pointsReader;
+        final DirectoryReader skipperReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), pointsDir)) {
+            for (final long value : pointsValues) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            pointsReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), skipperDir)) {
+            for (final long value : skipperValues) {
+                writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", value)));
+            }
+            writer.forceMerge(1);
+            skipperReader = writer.getReader();
+        }
+
+        try {
+            final LeafReader pointsLeaf = pointsReader.leaves().get(0).reader();
+            assertNotNull(pointsLeaf.getPointValues("d"));
+            assertNull(pointsLeaf.getDocValuesSkipper("d"));
+            final LeafReader skipperLeaf = skipperReader.leaves().get(0).reader();
+            assertNull(skipperLeaf.getPointValues("d"));
+            assertNotNull(skipperLeaf.getDocValuesSkipper("d"));
+
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(pointsService, newSearcher(pointsReader)),
+                    createSearchExecutionContext(skipperService, newSearcher(skipperReader))
+                )
+            );
+            final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
+            final long expectedMin = Math.min(
+                Arrays.stream(pointsValues).min().getAsLong(),
+                Arrays.stream(skipperValues).min().getAsLong()
+            );
+            final long expectedMax = Math.max(
+                Arrays.stream(pointsValues).max().getAsLong(),
+                Arrays.stream(skipperValues).max().getAsLong()
+            );
+            assertEquals(expectedMin, stats.min(d));
+            assertEquals(expectedMax, stats.max(d));
+        } finally {
+            IOUtils.close(pointsReader, skipperReader, pointsService, skipperService, pointsDir, skipperDir);
+        }
+    }
+
+    public void testUnsupportedTypeFieldIsMultiValued() throws IOException {
+        final MapperService mapperService = createMapperService("""
+            { "doc": { "properties": { "b": { "type": "boolean" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new StringField("k", "a", Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(stats.isSingleValue(new FieldAttribute.FieldName("b")));
         } finally {
             IOUtils.close(reader, mapperService, dir);
         }

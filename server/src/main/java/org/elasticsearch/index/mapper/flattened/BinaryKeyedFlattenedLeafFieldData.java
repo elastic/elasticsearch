@@ -10,7 +10,10 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -18,6 +21,7 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -95,8 +99,9 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
 
         private final BytesRef key;
         private final SortedBinaryDocValues delegate;
+        private BytesRefBuilder[] values = new BytesRefBuilder[] { new BytesRefBuilder() };
         private int count;
-        private int seen;
+        private int index;
 
         private KeyedFlattenedBinaryDocValues(BytesRef key, SortedBinaryDocValues delegate) {
             super(delegate.docIdIterator());
@@ -111,53 +116,44 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            this.seen = 0;
-
-            if (delegate.advanceExact(target)) {
-                int offset = -1;
-                int count = 0;
-                for (int i = 0; i < delegate.docValueCount(); i++) {
-                    BytesRef value = delegate.nextValue();
-                    int comparison = compare(key, value);
-                    if (comparison == 0) {
-                        if (offset < 0) {
-                            offset = i;
-                        }
-                        count++;
-                    } else if (comparison < 0) {
-                        break;
-                    }
-                }
-                this.count = count;
-                if (count == 0) {
-                    return false;
-                }
-
-                // It is a match, but still need to reset the iterator on the current doc and
-                // iterate the delegate until at least offset has been seen.
-                boolean advanced = delegate.advanceExact(target);
-                assert advanced;
-
-                for (int i = 0; i < offset; ++i) {
-                    delegate.nextValue();
-                }
-                return true;
+            count = 0;
+            index = 0;
+            if (delegate.advanceExact(target) == false) {
+                return false;
             }
+            final int prefixLength = key.length + 1;
+            for (int i = 0; i < delegate.docValueCount(); i++) {
+                BytesRef keyedValue = delegate.nextValue();
+                int comparison = compare(key, keyedValue);
+                if (comparison == 0) {
+                    grow(count + 1);
+                    values[count].copyBytes(keyedValue.bytes, keyedValue.offset + prefixLength, keyedValue.length - prefixLength);
+                    count++;
+                } else if (comparison < 0) {
+                    // Values are sorted by key; no later value can match.
+                    break;
+                }
+            }
+            return count > 0;
+        }
 
-            this.count = 0;
-            return false;
+        private void grow(int minSize) {
+            if (values.length < minSize) {
+                int oldLen = values.length;
+                int newLen = ArrayUtil.oversize(minSize, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                values = Arrays.copyOf(values, newLen);
+                for (int i = oldLen; i < newLen; i++) {
+                    values[i] = new BytesRefBuilder();
+                }
+            }
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
-            if (seen >= count) {
+        public BytesRef nextValue() {
+            if (index >= count) {
                 return null;
             }
-            seen++;
-            BytesRef keyedValue = delegate.nextValue();
-            int prefixLength = key.length + 1;
-            int valueLength = keyedValue.length - prefixLength;
-            return new BytesRef(keyedValue.bytes, keyedValue.offset + prefixLength, valueLength);
+            return values[index++].get();
         }
     }
 }

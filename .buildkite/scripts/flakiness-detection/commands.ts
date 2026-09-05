@@ -1,218 +1,57 @@
-import { dirname } from "path";
+import type { PlanCommand, PlanEntry, RunnableCommand, SkippedTest } from "./domain.ts";
 
-import type { BatchingConfig, ClassifiedTest, RunnableCommand, TestKind } from "./domain.ts";
+/**
+ * Map a skipped `flakiness-plan.json` entry to the {@link SkippedTest} record generate writes to
+ * `flakiness-skipped.json`. The Java resolver has already done all the resolution/enrichment work (project,
+ * source set, kind, abstract-flattening) and decided the disposition, so this is a pure field copy - the
+ * interesting logic that used to live in the TS detectors is gone. The `reason` is carried through so the
+ * analyze step's `not_applicable` record says why the target was not re-runnable.
+ */
+export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
+  const t: SkippedTest = { gradleProject: e.gradleProject, kind: e.kind, sourceSet: e.sourceSet };
+  if (e.fqcn !== undefined) t.fqcn = e.fqcn;
+  if (e.suitePath !== undefined) t.suitePath = e.suitePath;
+  if (e.yamlTest !== undefined) t.yamlTest = e.yamlTest;
+  if (e.reason !== undefined) t.reason = e.reason;
+  return t;
+}
 
-import { KIND_KEYS, KIND_LABELS, KIND_ORDER } from "./domain.ts";
-
-// The REST-loop wrapper: repeats a Gradle invocation `restIters` times and
-// preserves each iteration's JUnit XML.
-const REPEAT_REST_TEST = ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh";
-
-// Maps a source set to the Gradle task that compiles it. Used by the pre-flight
-// compile gate so a PR that does not compile is caught once, up front, instead
-// of failing every re-run batch identically.
-const SOURCE_SET_COMPILE_TASK: Record<string, string> = {
-  test: "compileTestJava",
-  internalClusterTest: "compileInternalClusterTestJava",
-  javaRestTest: "compileJavaRestTestJava",
-  yamlRestTest: "compileYamlRestTestJava",
+// The gradle-binary tokens. Java emits the neutral `__GRADLE__` placeholder; TS substitutes the
+// target-appropriate binary here.
+//   - buildkite: `.ci/scripts/run-gradle.sh` — the BK-agent wrapper that copies init.gradle, computes
+//     MAX_WORKERS, reads the ldd version, etc. (Linux-only, expects $WORKSPACE / $GRADLEW).
+//   - local: `./gradlew` directly, suitable for a developer laptop.
+// The `runners/repeat-rest-test.sh` wrapper is portable bash and works for both targets; Java bakes the
+// `__GRADLE__` placeholder inside the `repeat-rest-test.sh <iters> __GRADLE__ <tasks>` form too, so a
+// blanket replace-all covers both plain and wrapped invocations.
+const GRADLE_TOKEN = "__GRADLE__";
+const GRADLE_BINARY: Record<"buildkite" | "local", string> = {
+  buildkite: ".ci/scripts/run-gradle.sh",
+  local: "./gradlew",
 };
 
 /**
- * The unique `:project:compile<SourceSet>Java` tasks covering every runnable
- * test's source set, e.g. `:server:compileTestJava`. Compiling these transitively
- * builds their dependencies, so a green result means the batches can at least be
- * enumerated and started.
+ * Replace every `__GRADLE__` token in a Java-emitted batch command with the target-appropriate gradle
+ * binary. Java stays target neutral (it does not bake in `.ci/scripts/run-gradle.sh` vs `./gradlew`); this
+ * is the single point where TS resolves the target.
  */
-export function compileTasksFor(tests: ClassifiedTest[]): string[] {
-  const tasks = new Set<string>();
-  for (const t of tests) {
-    const compileTask = SOURCE_SET_COMPILE_TASK[t.sourceSet];
-    if (compileTask) tasks.add(`${t.gradleProject}:${compileTask}`);
-  }
-  return [...tasks];
+export function withGradleBinary(command: string, target: "buildkite" | "local"): string {
+  return command.split(GRADLE_TOKEN).join(GRADLE_BINARY[target]);
 }
 
-export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
-  const seen = new Set<string>();
-  const result: ClassifiedTest[] = [];
-  for (const t of tests) {
-    const identity = t.yamlTest ?? t.fqcn ?? t.suitePath ?? "";
-    const key = `${t.gradleProject}|${t.kind}|${identity}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(t);
-  }
-  return result;
-}
-
-export function collapseYamlSuites(tests: ClassifiedTest[]): ClassifiedTest[] {
-  const yamlSuitesByProject = new Map<string, ClassifiedTest[]>();
-  const result: ClassifiedTest[] = [];
-
-  for (const test of tests) {
-    if (test.kind === "yamlRestTestSuite") {
-      const key = test.gradleProject;
-      if (!yamlSuitesByProject.has(key)) {
-        yamlSuitesByProject.set(key, []);
-      }
-      yamlSuitesByProject.get(key)!.push(test);
-    } else {
-      result.push(test);
-    }
-  }
-
-  for (const [, suites] of yamlSuitesByProject) {
-    const byDir = new Map<string, ClassifiedTest[]>();
-    for (const suite of suites) {
-      const dir = dirname(suite.suitePath!);
-      if (!byDir.has(dir)) {
-        byDir.set(dir, []);
-      }
-      byDir.get(dir)!.push(suite);
-    }
-
-    for (const [dir, dirSuites] of byDir) {
-      if (dirSuites.length > 1 && dir !== ".") {
-        // Collapse multiple files in same directory to directory-level targeting
-        result.push({
-          gradleProject: dirSuites[0].gradleProject,
-          kind: "yamlRestTestSuite",
-          sourceSet: "yamlRestTest",
-          suitePath: dir,
-        });
-      } else {
-        // Single file in directory or root-level files: keep individual paths
-        for (const suite of dirSuites) {
-          result.push(suite);
-        }
-      }
-    }
-  }
-
-  return result;
-}
-
-export function deduplicateYamlRunners(tests: ClassifiedTest[]): ClassifiedTest[] {
-  const seen = new Set<string>();
-  return tests.filter((test) => {
-    if (test.kind === "yamlRestTestRunner") {
-      const key = `${test.gradleProject}:yamlRestTestRunner`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-    }
-    return true;
-  });
-}
-
-// Gradle task-level options (`--tests`, `--rerun`, ...) bind to the most
-// recently named task on the command line; they don't fan out to all listed
-// test tasks. So per-task options must be emitted directly after each
-// `:project:taskName` they apply to. See
-// https://docs.gradle.org/current/userguide/command_line_interface.html#sec:task_options
-function tasksWithFilters(
-  batch: ClassifiedTest[],
-  taskName: string,
-  toFilter: (t: ClassifiedTest) => string,
-  perTaskSuffix?: string,
-): string {
-  const byTask = new Map<string, string[]>();
-  for (const t of batch) {
-    const task = `${t.gradleProject}:${taskName}`;
-    const filters = byTask.get(task);
-    if (filters) {
-      filters.push(toFilter(t));
-    } else {
-      byTask.set(task, [toFilter(t)]);
-    }
-  }
-  return [...byTask.entries()]
-    .map(([task, filters]) => [task, ...filters, ...(perTaskSuffix ? [perTaskSuffix] : [])].join(" "))
-    .join(" ");
-}
-
-export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfig): string {
-  const kind = batch[0].kind;
-  // .ci/scripts/run-gradle.sh is a BK-agent wrapper (Linux-only, expects $WORKSPACE
-  // and $GRADLEW). For local target, invoke gradle directly via ./gradlew so the
-  // commands work on a developer laptop.
-  const gradle = cfg.target === "local" ? "./gradlew" : ".ci/scripts/run-gradle.sh";
-
-  switch (kind) {
-    case "test": {
-      const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
-      return `${gradle} -Dtests.iters=${cfg.itersByKind.test} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
-    }
-    case "internalClusterTest": {
-      const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);
-      return `${gradle} -Dtests.iters=${cfg.itersByKind.internalClusterTest} -Dtests.timeoutSuite=${cfg.suiteTimeoutMs}! ${tasks}`;
-    }
-    case "javaRestTest": {
-      const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
-      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks}`;
-    }
-    case "yamlRestTestRunner": {
-      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${batch[0].gradleProject}:yamlRestTest --rerun`;
-    }
-    case "yamlRestTestSuite": {
-      // `tests.rest.suite` is a JVM system property, not a Gradle task option,
-      // so a single value would apply to every yamlRestTest task in the
-      // invocation. ESClientYamlSuiteTestCase recognises a per-task scoped
-      // variant `tests.rest.suite.<task path>` so each task can receive only
-      // the suites that exist on its classpath.
-      const byTask = new Map<string, string[]>();
-      for (const t of batch) {
-        const task = `${t.gradleProject}:yamlRestTest`;
-        const paths = byTask.get(task);
-        if (paths) {
-          paths.push(t.suitePath!);
-        } else {
-          byTask.set(task, [t.suitePath!]);
-        }
-      }
-      const tasks = [...byTask.keys()].map((task) => `${task} --rerun`).join(" ");
-      const suiteProps = [...byTask.entries()]
-        .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
-        .join(" ");
-      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks} ${suiteProps}`;
-    }
-    case "yamlRestTestCase": {
-      // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
-      // form, so multiple cases can be batched into one gradle invocation and
-      // share agent and cluster setup.
-      const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
-      return `${REPEAT_REST_TEST} ${cfg.restIters} ${gradle} ${tasks}`;
-    }
-  }
-}
-
-export function buildCommands(tests: ClassifiedTest[], cfg: BatchingConfig): RunnableCommand[] {
-  let staged = dedupeTests(tests);
-  staged = collapseYamlSuites(staged);
-  staged = deduplicateYamlRunners(staged);
-
-  const byKind = new Map<TestKind, ClassifiedTest[]>();
-  for (const t of staged) {
-    const list = byKind.get(t.kind);
-    if (list) list.push(t);
-    else byKind.set(t.kind, [t]);
-  }
-
-  const out: RunnableCommand[] = [];
-  for (const kind of KIND_ORDER) {
-    const kindTests = byKind.get(kind);
-    if (!kindTests) continue;
-
-    const cap = cfg.capByKind[kind];
-    for (let i = 0; i < kindTests.length; i += cap) {
-      const batch = kindTests.slice(i, i + cap);
-      out.push({
-        kind,
-        label: KIND_LABELS[kind],
-        key: KIND_KEYS[kind],
-        command: generateBatchCommand(batch, cfg),
-      });
-    }
-  }
-  return out;
+/**
+ * Map the ready {@link PlanCommand}s the Java scan task emitted to {@link RunnableCommand}s, substituting
+ * the target-appropriate gradle binary into each command string. This is now the whole of the TS
+ * command layer - all batching (dedupe, yaml-suite collapse, per-cap slicing, gradle-string assembly) moved
+ * to Java.
+ */
+export function planCommandsToRunnable(commands: PlanCommand[], target: "buildkite" | "local"): RunnableCommand[] {
+  return commands.map((c) => ({
+    kind: c.kind,
+    label: c.label,
+    key: c.key,
+    command: withGradleBinary(c.command, target),
+    // A plan written before taskPaths existed simply yields none; the wrapper then skips the check.
+    taskPaths: c.taskPaths ?? [],
+  }));
 }

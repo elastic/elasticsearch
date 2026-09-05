@@ -9,12 +9,22 @@ config:
 steps:
   - group: "flakiness-detection"
     steps:
-      - label: "detect changed tests"
+      # Step 1 (bootstrap): gather refs (changed files + muted-tests.yml unmutes) into
+      # flakiness-refs.json, then dynamically upload TWO steps: an orchestration step
+      # (resolve → compile → scan on a single gradle agent) and a separate generate step
+      # (TS, on the default node-capable agent, since the gradle image lacks node). The
+      # generate step reads the plan the orchestration step shipped and uploads the batch +
+      # analyze steps. The single gradle agent for resolve/compile/scan is required: BK steps
+      # have no shared workspace, so a separate scan step would not see compile's build/classes
+      # output (see JAVA_RESOLVER_NOTES.md). The resolver (build-tools-internal
+      # `flakinessResolveProject`/`flakinessScan`) owns all resolution and batch-command generation now;
+      # this step no longer classifies files, locates classes, or detects BWC.
+      # Topology: bootstrap → [orchestration (gradle agent) + generate (node agent)] → batch + analyze.
+      - label: "gather refs (bootstrap)"
         command: |
           node .buildkite/scripts/flakiness-detection/entrypoints/pr.ts
         timeout_in_minutes: 10
         soft_fail: true
-        # pr.ts writes this when it skips BWC tests that cannot be re-run via the
-        # bare task; the generated analyze step downloads it and records them as
-        # not_applicable. No-op when the file is absent.
-        artifact_paths: flakiness-skipped.json
+        # Uploaded so the orchestration step (fresh agent) can download it. The orchestration step and
+        # everything downstream (batches + analyze) are uploaded dynamically by pr.ts.
+        artifact_paths: flakiness-refs.json

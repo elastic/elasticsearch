@@ -1,10 +1,7 @@
 import { describe, expect, test } from "vitest";
-import {
-  parseMutedEntries,
-  diffMutedEntries,
-  findUnmutedTests,
-} from "./unmutes.ts";
-import type { TestRef } from "../domain.ts";
+import { parseMutedEntries, diffMutedEntries, findUnmutedRefs } from "./unmutes.ts";
+
+type MutedEntry = { className: string; method?: string };
 
 describe("parseMutedEntries", () => {
   test("returns empty array for empty input", () => {
@@ -92,49 +89,39 @@ describe("parseMutedEntries", () => {
 
 describe("diffMutedEntries", () => {
   test("returns empty when before and after match", () => {
-    const entries: TestRef[] = [
-      { className: "org.elasticsearch.Foo", method: "testBar" },
-    ];
+    const entries: MutedEntry[] = [{ className: "org.elasticsearch.Foo", method: "testBar" }];
     expect(diffMutedEntries(entries, entries)).toEqual([]);
   });
 
   test("reports entries present in before but missing in after", () => {
-    const before: TestRef[] = [
+    const before: MutedEntry[] = [
       { className: "org.elasticsearch.Foo", method: "testBar" },
       { className: "org.elasticsearch.Baz", method: "testQux" },
     ];
-    const after: TestRef[] = [
-      { className: "org.elasticsearch.Foo", method: "testBar" },
-    ];
+    const after: MutedEntry[] = [{ className: "org.elasticsearch.Foo", method: "testBar" }];
     expect(diffMutedEntries(before, after)).toEqual([
       { className: "org.elasticsearch.Baz", method: "testQux" },
     ]);
   });
 
   test("ignores entries only present in after (newly muted)", () => {
-    const before: TestRef[] = [];
-    const after: TestRef[] = [
-      { className: "org.elasticsearch.Foo", method: "testBar" },
-    ];
+    const before: MutedEntry[] = [];
+    const after: MutedEntry[] = [{ className: "org.elasticsearch.Foo", method: "testBar" }];
     expect(diffMutedEntries(before, after)).toEqual([]);
   });
 
   test("treats whole-class mute and method-level mute as distinct", () => {
-    const before: TestRef[] = [{ className: "org.elasticsearch.Foo" }];
-    const after: TestRef[] = [
-      { className: "org.elasticsearch.Foo", method: "testBar" },
-    ];
-    expect(diffMutedEntries(before, after)).toEqual([
-      { className: "org.elasticsearch.Foo" },
-    ]);
+    const before: MutedEntry[] = [{ className: "org.elasticsearch.Foo" }];
+    const after: MutedEntry[] = [{ className: "org.elasticsearch.Foo", method: "testBar" }];
+    expect(diffMutedEntries(before, after)).toEqual([{ className: "org.elasticsearch.Foo" }]);
   });
 
   test("ignores reordering", () => {
-    const before: TestRef[] = [
+    const before: MutedEntry[] = [
       { className: "org.elasticsearch.A", method: "testX" },
       { className: "org.elasticsearch.B", method: "testY" },
     ];
-    const after: TestRef[] = [
+    const after: MutedEntry[] = [
       { className: "org.elasticsearch.B", method: "testY" },
       { className: "org.elasticsearch.A", method: "testX" },
     ];
@@ -142,53 +129,36 @@ describe("diffMutedEntries", () => {
   });
 });
 
-describe("findUnmutedTests", () => {
-  const repoFiles = [
-    "server/src/test/java/org/elasticsearch/index/IndexTests.java",
-  ];
-
+describe("findUnmutedRefs", () => {
   test("returns empty when nothing changed", () => {
     const yaml = `tests:
 - class: org.elasticsearch.index.IndexTests
   method: testFoo
 `;
-    expect(findUnmutedTests(yaml, yaml, repoFiles)).toEqual({
-      located: [],
-      unlocated: [],
-    });
+    expect(findUnmutedRefs(yaml, yaml)).toEqual([]);
   });
 
-  test("locates an unmuted test that still exists", () => {
+  test("emits an unmute ref (class + method) for a removed entry", () => {
     const before = `tests:
 - class: org.elasticsearch.index.IndexTests
   method: testFoo
 `;
     const after = "tests:\n";
-    expect(findUnmutedTests(before, after, repoFiles)).toEqual({
-      located: [
-        {
-          gradleProject: ":server",
-          kind: "test",
-          sourceSet: "test",
-          fqcn: "org.elasticsearch.index.IndexTests",
-        },
-      ],
-      unlocated: [],
-    });
+    // Note: resolution to project/sourceSet/kind is now the Java resolver's job; the gatherer just emits
+    // the ref verbatim, whether or not the class still exists.
+    expect(findUnmutedRefs(before, after)).toEqual([
+      { source: "unmute", className: "org.elasticsearch.index.IndexTests", method: "testFoo" },
+    ]);
   });
 
-  test("reports unlocated when the class file was removed", () => {
+  test("emits a whole-class unmute ref with no method", () => {
     const before = `tests:
 - class: org.elasticsearch.deleted.GoneTests
-  method: testFoo
 `;
     const after = "tests:\n";
-    expect(findUnmutedTests(before, after, repoFiles)).toEqual({
-      located: [],
-      unlocated: [
-        { className: "org.elasticsearch.deleted.GoneTests", method: "testFoo" },
-      ],
-    });
+    expect(findUnmutedRefs(before, after)).toEqual([
+      { source: "unmute", className: "org.elasticsearch.deleted.GoneTests" },
+    ]);
   });
 
   test("handles empty before yaml (file did not exist at merge base)", () => {
@@ -196,9 +166,6 @@ describe("findUnmutedTests", () => {
 - class: org.elasticsearch.index.IndexTests
   method: testFoo
 `;
-    expect(findUnmutedTests("", after, repoFiles)).toEqual({
-      located: [],
-      unlocated: [],
-    });
+    expect(findUnmutedRefs("", after)).toEqual([]);
   });
 });

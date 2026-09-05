@@ -53,6 +53,7 @@ plugins {
   id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'elasticsearch.internal-flakiness-resolve'
   id 'com.gradleup.nmcp.aggregation'
 }
 

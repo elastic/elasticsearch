@@ -13,6 +13,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.flakiness.FlakinessProjectResolvePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
@@ -65,6 +66,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
         project.getPluginManager().apply(InternalTestRerunPlugin.class);
+        // Registers this project's own flakinessResolveProject task, but only under -Pflakiness.resolve; the
+        // plugin is inert otherwise. See FlakinessProjectResolvePlugin for why the model is captured lazily.
+        project.getPluginManager().apply(FlakinessProjectResolvePlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);

@@ -1088,9 +1088,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         if (multiProject == false) {
             return List.copyOf(indexNames);
         }
-        return indexNames.stream()
-            .flatMap(indexName -> projectIds.stream().map(id -> id.id() + "/" + indexName).sorted())
-            .toList();
+        return indexNames.stream().flatMap(indexName -> projectIds.stream().map(id -> id.id() + "/" + indexName).sorted()).toList();
     }
 
     private Set<ProjectIndexName> toProjectIndices(Set<String> indexNames) {

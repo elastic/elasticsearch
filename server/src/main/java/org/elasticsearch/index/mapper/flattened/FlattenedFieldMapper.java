@@ -1703,7 +1703,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1894,8 +1894,10 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      *
      * @throws IllegalArgumentException when a relative key's depth exceeds {@code depth_limit}, mirroring
      *         {@code FlattenedFieldParser.validateDepthLimit}
-     * @throws UnsupportedOperationException when a value exceeds {@code ignore_above}, so that the caller falls back to the row path,
-     *         which writes the {@code <root>._keyed._ignored} channel this path does not yet produce
+     * @throws UnsupportedOperationException when a value exceeds {@code ignore_above} on a pre-{@link
+     *         org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR} columnar index, so that the
+     *         caller falls back to the row path, which writes the {@code <root>._keyed._ignored} channel this
+     *         path does not yet produce. Unreachable for indices at or after that version.
      */
     @Override
     public void mapColumnGroupBatch(BatchMappingContext ctx, EscfColumn[] columns, String[] relativeKeys) {
@@ -1967,6 +1969,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         value = nullValueBytes;
                     }
                     if (value != null) {
+                        // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
                         if (fieldType().ignoreAbove().isIgnored(value)) {
                             throw new UnsupportedOperationException(
                                 "mapColumnGroupBatch: value for key ["

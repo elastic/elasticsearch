@@ -181,6 +181,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private final Integer value;
         private final Integer defaultValue;
+        /**
+         * Strictly columnar index modes reconstruct {@code _source} from doc values, so dropping values is not
+         * an option. {@code ignore_above} is accepted, validated, merged and serialized, but has no effect on
+         * indexing or {@code _ignored} for indices created on or after
+         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}. Older columnar indices keep their existing
+         * {@code ._original} / {@code ._keyed._ignored} fallback data and must continue to read it correctly.
+         */
+        private final boolean noOp;
 
         public IgnoreAbove(Integer value) {
             this(Objects.requireNonNull(value), IndexMode.STANDARD, IndexVersion.current());
@@ -197,6 +205,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             this.value = value;
             this.defaultValue = getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
+            this.noOp = isNoOp(indexMode, indexCreatedVersion);
         }
 
         public int get() {
@@ -212,16 +221,27 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /**
+         * Returns whether this {@code ignore_above} has no effect at index time because the index is in a
+         * strictly columnar mode at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
+         * The configured value is still serialized and round-tripped via {@link #get()} / {@link #isSet()}.
+         */
+        public boolean isNoOp() {
+            return noOp;
+        }
+
+        /**
          * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
+         * Always {@code false} for strictly columnar indices at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
          */
         public boolean valuesPotentiallyIgnored() {
             // We use Integer.MAX_VALUE to represent accepting all values. If the value is anything else, then either we have an
             // explicitly configured ignore_above, or we have a non no-op default.
-            return get() != Integer.MAX_VALUE;
+            return noOp == false && effectiveLimit() != Integer.MAX_VALUE;
         }
 
         /**
          * Returns whether the given string will be ignored.
+         * Always {@code false} for strictly columnar indices at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
          */
         public boolean isIgnored(final String s) {
             if (s == null) return false;
@@ -229,6 +249,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         public boolean isIgnored(final XContentString s) {
+            if (noOp) {
+                return false;
+            }
             if (s == null) {
                 return false;
             } else if (s instanceof Text text) {
@@ -255,8 +278,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             );
         }
 
+        /** The limit actually enforced at index time; {@link Integer#MAX_VALUE} when the parameter is inert. */
+        private int effectiveLimit() {
+            return noOp ? IGNORE_ABOVE_DEFAULT_VALUE : get();
+        }
+
         private boolean lengthExceedsIgnoreAbove(int strLength) {
-            return strLength > get();
+            return strLength > effectiveLimit();
         }
 
         public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
@@ -265,6 +293,19 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             } else {
                 return IGNORE_ABOVE_DEFAULT_VALUE;
             }
+        }
+
+        /**
+         * Returns {@code true} when {@code ignore_above} should be silently ignored at index time.
+         * This is the case for strictly columnar index modes at or after
+         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}: values are stored as doc values only,
+         * so there is no inverted index to protect and no value may be dropped.
+         */
+        public static boolean isNoOp(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            return indexMode != null
+                && indexMode.isStrictColumnar()
+                && indexCreatedVersion != null
+                && indexCreatedVersion.onOrAfter(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
         }
 
         private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {

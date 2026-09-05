@@ -266,19 +266,21 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     }
 
     /**
-     * Values over {@code ignore_above} belong in the {@code _keyed._ignored} channel, which the columnar path does not yet write, so
-     * it bails to make the production driver fall back to the row path.
+     * {@code ignore_above} is a no-op in strictly columnar index modes for indices created at or after
+     * {@link org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}: values are stored
+     * as doc values only, so nothing may be dropped. A value exceeding the configured limit is indexed
+     * normally and the batch-columnar path succeeds without falling back to the row path.
+     * <p>
+     * The old behaviour (throwing {@link UnsupportedOperationException} to trigger row-path fallback) is
+     * retained for pre-gate columnar indices where the {@code _keyed._ignored} channel may already contain data.
      */
-    public void testIgnoreAboveIsRejected() {
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
-            () -> assertColumnarMatchesXContent(
-                mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
-                columnarSettings(),
-                batch("ignore_above exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
-            )
+    public void testIgnoreAboveIsNoOpInColumnar() throws IOException {
+        // "too long" (7 chars) exceeds ignore_above: 4, but the limit is inert in columnar mode.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
+            columnarSettings(),
+            batch("ignore_above is no-op", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
         );
-        assertThat(e.getMessage(), containsString("exceeds ignore_above"));
     }
 
     /** A value at or below {@code ignore_above} is mapped normally. */

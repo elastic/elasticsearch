@@ -358,11 +358,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this.normalizerSkipStoreOriginalValue.getValue();
         }
 
-        // Returns true when an effective ignore_above limit applies (field-level or index-level), so the doc values omit longer values.
-        public boolean hasIgnoreAbove() {
-            return this.ignoreAbove.getValue() != Integer.MAX_VALUE;
-        }
-
         // Returns true when a null_value is configured, so the doc values substitute it for nulls rather than mirroring the raw values.
         public boolean hasNullValue() {
             return this.nullValue.getValue() != null;
@@ -1768,6 +1763,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             // ignore_above: record _ignored once per doc; defer the synthetic-source value fallback.
+            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
             if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 if (ignoredThisDoc == false) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
@@ -1869,6 +1865,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             valueSeenThisDoc = true;
 
+            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
             if (fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                 // Deoptimize: we were planning to zero-copy the source column, but now we must
@@ -1968,10 +1965,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     /**
      * Returns whether this field should be stored separately as a {@link StoredField} for supporting synthetic source.
+     * Returns {@code false} when {@code ignore_above} is a no-op (strictly columnar indices at or after
+     * {@link org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}) because values are
+     * never dropped and no fallback channel needs to be allocated.
      */
     private boolean storeIgnoredValuesForSyntheticSource() {
-        // skip all fields that are multi-fields
-        return fieldType().isSyntheticSourceEnabled() && fieldType().isWithinMultiField() == false;
+        // skip all fields that are multi-fields, and skip when ignore_above is inert (no values will be dropped)
+        return fieldType().isSyntheticSourceEnabled()
+            && fieldType().isWithinMultiField() == false
+            && fieldType().ignoreAbove().valuesPotentiallyIgnored();
     }
 
     private boolean indexValue(DocumentParserContext context, XContentString value) {

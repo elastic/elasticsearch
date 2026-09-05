@@ -109,8 +109,11 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
             value = applyFlattenedNullValue(value, nullValue);
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);
+        // ignore_above is a no-op in strictly columnar index modes for current-version indices.
         var ignoreAboveRaw = fieldMapping.get("ignore_above");
-        int ignoreAbove = ignoreAboveRaw instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+        int ignoreAbove = (ignoreAboveRaw instanceof Number n && params.indexMode().isStrictColumnar() == false)
+            ? n.intValue()
+            : Integer.MAX_VALUE;
         return flattenAndStringify(value, mode, ignoreAbove);
     }
 

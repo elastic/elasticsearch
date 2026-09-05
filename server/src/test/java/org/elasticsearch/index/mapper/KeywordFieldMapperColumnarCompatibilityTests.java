@@ -201,6 +201,8 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testIgnoreAbove() throws IOException {
+        // ignore_above is a no-op in strictly columnar mode: the 8192-char value is indexed normally
+        // on both the batch and row paths, and _ignored stays empty.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8191).endObject()),
             columnarSettings(),
@@ -308,8 +310,8 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     public void testIgnoreAboveMultiValueFalse() throws IOException {
-        // ignore_above: the too-long value is recorded in _ignored and stored as a plain
-        // BinaryDocValuesField synthetic-source fallback (no counts sidecar).
+        // ignore_above is a no-op in strictly columnar mode: the too-long value is indexed normally on
+        // both the batch and row paths, and _ignored stays empty.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
             b.startObject("doc_values").field("multi_value", false).endObject();

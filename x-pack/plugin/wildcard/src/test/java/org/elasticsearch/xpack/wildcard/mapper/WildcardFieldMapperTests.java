@@ -1349,8 +1349,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
             List<String> ignoredValues = new ArrayList<>();
+            // ignore_above is a no-op in strictly columnar index modes: all values are kept.
+            boolean ignoreAboveIsNoOp = isColumnar;
             values.stream().map(Tuple::v2).forEach(v -> {
-                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                     ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
@@ -1387,7 +1389,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 return Tuple.tuple(null, nullValue);
             }
             int length = 5;
-            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
+            // In columnar mode ignore_above is a no-op, so don't generate over-limit values.
+            if (ignoreAbove != null && isColumnar == false && (allIgnored || randomBoolean())) {
                 length = ignoreAbove + 5;
             }
             String v = randomAlphaOfLength(length);

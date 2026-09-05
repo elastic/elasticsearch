@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -42,7 +43,7 @@ class FlattenedFieldParser {
 
     private final MappedFieldType fieldType;
     private final int depthLimit;
-    private final int ignoreAbove;
+    private final Mapper.IgnoreAbove ignoreAbove;
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
@@ -63,7 +64,7 @@ class FlattenedFieldParser {
         String keyedIgnoredValuesFieldFullPath,
         MappedFieldType fieldType,
         int depthLimit,
-        int ignoreAbove,
+        Mapper.IgnoreAbove ignoreAbove,
         String nullValue,
         boolean usesBinaryDocValues,
         boolean hasRootDocValues,
@@ -170,7 +171,8 @@ class FlattenedFieldParser {
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
-        if (value.length() > ignoreAbove) {
+        // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
+        if (ignoreAbove.isIgnored(value)) {
             var lookup = context.documentParserContext().mappingLookup();
             if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
                 // In document-order mode there is no _offsets sidecar; ignored values are tail-appended during read.

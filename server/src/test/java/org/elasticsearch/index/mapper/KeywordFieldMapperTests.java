@@ -1228,13 +1228,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiValueFalseAcceptsSingleIgnoreAboveValue() throws IOException {
+        // ignore_above is a no-op in strictly columnar mode: values exceeding the limit are indexed
+        // normally, _ignored stays empty, and multi_value=false can still reject a second value.
         DocumentMapper mapper = createColumnarModeDocumentMapper(
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         );
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
-        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(true));
+        String value = randomAlphanumericOfLength(20);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
+        // The value is indexed even though it exceeds ignore_above (ignore_above is a no-op in columnar).
+        assertThat(doc.rootDoc().getFields("field").stream().anyMatch(f -> new BytesRef(value).equals(f.binaryValue())), equalTo(true));
+        // _ignored must be absent: nothing was dropped.
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {

@@ -394,9 +394,10 @@ public final class ShardBatchMapper {
             }
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
+            context.close();
             return null;
         }
 
-        return new EngineBatch(indexBatch, context.columns());
+        return new EngineBatch(indexBatch, context.columns(), context);
     }
 }

@@ -1,0 +1,4 @@
+id:keyword,unmapped.foo:keyword,unmapped.bar:keyword,unmapped.deep.leaf:keyword
+3,foo3,,
+6,,,deep6
+7,,bar7,

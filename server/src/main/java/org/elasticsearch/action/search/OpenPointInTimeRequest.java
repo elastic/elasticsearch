@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
@@ -39,6 +40,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
+    @Nullable
+    private String searchSlice;
     @Nullable
     private String preference;
 
@@ -69,6 +73,13 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         this.maxConcurrentShardRequests = in.readVInt();
         this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.allowPartialSearchResults = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            this.routingFromSlice = in.readBoolean();
+            this.searchSlice = in.readOptionalString();
+        } else {
+            this.routingFromSlice = false;
+            this.searchSlice = null;
+        }
     }
 
     @Override
@@ -82,6 +93,10 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
         out.writeVInt(maxConcurrentShardRequests);
         out.writeOptionalWriteable(indexFilter);
         out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+            out.writeOptionalString(searchSlice);
+        }
     }
 
     @Override
@@ -142,6 +157,39 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
 
     public OpenPointInTimeRequest routing(String routing) {
         this.routing = routing;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
+     * Returns the requested {@code slice} value when routing comes from {@code slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    /**
+     * Sets the user-provided {@code slice} value and derives routing/provenance from it.
+     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
+     */
+    public OpenPointInTimeRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
         return this;
     }
 
@@ -257,6 +305,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             + ", routing='"
             + routing
             + '\''
+            + ", searchSlice='"
+            + searchSlice
+            + '\''
             + ", preference='"
             + preference
             + '\''
@@ -280,13 +331,24 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             && indicesOptions.equals(that.indicesOptions)
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
+            && routingFromSlice == that.routingFromSlice
+            && Objects.equals(searchSlice, that.searchSlice)
             && Objects.equals(preference, that.preference)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference, allowPartialSearchResults);
+        int result = Objects.hash(
+            indicesOptions,
+            keepAlive,
+            maxConcurrentShardRequests,
+            routing,
+            routingFromSlice,
+            searchSlice,
+            preference,
+            allowPartialSearchResults
+        );
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

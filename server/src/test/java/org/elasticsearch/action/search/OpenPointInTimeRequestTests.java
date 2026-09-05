@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -35,7 +36,9 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             request.preference(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
+            request.searchSlice(randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLength(10));
+        } else if (randomBoolean()) {
             request.routing(randomAlphaOfLength(10));
         }
         return request;
@@ -43,13 +46,14 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected OpenPointInTimeRequest mutateInstance(OpenPointInTimeRequest in) throws IOException {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> {
                 OpenPointInTimeRequest request = new OpenPointInTimeRequest("new-index");
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
                 request.routing(in.routing());
+                request.searchSlice(in.searchSlice());
                 yield request;
             }
             case 1 -> {
@@ -58,6 +62,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
                 request.routing(in.routing());
+                request.searchSlice(in.searchSlice());
                 yield request;
             }
             case 2 -> {
@@ -66,6 +71,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.keepAlive(TimeValue.timeValueSeconds(between(2000, 5000)));
                 request.preference(in.preference());
                 request.routing(in.routing());
+                request.searchSlice(in.searchSlice());
                 yield request;
             }
             case 3 -> {
@@ -74,6 +80,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.keepAlive(in.keepAlive());
                 request.preference(randomAlphaOfLength(5));
                 request.routing(in.routing());
+                request.searchSlice(in.searchSlice());
                 yield request;
             }
             case 4 -> {
@@ -81,7 +88,21 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
+                request.searchSlice(null);
                 request.routing(randomAlphaOfLength(5));
+                yield request;
+            }
+            case 5 -> {
+                OpenPointInTimeRequest request = new OpenPointInTimeRequest(in.indices());
+                request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
+                request.keepAlive(in.keepAlive());
+                request.preference(in.preference());
+                request.routing(in.routing());
+                request.searchSlice(
+                    SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
+                        ? (in.searchSlice() == null ? randomAlphaOfLength(5) : null)
+                        : in.searchSlice()
+                );
                 yield request;
             }
             default -> throw new AssertionError("Unknown option");

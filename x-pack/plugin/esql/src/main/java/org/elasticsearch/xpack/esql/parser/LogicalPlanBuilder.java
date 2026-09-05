@@ -1609,6 +1609,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
+        // Both fallback endpoints embed text, and no multimodal endpoint is a default anywhere in the product, so an image input
+        // has nothing to fall back to. The query text alone settles this, so it is reported before any endpoint is looked up.
+        if (denseVector.inferenceIdIsFallback() && denseVector.inputType() == org.elasticsearch.inference.DataType.IMAGE) {
+            throw new ParsingException(
+                denseVector.source(),
+                "Option [{}] with value [image] in DENSE_VECTOR requires option [{}]",
+                DenseVector.TYPE_OPTION_NAME,
+                DenseVector.INFERENCE_ID_OPTION_NAME
+            );
+        }
+
         return denseVector;
     }
 

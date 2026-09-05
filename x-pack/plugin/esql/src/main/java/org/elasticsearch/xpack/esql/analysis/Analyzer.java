@@ -2745,6 +2745,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
             assert plan.inferenceId().resolved() && plan.inferenceId().foldable();
 
+            if (plan instanceof DenseVector denseVector && denseVector.selectsDefaultInferenceId()) {
+                DenseVector selected = selectDefaultInferenceId(denseVector, context);
+                if (selected.inferenceId().resolved() == false) {
+                    return selected;
+                }
+                plan = selected;
+            }
+
             String inferenceId = BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
             ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(inferenceId);
 
@@ -2778,6 +2786,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return plan;
+        }
+
+        /**
+         * Picks the first of {@link DenseVector#DEFAULT_INFERENCE_ID_CANDIDATES} that this deployment has and that serves the
+         * command's input, so a query naming no endpoint runs wherever one of them exists. Pre-analysis resolved every candidate
+         * (see {@link InferencePlan#candidateInferenceIds()}), so the chosen endpoint carries a validated task type; resolution
+         * runs once, and an endpoint first named here could not be checked.
+         * <p>
+         * Returns the plan carrying a resolution error, naming the candidates, when this deployment has none of them.
+         */
+        private DenseVector selectDefaultInferenceId(DenseVector denseVector, AnalyzerContext context) {
+            EnumSet<TaskType> acceptedTaskTypes = denseVector.acceptedTaskTypes();
+            for (String candidate : DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES) {
+                ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(candidate);
+                if (resolvedInference != null && acceptedTaskTypes.contains(resolvedInference.taskType())) {
+                    return denseVector.withInferenceId(Literal.keyword(denseVector.inferenceId().source(), candidate));
+                }
+            }
+
+            String error = "no inference endpoint is available for the "
+                + denseVector.nodeName()
+                + " command: none of "
+                + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
+                + " is available with the task type "
+                + acceptedTaskTypes
+                + ". Specify an endpoint using the ["
+                + InferencePlan.INFERENCE_ID_OPTION_NAME
+                + "] option.";
+            return denseVector.withInferenceResolutionError(DenseVector.DEFAULT_INFERENCE_ID, error);
         }
 
         /**

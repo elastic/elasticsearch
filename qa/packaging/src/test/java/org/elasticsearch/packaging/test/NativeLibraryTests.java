@@ -17,6 +17,14 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.docker.Docker;
 import org.elasticsearch.packaging.util.docker.DockerRun;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -177,6 +185,64 @@ public class NativeLibraryTests extends PackagingTestCase {
         return FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz");
     }
 
+    /**
+     * Verifies that the native ESQL parquet-rs reader (libesql_parquet_rs.so/libesql_parquet_rs.dylib) loads
+     * and can read a Parquet file end-to-end.
+     * <p>
+     * The {@code libesql_parquet_rs} library is a Rust native library loaded via JNI the first time an ES|QL
+     * query exercises the {@code parquet-rs} reader. Unlike {@code libes_parquet_rs} (tested in test40 on the
+     * {@code parquet_rs_pkg_test} branch), this library is loaded lazily, so a log-line check alone is not
+     * sufficient — the test must actually trigger a query that reads Parquet data through the native reader.
+     * <p>
+     * This test copies a small Parquet fixture (3 rows, 2 columns: {@code id} INT64, {@code name} STRING) to a
+     * location accessible to the running node, configures the {@code esql.datasource.local_allowed_paths} setting
+     * to authorize file access, and runs an {@code EXTERNAL} ES|QL query with {@code reader=parquet-rs}. A successful
+     * query proves the JNI library loaded and the native reader produced correct output.
+     * <p>
+     * On Linux and macOS, the test additionally asserts that the JNI library's success log line
+     * ({@code "Loaded native parquet-rs library from"}) is present, confirming the expected native code path was used.
+     */
+    public void test50EsqlParquetRsNativeReader() throws Exception {
+        if (Platforms.LINUX == false && Platforms.DARWIN == false) {
+            return;
+        }
+
+        Path parquetDir = extractParquetFixture();
+        String nodeVisibleDir = configureAndStartWithLocalData(SECURITY_DISABLED_SETTINGS, parquetDir);
+        String parquetFilePath = nodeVisibleDir + "/test.parquet";
+
+        try {
+            String body = """
+                {"query": "EXTERNAL \\"file://%s\\" WITH {\\"reader\\": \\"parquet-rs\\"} | LIMIT 10"}""".formatted(parquetFilePath);
+            String response = ServerUtils.makeRequest(
+                Request.Post("http://localhost:9200/_query").bodyString(body, ContentType.APPLICATION_JSON)
+            );
+
+            assertThat(response, containsString("id"));
+            assertThat(response, containsString("name"));
+
+            String logs = getElasticsearchLogs();
+            assertThat(logs, containsString("Loaded native parquet-rs library from"));
+        } finally {
+            stopElasticsearch();
+        }
+    }
+
+    /**
+     * Extracts the test.parquet fixture from the test classpath to a temporary directory.
+     */
+    private Path extractParquetFixture() throws IOException {
+        Path tmpDir = createTempDir("esql-parquet-packaging-test");
+        Path target = tmpDir.resolve("test.parquet");
+        try (InputStream is = getClass().getResourceAsStream("test.parquet")) {
+            if (is == null) {
+                throw new IllegalStateException("test.parquet resource not found on classpath");
+            }
+            Files.copy(is, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return tmpDir;
+    }
+
     private void configureAndStart(Map<String, String> settings) throws Exception {
         if (distribution().isDocker()) {
             DockerRun dockerRun = builder();
@@ -191,5 +257,52 @@ public class NativeLibraryTests extends PackagingTestCase {
 
         startElasticsearch();
         ServerUtils.waitForElasticsearch(installation);
+    }
+
+    /**
+     * Configures and starts Elasticsearch with a local data directory exposed to the node.
+     * Sets {@code esql.datasource.local_allowed_paths} and {@code path.repo} so the node can read
+     * files from the directory, and volume-mounts it for Docker distributions.
+     *
+     * @return the directory path as visible to the running node (differs from {@code localDir} for Docker)
+     */
+    private String configureAndStartWithLocalData(Map<String, String> baseSettings, Path localDir) throws Exception {
+        Map<String, String> settings = new HashMap<>(baseSettings);
+        String nodeVisibleDir;
+
+        if (distribution().isDocker()) {
+            nodeVisibleDir = "/tmp/parquet-test";
+            settings.put("esql.datasource.local_allowed_paths", nodeVisibleDir);
+            settings.put("path.repo", nodeVisibleDir);
+            DockerRun dockerRun = builder();
+            settings.forEach(dockerRun::envVar);
+            dockerRun.volume(localDir, nodeVisibleDir);
+            installation = runContainer(distribution(), dockerRun);
+        } else {
+            nodeVisibleDir = localDir.toAbsolutePath().toString();
+            for (var setting : settings.entrySet()) {
+                ServerUtils.addSettingToExistingConfiguration(installation.config, setting.getKey(), setting.getValue());
+            }
+            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "cluster.initial_master_nodes");
+            appendListSettings(installation.config, nodeVisibleDir);
+        }
+
+        startElasticsearch();
+        ServerUtils.waitForElasticsearch(installation);
+        return nodeVisibleDir;
+    }
+
+    /**
+     * Appends list-valued settings to elasticsearch.yml. {@code addSettingToExistingConfiguration}
+     * uses {@code Settings.builder().put()} which doesn't handle list settings correctly —
+     * {@code path.repo} and {@code esql.datasource.local_allowed_paths} require YAML list syntax.
+     */
+    private void appendListSettings(Path confPath, String dirPath) throws IOException {
+        Path yml = confPath.resolve("elasticsearch.yml");
+        Files.write(
+            yml,
+            List.of("path.repo: [\"" + dirPath + "\"]", "esql.datasource.local_allowed_paths: [\"" + dirPath + "\"]"),
+            StandardOpenOption.APPEND
+        );
     }
 }

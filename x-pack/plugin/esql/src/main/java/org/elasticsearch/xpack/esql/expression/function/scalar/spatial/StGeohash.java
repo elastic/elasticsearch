@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -212,7 +215,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
             GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
-            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohashCells(wkb, precision, bbox);
+            Source evalSource = source();
+            Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
+                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                return wkb -> computeGeohashCells(wkb, precision, bbox, w::registerWarning);
+            };
             return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
@@ -223,14 +230,23 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                     source(),
                     toEvaluator.apply(spatialField),
                     bounds::get,
-                    shapeTiler
+                    shapeTilerFactory
                 );
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohashCells(wkb, precision, null);
+            Source evalSource = source();
+            Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
+                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                return wkb -> computeGeohashCells(wkb, precision, null, w::registerWarning);
+            };
             return spatialDocValues
                 ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision, shapeTiler);
+                : new StGeohashFromFieldAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField),
+                    precision,
+                    shapeTilerFactory
+                );
         }
     }
 
@@ -247,7 +263,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 if (geometry instanceof Point point) {
                     return unboundedGrid.calculateGridId(point, precision);
                 }
-                return foldMultiValue(computeGeohashCells(wkb, precision, null));
+                return foldMultiValue(computeGeohashCells(wkb, precision, null, foldWarningConsumer()));
             } else {
                 Object boundsValue = bounds().fold(ctx);
                 if (boundsValue == null) {
@@ -260,20 +276,20 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                     long gridId = bounds.calculateGridId(point);
                     return gridId < 0 ? null : gridId;
                 }
-                return foldMultiValue(computeGeohashCells(wkb, precision, bbox));
+                return foldMultiValue(computeGeohashCells(wkb, precision, bbox, foldWarningConsumer()));
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
         }
     }
 
-    @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "FromFieldAndLiteral")
     static void fromFieldAndLiteral(
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock wkbBlock,
         @Fixed int precision,
-        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoShapeCellsComputer shapeTiler
     ) {
         fromWKB(results, p, wkbBlock, precision, unboundedGrid, shapeTiler);
     }
@@ -283,13 +299,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
-    @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "FromFieldAndLiteralAndLiteral")
     static void fromFieldAndLiteralAndLiteral(
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock in,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHashBoundedGrid bounds,
-        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoShapeCellsComputer shapeTiler
     ) {
         fromWKB(results, p, in, bounds, shapeTiler);
     }
@@ -311,23 +327,28 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
     // ---- Geohash cell computation for geo_shape ----
 
     /**
-     * Computes all geohash cells at the given precision that intersect the WKB-encoded geometry.
-     * Optionally filtered by a bounding box.
+     * Computes all geohash cells at the given precision that intersect the WKB-encoded geometry,
+     * truncating at {@link SpatialGridFunction#MAX_GRID_CELLS} and calling {@code onTruncation}
+     * with a warning message when the limit is reached.
      * <p>
      * The algorithm and the brute-force vs. rasterization heuristic ({@code dX * dY <= 32 * precision})
      * are adapted from {@code GeoHashGridTiler.setValues} in the spatial module.
      * Both thresholds should be reviewed together if either is changed.
+     * </p>
+     * The fold path emits warnings via HTTP response headers using {@link SpatialGridFunction#foldWarningConsumer()};
+     * the evaluator path passes {@code warnings::registerWarning} so the user sees a driver-context warning.
      */
-    static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+    static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
         GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoHashBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoHashBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
         long dX = (long) Math.ceil((shape.maxLon - shape.minLon) / Geohash.lonWidthInDegrees(precision));
         long dY = (long) Math.ceil((shape.maxLat - shape.minLat) / Geohash.latHeightInDegrees(precision));
         if (dX * dY <= 32L * precision) {
-            geohashBruteForceScan(shape, precision, predicate, cells);
+            geohashBruteForceScan(shape, precision, predicate, cells, onTruncation);
         } else {
-            rasterizeGeohash(shape, "", precision, predicate, cells);
+            rasterizeGeohash(shape, "", precision, predicate, cells, onTruncation);
         }
         return cells;
     }
@@ -337,8 +358,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      * adding those that intersect the shape (and pass the optional bounds filter).
      * Adapted from {@code GeoHashGridTiler.setValuesByBruteForceScan} in the spatial module.
      */
-    private static void geohashBruteForceScan(GeoShapeDocValues shape, int precision, GeoHashBoundedPredicate predicate, List<Long> cells)
-        throws IOException {
+    private static boolean geohashBruteForceScan(
+        GeoShapeDocValues shape,
+        int precision,
+        GeoHashBoundedPredicate predicate,
+        List<Long> cells,
+        Consumer<String> onTruncation
+    ) throws IOException {
         final String stop = Geohash.stringEncode(shape.maxLon, shape.maxLat, precision);
         String firstInRow = null;
         String lastInRow = null;
@@ -358,14 +384,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
                 }
                 if (geohashCellIntersectsShape(shape, current, predicate)) {
                     if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        throw new IllegalArgumentException(
-                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
-                        );
+                        String msg = "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
+                        if (onTruncation != null) {
+                            onTruncation.accept(msg);
+                            return true;
+                        }
+                        throw new IllegalArgumentException(msg);
                     }
                     cells.add(Geohash.longEncode(current));
                 }
             } while (current.equals(lastInRow) == false);
         } while (lastInRow.equals(stop) == false);
+        return false;
     }
 
     /**
@@ -373,27 +403,34 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      * adding cells that intersect the shape.
      * Adapted from {@code GeoHashGridTiler.setValuesByRasterization} in the spatial module.
      */
-    private static void rasterizeGeohash(
+    private static boolean rasterizeGeohash(
         GeoShapeDocValues shape,
         String hash,
         int precision,
         GeoHashBoundedPredicate predicate,
-        List<Long> cells
+        List<Long> cells,
+        Consumer<String> onTruncation
     ) throws IOException {
         for (String sub : Geohash.getSubGeohashes(hash)) {
             if (geohashCellIntersectsShape(shape, sub, predicate)) {
                 if (sub.length() == precision) {
                     if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        throw new IllegalArgumentException(
-                            "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
-                        );
+                        String msg = "ST_GEOHASH generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
+                        if (onTruncation != null) {
+                            onTruncation.accept(msg);
+                            return true;
+                        }
+                        throw new IllegalArgumentException(msg);
                     }
                     cells.add(Geohash.longEncode(sub));
                 } else {
-                    rasterizeGeohash(shape, sub, precision, predicate, cells);
+                    if (rasterizeGeohash(shape, sub, precision, predicate, cells, onTruncation)) {
+                        return true;
+                    }
                 }
             }
         }
+        return false;
     }
 
     /**

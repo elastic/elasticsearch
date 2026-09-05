@@ -373,6 +373,56 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
+    public void testXOpaqueIdInApplicationLog() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "myOpaqueId123");
+
+            final Logger testLogger = LogManager.getLogger("test");
+            testLogger.info("request handled");
+
+            final Path path = clusterLogsPath();
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+                assertThat(
+                    jsonLogs,
+                    contains(
+                        allOf(
+                            hasEntry("event.dataset", "elasticsearch.file"),
+                            hasEntry("log.level", "INFO"),
+                            hasEntry("log.logger", "test"),
+                            hasEntry("message", "request handled"),
+                            hasEntry("elasticsearch.http.request.x_opaque_id", "myOpaqueId123")
+                        )
+                    )
+                );
+            }
+        });
+    }
+
+    public void testApplicationLogWithoutXOpaqueId() throws IOException {
+        final Logger testLogger = LogManager.getLogger("test");
+        testLogger.info("no opaque id");
+
+        final Path path = clusterLogsPath();
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
+
+            assertThat(
+                jsonLogs,
+                contains(
+                    allOf(
+                        hasEntry("event.dataset", "elasticsearch.file"),
+                        hasEntry("log.level", "INFO"),
+                        hasEntry("log.logger", "test"),
+                        hasEntry("message", "no opaque id"),
+                        not(hasKey("elasticsearch.http.request.x_opaque_id"))
+                    )
+                )
+            );
+        }
+    }
+
     public void testCustomMessageWithMultipleFields() throws IOException {
         // If a field is defined to be overridden, it has to always be overridden in that appender.
         final Logger testLogger = LogManager.getLogger("test");

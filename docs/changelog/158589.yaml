@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158589
+summary: Convert `RecursiveChunker` to iterative and cap separator list size
+type: bug

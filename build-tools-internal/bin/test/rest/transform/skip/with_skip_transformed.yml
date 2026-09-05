@@ -1,0 +1,12 @@
+---
+setup:
+  - skip:
+      awaits_fix:  "my reason"
+---
+"Test with setup and skip but no feature":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+
+

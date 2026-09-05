@@ -17,7 +17,7 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalBwcGitPlugin
 
     def setup() {
-        configurationCacheCompatible = false
+        disableConfigurationCache("InternalBwcGitPlugin runs git commands at configuration time")
         internalBuild()
         buildFile << """
             import org.elasticsearch.gradle.Version;

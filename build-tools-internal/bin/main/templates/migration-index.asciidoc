@@ -1,0 +1,4 @@
+include::migration_intro.asciidoc[]
+
+<% versions.each { print "* <<migrating-${ it },Migrating to ${ it }>>\n" } %>
+<% includeVersions.each { print "include::migrate_${ it }.asciidoc[]\n" } %>

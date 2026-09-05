@@ -41,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -789,14 +790,19 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         final MapperService unmappedService = createMapperService("""
             { "doc": { "properties": { "other": { "type": "long" } } } }""");
 
+        final long[] values = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
         final Directory mappedDir = newDirectory();
         final Directory unmappedDir = newDirectory();
         final DirectoryReader mappedReader;
         final DirectoryReader unmappedReader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
-            writer.addDocument(List.of(new LongField("d", 100L, Field.Store.NO)));
-            writer.addDocument(List.of(new LongField("d", 300L, Field.Store.NO)));
-            writer.addDocument(List.of(new LongField("d", 200L, Field.Store.NO)));
+            for (final long value : values) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
             writer.forceMerge(1);
             mappedReader = writer.getReader();
         }
@@ -814,8 +820,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 )
             );
             final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
-            assertEquals(100L, stats.min(d));
-            assertEquals(300L, stats.max(d));
+            assertEquals(Arrays.stream(values).min().getAsLong(), stats.min(d));
+            assertEquals(Arrays.stream(values).max().getAsLong(), stats.max(d));
         } finally {
             IOUtils.close(mappedReader, unmappedReader, mappedService, unmappedService, mappedDir, unmappedDir);
         }
@@ -852,19 +858,30 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         final MapperService skipperService = createMapperService(skipperSettings, """
             { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
 
+        final long[] pointsValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < pointsValues.length; i++) {
+            pointsValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+        final long[] skipperValues = new long[randomIntBetween(2, 6)];
+        for (int i = 0; i < skipperValues.length; i++) {
+            skipperValues[i] = randomLongBetween(-10_000_000_000L, 10_000_000_000L);
+        }
+
         final Directory pointsDir = newDirectory();
         final Directory skipperDir = newDirectory();
         final DirectoryReader pointsReader;
         final DirectoryReader skipperReader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), pointsDir)) {
-            writer.addDocument(List.of(new LongField("d", 100L, Field.Store.NO)));
-            writer.addDocument(List.of(new LongField("d", 300L, Field.Store.NO)));
+            for (final long value : pointsValues) {
+                writer.addDocument(List.of(new LongField("d", value, Field.Store.NO)));
+            }
             writer.forceMerge(1);
             pointsReader = writer.getReader();
         }
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), skipperDir)) {
-            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 50L)));
-            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 400L)));
+            for (final long value : skipperValues) {
+                writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", value)));
+            }
             writer.forceMerge(1);
             skipperReader = writer.getReader();
         }
@@ -884,8 +901,16 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 )
             );
             final FieldAttribute.FieldName d = new FieldAttribute.FieldName("d");
-            assertEquals(50L, stats.min(d));
-            assertEquals(400L, stats.max(d));
+            final long expectedMin = Math.min(
+                Arrays.stream(pointsValues).min().getAsLong(),
+                Arrays.stream(skipperValues).min().getAsLong()
+            );
+            final long expectedMax = Math.max(
+                Arrays.stream(pointsValues).max().getAsLong(),
+                Arrays.stream(skipperValues).max().getAsLong()
+            );
+            assertEquals(expectedMin, stats.min(d));
+            assertEquals(expectedMax, stats.max(d));
         } finally {
             IOUtils.close(pointsReader, skipperReader, pointsService, skipperService, pointsDir, skipperDir);
         }

@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 144630
+summary: Limit size of sql query
+type: bug

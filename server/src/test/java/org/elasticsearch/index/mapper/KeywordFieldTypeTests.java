@@ -555,6 +555,40 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
+    public void testFuzzyQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forFuzzy("field", "foo", 2, 1, true, SEPARATE_COUNT),
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
+        );
+    }
+
+    public void testTermQueryCaseInsensitiveHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm("field", "Foo", SEPARATE_COUNT),
+            ft.termQueryCaseInsensitive("Foo", MOCK_CONTEXT)
+        );
+    }
+
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));

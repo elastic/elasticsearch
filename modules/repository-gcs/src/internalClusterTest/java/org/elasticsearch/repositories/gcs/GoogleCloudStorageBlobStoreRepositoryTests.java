@@ -190,6 +190,24 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertEquals("should delete all blobs", 0, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
     }
 
+    public void testListBlobsRequestsRestrictedFields() throws IOException {
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final var container = repository.blobStore().blobContainer(repository.basePath());
+
+        final var purpose = randomPurpose();
+        final int blobSize = randomIntBetween(1, 512);
+        final var blobName = "list-fields-test-" + randomIdentifier();
+        container.writeBlob(purpose, blobName, randomBytesReference(blobSize), false);
+
+        final var listed = container.listBlobsByPrefix(purpose, "list-fields-test-");
+        assertEquals("one blob was written", 1, listed.size());
+        assertEquals("size must be correctly read from the restricted-field response", blobSize, listed.get(blobName).length());
+
+        container.deleteBlobsIgnoringIfNotExists(purpose, List.of(blobName).iterator());
+    }
+
     public void testChunkSize() {
         // default chunk size
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);

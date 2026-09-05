@@ -34,3 +34,4 @@ org.apache.http.entity.EntityTemplate#<init>(org.apache.http.entity.ContentProdu
 
 @defaultMessage SerializableEntity uses java serialization and makes it easy to forget to set content type
 org.apache.http.entity.SerializableEntity#<init>(java.io.Serializable)
+

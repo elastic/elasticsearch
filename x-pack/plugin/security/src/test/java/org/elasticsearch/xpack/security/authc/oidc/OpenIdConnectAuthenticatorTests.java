@@ -46,20 +46,13 @@ import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.http.HeaderIterator;
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpVersion;
-import org.apache.http.ProtocolVersion;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
-import org.apache.http.message.BasicStatusLine;
-import org.apache.http.protocol.HTTP;
+import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.util.TimeValue;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -103,8 +96,6 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -917,19 +908,20 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testHandleUserinfoResponseSuccess() throws Exception {
-        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
-        final HttpResponse response = new BasicHttpResponse(new BasicStatusLine(httpVersion, RestStatus.OK.getStatus(), "OK"));
+        final SimpleHttpResponse response = new SimpleHttpResponse(RestStatus.OK.getStatus());
 
         final String sub = randomAlphaOfLengthBetween(4, 36);
         final String inf = randomAlphaOfLength(12);
         final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject(sub).claim("inf", inf).build();
-        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
+        final ContentType contentType;
         if (randomBoolean()) {
-            entity.setContentEncoding(
-                randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
+            contentType = ContentType.APPLICATION_JSON.withCharset(
+                randomFrom(StandardCharsets.UTF_8, StandardCharsets.UTF_16, StandardCharsets.US_ASCII)
             );
+        } else {
+            contentType = ContentType.APPLICATION_JSON;
         }
-        response.setEntity(entity);
+        response.setBody(infoClaims.toString(), contentType);
 
         final String idx = randomAlphaOfLength(8);
         final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).claim("idx", idx).build();
@@ -945,13 +937,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testHandleUserinfoResponseFailure() throws Exception {
-        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
-        final HttpResponse response = new BasicHttpResponse(
-            new BasicStatusLine(httpVersion, RestStatus.NOT_FOUND.getStatus(), "Gone away")
-        );
-
-        final StringEntity entity = new StringEntity("<HTML><BODY>Not Found</BODY></HTML>", ContentType.TEXT_HTML);
-        response.setEntity(entity);
+        final SimpleHttpResponse response = new SimpleHttpResponse(RestStatus.NOT_FOUND.getStatus(), "Gone away");
+        response.setBody("<HTML><BODY>Not Found</BODY></HTML>", ContentType.TEXT_HTML);
 
         final String sub = randomAlphaOfLengthBetween(4, 36);
         final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).build();
@@ -970,19 +957,20 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testHandleUserinfoValidationFailsOnNotMatchingSubject() throws Exception {
-        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
-        final HttpResponse response = new BasicHttpResponse(new BasicStatusLine(httpVersion, RestStatus.OK.getStatus(), "OK"));
+        final SimpleHttpResponse response = new SimpleHttpResponse(RestStatus.OK.getStatus());
 
         final String sub = randomAlphaOfLengthBetween(4, 36);
         final String inf = randomAlphaOfLength(12);
         final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject("it-is-a-different-subject").claim("inf", inf).build();
-        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
+        final ContentType contentType;
         if (randomBoolean()) {
-            entity.setContentEncoding(
-                randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
+            contentType = ContentType.APPLICATION_JSON.withCharset(
+                randomFrom(StandardCharsets.UTF_8, StandardCharsets.UTF_16, StandardCharsets.US_ASCII)
             );
+        } else {
+            contentType = ContentType.APPLICATION_JSON;
         }
-        response.setEntity(entity);
+        response.setBody(infoClaims.toString(), contentType);
 
         final String idx = randomAlphaOfLength(8);
         final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).claim("idx", idx).build();
@@ -1017,9 +1005,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testHandleTokenResponseNullContentType() {
-        final HttpResponse response = new BasicHttpResponse(HttpVersion.HTTP_1_1, RestStatus.OK.getStatus(), "");
-        final StringEntity entity = new StringEntity("", (ContentType) null);
-        response.setEntity(entity);
+        final SimpleHttpResponse response = new SimpleHttpResponse(RestStatus.OK.getStatus());
 
         final PlainActionFuture<Tuple<AccessToken, JWT>> future = new PlainActionFuture<>();
         OpenIdConnectAuthenticator.handleTokenResponse(response, future);
@@ -1121,24 +1107,18 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         // In addition, capture logs to show that kept alive (TTL) is honored
-        final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
-        // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
+        final Logger logger = LogManager.getLogger(PoolingAsyncClientConnectionManager.class);
         Loggers.setLevel(logger, Level.DEBUG);
-        try (var mockLog = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
+        try (var mockLog = MockLog.capture(PoolingAsyncClientConnectionManager.class)) {
             mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
-                    "log",
-                    logger.getName(),
-                    Level.DEBUG,
-                    ".*Connection .* can be kept alive for 1.0 seconds"
-                )
+                new MockLog.PatternSeenEventExpectation("log", logger.getName(), Level.DEBUG, ".*can be kept alive for .* MILLISECONDS.*")
             );
             // Issue two requests to verify the 2nd request do not reuse the 1st request's connection
             for (int i = 0; i < 2; i++) {
                 final CountDownLatch latch = new CountDownLatch(1);
-                authenticator.getHttpClient().execute(new HttpGet(uri), new FutureCallback<>() {
+                authenticator.getHttpClient().execute(SimpleRequestBuilder.get(uri).build(), null, new FutureCallback<>() {
                     @Override
-                    public void completed(HttpResponse result) {
+                    public void completed(SimpleHttpResponse result) {
                         latch.countDown();
                     }
 
@@ -1229,30 +1209,10 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     public void doTestKeepAliveStrategy(String serverTtlInSeconds, String clientTtlInSeconds, long effectiveTtlInMs)
         throws URISyntaxException, IllegalAccessException {
-        final HttpResponse httpResponse = mock(HttpResponse.class);
-        final Iterator<BasicHeader> iterator;
+        final SimpleHttpResponse httpResponse = new SimpleHttpResponse(200);
         if (serverTtlInSeconds != null) {
-            iterator = List.of(new BasicHeader("Keep-Alive", "timeout=" + serverTtlInSeconds)).iterator();
-        } else {
-            // Server may not set the response header
-            iterator = Collections.emptyIterator();
+            httpResponse.addHeader("Keep-Alive", "timeout=" + serverTtlInSeconds);
         }
-        when(httpResponse.headerIterator(HTTP.CONN_KEEP_ALIVE)).thenReturn(new HeaderIterator() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public org.apache.http.Header nextHeader() {
-                return iterator.next();
-            }
-
-            @Override
-            public Object next() {
-                return iterator.next();
-            }
-        });
 
         final Settings.Builder settingsBuilder = getBasicRealmSettings();
         if (clientTtlInSeconds != null) {
@@ -1276,7 +1236,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                 )
             );
             final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
-            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
+            assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(TimeValue.ofMilliseconds(effectiveTtlInMs)));
             mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);

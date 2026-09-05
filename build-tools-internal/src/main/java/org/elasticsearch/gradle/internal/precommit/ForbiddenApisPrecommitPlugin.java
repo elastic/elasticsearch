@@ -23,6 +23,7 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -57,6 +58,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
+            t.copy("forbidden/http-signatures-hc5.txt");
             t.copy("forbidden/es-server-signatures.txt");
             t.copy("forbidden/jdk-foreign-signatures.txt");
             t.copy("forbidden/jdk-foreign-signatures22.txt");
@@ -101,6 +103,19 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         t.getSignaturesFiles().plus(project.files(resourcesDir.toPath().resolve("forbidden/es-server-signatures.txt")))
                     );
                 }
+                // Use resolutionResult (graph only, no artifact transforms) so patcher transforms
+                // like HdfsClassPatcher are not triggered before their inputs exist.
+                String runtimeConfigName = sourceSet.getRuntimeClasspathConfigurationName();
+                t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files((Callable<List<File>>) () -> {
+                    var config = project.getConfigurations().findByName(runtimeConfigName);
+                    boolean hasHc5 = config != null
+                        && config.getIncoming()
+                            .getResolutionResult()
+                            .getAllComponents()
+                            .stream()
+                            .anyMatch(r -> r.getModuleVersion() != null && "httpcore5".equals(r.getModuleVersion().getName()));
+                    return hasHc5 ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile()) : List.of();
+                })));
             });
             forbiddenTask.configure(t -> t.dependsOn(sourceSetTask));
         });

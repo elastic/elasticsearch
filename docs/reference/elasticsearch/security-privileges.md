@@ -33,6 +33,10 @@ When creating roles, refer to this page for a complete list of available privile
 `all`
 :   All cluster administration operations, like snapshotting, node shutdown/restart, settings update, rerouting, or managing users and roles.
 
+    ::::{note}
+    This privilege is not limited to a fixed set of operations. It also grants any cluster operations added to {{es}} after you create the role.
+    ::::
+
 `cancel_task`
 :   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more information.
 
@@ -281,6 +285,10 @@ When creating roles, refer to this page for a complete list of available privile
 
 `all`
 :   Any action on an index or data stream.
+
+    ::::{note}
+    This privilege is not limited to a fixed set of actions. It also grants any index or data stream actions added to {{es}} after you create the role.
+    ::::
 
 `auto_configure`
 :   Permits auto-creation of indices and data streams. An auto-create action is the result of an [index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create) or [bulk](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk) request that targets a non-existent index or data stream rather than an explicit [create index](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) or [create data stream](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create-data-stream) request. Also permits auto-update of mappings on indices and data streams if they do not contradict existing mappings. An auto-update mapping action is the result of an index or bulk request on an index or data stream that contains new fields that may be mapped rather than an explicit [update mapping](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) request.

@@ -400,12 +400,12 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public int docFreq() {
-            return 0;
+            return 1;
         }
 
         @Override
         public long totalTermFreq() {
-            return 0;
+            return 1;
         }
 
         @Override

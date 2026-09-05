@@ -2001,6 +2001,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             false,
             false,
             false,
+            false,
             null,
             false,
             Dynamic.FALSE,

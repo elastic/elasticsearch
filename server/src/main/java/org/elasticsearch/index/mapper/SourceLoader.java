@@ -438,13 +438,21 @@ public interface SourceLoader {
         final SyntheticVectorsLoader patchLoader;
 
         SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
-            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this(sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter), patchLoader);
+        }
+
+        /**
+         * Patches vectors into the {@code _source} produced by {@code sourceLoader}. Used by {@code columnar_stored}, whose
+         * blob is read back by a {@link Synthetic} loader rather than from a stored field.
+         */
+        SyntheticVectors(SourceLoader sourceLoader, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceLoader;
             this.patchLoader = patchLoader;
         }
 
         @Override
         public boolean reordersFieldValues() {
-            return false;
+            return sourceLoader.reordersFieldValues();
         }
 
         @Override

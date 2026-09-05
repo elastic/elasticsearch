@@ -455,9 +455,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         final var originalSource = sourceObject.originalBytes();
-        final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
-        final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
         final boolean useColumnarSource = mode == Mode.COLUMNAR_STORED;
+        // columnar_stored builds _source in postParse and always uses synthetic recovery, so neither value is read in that mode.
+        final var storedSource = stored() && useColumnarSource == false
+            ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType)
+            : null;
+        final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
         if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
@@ -477,7 +480,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
-        } else if (stored() == false || adaptedStoredSource != storedSource) {
+        } else if (stored() == false || useColumnarSource || adaptedStoredSource != storedSource) {
             // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.

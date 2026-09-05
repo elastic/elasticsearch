@@ -137,7 +137,7 @@ public class QuerySettingsTests extends ESTestCase {
             setting.name(),
             SNAPSHOT_CTX_WITH_CPS_DISABLED,
             of("my-project"),
-            "Error validating setting [project_routing]: cross-project search not enabled"
+            "[project_routing] is only allowed when cross-project search is enabled"
         );
     }
 
@@ -408,7 +408,7 @@ public class QuerySettingsTests extends ESTestCase {
             VerificationException.class,
             () -> QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_DISABLED)
         );
-        assertThat(ex.getMessage(), containsString("Error validating setting [project_routing]: cross-project search not enabled"));
+        assertThat(ex.getMessage(), containsString("[project_routing] is only allowed when cross-project search is enabled"));
     }
 
     public void testResolveRequestParameterAppliesWhenNoQuerySet() {

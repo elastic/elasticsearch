@@ -313,9 +313,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
   method: testManagedIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential
   issue: https://github.com/elastic/elasticsearch/issues/153820
-- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
-  method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
-  issue: https://github.com/elastic/elasticsearch/issues/153652
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153613

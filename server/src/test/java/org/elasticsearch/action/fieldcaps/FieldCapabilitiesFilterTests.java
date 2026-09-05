@@ -298,6 +298,47 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("_index"));
     }
 
+    public void testFieldTypeFilteringWithParents() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "parent" : {
+                  "properties" : {
+                    "field1" : { "type" : "keyword" },
+                    "field2" : { "type" : "long" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            new String[] { "keyword" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("parent.field1"));
+        assertNull(response.get("parent.field2"));
+        assertNull("Parent object should be excluded when not explicitly requested in types", response.get("parent"));
+        
+        response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            new String[] { "keyword", "object" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("parent.field1"));
+        assertNotNull("Parent object should be included when object is requested in types", response.get("parent"));
+    }
+
     public void testPassthroughFieldDoesNotAddIntermediateParentAsObject() throws IOException {
         // Reproduce the scenario from https://github.com/elastic/elasticsearch/issues/144179:
         // A passthrough field (subobjects: false) with a sub-field whose name contains a dot,

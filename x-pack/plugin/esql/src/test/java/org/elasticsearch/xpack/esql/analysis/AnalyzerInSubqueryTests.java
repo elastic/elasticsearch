@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
@@ -44,6 +47,23 @@ import static org.hamcrest.Matchers.nullValue;
  * Unit tests for IN/NOT IN subquery analysis that don't fit the golden-test model: the negative (rejection / error) cases.
  */
 public class AnalyzerInSubqueryTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public AnalyzerInSubqueryTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     private static void checkMultiColumnInSubquery() {
         assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
@@ -569,27 +589,27 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- helpers --
 
-    private static LogicalPlan analyzeInSubquery(String query) {
+    private LogicalPlan analyzeInSubquery(String query) {
         return analyzer().addEmployees().query(query);
     }
 
-    private static void errorInSubquery(String query, Matcher<String> messageMatcher) {
+    private void errorInSubquery(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().error(query, messageMatcher);
     }
 
-    private static void errorWithK8s(String query, Matcher<String> messageMatcher) {
+    private void errorWithK8s(String query, Matcher<String> messageMatcher) {
         analyzer().addK8s().error(query, messageMatcher);
     }
 
-    private static void errorWithK8sDownsampled(String query, Matcher<String> messageMatcher) {
+    private void errorWithK8sDownsampled(String query, Matcher<String> messageMatcher) {
         analyzer().addK8sDownsampled().error(query, messageMatcher);
     }
 
-    private static void errorWithAllTypes(String query, Matcher<String> messageMatcher) {
+    private void errorWithAllTypes(String query, Matcher<String> messageMatcher) {
         analyzer().addIndex("all_types", "mapping-all-types.json").error(query, messageMatcher);
     }
 
-    private static void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
+    private void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex("employees_incompatible", "mapping-default-incompatible.json").error(query, messageMatcher);
     }
 
@@ -614,7 +634,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         return IndexResolution.valid(index);
     }
 
-    private static void errorWithUnionIndex(String query, Matcher<String> messageMatcher) {
+    private void errorWithUnionIndex(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex(unionIndexResolution()).error(query, messageMatcher);
     }
 

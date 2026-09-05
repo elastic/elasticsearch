@@ -34,6 +34,10 @@ import static org.hamcrest.Matchers.is;
  */
 public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase {
 
+    public DetermineUnmappedFieldsToKeepTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     /**
      * Mapped field names in the "test" index (from mapping-basic.json). They are always excluded from
      * {@code _unmapped_fields} (added to the pattern's excludes from {@code EsRelation.output()}), so no
@@ -558,7 +562,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    private static void assertNoUnmappedFieldsAttribute(String query) {
+    private void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             assertThat(
@@ -588,7 +592,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(pattern, randomValueOtherThanMany(excluded::contains, () -> randomAlphaOfLength(10)));
     }
 
-    private static UnmappedFieldsPattern patternFor(String query) {
+    private UnmappedFieldsPattern patternFor(String query) {
         return patternOf(test().statement(setUnmappedLoadAll(query)));
     }
 

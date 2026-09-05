@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
@@ -152,7 +154,6 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -206,6 +207,23 @@ import static org.hamcrest.Matchers.startsWith;
  * and especially if you expect to get a VerificationException during analysis
  */
 public class AnalyzerTests extends ESTestCase {
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
+        return List.of(new Object[] { "current", true }, new Object[] { "historical", false });
+    }
+
+    private final boolean pinCurrentVersion;
+
+    public AnalyzerTests(@SuppressWarnings("unused") String name, boolean pinCurrentVersion) {
+        this.pinCurrentVersion = pinCurrentVersion;
+    }
+
+    /** Pins {@link TransportVersion#current()} for the {@code current} run so a version-gated plan change surfaces here. */
+    private TestAnalyzer analyzer() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer();
+        return pinCurrentVersion ? analyzer.minimumTransportVersion(TransportVersion.current()) : analyzer;
+    }
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");
     private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -2587,7 +2605,7 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
-    private static void checkDenseVectorCastingKnn(String fieldName) {
+    private void checkDenseVectorCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName));
@@ -2600,7 +2618,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
-    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+    private void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName));
@@ -2613,7 +2631,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
     }
 
-    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
+    private void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName));
@@ -2773,7 +2791,7 @@ public class AnalyzerTests extends ESTestCase {
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(String query, int expectedLimit) {
+    private void assertDefaultLimitForQuery(String query, int expectedLimit) {
         var plan = tsdb().query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
@@ -4031,7 +4049,7 @@ public class AnalyzerTests extends ESTestCase {
         return allWarnings;
     }
 
-    private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
+    private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
@@ -4967,7 +4985,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
     }
 
-    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+    private EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
         EsField parent = new KeywordEsField(
             "my_field",
             Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
@@ -5125,7 +5143,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
-    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+    private EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
         EsIndex index = new EsIndex(
             "idx",
             Map.of(fieldName, field),
@@ -6109,47 +6127,47 @@ public class AnalyzerTests extends ESTestCase {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
     }
 
-    private static TestAnalyzer basic() {
+    private TestAnalyzer basic() {
         return analyzer().addEmployees("test").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer basicWithEnrich() {
+    private TestAnalyzer basicWithEnrich() {
         return basic().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
-    private static TestAnalyzer denseVector() {
+    private TestAnalyzer denseVector() {
         return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8sDownsampled();
     }
 
-    private static TestAnalyzer allTypes() {
+    private TestAnalyzer allTypes() {
         return analyzer().addIndex("books", "mapping-all-types.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer sampleData() {
         return analyzer().addSampleData();
     }
 
-    private static TestAnalyzer books() {
+    private TestAnalyzer books() {
         return analyzer().addIndex("books", "mapping-books.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer defaultMapping() {
+    private TestAnalyzer defaultMapping() {
         return analyzer().addDefaultIndex();
     }
 
-    private static TestAnalyzer multiFieldVariation() {
+    private TestAnalyzer multiFieldVariation() {
         return analyzer().addIndex("test", "mapping-multi-field-variation.json");
     }
 
-    private static TestAnalyzer multiFieldWithNested() {
+    private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
     }
 }

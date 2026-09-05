@@ -25,6 +25,10 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
 
+    public AnalyzerUnmappedLookupJoinExpressionTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     private static final Matcher<String> UNSUPPORTED_JOIN_FILTER = containsString("Unsupported join filter expression");
 
     private static String lookupJoinOn(String onExpr) {

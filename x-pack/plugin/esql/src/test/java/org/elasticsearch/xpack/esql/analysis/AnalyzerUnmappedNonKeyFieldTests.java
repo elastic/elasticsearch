@@ -32,6 +32,10 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalyzerUnmappedNonKeyFieldTests extends AnalyzerUnmappedTestBase {
 
+    public AnalyzerUnmappedNonKeyFieldTests(String name, boolean pinCurrentVersion) {
+        super(name, pinCurrentVersion);
+    }
+
     private static final String BASE_QUERY = "FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code";
 
     // -------------------------------------------------------------------------

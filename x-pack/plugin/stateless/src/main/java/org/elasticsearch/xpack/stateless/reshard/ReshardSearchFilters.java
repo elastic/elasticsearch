@@ -25,20 +25,28 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * Applies search-time directory reader filters during index resharding (split) so shards only expose owned documents.
  * Owns a node-scoped {@link ReshardUnownedBitsetCache} for bitset reuse across reader wraps.
  */
 public final class ReshardSearchFilters implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(ReshardSearchFilters.class);
 
     private final ReshardUnownedBitsetCache unownedBitsetCache;
 
@@ -145,6 +153,45 @@ public final class ReshardSearchFilters implements Closeable {
 
     private DirectoryReader wrapReader(DirectoryReader reader, ShardSplittingQuery query) throws IOException {
         return new QueryFilterDirectoryReader(reader, query, unownedBitsetCache);
+    }
+
+    /**
+     * Schedules warming of the current reader's unowned-document bitsets if this shard may contain unowned documents. The searcher
+     * supplier is invoked on {@code warmerExecutor} only when warming is required, and the supplied searcher is closed after warming.
+     */
+    public void warmReaderCacheAfterResharding(
+        ShardId shardId,
+        IndexMetadata indexMetadata,
+        MapperService mapperService,
+        Executor warmerExecutor,
+        Supplier<Searcher> searcherSupplier
+    ) {
+        var reshardingMetadata = indexMetadata.getReshardingMetadata();
+        if (reshardingMetadata != null && reshardingMetadata.isSplit()) {
+            var split = reshardingMetadata.getSplit();
+            var shard = shardId.id();
+            /// Target shards start with unowned files, until they get to the DONE state
+            var unownedFilesOnTarget = split.isTargetShard(shard)
+                && split.targetStateAtLeast(shard, IndexReshardingState.Split.TargetShardState.DONE) == false;
+            /// Source shards should not prewarm their cache until the corresponding target shard is in HANDOFF: whilst the target is in
+            /// CLONE, new documents could be written to the source shard which should ultimately belong to the target, which would cause
+            /// the source cache to be populated with an incomplete set of unowned documents if we were to prewarm then.
+            var unownedFilesOnSource = split.isSourceShard(shard)
+                && split.sourceStateAtLeast(shard, IndexReshardingState.Split.SourceShardState.DONE) == false
+                && split.targetStateAtLeast(split.targetShard(shard), IndexReshardingState.Split.TargetShardState.HANDOFF);
+            if (unownedFilesOnTarget || unownedFilesOnSource) {
+                warmerExecutor.execute(() -> {
+                    try (Searcher searcher = searcherSupplier.get()) {
+                        var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
+                        for (var leaf : searcher.getDirectoryReader().leaves()) {
+                            unownedBitsetCache.getBitSet(query, leaf);
+                        }
+                    } catch (ExecutionException e) {
+                        logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
+                    }
+                });
+            }
+        }
     }
 
     // visible for testing

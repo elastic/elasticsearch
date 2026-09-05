@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 147377
+summary: Break out of blob fetch retry loop when thread is interrupted
+type: bug

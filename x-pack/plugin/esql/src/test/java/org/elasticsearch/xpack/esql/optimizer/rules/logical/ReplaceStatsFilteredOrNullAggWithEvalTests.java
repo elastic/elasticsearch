@@ -829,6 +829,27 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
     }
 
     /**
+     * TOP returns values from its optional output field. A null-typed output field must therefore be replaced with a typed null before
+     * planning tries to create a TOP aggregator for the incompatible {@code NULL} type.
+     */
+    public void testReplaceStatsTopWithNullOutputField() {
+        var plan = plan("""
+            row salary = 100, missing = null
+            | stats t = top(salary, 3, "asc", missing)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("t"));
+        assertThat(source.output().getFirst().dataType(), is(INTEGER));
+
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
+    }
+
+    /**
      * {@snippet lang="text":
      * Project[[y{r}#6]]
      * \_Eval[[null[NULL] AS y#6]]

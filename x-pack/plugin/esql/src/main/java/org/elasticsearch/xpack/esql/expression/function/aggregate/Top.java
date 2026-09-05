@@ -336,7 +336,9 @@ public class Top extends AggregateFunction
 
     @Override
     public DataType dataType() {
-        return outputField() == null ? field().dataType().noText() : outputField().dataType().noText();
+        return outputField() == null || DataType.isNull(outputField().dataType())
+            ? field().dataType().noText()
+            : outputField().dataType().noText();
     }
 
     @Override

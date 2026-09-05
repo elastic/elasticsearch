@@ -480,6 +480,7 @@ public class HashAggregationOperator implements Operator {
                     }
                 }
                 // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+                // Allow one extra key because some block hashes reserve group 0 for null.
                 if (limitAggregation != null && blockHash.numKeys() > limitAggregation.limit) {
                     blockHash.addAfterLimitReached(page, add);
                 } else {

@@ -205,7 +205,8 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                 try (var groupIdsBuilder = blockFactory.newIntBlockBuilder(batchSize)) {
                     for (int i = 0; i < batchSize; i++) {
                         bytesVector.getBytesRef(i + offset, key);
-                        batchIds[i] = (int) bytesHash.hash.find(key);
+                        long bytesId = bytesHash.hash.find(key);
+                        batchIds[i] = bytesId < 0 ? -1 : Math.toIntExact(bytesId + 1);
                     }
                     for (int i = 0; i < batchSize; i++) {
                         int ord = batchIds[i];

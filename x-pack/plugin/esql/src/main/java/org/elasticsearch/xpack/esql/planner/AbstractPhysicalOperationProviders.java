@@ -542,6 +542,11 @@ public abstract class AbstractPhysicalOperationProviders {
         return null;
     }
 
+    /**
+     * Extract the Limit that follows the aggregation, for example: {@code FROM .. | STATS c=COUNT(*), AVG(f) BY k | LIMIT 10}.
+     * It's hard for the current optimization rules to keep these two nodes, {@link LimitExec} and {@link AggregateExec}, in sync as they
+     * can be rewritten independently; hence we detect the relation here instead, at the last step, when creating operators.
+     */
     private static HashAggregationOperator.LimitAggregation extractLimitAggregation(
         AggregateExec aggregateExec,
         LocalExecutionPlannerContext context

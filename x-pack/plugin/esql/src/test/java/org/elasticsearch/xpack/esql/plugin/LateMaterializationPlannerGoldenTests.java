@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 
 import java.util.EnumSet;
 import java.util.Objects;
@@ -57,6 +58,65 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
             | LIMIT 20
             """;
         runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    public void testRemoteFetchTopNBoundaryAndRealizedPlans() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | KEEP hire_date, salary, emp_no
+            | SORT hire_date
+            | LIMIT 20
+            """);
+    }
+
+    public void testRemoteFetchTopNDoesNotPlanAggregationAfterTopN() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | KEEP hire_date, salary, emp_no
+            | SORT hire_date
+            | LIMIT 20
+            | STATS max_salary = MAX(salary)
+            """);
+    }
+
+    public void testRemoteFetchTopNDoesNotPlanAggregationBelowTopN() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | STATS max_salary = MAX(salary) BY hire_date
+            | SORT max_salary DESC
+            | LIMIT 20
+            """);
+    }
+
+    public void testRemoteFetchTopNDoesNotPlanExpressionBeforeTopN() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | EVAL adjusted_salary = salary + 1
+            | SORT hire_date
+            | LIMIT 20
+            | KEEP hire_date, adjusted_salary, emp_no
+            """);
+    }
+
+    public void testRemoteFetchTopNDoesNotPlanUserEvalSortKey() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | EVAL adjusted_salary = salary + 1
+            | SORT adjusted_salary
+            | LIMIT 20
+            | KEEP adjusted_salary, emp_no
+            """);
+    }
+
+    public void testRemoteFetchTopNDoesNotPlanNestedPipelineBreaker() {
+        runRemoteFetchGoldenTest("""
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 100
+            | SORT hire_date
+            | LIMIT 20
+            | KEEP hire_date, salary, emp_no
+            """);
     }
 
     public void testMultipleTopN() {
@@ -307,6 +367,14 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
                 return false;
             }
         };
+    }
+
+    private void runRemoteFetchGoldenTest(String query) {
+        builder(query).stages(STAGES)
+            .searchStats(unindexedStats())
+            .flags(EsqlFlags.withRemoteFetchTopN(true))
+            .since(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION)
+            .run();
     }
 
     // Returns false for exists() for the specified field, simulating a missing field on the data node.

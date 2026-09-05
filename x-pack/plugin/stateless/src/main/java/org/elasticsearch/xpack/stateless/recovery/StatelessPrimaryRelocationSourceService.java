@@ -16,13 +16,20 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
@@ -30,14 +37,18 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
@@ -52,11 +63,18 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
@@ -64,7 +82,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 
 /// Source-side stateless primary relocation protocol. Mirrors [PeerRecoverySourceService].
 /// See [StatelessPrimaryRelocationTargetService] for target side logic.
-public class StatelessPrimaryRelocationSourceService {
+public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
 
@@ -78,12 +96,15 @@ public class StatelessPrimaryRelocationSourceService {
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
     private final Client client;
-    private volatile CompositeRecoverySchedulingListener schedulingListeners;
+
+    @Nullable
+    private final ThrottledPrimaryRelocations throttledPrimaryRelocations;
 
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
 
     public StatelessPrimaryRelocationSourceService(
+        Settings settings,
         ClusterService clusterService,
         ThreadPool threadPool,
         IndicesService indicesService,
@@ -103,6 +124,9 @@ public class StatelessPrimaryRelocationSourceService {
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
         this.client = client;
+        this.throttledPrimaryRelocations = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)
+            ? new ThrottledPrimaryRelocations(clusterService, recoveryExecutor, this::startRelocationWithFreshClusterState)
+            : null;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -112,14 +136,57 @@ public class StatelessPrimaryRelocationSourceService {
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
     public void registerRecoverySchedulingListeners(CompositeRecoverySchedulingListener schedulingListeners) {
-        // This service is a Guice singleton constructed before TransportStatelessPrimaryRelocationAction, so this method
-        // is called exactly once. The assert is a test-time safety net — assertions are disabled in production JVMs.
-        assert this.schedulingListeners == null : "already registered scheduling listeners";
-        this.schedulingListeners = schedulingListeners;
+        if (throttledPrimaryRelocations != null) {
+            throttledPrimaryRelocations.registerRecoverySchedulingListeners(schedulingListeners);
+        }
+    }
+
+    @Override
+    protected void doStart() {
+        if (throttledPrimaryRelocations != null) {
+            clusterService.addListener(throttledPrimaryRelocations);
+        }
+    }
+
+    @Override
+    protected void doStop() {
+        if (throttledPrimaryRelocations != null) {
+            // Stop accepting source-side relocation requests and drain the queue.
+            throttledPrimaryRelocations.close();
+            throttledPrimaryRelocations.cancelAllPendingRelocationsOnServiceClosed();
+            clusterService.removeListener(throttledPrimaryRelocations);
+        }
+    }
+
+    @Override
+    protected void doClose() {
+        // Waits for any active relocations still in flight when doStop() ran. By the time doClose() is called,
+        // IndicesService has already closed all shards, and TransportService is already stopped.
+        // A relocation that reaches any transport communication point (prewarm or primary-context handoff) therefore
+        // fails immediately.
+        // A relocation that is mid-way through a blob-store operation (pre-flush or markRelocating) will run
+        // that upload to completion before noticing the shard is closed, so this wait is bounded by the duration
+        // of whichever blob-store I/O is already in flight, typically seconds, should be at most a few minutes.
+        // A relocation waiting on primary operation permits (inside IndexShard#relocated) will unblock once in-flight
+        // writes fail and release their permits. In the pathological case the permit wait has a 30-minute timeout.
+        if (throttledPrimaryRelocations != null && throttledPrimaryRelocations.isEmpty() == false) {
+            throttledPrimaryRelocations.awaitEmpty();
+        }
+    }
+
+    /// Returns the [ThrottledPrimaryRelocations] instance to register as an [IndexEventListener] in the plugin.
+    /// Returns `null` on search nodes where no throttling is needed.
+    @Nullable
+    public ThrottledPrimaryRelocations indexEventListener() {
+        return throttledPrimaryRelocations;
     }
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
         final var parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+        // Note that we trigger prewarm on the target before entering the source-side throttle queue. By the time the
+        // relocation reaches `startRelocation`, it has already passed through the target's own recovery throttle (concurrency
+        // limit on incoming recoveries), so the target node cannot be overloaded by prewarm requests. Starting early
+        // overlaps cache warming with any queue wait, reducing overall relocation latency.
         initiatePrewarm(parentClient, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
@@ -134,7 +201,16 @@ public class StatelessPrimaryRelocationSourceService {
             new Consumer<>() {
                 @Override
                 public void accept(ActionListener<StartRelocationResponse> l) {
-                    startRelocationWithFreshClusterState(parentClient, request, l);
+                    final IndexShard indexShard;
+                    try {
+                        final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                        indexShard = indexService.getShard(request.shardId().id());
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                        return;
+                    }
+                    assert throttledPrimaryRelocations != null : "startRelocation cannot called on non-index nodes";
+                    throttledPrimaryRelocations.enqueueRelocation(parentClient, request, indexShard, l);
                 }
 
                 @Override
@@ -185,6 +261,7 @@ public class StatelessPrimaryRelocationSourceService {
     private void startRelocationWithFreshClusterState(
         Client parentClient,
         StatelessPrimaryRelocationAction.Request request,
+        IndexShard indexShard,
         ActionListener<StartRelocationResponse> listener
     ) {
         logger.debug(
@@ -195,19 +272,13 @@ public class StatelessPrimaryRelocationSourceService {
         );
         final long beforeRelocation = threadPool.relativeTimeInMillis();
 
-        final IndexShard indexShard;
         final Engine preFlushEngine;
         try {
-            final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-            indexShard = indexService.getShard(request.shardId().id());
             preFlushEngine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-
-        indexShard.recoveryStats().sourceRecoveryStarted();
-        schedulingListeners.onPeerRecoveryStartedOnSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -232,12 +303,13 @@ public class StatelessPrimaryRelocationSourceService {
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
-            indexShard.recoveryStats().sourceRecoveryCompleted();
-            schedulingListeners.onPeerRecoveryCompletedOnSource();
-        }).delegateFailureAndWrap((listener0, preFlushResult) -> {
+        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
+            if (indexShard.getEngineOrNull() == null) {
+                listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
+                return;
+            }
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
@@ -282,6 +354,9 @@ public class StatelessPrimaryRelocationSourceService {
                         hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
                         engine = indexShard.getEngineOrNull();
                         assert engine == null || engine instanceof HollowIndexEngine : engine;
+                        if (engine == null) {
+                            throw new AlreadyClosedException("shard " + shardId + " closed during relocation");
+                        }
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
@@ -425,6 +500,10 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
+                    if (indexShard.getEngineOrNull() == null) {
+                        finalHandoffListener.onFailure(new AlreadyClosedException("shard " + shardId + " closed during relocation"));
+                        return;
+                    }
                     parentClient.execute(
                         TransportStatelessPrimaryRelocationHandoffAction.TYPE,
                         new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
@@ -528,5 +607,229 @@ public class StatelessPrimaryRelocationSourceService {
             .metadata()
             .nodeShutdowns()
             .contains(clusterService.localNode().getId(), SingleNodeShutdownMetadata.Type.SIGTERM);
+    }
+
+    // visible for testing
+    static final class ThrottledPrimaryRelocations implements ClusterStateListener, IndexEventListener {
+
+        @FunctionalInterface
+        interface RelocationRunner {
+            void run(
+                Client parentClient,
+                StatelessPrimaryRelocationAction.Request request,
+                IndexShard shard,
+                ActionListener<StartRelocationResponse> listener
+            );
+        }
+
+        private volatile CompositeRecoverySchedulingListener schedulingListeners;
+        private final ClusterService clusterService;
+        private final Executor executor;
+        private final RelocationRunner runner;
+
+        private int maxConcurrentRelocations;
+        private int activeRelocationCount = 0;
+
+        private final Queue<PendingRelocation> pendingRelocations = new ArrayDeque<>();
+
+        private boolean closed = false;
+
+        ThrottledPrimaryRelocations(ClusterService clusterService, Executor executor, RelocationRunner runner) {
+            this.clusterService = clusterService;
+            this.executor = executor;
+            this.runner = runner;
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(
+                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                    this::updateMaxConcurrentOutgoingRelocations
+                );
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (event.nodesRemoved()) {
+                for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
+                    cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
+                }
+            }
+        }
+
+        @Override
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            if (indexShard != null) {
+                cancelPendingRelocations(
+                    pending -> pending.shard() == indexShard,
+                    new AlreadyClosedException(Strings.format("cancelling pending relocation for closed shard %s", indexShard.shardId()))
+                );
+            }
+        }
+
+        // visible for testing
+        synchronized void close() {
+            this.closed = true;
+        }
+
+        // visible for testing
+        synchronized boolean closed() {
+            return this.closed;
+        }
+
+        // visible for testing
+        void registerRecoverySchedulingListeners(CompositeRecoverySchedulingListener schedulingListeners) {
+            assert this.schedulingListeners == null : "already registered scheduling listeners";
+            this.schedulingListeners = schedulingListeners;
+        }
+
+        private CompositeRecoverySchedulingListener schedulingListeners() {
+            final var listeners = schedulingListeners;
+            assert listeners != null : "ThrottledPrimaryRelocations scheduling listeners were not registered";
+            return listeners;
+        }
+
+        // visible for testing
+        synchronized int activeRelocationCount() {
+            return activeRelocationCount;
+        }
+
+        // visible for testing
+        synchronized int queuedRelocationCount() {
+            return pendingRelocations.size();
+        }
+
+        /// Always enqueues first to preserve FIFO ordering across all relocations.
+        /// Attempts to start pending items (if slots are available) after enqueuing.
+        void enqueueRelocation(
+            Client parentClient,
+            StatelessPrimaryRelocationAction.Request request,
+            IndexShard shard,
+            ActionListener<StartRelocationResponse> listener
+        ) {
+            final boolean alreadyClosed;
+            synchronized (this) {
+                alreadyClosed = this.closed;
+                if (alreadyClosed == false) {
+                    pendingRelocations.add(new PendingRelocation(parentClient, request, shard, listener));
+                    shard.recoveryStats().sourceRecoveryQueued();
+                }
+            }
+            if (alreadyClosed) {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            } else {
+                schedulingListeners().onPeerRecoveryQueuedOnSource();
+                startRelocationsUpToLimit();
+            }
+        }
+
+        // visible for testing
+        void cancelAllPendingRelocationsOnServiceClosed() {
+            cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
+        }
+
+        // visible for testing
+        void updateMaxConcurrentOutgoingRelocations(int newMax) {
+            final int oldMax;
+            synchronized (this) {
+                oldMax = maxConcurrentRelocations;
+                maxConcurrentRelocations = newMax;
+            }
+            if (oldMax < newMax) {
+                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
+                // applier thread stops before the thread pool shuts down so this should never be rejected.
+                executor.execute(this::startRelocationsUpToLimit);
+            }
+        }
+
+        private void startRelocationsUpToLimit() {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+            final List<PendingRelocation> relocationsToStart = new ArrayList<>();
+            synchronized (this) {
+                while (activeRelocationCount < maxConcurrentRelocations && pendingRelocations.isEmpty() == false) {
+                    final PendingRelocation relocation = pendingRelocations.poll();
+                    relocationsToStart.add(relocation);
+                    relocation.shard().recoveryStats().sourceRecoveryDequeuedAndStarted();
+                    activeRelocationCount++;
+                }
+            }
+            for (PendingRelocation relocation : relocationsToStart) {
+                schedulingListeners().onPeerRecoveryDequeuedAndStartedOnSource();
+                final ActionListener<StartRelocationResponse> wrappedListener = ActionListener.runAfter(
+                    relocation.listener(),
+                    () -> onRelocationComplete(relocation)
+                );
+                // The generic executor has an unbounded queue and the threadpool shuts down after this service is
+                // stopped (and drains the queue), so the `execute` call cannot throw `EsRejectedExecutionException`.
+                executor.execute(() -> runner.run(relocation.parentClient(), relocation.request(), relocation.shard(), wrappedListener));
+            }
+        }
+
+        private void onRelocationComplete(PendingRelocation relocation) {
+            synchronized (this) {
+                relocation.shard().recoveryStats().sourceRecoveryCompleted();
+                activeRelocationCount--;
+            }
+            schedulingListeners().onPeerRecoveryCompletedOnSource();
+            startRelocationsUpToLimit();
+        }
+
+        private void cancelPendingRelocations(Predicate<PendingRelocation> predicate, Exception reason) {
+            final Set<PendingRelocation> cancelled;
+            synchronized (this) {
+                cancelled = new HashSet<>();
+                for (PendingRelocation pending : pendingRelocations) {
+                    if (predicate.test(pending)) {
+                        cancelled.add(pending);
+                        pending.shard().recoveryStats().sourceQueuedRecoveryDiscarded();
+                    }
+                }
+                pendingRelocations.removeAll(cancelled);
+            }
+            for (PendingRelocation cancelledRelocation : cancelled) {
+                cancelledRelocation.listener().onFailure(reason);
+                schedulingListeners().onQueuedPeerRecoveryDiscardedOnSource();
+            }
+        }
+
+        private void awaitEmpty() {
+            assert closed();
+            final CountDownLatch emptyLatch = new CountDownLatch(1);
+            final RecoverySchedulingListener listener = new RecoverySchedulingListener() {
+                @Override
+                public void onPeerRecoveryCompletedOnSource() {
+                    if (isEmpty()) {
+                        emptyLatch.countDown();
+                    }
+                }
+
+                @Override
+                public void onQueuedPeerRecoveryDiscardedOnSource() {
+                    if (isEmpty()) {
+                        emptyLatch.countDown();
+                    }
+                }
+            };
+            schedulingListeners().addListener(listener);
+            try {
+                if (isEmpty()) {
+                    return;
+                }
+                emptyLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while waiting for primary relocations to complete", e);
+            } finally {
+                schedulingListeners().removeListener(listener);
+            }
+        }
+
+        private synchronized boolean isEmpty() {
+            return activeRelocationCount == 0 && pendingRelocations.isEmpty();
+        }
+
+        private record PendingRelocation(
+            Client parentClient,
+            StatelessPrimaryRelocationAction.Request request,
+            IndexShard shard,
+            ActionListener<StartRelocationResponse> listener
+        ) {}
     }
 }

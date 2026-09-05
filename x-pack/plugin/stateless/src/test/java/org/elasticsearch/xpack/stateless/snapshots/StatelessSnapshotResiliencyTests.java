@@ -439,6 +439,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         class StatelessNode extends TestClusterNodes.TestClusterNode {
 
             private TestStatelessPlugin testStatelessPlugin;
+            private StatelessPrimaryRelocationSourceService primaryRelocationService;
 
             StatelessNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
                 super(node, transportInterceptorFactory);
@@ -499,6 +500,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             public void stop() {
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.stop();
+                }
                 testStatelessPlugin.consistencyService.stop();
                 testStatelessPlugin.translogReplicator.stop();
                 testStatelessPlugin.statelessCommitService.stop();
@@ -506,6 +510,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 testStatelessPlugin.objectStoreService.stop();
                 testStatelessPlugin.cacheService.close();
                 super.stop();
+                // StatelessPrimaryRelocationSourceService::close should be called after IndicesService has already
+                // closed all shards.
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.close();
+                }
             }
 
             @Override
@@ -518,7 +527,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 final var primaryRelocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(
                     StatelessPrimaryRelocationMetricsCollector.NOOP
                 );
-                final var primaryRelocationSourceService = new StatelessPrimaryRelocationSourceService(
+                primaryRelocationService = new StatelessPrimaryRelocationSourceService(
+                    settings,
                     clusterService(),
                     transportService().getThreadPool(),
                     indicesService,
@@ -536,6 +546,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     mock(IndexShardCacheWarmer.class),
                     primaryRelocationMetricsCollectorProvider
                 );
+                final var transportPrimaryRelocationAction = new TransportStatelessPrimaryRelocationAction(
+                    transportService(),
+                    actionFilters,
+                    indicesService,
+                    new CompositeRecoverySchedulingListener(),
+                    primaryRelocationService,
+                    peerRecoveryTargetService,
+                    primaryRelocationMetricsCollectorProvider
+                );
+                primaryRelocationService.start();
                 return Map.of(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
@@ -551,15 +571,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     TransportRegisterCommitForRecoveryAction.TYPE,
                     new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters),
                     StatelessPrimaryRelocationAction.TYPE,
-                    new TransportStatelessPrimaryRelocationAction(
-                        transportService(),
-                        actionFilters,
-                        indicesService,
-                        new CompositeRecoverySchedulingListener(),
-                        primaryRelocationSourceService,
-                        peerRecoveryTargetService,
-                        primaryRelocationMetricsCollectorProvider
-                    ),
+                    transportPrimaryRelocationAction,
                     TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
                     new TransportStatelessPrimaryRelocationPrewarmAction(transportService(), actionFilters, primaryRelocationTargetService),
                     TransportStatelessPrimaryRelocationHandoffAction.TYPE,

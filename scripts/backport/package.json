@@ -1,0 +1,17 @@
+{
+  "name": "backport-wrapper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "backport": "^12.0.4",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "vitest": "^4.1.10"
+  }
+}

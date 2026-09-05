@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 158228
+summary: Fix LIKE/RLIKE list of patterns returning wrong results on non-indexed keyword fields and errors on wildcard fields
+type: bug

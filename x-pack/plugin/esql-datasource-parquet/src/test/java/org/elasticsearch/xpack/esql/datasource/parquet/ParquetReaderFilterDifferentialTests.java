@@ -26,6 +26,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -134,6 +136,13 @@ import java.util.regex.Pattern;
  * row IDs. Reproduce randomized failures with {@code -Dtests.seed=...} as usual.
  */
 public class ParquetReaderFilterDifferentialTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private BlockFactory blockFactory;
 
@@ -1006,7 +1015,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
         FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
         GroupReaderBuilder builder = new GroupReaderBuilder(
-            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), blockFactory.breaker())
+            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), footerByteCache, blockFactory.breaker())
         );
         if (filterPredicate != null) {
             builder.withFilter(FilterCompat.get(filterPredicate));

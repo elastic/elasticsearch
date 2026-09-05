@@ -51,15 +51,10 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     public RecursiveChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
         separators = in.readCollectionAsList(StreamInput::readString);
-        validateFields(maxChunkSize, separators);
     }
 
     @Override
     public void validate() {
-        validateFields(maxChunkSize, separators);
-    }
-
-    private static void validateFields(int maxChunkSize, List<String> separators) {
         ValidationException validationException = new ValidationException();
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
@@ -82,6 +77,16 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
     }
 
     public static RecursiveChunkingSettings fromMap(Map<String, Object> map) {
+        return fromMap(map, false);
+    }
+
+    /**
+     * @param enforceRequestLimits when {@code true}, policy limits such as {@link #MAX_SEPARATOR_COUNT} are enforced.
+     *                             Pass {@code true} for user-facing request paths (ES|QL CHUNK, text_similarity_reranker,
+     *                             PUT/UPDATE _inference) and {@code false} for persistence-read paths that may encounter
+     *                             settings created before the limit existed.
+     */
+    public static RecursiveChunkingSettings fromMap(Map<String, Object> map, boolean enforceRequestLimits) {
         ValidationException validationException = new ValidationException();
 
         var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
@@ -125,10 +130,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
             validationException.addValidationError("Recursive chunking settings can not have an empty list of separators");
         }
 
-        // This duplicates the check in validateFields() because fromMap() collects all errors
-        // into a single ValidationException before throwing, whereas validateFields() is used
-        // by the StreamInput constructor where the settings are already fully read.
-        if (separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
+        if (enforceRequestLimits && separators != null && separators.size() > MAX_SEPARATOR_COUNT) {
             validationException.addValidationError(
                 ChunkingSettingsOptions.SEPARATORS + " list size [" + separators.size() + "] must not exceed [" + MAX_SEPARATOR_COUNT + "]"
             );

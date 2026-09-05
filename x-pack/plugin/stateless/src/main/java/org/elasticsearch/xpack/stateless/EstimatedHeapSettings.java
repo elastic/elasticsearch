@@ -78,10 +78,6 @@ public final class EstimatedHeapSettings {
         return lowWatermark.getAsPercent();
     }
 
-    public boolean exceedsLowWatermark(double heapUsedPercent) {
-        return heapUsedPercent > lowWatermarkPercent();
-    }
-
     public boolean highWatermarkEnabled() {
         return highWatermarkEnabled;
     }

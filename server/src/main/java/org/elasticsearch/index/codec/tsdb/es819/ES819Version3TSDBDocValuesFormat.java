@@ -72,4 +72,31 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             writePrefixPartition
         );
     }
+
+    /**
+     * Test-only constructor that, unlike the other constructors above, does not hardcode the binary doc values block
+     * thresholds to {@link #BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT} / {@link #BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT}. This
+     * allows tests to explore how the block size threshold interacts with the {@link BinaryDVCompressionMode}, e.g. whether a
+     * larger compression window combined with a higher zstd level meaningfully improves compression of large, mutually similar
+     * binary doc values (such as JSON blobs sharing a common structure).
+     */
+    public ES819Version3TSDBDocValuesFormat(
+        BinaryDVCompressionMode binaryDVCompressionMode,
+        int blockBytesThreshold,
+        int blockCountThreshold
+    ) {
+        super(
+            CODEC_NAME,
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            binaryDVCompressionMode,
+            true,
+            NUMERIC_BLOCK_SHIFT,
+            DocOffsetsCodec.BITPACKING,
+            blockBytesThreshold,
+            blockCountThreshold,
+            false
+        );
+    }
 }

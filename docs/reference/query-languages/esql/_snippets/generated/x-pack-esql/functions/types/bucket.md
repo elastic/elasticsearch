@@ -4,104 +4,346 @@
 
 | field | buckets | from | to | options | result |
 | --- | --- | --- | --- | --- | --- |
+| date | date_period | date | date | | date |
+| date | date_period | date | date_nanos | | date |
+| date | date_period | date | keyword | | date |
+| date | date_period | date | text | | date |
+| date | date_period | date_nanos | date | | date |
+| date | date_period | date_nanos | date_nanos | | date |
+| date | date_period | date_nanos | keyword | | date |
+| date | date_period | date_nanos | text | | date |
+| date | date_period | keyword | date | | date |
+| date | date_period | keyword | date_nanos | | date |
+| date | date_period | keyword | keyword | | date |
+| date | date_period | keyword | text | | date |
+| date | date_period | text | date | | date |
+| date | date_period | text | date_nanos | | date |
+| date | date_period | text | keyword | | date |
+| date | date_period | text | text | | date |
 | date | date_period | | | | date |
 | date | integer | date | date | | date |
+| date | integer | date | date_nanos | | date |
 | date | integer | date | keyword | | date |
 | date | integer | date | text | | date |
+| date | integer | date_nanos | date | | date |
+| date | integer | date_nanos | date_nanos | | date |
+| date | integer | date_nanos | keyword | | date |
+| date | integer | date_nanos | text | | date |
 | date | integer | keyword | date | | date |
+| date | integer | keyword | date_nanos | | date |
 | date | integer | keyword | keyword | | date |
 | date | integer | keyword | text | | date |
 | date | integer | text | date | | date |
+| date | integer | text | date_nanos | | date |
 | date | integer | text | keyword | | date |
 | date | integer | text | text | | date |
 | date | long | date | date | | date |
+| date | long | date | date_nanos | | date |
 | date | long | date | keyword | | date |
 | date | long | date | text | | date |
+| date | long | date_nanos | date | | date |
+| date | long | date_nanos | date_nanos | | date |
+| date | long | date_nanos | keyword | | date |
+| date | long | date_nanos | text | | date |
 | date | long | keyword | date | | date |
+| date | long | keyword | date_nanos | | date |
 | date | long | keyword | keyword | | date |
 | date | long | keyword | text | | date |
 | date | long | text | date | | date |
+| date | long | text | date_nanos | | date |
 | date | long | text | keyword | | date |
 | date | long | text | text | | date |
+| date | time_duration | date | date | | date |
+| date | time_duration | date | date_nanos | | date |
+| date | time_duration | date | keyword | | date |
+| date | time_duration | date | text | | date |
+| date | time_duration | date_nanos | date | | date |
+| date | time_duration | date_nanos | date_nanos | | date |
+| date | time_duration | date_nanos | keyword | | date |
+| date | time_duration | date_nanos | text | | date |
+| date | time_duration | keyword | date | | date |
+| date | time_duration | keyword | date_nanos | | date |
+| date | time_duration | keyword | keyword | | date |
+| date | time_duration | keyword | text | | date |
+| date | time_duration | text | date | | date |
+| date | time_duration | text | date_nanos | | date |
+| date | time_duration | text | keyword | | date |
+| date | time_duration | text | text | | date |
 | date | time_duration | | | | date |
+| date_nanos | date_period | date | date | | date_nanos |
+| date_nanos | date_period | date | date_nanos | | date_nanos |
+| date_nanos | date_period | date | keyword | | date_nanos |
+| date_nanos | date_period | date | text | | date_nanos |
+| date_nanos | date_period | date_nanos | date | | date_nanos |
+| date_nanos | date_period | date_nanos | date_nanos | | date_nanos |
+| date_nanos | date_period | date_nanos | keyword | | date_nanos |
+| date_nanos | date_period | date_nanos | text | | date_nanos |
+| date_nanos | date_period | keyword | date | | date_nanos |
+| date_nanos | date_period | keyword | date_nanos | | date_nanos |
+| date_nanos | date_period | keyword | keyword | | date_nanos |
+| date_nanos | date_period | keyword | text | | date_nanos |
+| date_nanos | date_period | text | date | | date_nanos |
+| date_nanos | date_period | text | date_nanos | | date_nanos |
+| date_nanos | date_period | text | keyword | | date_nanos |
+| date_nanos | date_period | text | text | | date_nanos |
 | date_nanos | date_period | | | | date_nanos |
 | date_nanos | integer | date | date | | date_nanos |
+| date_nanos | integer | date | date_nanos | | date_nanos |
 | date_nanos | integer | date | keyword | | date_nanos |
 | date_nanos | integer | date | text | | date_nanos |
+| date_nanos | integer | date_nanos | date | | date_nanos |
+| date_nanos | integer | date_nanos | date_nanos | | date_nanos |
+| date_nanos | integer | date_nanos | keyword | | date_nanos |
+| date_nanos | integer | date_nanos | text | | date_nanos |
 | date_nanos | integer | keyword | date | | date_nanos |
+| date_nanos | integer | keyword | date_nanos | | date_nanos |
 | date_nanos | integer | keyword | keyword | | date_nanos |
 | date_nanos | integer | keyword | text | | date_nanos |
 | date_nanos | integer | text | date | | date_nanos |
+| date_nanos | integer | text | date_nanos | | date_nanos |
 | date_nanos | integer | text | keyword | | date_nanos |
 | date_nanos | integer | text | text | | date_nanos |
 | date_nanos | long | date | date | | date_nanos |
+| date_nanos | long | date | date_nanos | | date_nanos |
 | date_nanos | long | date | keyword | | date_nanos |
 | date_nanos | long | date | text | | date_nanos |
+| date_nanos | long | date_nanos | date | | date_nanos |
+| date_nanos | long | date_nanos | date_nanos | | date_nanos |
+| date_nanos | long | date_nanos | keyword | | date_nanos |
+| date_nanos | long | date_nanos | text | | date_nanos |
 | date_nanos | long | keyword | date | | date_nanos |
+| date_nanos | long | keyword | date_nanos | | date_nanos |
 | date_nanos | long | keyword | keyword | | date_nanos |
 | date_nanos | long | keyword | text | | date_nanos |
 | date_nanos | long | text | date | | date_nanos |
+| date_nanos | long | text | date_nanos | | date_nanos |
 | date_nanos | long | text | keyword | | date_nanos |
 | date_nanos | long | text | text | | date_nanos |
+| date_nanos | time_duration | date | date | | date_nanos |
+| date_nanos | time_duration | date | date_nanos | | date_nanos |
+| date_nanos | time_duration | date | keyword | | date_nanos |
+| date_nanos | time_duration | date | text | | date_nanos |
+| date_nanos | time_duration | date_nanos | date | | date_nanos |
+| date_nanos | time_duration | date_nanos | date_nanos | | date_nanos |
+| date_nanos | time_duration | date_nanos | keyword | | date_nanos |
+| date_nanos | time_duration | date_nanos | text | | date_nanos |
+| date_nanos | time_duration | keyword | date | | date_nanos |
+| date_nanos | time_duration | keyword | date_nanos | | date_nanos |
+| date_nanos | time_duration | keyword | keyword | | date_nanos |
+| date_nanos | time_duration | keyword | text | | date_nanos |
+| date_nanos | time_duration | text | date | | date_nanos |
+| date_nanos | time_duration | text | date_nanos | | date_nanos |
+| date_nanos | time_duration | text | keyword | | date_nanos |
+| date_nanos | time_duration | text | text | | date_nanos |
 | date_nanos | time_duration | | | | date_nanos |
 | double | double | | | | double |
 | double | integer | double | double | | double |
 | double | integer | double | integer | | double |
 | double | integer | double | long | | double |
+| double | integer | double | unsigned_long | | double |
 | double | integer | integer | double | | double |
 | double | integer | integer | integer | | double |
 | double | integer | integer | long | | double |
+| double | integer | integer | unsigned_long | | double |
 | double | integer | long | double | | double |
 | double | integer | long | integer | | double |
 | double | integer | long | long | | double |
+| double | integer | long | unsigned_long | | double |
+| double | integer | unsigned_long | double | | double |
+| double | integer | unsigned_long | integer | | double |
+| double | integer | unsigned_long | long | | double |
+| double | integer | unsigned_long | unsigned_long | | double |
 | double | integer | | | | double |
+| double | long | double | double | | double |
+| double | long | double | integer | | double |
+| double | long | double | long | | double |
+| double | long | double | unsigned_long | | double |
+| double | long | integer | double | | double |
+| double | long | integer | integer | | double |
+| double | long | integer | long | | double |
+| double | long | integer | unsigned_long | | double |
+| double | long | long | double | | double |
+| double | long | long | integer | | double |
+| double | long | long | long | | double |
+| double | long | long | unsigned_long | | double |
+| double | long | unsigned_long | double | | double |
+| double | long | unsigned_long | integer | | double |
+| double | long | unsigned_long | long | | double |
+| double | long | unsigned_long | unsigned_long | | double |
 | double | long | | | | double |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | double | | | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | double | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | integer | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | double | unsigned_long | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | double | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | integer | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | integer | unsigned_long | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | double | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | integer | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | long | unsigned_long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | unsigned_long | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | integer | | | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | double | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | double | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | double | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | double | unsigned_long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | integer | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | integer | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | integer | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | integer | unsigned_long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | long | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | long | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | long | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | long | unsigned_long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | unsigned_long | double | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | unsigned_long | integer | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | unsigned_long | long | | double_range |
+| exponential_histogram {applies_to}`stack: preview 9.6.0` | long | unsigned_long | unsigned_long | | double_range |
 | exponential_histogram {applies_to}`stack: preview 9.6.0` | long | | | | double_range |
 | integer | double | | | | double |
 | integer | integer | double | double | | double |
 | integer | integer | double | integer | | double |
 | integer | integer | double | long | | double |
+| integer | integer | double | unsigned_long | | double |
 | integer | integer | integer | double | | double |
 | integer | integer | integer | integer | | double |
 | integer | integer | integer | long | | double |
+| integer | integer | integer | unsigned_long | | double |
 | integer | integer | long | double | | double |
 | integer | integer | long | integer | | double |
 | integer | integer | long | long | | double |
+| integer | integer | long | unsigned_long | | double |
+| integer | integer | unsigned_long | double | | double |
+| integer | integer | unsigned_long | integer | | double |
+| integer | integer | unsigned_long | long | | double |
+| integer | integer | unsigned_long | unsigned_long | | double |
 | integer | integer | | | | double |
+| integer | long | double | double | | double |
+| integer | long | double | integer | | double |
+| integer | long | double | long | | double |
+| integer | long | double | unsigned_long | | double |
+| integer | long | integer | double | | double |
+| integer | long | integer | integer | | double |
+| integer | long | integer | long | | double |
+| integer | long | integer | unsigned_long | | double |
+| integer | long | long | double | | double |
+| integer | long | long | integer | | double |
+| integer | long | long | long | | double |
+| integer | long | long | unsigned_long | | double |
+| integer | long | unsigned_long | double | | double |
+| integer | long | unsigned_long | integer | | double |
+| integer | long | unsigned_long | long | | double |
+| integer | long | unsigned_long | unsigned_long | | double |
 | integer | long | | | | double |
 | long | double | | | | double |
 | long | integer | double | double | | double |
 | long | integer | double | integer | | double |
 | long | integer | double | long | | double |
+| long | integer | double | unsigned_long | | double |
 | long | integer | integer | double | | double |
 | long | integer | integer | integer | | double |
 | long | integer | integer | long | | double |
+| long | integer | integer | unsigned_long | | double |
 | long | integer | long | double | | double |
 | long | integer | long | integer | | double |
 | long | integer | long | long | | double |
+| long | integer | long | unsigned_long | | double |
+| long | integer | unsigned_long | double | | double |
+| long | integer | unsigned_long | integer | | double |
+| long | integer | unsigned_long | long | | double |
+| long | integer | unsigned_long | unsigned_long | | double |
 | long | integer | | | | double |
+| long | long | double | double | | double |
+| long | long | double | integer | | double |
+| long | long | double | long | | double |
+| long | long | double | unsigned_long | | double |
+| long | long | integer | double | | double |
+| long | long | integer | integer | | double |
+| long | long | integer | long | | double |
+| long | long | integer | unsigned_long | | double |
+| long | long | long | double | | double |
+| long | long | long | integer | | double |
+| long | long | long | long | | double |
+| long | long | long | unsigned_long | | double |
+| long | long | unsigned_long | double | | double |
+| long | long | unsigned_long | integer | | double |
+| long | long | unsigned_long | long | | double |
+| long | long | unsigned_long | unsigned_long | | double |
 | long | long | | | | double |
 | tdigest {applies_to}`stack: preview 9.6.0` | double | | | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | double | double | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | double | integer | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | double | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | double | unsigned_long | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | double | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | integer | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | integer | unsigned_long | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | long | double | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | long | integer | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | long | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | long | unsigned_long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | integer | unsigned_long | unsigned_long | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | integer | | | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | double | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | double | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | double | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | double | unsigned_long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | integer | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | integer | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | integer | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | integer | unsigned_long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | long | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | long | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | long | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | long | unsigned_long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | unsigned_long | double | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | unsigned_long | integer | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | unsigned_long | long | | double_range |
+| tdigest {applies_to}`stack: preview 9.6.0` | long | unsigned_long | unsigned_long | | double_range |
 | tdigest {applies_to}`stack: preview 9.6.0` | long | | | | double_range |
+| unsigned_long | double | | | | double |
+| unsigned_long | integer | double | double | | double |
+| unsigned_long | integer | double | integer | | double |
+| unsigned_long | integer | double | long | | double |
+| unsigned_long | integer | double | unsigned_long | | double |
+| unsigned_long | integer | integer | double | | double |
+| unsigned_long | integer | integer | integer | | double |
+| unsigned_long | integer | integer | long | | double |
+| unsigned_long | integer | integer | unsigned_long | | double |
+| unsigned_long | integer | long | double | | double |
+| unsigned_long | integer | long | integer | | double |
+| unsigned_long | integer | long | long | | double |
+| unsigned_long | integer | long | unsigned_long | | double |
+| unsigned_long | integer | unsigned_long | double | | double |
+| unsigned_long | integer | unsigned_long | integer | | double |
+| unsigned_long | integer | unsigned_long | long | | double |
+| unsigned_long | integer | unsigned_long | unsigned_long | | double |
+| unsigned_long | integer | | | | double |
+| unsigned_long | long | double | double | | double |
+| unsigned_long | long | double | integer | | double |
+| unsigned_long | long | double | long | | double |
+| unsigned_long | long | double | unsigned_long | | double |
+| unsigned_long | long | integer | double | | double |
+| unsigned_long | long | integer | integer | | double |
+| unsigned_long | long | integer | long | | double |
+| unsigned_long | long | integer | unsigned_long | | double |
+| unsigned_long | long | long | double | | double |
+| unsigned_long | long | long | integer | | double |
+| unsigned_long | long | long | long | | double |
+| unsigned_long | long | long | unsigned_long | | double |
+| unsigned_long | long | unsigned_long | double | | double |
+| unsigned_long | long | unsigned_long | integer | | double |
+| unsigned_long | long | unsigned_long | long | | double |
+| unsigned_long | long | unsigned_long | unsigned_long | | double |
+| unsigned_long | long | | | | double |
 

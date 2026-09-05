@@ -11,6 +11,9 @@ package org.elasticsearch.common.lucene;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.BytesRefComparator;
+import org.apache.lucene.util.StringSorter;
 import org.apache.lucene.util.UnicodeUtil;
 
 public class BytesRefs {
@@ -89,5 +92,37 @@ public class BytesRefs {
         } catch (Exception e) {
             return prefix.toString();
         }
+    }
+
+    /**
+     * Sorts {@code refs} in-place using Lucene's radix sort (BytesRef natural order).
+     */
+    public static void radixSort(BytesRef[] refs) {
+        new StringSorter(BytesRefComparator.NATURAL) {
+            @Override
+            protected void get(BytesRefBuilder builder, BytesRef result, int i) {
+                BytesRef t = refs[i];
+                result.bytes = t.bytes;
+                result.offset = t.offset;
+                result.length = t.length;
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                BytesRef tmp = refs[i];
+                refs[i] = refs[j];
+                refs[j] = tmp;
+            }
+        }.sort(0, refs.length);
+    }
+
+    /**
+     * Returns true if {@code refs} is already sorted in BytesRef natural order.
+     */
+    public static boolean isSorted(BytesRef[] refs) {
+        for (int i = 1; i < refs.length; i++) {
+            if (refs[i - 1].compareTo(refs[i]) > 0) return false;
+        }
+        return true;
     }
 }

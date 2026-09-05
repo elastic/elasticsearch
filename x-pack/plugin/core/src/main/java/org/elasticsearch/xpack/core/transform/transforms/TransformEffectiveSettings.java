@@ -83,4 +83,17 @@ public final class TransformEffectiveSettings {
     public static boolean isUnattended(SettingsConfig settings) {
         return Boolean.TRUE.equals(settings.getUnattended());
     }
+
+    /**
+     * Determines if aligning change detection to the checkpoint window has been explicitly disabled for this transform.
+     * <p>
+     * Enabled by default, this optimization restricts a continuous {@code latest} transform's change detection to the
+     * current checkpoint's time window instead of re-scanning all history for changed unique keys.
+     *
+     * @param settings transform's settings
+     * @return whether or not aligning change detection is disabled for this transform
+     */
+    public static boolean isAlignChangeDetectionDisabled(SettingsConfig settings) {
+        return Boolean.FALSE.equals(settings.getAlignChangeDetection());
+    }
 }

@@ -70,7 +70,10 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         );
     }
 
-    /** Creates a case-insensitive term query, using the same Unicode case-folding automaton as {@link org.elasticsearch.common.lucene.search.CaseInsensitiveTermQuery}. */
+    /**
+     * Creates a case-insensitive term query, using the same Unicode case-folding automaton as
+     * {@link org.elasticsearch.common.lucene.search.CaseInsensitiveTermQuery}.
+     */
     public static Query forCaseInsensitiveTerm(String fieldName, String value, BinaryDocValuesFormat binaryFormat) {
         return new ScanningBinaryDocValuesAutomatonQuery(
             fieldName,

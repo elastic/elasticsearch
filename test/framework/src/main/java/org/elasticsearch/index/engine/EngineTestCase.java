@@ -105,6 +105,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.SearcherHelper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -177,7 +178,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
-    protected MergeMetrics mergeMetrics;
+    protected ShardMetrics shardMetrics;
 
     protected IndexSettings defaultSettings;
     protected String codecName;
@@ -262,7 +263,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers());
         translogHandler = createTranslogHandler(mapperService);
-        mergeMetrics = MergeMetrics.NOOP;
+        shardMetrics = ShardMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -892,7 +893,7 @@ public abstract class EngineTestCase extends ESTestCase {
             .promotableToPrimary(true)
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(mergeMetrics)
+            .shardMetrics(shardMetrics)
             .indexDeletionPolicyWrapper(indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper)
             .build();
     }

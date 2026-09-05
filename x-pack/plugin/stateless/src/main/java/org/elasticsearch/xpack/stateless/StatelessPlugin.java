@@ -1821,7 +1821,7 @@ public class StatelessPlugin extends Plugin
             refreshManagerService.get(),
             reshardIndexService.get(),
             documentParsingProvider.get(),
-            new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get()),
+            new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getShardMetrics().merge(), hollowShardMetrics.get()),
             indexEngineDynamicSettings.get()
         );
     }

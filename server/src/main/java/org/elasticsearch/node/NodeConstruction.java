@@ -140,8 +140,8 @@ import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -919,11 +919,9 @@ class NodeConstruction {
         TokenCountingMetrics tokenCountingMetrics = new TokenCountingMetrics(telemetryProvider.getMeterRegistry());
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics, tokenCountingMetrics);
 
-        MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
+        ShardMetrics shardMetrics = ShardMetrics.create(telemetryProvider.getMeterRegistry(), settings);
 
-        final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
-        );
+        final List<SearchOperationListener> searchOperationListeners = List.of(shardMetrics.search());
 
         List<? extends ActionLoggingFieldsProvider> loggingFieldsProviders = pluginsService.loadServiceProviders(
             ActionLoggingFieldsProvider.class
@@ -982,7 +980,7 @@ class NodeConstruction {
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
-            .mergeMetrics(mergeMetrics)
+            .shardMetrics(shardMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
             .throttlingRecoveryService(throttlingRecoveryService)
@@ -1522,7 +1520,7 @@ class NodeConstruction {
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
-            b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(MergeMetrics.class).toInstance(shardMetrics.merge());
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);

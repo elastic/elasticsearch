@@ -216,7 +216,13 @@ public class ReadOnlyEngine extends Engine {
         @Nullable ESCacheHelper esCacheHelper
     ) throws IOException {
         reader = readerWrapperFunction.apply(reader);
-        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId(), esCacheHelper);
+        return ElasticsearchDirectoryReader.wrap(
+            reader,
+            engineConfig.getShardId(),
+            esCacheHelper,
+            engineConfig.getShardMetrics().codec(),
+            engineConfig.getIndexSettings().getMode()
+        );
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {

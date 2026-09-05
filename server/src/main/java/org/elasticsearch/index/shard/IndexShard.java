@@ -102,7 +102,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.IndexOperationBatch;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -289,7 +288,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
-    private final MergeMetrics mergeMetrics;
+    private final ShardMetrics shardMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -370,7 +369,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final ShardMetrics shardMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -384,7 +383,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService,
             bigArrays,
             // Using this as a proxy on if the merge execution executor service exists
-            threadPoolMergeExecutorService == null ? null : threadPool
+            threadPoolMergeExecutorService == null ? null : threadPool,
+            shardMetrics.codec()
         );
         this.warmer = warmer;
         this.mutableOperationGate = mutableOperationGate;
@@ -476,7 +476,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.mergeMetrics = mergeMetrics;
+        this.shardMetrics = shardMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -4155,7 +4155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .promotableToPrimary(routingEntry().isPromotableToPrimary())
             .mapperService(mapperService())
             .engineResetLock(engineResetLock)
-            .mergeMetrics(mergeMetrics)
+            .shardMetrics(shardMetrics)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -41,22 +43,20 @@ public class CodecIntegrationTests extends ESSingleNodeTestCase {
 
     public void testDefaultCodecLogsdb() {
         var indexService = createIndex("index1", Settings.builder().put("index.mode", "logsdb").build());
-        var storedFieldsFormat = (Zstd814StoredFieldsFormat) indexService.getShard(0)
-            .getEngineOrNull()
-            .config()
-            .getCodec()
-            .storedFieldsFormat();
+        var storedFieldsFormat = (Zstd814StoredFieldsFormat) engineCodec(indexService).storedFieldsFormat();
         assertThat(storedFieldsFormat.getMode(), equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION));
     }
 
     public void testDefaultCodec() throws Exception {
         var indexService = createIndex("index1");
-        var storedFieldsFormat = (Lucene90StoredFieldsFormat) indexService.getShard(0)
-            .getEngineOrNull()
-            .config()
-            .getCodec()
-            .storedFieldsFormat();
+        var storedFieldsFormat = (Lucene90StoredFieldsFormat) engineCodec(indexService).storedFieldsFormat();
         var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
         assertThat(mode, equalTo(Lucene90StoredFieldsFormat.Mode.BEST_SPEED));
+    }
+
+    /** The engine writes through a {@link MetricingCodec}; unwrap it to reach the concrete formats. */
+    private static Codec engineCodec(IndexService indexService) {
+        Codec codec = indexService.getShard(0).getEngineOrNull().config().getCodec();
+        return codec instanceof MetricingCodec metricingCodec ? metricingCodec.delegate() : codec;
     }
 }

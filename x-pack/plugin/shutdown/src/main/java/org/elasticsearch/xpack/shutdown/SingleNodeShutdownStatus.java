@@ -19,12 +19,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
@@ -37,6 +39,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
     private final ShutdownPersistentTasksStatus persistentTasksStatus;
     private final ShutdownPluginsStatus pluginsStatus;
     private final ShutdownShardSnapshotsStatus shardSnapshotsStatus;
+    private final LongSupplier currentTimeMillis;
 
     private static final ParseField STATUS = new ParseField("status");
     private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
@@ -44,6 +47,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
     private static final ParseField PLUGINS_STATUS = new ParseField("plugins");
     private static final ParseField SHARD_SNAPSHOTS_FIELD = new ParseField("shard_snapshots");
     private static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
+    private static final ParseField SHUTDOWN_RUNNING_TIME = new ParseField("shutdown_running_time");
 
     public SingleNodeShutdownStatus(
         SingleNodeShutdownMetadata metadata,
@@ -52,11 +56,23 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         ShutdownPluginsStatus pluginsStatus,
         ShutdownShardSnapshotsStatus shardSnapshotsStatus
     ) {
+        this(metadata, shardMigrationStatus, persistentTasksStatus, pluginsStatus, shardSnapshotsStatus, System::currentTimeMillis);
+    }
+
+    SingleNodeShutdownStatus(
+        SingleNodeShutdownMetadata metadata,
+        ShutdownShardMigrationStatus shardMigrationStatus,
+        ShutdownPersistentTasksStatus persistentTasksStatus,
+        ShutdownPluginsStatus pluginsStatus,
+        ShutdownShardSnapshotsStatus shardSnapshotsStatus,
+        LongSupplier currentTimeMillis
+    ) {
         this.metadata = Objects.requireNonNull(metadata, "metadata must not be null");
         this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
         this.persistentTasksStatus = Objects.requireNonNull(persistentTasksStatus, "persistent task status must not be null");
         this.pluginsStatus = Objects.requireNonNull(pluginsStatus, "plugin status must not be null");
         this.shardSnapshotsStatus = Objects.requireNonNull(shardSnapshotsStatus, "shard snapshots status must not be null");
+        this.currentTimeMillis = Objects.requireNonNull(currentTimeMillis, "currentTimeMillis() func must not be null");
     }
 
     public SingleNodeShutdownStatus(StreamInput in) throws IOException {
@@ -65,6 +81,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         this.persistentTasksStatus = new ShutdownPersistentTasksStatus(in);
         this.pluginsStatus = new ShutdownPluginsStatus(in);
         this.shardSnapshotsStatus = ShutdownShardSnapshotsStatus.readFrom(in);
+        this.currentTimeMillis = System::currentTimeMillis;
     }
 
     @Override
@@ -145,7 +162,11 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
                 SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
                 metadata.getStartedAtMillis()
             );
-            builder.field(STATUS.getPreferredName(), overallStatus());
+            var overallStatus = overallStatus();
+            builder.field(STATUS.getPreferredName(), overallStatus);
+            if (overallStatus != SingleNodeShutdownMetadata.Status.COMPLETE) {
+                builder.field(SHUTDOWN_RUNNING_TIME.getPreferredName(), getCurrentRunningTime());
+            }
             return builder;
         }), ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus, params), chunk((builder, p) -> {
             builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
@@ -162,5 +183,15 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
             }
             return builder;
         }), endObject());
+    }
+
+    private TimeValue getCurrentRunningTime() {
+        long durationMillis = currentTimeMillis.getAsLong() - metadata.getStartedAtMillis();
+        // System.currentTimeMillis(), used for time measurement here, is not necessarily a monotonic function, it might go back in time
+        // when e.g. system clock changes
+        if (durationMillis < 0) {
+            durationMillis = 0;
+        }
+        return TimeValue.timeValueMillis(durationMillis);
     }
 }

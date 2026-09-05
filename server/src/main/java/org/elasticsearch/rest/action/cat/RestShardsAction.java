@@ -17,6 +17,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
@@ -27,7 +31,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
-import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -59,6 +62,12 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
 
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestShardsAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/shards"), new Route(GET, "/_cat/shards/{index}"));
@@ -85,7 +94,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final var clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
+        clusterStateRequest.clear().nodes(true).routingTable(true).metadata(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
             final var clusterStateFuture = new ListenableFuture<ClusterStateResponse>();
@@ -121,7 +130,12 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("dataset", "text-align:right;desc:total size of dataset")
             .addCell("ip", "default:true;desc:ip of node where it lives")
             .addCell("id", "default:false;desc:unique id of node where it lives")
-            .addCell("node", "default:true;alias:n;desc:name of node where it lives");
+            .addCell("node", "default:true;alias:n;desc:name of node where it lives")
+            .addCell(
+                "node.role",
+                "default:false;alias:r,role,nodeRole;desc:roles of the node where it lives (m:master eligible, d:data, i:ingest, -:coordinating only)"
+            )
+            .addCell("tier", "default:false;alias:t,tierPreference;desc:tier preference of the index for this shard");
 
         if (request.getRestApiVersion() == RestApiVersion.V_8) {
             table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
@@ -282,10 +296,8 @@ public class RestShardsAction extends AbstractCatAction {
         for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
-            CommitStats commitStats = null;
             if (shardStats != null) {
                 commonStats = shardStats.getStats();
-                commitStats = shardStats.getCommitStats();
             }
 
             table.startRow();
@@ -303,10 +315,11 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::size));
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::totalDataSetSize));
             if (shard.assignedToNode()) {
-                String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                DiscoveryNode node = state.getState().nodes().get(shard.currentNodeId());
+                String ip = node.getHostAddress();
                 String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
-                name.append(state.getState().nodes().get(shard.currentNodeId()).getName());
+                name.append(node.getName());
                 if (shard.relocating()) {
                     String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
                     String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).getName();
@@ -321,9 +334,21 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(ip);
                 table.addCell(nodeId);
                 table.addCell(name);
+                table.addCell(node.getRoleAbbreviationString());
             } else {
                 table.addCell(null);
                 table.addCell(null);
+                table.addCell(null);
+                table.addCell(null);
+            }
+
+            // Retrieve tier preference from index metadata
+            final ProjectMetadata project = state.getState().metadata().getProject(projectIdResolver.getProjectId());
+            final IndexMetadata indexMetadata = project == null ? null : project.index(shard.index());
+            if (indexMetadata != null) {
+                List<String> tierPreference = indexMetadata.getTierPreference();
+                table.addCell(tierPreference.isEmpty() ? null : String.join(",", tierPreference));
+            } else {
                 table.addCell(null);
             }
 

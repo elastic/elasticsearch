@@ -24,7 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -178,13 +178,17 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         if (codec instanceof Elasticsearch93Lucene104Codec es93104codec) {
             return es93104codec.getDocValuesFormatForField(field);
-        } else if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyCodec) {
-                return legacyCodec.getDocValuesFormatForField(field);
-            } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
-                return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
-            }
+        } else if (codec instanceof Elasticsearch96Codec defaultCodec) {
+            // Now a DeduplicateFieldInfosCodec in its own right, so CodecService no longer wraps it in one.
+            return defaultCodec.getDocValuesFormatForField(field);
+        }
+        // CodecService only wraps codecs that do not deduplicate field infos already, so the TSDB codec can arrive either way.
+        Codec unwrapped = codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec
+            ? deduplicateFieldInfosCodec.delegate()
+            : codec;
+        if (unwrapped instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
+            assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+            return ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat()).getDocValuesFormatForField(field);
         }
         fail("Unexpected codec type: " + codec.getClass().getName());
         return null;

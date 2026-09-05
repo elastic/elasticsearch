@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -87,6 +88,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * {@link #enabledFeatures()}. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
+    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of(
+        // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
+        "missing references \\[.*\\]",
+        // https://github.com/elastic/elasticsearch/issues/142026
+        "column \\[.*\\] already resolved",
+        // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
+        // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
+        "is not supported with unmapped_fields",
+        "does not support full-text search function",
+        "type \\[null\\] .* not supported",
+        // https://github.com/elastic/elasticsearch/issues/145555
+        "Multiple index patterns should be disabled with unmapped fields",
+        // https://github.com/elastic/elasticsearch/issues/146036
+        "argument of \\[.*\\] must be \\[unsupported\\], found value",
+        // https://github.com/elastic/elasticsearch/issues/146074
+        "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
+    );
+
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,
         Set.of(
@@ -98,23 +117,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "has conflicting data types in subqueries"
         ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
-        Set.of(
-            // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
-            "missing references \\[.*\\]",
-            // https://github.com/elastic/elasticsearch/issues/142026
-            "column \\[.*\\] already resolved",
-            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
-            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
-            "is not supported with unmapped_fields",
-            "does not support full-text search function",
-            "type \\[null\\] .* not supported",
-            // https://github.com/elastic/elasticsearch/issues/145555
-            "Multiple index patterns should be disabled with unmapped fields",
-            // https://github.com/elastic/elasticsearch/issues/146036
-            "argument of \\[.*\\] must be \\[unsupported\\], found value",
-            // https://github.com/elastic/elasticsearch/issues/146074
-            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
-        ),
+        UNMAPPED_FIELDS_LOAD_ERRORS,
+        // load_all shares load's restrictions and adds one: it only supports a fixed command allow-list, so any other
+        // generated command (STATS, JOIN, FORK, ENRICH, ...) is rejected until its interaction with the expanded column is designed.
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
+        Sets.union(UNMAPPED_FIELDS_LOAD_ERRORS, Set.of("only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT and LIMIT")),
         GenerativeFeature.PARQUET_DATASET,
         Set.of(
             // Mixed FROM patterns (e.g. "FROM parquet_employees, employees") may produce type conflicts
@@ -498,6 +505,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD)) {
             return FromLoadGenerator.INSTANCE;
         }
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL)) {
+            return FromLoadGenerator.LOAD_ALL_INSTANCE;
+        }
         if (isFeatureEnabled(GenerativeFeature.METRICS)) {
             return EsqlQueryGenerator.timeSeriesSourceCommand();
         }
@@ -619,7 +629,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return true;
             }
         }
-        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) && isUnmappedFieldsLoadAllowedFailure(ctx)) {
+        if ((isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) || isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL))
+            && isUnmappedFieldsLoadAllowedFailure(ctx)) {
             return true;
         }
         return false;
@@ -770,8 +781,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static boolean isUnmappedFieldsLoadAllowedFailure(FailureContext ctx) {
-        if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, FromLoadGenerator.SET_LOAD_PREFIX)) {
-            return true;
+        for (String prefix : FromLoadGenerator.LOAD_PREFIXES) {
+            if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, prefix)) {
+                return true;
+            }
         }
         return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage);
     }
@@ -1120,7 +1133,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             || errorMessage.contains("because \"builder\" is null") == false) {
             return false;
         }
-        return query.contains(FromLoadGenerator.SET_LOAD_PREFIX) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
+        return FromLoadGenerator.LOAD_PREFIXES.stream().anyMatch(query::contains) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
     }
 
     /**

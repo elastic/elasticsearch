@@ -23,10 +23,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -44,6 +46,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -350,6 +353,45 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
     }
 
+    public void testReducePreservesDateSortValueFormat() {
+        AggregationBuilder builder = mock(AggregationBuilder.class);
+        List<SearchHits> topHitsToRelease = new ArrayList<>();
+        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction(topHitsToRelease);
+
+        // A date sort carries a DateTime format with sort-value formatting enabled (see FieldSortBuilder), so a shard
+        // hit's sort value is already the formatted date string. The reduce path must keep that string rather than
+        // re-formatting the raw epoch millis with RAW, which would surface the raw long instead. Regression: #144130.
+        DocValueFormat dateFormat = DocValueFormat.enableFormatSortValues(
+            new DocValueFormat.DateTime(
+                DateFormatter.forPattern("strict_date_optional_time"),
+                ZoneOffset.UTC,
+                DateFieldMapper.Resolution.MILLISECONDS
+            )
+        );
+        long earlierMillis = 1_600_000_000_000L;
+        long laterMillis = 1_700_000_000_000L;
+
+        InternalTopHits shard0 = createTopHitsWithSortValue("test", SortField.Type.LONG, laterMillis, dateFormat, 2, 0);
+        InternalTopHits shard1 = createTopHitsWithSortValue("test", SortField.Type.LONG, earlierMillis, dateFormat, 2, 1);
+        try {
+            InternalTopHits reduced = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(shard0, shard1), reduceContext);
+            assertNotNull("Reduced result should not be null", reduced);
+            SearchHit[] hits = reduced.getHits().getHits();
+            assertThat("both shard hits should survive the merge", hits.length, equalTo(2));
+            for (SearchHit hit : hits) {
+                Object formatted = hit.getSortValues()[0];
+                Object raw = hit.getRawSortValues()[0];
+                assertThat("raw sort value should stay the epoch millis", raw, instanceOf(Long.class));
+                assertThat("date sort value must stay formatted, not the raw epoch", formatted, instanceOf(String.class));
+                assertThat(formatted, equalTo(dateFormat.format((Long) raw)));
+            }
+            releaseTopHits(topHitsToRelease);
+        } finally {
+            shard0.getHits().decRef();
+            shard1.getHits().decRef();
+        }
+    }
+
     /**
      * Round-trip serialization reads SearchHits with pooled=true so that coordinator can release them.
      * This test ensures deserialized InternalTopHits has pooled hits when they have source, and content equality is preserved.
@@ -406,6 +448,32 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
         TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topFieldDocs, 1.0f);
         return new InternalTopHits(name, 0, 1, topDocsAndMaxScore, searchHits, null);
+    }
+
+    private InternalTopHits createTopHitsWithSortValue(
+        String name,
+        SortField.Type type,
+        Object rawSortValue,
+        DocValueFormat format,
+        int size,
+        int shardIndex
+    ) {
+        SortField sortField = new SortField("field", type);
+        FieldDoc fieldDoc = new FieldDoc(0, 1.0f, new Object[] { rawSortValue });
+        TopFieldDocs topFieldDocs = new TopFieldDocs(
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            new FieldDoc[] { fieldDoc },
+            new SortField[] { sortField }
+        );
+        fieldDoc.shardIndex = shardIndex;
+
+        SearchHit hit = new SearchHit(0, "doc" + shardIndex);
+        hit.score(1.0f);
+        hit.sortValues(new Object[] { rawSortValue }, new DocValueFormat[] { format });
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topFieldDocs, 1.0f);
+        return new InternalTopHits(name, 0, size, topDocsAndMaxScore, searchHits, null);
     }
 
     @Override

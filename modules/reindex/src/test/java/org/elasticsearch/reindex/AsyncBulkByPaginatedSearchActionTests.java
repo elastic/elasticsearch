@@ -69,6 +69,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState.ThrottleDelay;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.rest.RestStatus;
@@ -271,8 +272,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             action.setScroll(scrollId());
         }
         action.onPaginatedSearchResponse(
-            lastBatchTime,
-            lastBatchSize,
+            worker.throttleDelay(lastBatchTime, System.nanoTime(), lastBatchSize),
             new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -762,8 +762,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             action.setScroll(scrollId());
         }
         action.onPaginatedSearchResponse(
-            System.nanoTime(),
-            0,
+            ThrottleDelay.ZERO,
             new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
@@ -948,7 +947,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         });
 
         // Set the base for the scroll to wait - this is added to the figure we calculate below
-        testRequest.getSearchRequest().scroll(timeValueSeconds(10));
+        TimeValue scrollBase = timeValueSeconds(10);
+        testRequest.getSearchRequest().scroll(scrollBase);
 
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
@@ -981,21 +981,20 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             assertEquals(0, capturedDelay.get().seconds());
             capturedCommand.get().run();
 
-            // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            TimeValue composedScroll = client.lastScroll.get().request.scroll();
+            TimeValue keepAliveExtension = TimeValue.timeValueNanos(composedScroll.nanos() - scrollBase.nanos());
+            assertThat(keepAliveExtension.seconds(), either(equalTo(99L)).or(equalTo(100L)));
+            assertThat(composedScroll, equalTo(TimeValue.timeValueNanos(scrollBase.nanos() + keepAliveExtension.nanos())));
 
-            // Now we can simulate a response and check the delay that we used for the task.
-            // Tolerate ±1 second: throttleWaitTime uses System.nanoTime() in the subtraction, so a small timing
-            // gap between nowNS and System.nanoTime() can change the delay by up to a second.
             if (randomBoolean()) {
                 client.lastScroll.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(99L)).or(equalTo(100L)));
+                assertThat(capturedDelay.get(), equalTo(keepAliveExtension));
             } else {
                 // Let's rethrottle between the starting the scroll and getting the response
                 worker.rethrottle(10f);
                 client.lastScroll.get().listener.onResponse(searchResponse);
-                // The delay uses the new throttle: 100 hits at 10 req/sec = 10 seconds
-                assertThat(capturedDelay.get().seconds(), either(equalTo(9L)).or(equalTo(10L)));
+                long expectedDelayNanos = Math.round(keepAliveExtension.nanos() * 1.0d / 10.0d);
+                assertThat(capturedDelay.get(), equalTo(TimeValue.timeValueNanos(expectedDelayNanos)));
             }
 
             // Running the command ought to increment the delay counter on the task.
@@ -1005,6 +1004,177 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             searchResponse.decRef();
             scrollResponse.decRef();
         }
+    }
+
+    public void testRemainingHitsKeepBulkStartTimeAsThrottleBaseline() {
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        setupClient(new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        });
+
+        worker.rethrottle(1f);
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
+        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+            false,
+            false,
+            emptyList(),
+            1,
+            singletonList(new PaginatedHitSource.BasicHit("index", "id", -1)),
+            scrollId(),
+            null
+        );
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            });
+
+        long thisBatchStartTimeNS = System.nanoTime() - TimeUnit.MINUTES.toNanos(2);
+        action.notifyDone(thisBatchStartTimeNS, asyncResponse, 60);
+
+        assertThat(capturedDelay.get().nanos(), equalTo(0L));
+    }
+
+    public void testPaginatedSearchWaitDoesNotChangePendingThrottleDelay() {
+        AtomicReference<TimeValue> capturedScheduledDelay = new AtomicReference<>();
+        setupClient(new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedScheduledDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        });
+
+        worker.rethrottle(1f);
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
+        AtomicReference<TimeValue> capturedKeepAlive = new AtomicReference<>();
+        var completedResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), scrollId(), null);
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    capturedKeepAlive.set(extraKeepAlive);
+                }
+            }
+        );
+
+        action.notifyDone(System.nanoTime() - TimeUnit.SECONDS.toNanos(5), completedResponse, 10);
+
+        assertThat(capturedKeepAlive.get().nanos(), greaterThan(0L));
+        assertThat(capturedKeepAlive.get().nanos(), lessThanOrEqualTo(TimeUnit.SECONDS.toNanos(10)));
+
+        var nextResponse = new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), 0, emptyList(), scrollId(), null);
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    fail("the next response should only be scheduled in this test");
+                }
+            }
+        );
+
+        action.onPaginatedSearchResponse(nextResponse);
+
+        assertThat(capturedScheduledDelay.get(), equalTo(capturedKeepAlive.get()));
+    }
+
+    public void testPageThrottleUsesTheCurrentBulkSizeAfterIntermediateBulkDelay() {
+        worker.rethrottle(1f);
+        AtomicReference<TimeValue> capturedIntermediateDelay = new AtomicReference<>();
+        AtomicReference<TimeValue> capturedKeepAlive = new AtomicReference<>();
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
+            @Override
+            void onPaginatedSearchResponse(
+                ThrottleDelay throttleDelay,
+                AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse
+            ) {
+                capturedIntermediateDelay.set(throttleDelay.delay());
+            }
+        };
+        List<Hit> hits = List.of(
+            new PaginatedHitSource.BasicHit("index", "first", -1),
+            new PaginatedHitSource.BasicHit("index", "second", -1)
+        );
+        AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse =
+            new AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return createPaginatedResponse(false, false, emptyList(), hits.size(), hits, scrollId(), null);
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    capturedKeepAlive.set(extraKeepAlive);
+                }
+            });
+
+        asyncResponse.consumeHits(1);
+        action.notifyDone(System.nanoTime(), asyncResponse, 50);
+        assertThat(capturedIntermediateDelay.get().nanos(), greaterThan(TimeUnit.SECONDS.toNanos(49)));
+        assertThat(capturedIntermediateDelay.get().nanos(), lessThanOrEqualTo(TimeUnit.SECONDS.toNanos(50)));
+
+        asyncResponse.consumeHits(1);
+        action.notifyDone(System.nanoTime(), asyncResponse, 50);
+
+        assertThat(capturedKeepAlive.get().nanos(), greaterThan(TimeUnit.SECONDS.toNanos(49)));
+        assertThat(capturedKeepAlive.get().nanos(), lessThanOrEqualTo(TimeUnit.SECONDS.toNanos(50)));
     }
 
     /**
@@ -1071,14 +1241,20 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             capturedCommand.get().run();
 
             assertNotNull("PIT next search should use SearchRequest", client.lastSearch.get());
+            TimeValue pitBase = TimeValue.timeValueMinutes(5);
+            TimeValue composedKeepAlive = client.lastSearch.get().request.source().pointInTimeBuilder().getKeepAlive();
+            TimeValue keepAliveExtension = TimeValue.timeValueNanos(composedKeepAlive.nanos() - pitBase.nanos());
+            assertThat(keepAliveExtension.seconds(), either(equalTo(99L)).or(equalTo(100L)));
+            assertThat(composedKeepAlive, equalTo(TimeValue.timeValueNanos(pitBase.nanos() + keepAliveExtension.nanos())));
 
             if (randomBoolean()) {
                 client.lastSearch.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(99L)).or(equalTo(100L)));
+                assertThat(capturedDelay.get(), equalTo(keepAliveExtension));
             } else {
                 worker.rethrottle(10f);
                 client.lastSearch.get().listener.onResponse(searchResponse);
-                assertThat(capturedDelay.get().seconds(), either(equalTo(9L)).or(equalTo(10L)));
+                long expectedDelayNanos = Math.round(keepAliveExtension.nanos() * 1.0d / 10.0d);
+                assertThat(capturedDelay.get(), equalTo(TimeValue.timeValueNanos(expectedDelayNanos)));
             }
 
             capturedCommand.get().run();
@@ -2050,13 +2226,16 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final String expectedScrollId = scrollId();
-        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final long expectedBatchStartTimeNS = System.nanoTime();
+        final int expectedBatchSize = 2;
+        final AtomicBoolean onPaginatedSearchResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
             void onPaginatedSearchResponse(
+                final ThrottleDelay throttleDelay,
                 final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse
             ) {
-                onScrollResponseCalled.set(true);
+                onPaginatedSearchResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
         };
@@ -2080,9 +2259,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             }
         );
 
-        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+        action.notifyDone(expectedBatchStartTimeNS, asyncResponse, expectedBatchSize);
 
-        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat(
+            "should continue consuming remaining hits via onPaginatedSearchResponse",
+            onPaginatedSearchResponseCalled.get(),
+            equalTo(true)
+        );
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
@@ -2096,13 +2279,16 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final Object[] expectedSearchAfter = new Object[] { "search_after" };
-        final AtomicBoolean onScrollResponseCalled = new AtomicBoolean();
+        final long expectedBatchStartTimeNS = System.nanoTime();
+        final int expectedBatchSize = 2;
+        final AtomicBoolean onPaginatedSearchResponseCalled = new AtomicBoolean();
         final DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction() {
             @Override
             void onPaginatedSearchResponse(
+                final ThrottleDelay throttleDelay,
                 final AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse asyncResponse
             ) {
-                onScrollResponseCalled.set(true);
+                onPaginatedSearchResponseCalled.set(true);
                 // don't call super - continues ingesting and listener might complete before assertions
             }
         };
@@ -2126,9 +2312,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             }
         );
 
-        action.notifyDone(System.nanoTime(), asyncResponse, 0);
+        action.notifyDone(expectedBatchStartTimeNS, asyncResponse, expectedBatchSize);
 
-        assertThat("should continue consuming remaining hits via onPaginatedSearchResponse", onScrollResponseCalled.get(), equalTo(true));
+        assertThat(
+            "should continue consuming remaining hits via onPaginatedSearchResponse",
+            onPaginatedSearchResponseCalled.get(),
+            equalTo(true)
+        );
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 

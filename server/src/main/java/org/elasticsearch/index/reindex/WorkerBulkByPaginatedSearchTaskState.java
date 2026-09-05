@@ -39,6 +39,29 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  */
 public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcessed {
 
+    /**
+     * A throttle delay paired with the rate that was used to calculate it. Keeping both values allows a delay that was calculated before
+     * a paginated search request to be shortened safely if the task is rethrottled while waiting for the response.
+     */
+    public record ThrottleDelay(TimeValue delay, float requestsPerSecond) {
+        public static final ThrottleDelay ZERO = new ThrottleDelay(TimeValue.ZERO, Float.POSITIVE_INFINITY);
+
+        public ThrottleDelay {
+            Objects.requireNonNull(delay);
+            if (requestsPerSecond <= 0 || Float.isNaN(requestsPerSecond)) {
+                throw new IllegalArgumentException("requests per second must be more than 0 but was [" + requestsPerSecond + "]");
+            }
+        }
+
+        private ThrottleDelay rethrottle(float newRequestsPerSecond) {
+            if (newRequestsPerSecond <= requestsPerSecond) {
+                return this;
+            }
+            long adjustedDelayNanos = round((double) delay.nanos() * requestsPerSecond / newRequestsPerSecond);
+            return new ThrottleDelay(timeValueNanos(adjustedDelayNanos), newRequestsPerSecond);
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(WorkerBulkByPaginatedSearchTaskState.class);
 
     /**
@@ -226,13 +249,32 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
         int lastBatchSize,
         AbstractRunnable prepareBulkRequestRunnable
     ) {
+        delayPrepareBulkRequest(
+            threadPool,
+            throttleDelay(lastBatchStartTimeNS, System.nanoTime(), lastBatchSize),
+            prepareBulkRequestRunnable
+        );
+    }
+
+    /**
+     * Schedule {@code prepareBulkRequestRunnable} using a delay calculated before a paginated search request. A faster rethrottle that
+     * happened while waiting for the response shortens the delay. A slower rethrottle takes effect on the next batch so the current search
+     * context is never kept alive for less time than the delay scheduled here.
+     */
+    public void delayPrepareBulkRequest(ThreadPool threadPool, ThrottleDelay throttleDelay, AbstractRunnable prepareBulkRequestRunnable) {
         // Synchronize so we are less likely to schedule the same request twice.
         synchronized (delayedPrepareBulkRequestReference) {
-            TimeValue delay = throttleWaitTime(lastBatchStartTimeNS, System.nanoTime(), lastBatchSize);
+            ThrottleDelay adjustedThrottleDelay = throttleDelay.rethrottle(getRequestsPerSecond());
+            TimeValue delay = adjustedThrottleDelay.delay();
             logger.debug("[{}]: preparing bulk request for [{}]", task.getId(), delay);
             try {
                 delayedPrepareBulkRequestReference.set(
-                    new DelayedPrepareBulkRequest(threadPool, getRequestsPerSecond(), delay, new RunOnce(prepareBulkRequestRunnable))
+                    new DelayedPrepareBulkRequest(
+                        threadPool,
+                        adjustedThrottleDelay.requestsPerSecond(),
+                        delay,
+                        new RunOnce(prepareBulkRequestRunnable)
+                    )
                 );
             } catch (EsRejectedExecutionException e) {
                 prepareBulkRequestRunnable.onRejection(e);
@@ -240,29 +282,46 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
         }
     }
 
+    /**
+     * Calculates the remaining throttle wait for the previous bulk batch. The target batch time is based on the batch size and the current
+     * requests-per-second limit, then reduced by the elapsed time since the batch started.
+     */
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
-        long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
-        return timeValueNanos(waitTime);
+        return throttleDelay(lastBatchStartTimeNS, nowNS, lastBatchSize).delay();
+    }
+
+    /**
+     * Calculates the remaining throttle wait and captures the rate used for the calculation.
+     */
+    public ThrottleDelay throttleDelay(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
+        float requestsPerSecond = getRequestsPerSecond();
+        long targetBatchTime = round(perfectlyThrottledBatchTime(lastBatchSize, requestsPerSecond));
+        long elapsedBatchTime = max(0, nowNS - lastBatchStartTimeNS);
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, targetBatchTime - elapsedBatchTime));
+        return new ThrottleDelay(timeValueNanos(waitTime), requestsPerSecond);
     }
 
     /**
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
      */
-    float perfectlyThrottledBatchTime(int lastBatchSize) {
+    double perfectlyThrottledBatchTime(int lastBatchSize) {
+        return perfectlyThrottledBatchTime(lastBatchSize, getRequestsPerSecond());
+    }
+
+    private static double perfectlyThrottledBatchTime(int lastBatchSize, float requestsPerSecond) {
         if (requestsPerSecond == Float.POSITIVE_INFINITY) {
             return 0;
         }
         // requests
         // ------------------- == seconds
         // request per seconds
-        float targetBatchTimeInSeconds = lastBatchSize / requestsPerSecond;
+        double targetBatchTimeInSeconds = lastBatchSize / (double) requestsPerSecond;
         // nanoseconds per seconds * seconds == nanoseconds
         return TimeUnit.SECONDS.toNanos(1) * targetBatchTimeInSeconds;
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {
-        if (requestsPerSecond <= 0) {
+        if (requestsPerSecond <= 0 || Float.isNaN(requestsPerSecond)) {
             throw new IllegalArgumentException("requests per second must be more than 0 but was [" + requestsPerSecond + "]");
         }
         this.requestsPerSecond = requestsPerSecond;
@@ -355,7 +414,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
              * is given a runOnce boolean to prevent that. */
             TimeValue newDelay = newDelay(remainingDelay, newRequestsPerSecond);
             logger.debug("[{}]: rescheduling for [{}] in the future", task.getId(), newDelay);
-            return new DelayedPrepareBulkRequest(threadPool, requestsPerSecond, newDelay, command);
+            return new DelayedPrepareBulkRequest(threadPool, newRequestsPerSecond, newDelay, command);
         }
 
         /**
@@ -365,7 +424,7 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
             if (remainingDelay < 0) {
                 return timeValueNanos(0);
             }
-            return timeValueNanos(round(remainingDelay * requestsPerSecond / newRequestsPerSecond));
+            return timeValueNanos(round((double) remainingDelay * requestsPerSecond / newRequestsPerSecond));
         }
     }
 }

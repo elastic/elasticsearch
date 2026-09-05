@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 150875
+pr: 151208
+summary: Account for elapsed bulk processing time when throttling reindex requests
+type: bug

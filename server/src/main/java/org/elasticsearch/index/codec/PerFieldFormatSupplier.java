@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataDocValuesFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -46,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -234,20 +236,30 @@ public class PerFieldFormatSupplier {
         return knnVectorsFormat;
     }
 
+    /**
+     * Returns the {@link DocValuesFormat} to use for the given field.
+     * Metadata field mappers extending {@link MetadataDocValuesFieldMapper} can override the default format.
+     */
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        final DocValuesFormat format;
         if (useTSDBSyntheticId(field)) {
-            return idBloomFilterDocValuesFormat;
+            format = idBloomFilterDocValuesFormat;
+        } else if (keywordColumnarDocValuesFormat != null && isKeywordField(field)) {
+            format = keywordColumnarDocValuesFormat;
+        } else if (useTSDBDocValuesFormat(field)) {
+            format = tsdbDocValuesFormat;
+        } else {
+            format = docValuesFormat;
         }
 
-        if (keywordColumnarDocValuesFormat != null && isKeywordField(field)) {
-            return keywordColumnarDocValuesFormat;
+        if (mapperService != null && MetadataDocValuesFieldMapper.isPermittedFieldName(field)) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper instanceof MetadataDocValuesFieldMapper docValuesFieldMapper) {
+                return Objects.requireNonNull(docValuesFieldMapper.getDocValuesFormatForField(format));
+            }
         }
 
-        if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
-        }
-
-        return docValuesFormat;
+        return format;
     }
 
     private boolean isKeywordField(String field) {

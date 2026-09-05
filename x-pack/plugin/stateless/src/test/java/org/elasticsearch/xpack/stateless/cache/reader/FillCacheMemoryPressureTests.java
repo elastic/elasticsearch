@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -260,20 +261,51 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
         assertThat(pressure.getWaiterCount(), equalTo(0));
     }
 
-    public void testWarnsWhenQueueHeadIsStalled() throws Exception {
+    /**
+     * Stall = full threshold with zero budget released while reads queue. Head age is not a stall — under sustained load every
+     * head has waited its whole queue transit, so age-based semantics WARN on a healthy queue (phase 1 fails under them).
+     */
+    public void testWarnsOnlyWhenNoBudgetReleasedWhileReadsQueue() {
+        final long thresholdMillis = TimeValue.timeValueSeconds(60).millis();
+        var deterministicTaskQueue = new DeterministicTaskQueue();
         var pressure = new FillCacheMemoryPressure(
             Settings.builder()
                 .put(FillCacheMemoryPressure.FILL_BYTES_LIMIT.getKey(), ByteSizeValue.ofBytes(100))
-                .put(FillCacheMemoryPressure.STALL_WARN_THRESHOLD.getKey(), TimeValue.timeValueMillis(50))
+                .put(FillCacheMemoryPressure.STALL_WARN_THRESHOLD.getKey(), TimeValue.timeValueMillis(thresholdMillis))
                 .build(),
             MeterRegistry.NOOP,
-            threadPool
+            deterministicTaskQueue.getThreadPool()
         );
-        List<Releasable> granted = new ArrayList<>();
-        pressure.acquire(100, INLINE_GRANTS, collectTo(granted));
-        List<Releasable> queuedGrants = new CopyOnWriteArrayList<>();
-        pressure.acquire(10, INLINE_GRANTS, collectTo(queuedGrants));
+        List<Releasable> grants = new CopyOnWriteArrayList<>();
+        pressure.acquire(100, INLINE_GRANTS, collectTo(grants));
+        pressure.acquire(100, INLINE_GRANTS, collectTo(grants)); // queues; arms the stall check
 
+        // phase 1: release every half-threshold with the queue always non-empty → no WARN
+        try (var mockLog = MockLog.capture(FillCacheMemoryPressure.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no stall warning while budget flows",
+                    FillCacheMemoryPressure.class.getCanonicalName(),
+                    Level.WARN,
+                    "cache-fill memory budget stalled*"
+                )
+            );
+            long now = deterministicTaskQueue.getCurrentTimeMillis();
+            for (long t = now + thresholdMillis / 2; t <= now + 4 * thresholdMillis; t += thresholdMillis / 2) {
+                deterministicTaskQueue.scheduleAt(t, () -> {
+                    grants.remove(0).close();
+                    pressure.acquire(100, INLINE_GRANTS, collectTo(grants)); // keep one waiter queued
+                    assertThat(pressure.getWaiterCount(), equalTo(1));
+                });
+            }
+            while (deterministicTaskQueue.getCurrentTimeMillis() < now + 4 * thresholdMillis) {
+                deterministicTaskQueue.advanceTime();
+                deterministicTaskQueue.runAllRunnableTasks();
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        // phase 2: no more releases → WARN after one full quiet threshold
         try (var mockLog = MockLog.capture(FillCacheMemoryPressure.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -283,15 +315,19 @@ public class FillCacheMemoryPressureTests extends ESTestCase {
                     "cache-fill memory budget stalled*"
                 )
             );
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            for (int i = 0; i < 3; i++) {
+                deterministicTaskQueue.advanceTime();
+                deterministicTaskQueue.runAllRunnableTasks();
+            }
+            mockLog.assertAllExpectationsMatched();
         }
 
-        // draining the in-flight read unblocks the waiter and disarms the stall check
-        granted.get(0).close();
-        assertThat(queuedGrants, hasSize(1));
-        queuedGrants.forEach(Releasable::close);
+        while (grants.isEmpty() == false) {
+            grants.remove(0).close();
+        }
         assertThat(pressure.getCurrentBytes(), equalTo(0L));
         assertThat(pressure.getWaiterCount(), equalTo(0));
+        deterministicTaskQueue.runAllTasksInTimeOrder(); // re-armed check sees the empty queue and disarms
     }
 
     public void testRandomizedAcquireReleaseNeverExceedsLimitAndFullyDrains() {

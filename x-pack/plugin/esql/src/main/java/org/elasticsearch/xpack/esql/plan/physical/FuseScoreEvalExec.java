@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FuseScoreEvalExec extends UnaryExec {
     private final Attribute scoreAttr;
@@ -63,5 +64,26 @@ public class FuseScoreEvalExec extends UnaryExec {
     @Override
     protected AttributeSet computeReferences() {
         return AttributeSet.of(scoreAttr, discriminatorAttr);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), scoreAttr, discriminatorAttr, fuseConfig);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        FuseScoreEvalExec other = (FuseScoreEvalExec) obj;
+        return child().equals(other.child())
+            && Objects.equals(scoreAttr, other.scoreAttr)
+            && Objects.equals(discriminatorAttr, other.discriminatorAttr)
+            && Objects.equals(fuseConfig, other.fuseConfig);
     }
 }

@@ -70,6 +70,8 @@ public final class SearchCapabilities {
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
+    /** Detailed kNN search profiling breakdown ({@code dfs.knn[].knn_profile} and {@code searches[].knn_profile}). */
+    private static final String KNN_SEARCH_PROFILE = "knn_search_profile";
     /** Query types that keyed {@code flattened} subfields do not support are rejected with a 400 instead of a 500. */
     private static final String KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST = "keyed_flattened_unsupported_queries_bad_request";
 
@@ -109,6 +111,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_QUERY_VECTOR_BASE64);
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
+        capabilities.add(KNN_SEARCH_PROFILE);
         capabilities.add(KEYED_FLATTENED_UNSUPPORTED_QUERIES_BAD_REQUEST);
         CAPABILITIES = Set.copyOf(capabilities);
     }

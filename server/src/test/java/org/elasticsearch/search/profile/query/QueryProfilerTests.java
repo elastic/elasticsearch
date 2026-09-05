@@ -47,6 +47,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryProfilerTests extends ESTestCase {
 
@@ -280,6 +282,42 @@ public class QueryProfilerTests extends ESTestCase {
         weight.scorerSupplier(s.getIndexReader().leaves().get(0));
         reader.close();
         dir.close();
+    }
+
+    public void testKnnProfileBreakdownAbsentWhenNothingPublished() {
+        assertThat(new QueryProfiler().getKnnProfileBreakdown(), nullValue());
+    }
+
+    public void testKnnProfileBreakdownSingleQueryIsNotWrapped() {
+        QueryProfiler profiler = new QueryProfiler();
+        Map<String, Object> only = QueryProfileShardResultTests.createRandomKnnProfile();
+        profiler.addKnnProfileBreakdown(only);
+        // A single kNN query surfaces its breakdown directly, not wrapped in a knn_queries list.
+        assertThat(profiler.getKnnProfileBreakdown(), sameInstance(only));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testKnnProfileBreakdownMultipleQueriesAreWrapped() {
+        QueryProfiler profiler = new QueryProfiler();
+        profiler.addKnnProfileBreakdown(Map.of("algorithm", "ivf"));
+        profiler.addKnnProfileBreakdown(Map.of("algorithm", "hnsw"));
+
+        Map<String, Object> collapsed = profiler.getKnnProfileBreakdown();
+        List<Map<String, Object>> queries = (List<Map<String, Object>>) collapsed.get("knn_queries");
+        assertThat(queries.size(), equalTo(2));
+        assertThat(queries.get(0).get("algorithm"), equalTo("ivf"));
+        assertThat(queries.get(1).get("algorithm"), equalTo("hnsw"));
+    }
+
+    public void testLastKnnProfileBreakdownIsAppendedWhenEmpty() {
+        QueryProfiler profiler = new QueryProfiler();
+        assertThat(profiler.getLastKnnProfileBreakdown(), nullValue());
+
+        // A wrapper query (rescore) over a non-ES inner query has nothing to merge into, so its section
+        // must still be published rather than dropped.
+        Map<String, Object> rescoreOnly = Map.of("rescore", Map.of("type", "late"));
+        profiler.setLastKnnProfileBreakdown(rescoreOnly);
+        assertThat(profiler.getKnnProfileBreakdown(), sameInstance(rescoreOnly));
     }
 
 }

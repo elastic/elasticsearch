@@ -188,13 +188,19 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         byte[] leafQuery
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator, profileData);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
+        long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         reader.searchNearestVectors(field, leafQuery, knnCollector, acceptDocs);
+        if (profileData != null) {
+            // The codec resolves the visit ratio it actually used onto the (per-leaf) strategy, which may
+            // differ from the requested one when the ratio is computed dynamically.
+            profileData.addIvfLeafSearch(context, System.nanoTime() - leafSearchStart, strategy.getResolvedVisitRatio());
+        }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()
             : knnCollector.topDocs();

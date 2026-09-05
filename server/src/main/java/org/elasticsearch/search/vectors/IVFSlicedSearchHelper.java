@@ -56,6 +56,7 @@ final class IVFSlicedSearchHelper {
         LeafReaderContext ctx,
         Weight filterWeight,
         AbstractIVFKnnVectorQuery.IVFCollectorManager knnCollectorManager,
+        KnnSearchProfileData profileData,
         float visitRatio,
         int numCands,
         int k,
@@ -78,7 +79,13 @@ final class IVFSlicedSearchHelper {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
+            visitRatio,
+            numCands,
+            k,
+            knnCollectorManager.longAccumulator,
+            profileData
+        );
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return AbstractIVFKnnVectorQuery.NO_RESULTS;
@@ -133,6 +140,7 @@ final class IVFSlicedSearchHelper {
             docIdIteratorSupplier = null;
             costSupplier = null;
         }
+        long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         if (ords != null) {
             for (int i = 0; i < ords.length; i++) {
                 assert i == 0 || ords[i - 1] < ords[i];
@@ -167,6 +175,11 @@ final class IVFSlicedSearchHelper {
                     sliceSearcher
                 );
             }
+        }
+        if (profileData != null) {
+            // The codec resolves the visit ratio it actually used onto the (per-leaf) strategy; when several
+            // slices are searched for this leaf, the ratio of the last one searched is reported.
+            profileData.addIvfLeafSearch(ctx, System.nanoTime() - leafSearchStart, strategy.getResolvedVisitRatio());
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

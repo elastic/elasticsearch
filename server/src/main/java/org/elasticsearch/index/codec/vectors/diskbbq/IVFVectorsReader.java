@@ -31,11 +31,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
+import org.elasticsearch.search.vectors.KnnSearchProfileData;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -455,11 +457,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
+        KnnSearchProfileData profileData = null;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
-        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
+        final IVFKnnSearchStrategy ivfSearchStrategy = knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy s ? s : null;
+        if (ivfSearchStrategy != null) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
+            profileData = ivfSearchStrategy.getProfileData();
         }
 
         if (visitRatio == dynamicVisitRatio) {
@@ -468,8 +473,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 computeSegmentSizeCap(numVectors)
             );
         }
+        if (ivfSearchStrategy != null) {
+            // Report the ratio back on the strategy rather than straight onto the shared profile data: one
+            // strategy exists per leaf search, so the query can attribute it to the right segment.
+            ivfSearchStrategy.setResolvedVisitRatio(visitRatio);
+        }
         long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
+        long centroidIteratorStartNs = profileData != null ? System.nanoTime() : 0;
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
@@ -481,6 +492,9 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             values,
             visitRatio
         );
+        if (profileData != null) {
+            profileData.addCentroidIteratorCreateTimeNs(System.nanoTime() - centroidIteratorStartNs);
+        }
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(
             fieldInfo,
@@ -491,8 +505,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             entry.centroidSlice(ivfCentroids),
             esAcceptDocs
         );
+        if (profileData != null) {
+            scorer.enableProfiling();
+        }
         long expectedDocs = 0;
         long actualDocs = 0;
+        int centroidsEvaluated = 0;
+        long postingVisitTimeNs = 0;
+        long resetScorerTimeNs = 0;
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
@@ -500,8 +520,17 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+            long resetStartNs = profileData != null ? System.nanoTime() : 0;
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
+            if (profileData != null) {
+                resetScorerTimeNs += System.nanoTime() - resetStartNs;
+            }
+            long visitStartNs = profileData != null ? System.nanoTime() : 0;
             actualDocs += scorer.visit(knnCollector);
+            if (profileData != null) {
+                postingVisitTimeNs += System.nanoTime() - visitStartNs;
+            }
+            centroidsEvaluated++;
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
@@ -513,11 +542,31 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                long resetStartNs = profileData != null ? System.nanoTime() : 0;
                 scorer.resetPostingsScorer(postingMetadata);
+                if (profileData != null) {
+                    resetScorerTimeNs += System.nanoTime() - resetStartNs;
+                }
+                long visitStartNs = profileData != null ? System.nanoTime() : 0;
                 actualDocs += scorer.visit(knnCollector);
+                if (profileData != null) {
+                    postingVisitTimeNs += System.nanoTime() - visitStartNs;
+                }
+                centroidsEvaluated++;
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
+            }
+        }
+        if (profileData != null) {
+            profileData.addCentroidsEvaluated(centroidsEvaluated);
+            profileData.addResetPostingsScorerTimeNs(resetScorerTimeNs);
+            profileData.addPostingVisitTimeNs(postingVisitTimeNs);
+            profileData.addPostingsScored(actualDocs);
+            profileData.addExpectedDocs(expectedDocs);
+            PostingVisitor.Profile visitorProfile = scorer.profile();
+            if (visitorProfile != null) {
+                profileData.addVisitorProfile(visitorProfile);
             }
         }
     }
@@ -777,6 +826,40 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
+
+        /**
+         * Enables collection of per-visitor timing breakdowns. Called at most once, before any
+         * {@link #visit}/{@link #resetPostingsScorer} call, and only when detailed profiling is active,
+         * so timing accumulation stays off the hot path for non-profiled queries.
+         */
+        default void enableProfiling() {}
+
+        /**
+         * The timings accumulated since {@link #enableProfiling()}, or {@code null} when this visitor does
+         * not collect them. Read once, after the search loop has finished draining postings.
+         */
+        @Nullable
+        default Profile profile() {
+            return null;
+        }
+
+        /**
+         * A visitor's timing breakdown, harvested once at the end of a search.
+         *
+         * @param docIdReadTimeNs         accumulated time reading and decoding doc IDs
+         * @param scoringTimeNs           accumulated time in quantized scoring (SIMD bulk + individual)
+         * @param queryQuantizationTimeNs accumulated time quantizing the query vector against each centroid
+         * @param centroidReadTimeNs      accumulated time reading centroid vectors in resetPostingsScorer
+         * @param scorerImplementation    the scorer implementation family that ran: {@code native},
+         *                                {@code panama}, or {@code scalar}
+         */
+        record Profile(
+            long docIdReadTimeNs,
+            long scoringTimeNs,
+            long queryQuantizationTimeNs,
+            long centroidReadTimeNs,
+            String scorerImplementation
+        ) {}
     }
 
 }

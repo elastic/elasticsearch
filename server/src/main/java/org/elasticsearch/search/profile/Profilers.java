@@ -63,11 +63,16 @@ public final class Profilers {
      * Build the results for the query phase.
      */
     public SearchProfileQueryPhaseResult buildQueryPhaseResults() {
+        // kNN queries used inside the query DSL self-publish their vector-op count and knn_profile breakdown
+        // onto this profiler during rewrite(). Emit vector_operations_count only when non-zero so the output
+        // is unchanged for the (overwhelmingly common) non-kNN query.
+        long vectorOps = queryProfiler.getVectorOpsCount();
         QueryProfileShardResult result = new QueryProfileShardResult(
             queryProfiler.getTree(),
             queryProfiler.getRewriteTime(),
             queryProfiler.getCollectorResult(),
-            null
+            vectorOps == 0 ? null : vectorOps,
+            queryProfiler.getKnnProfileBreakdown()
         );
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
         return new SearchProfileQueryPhaseResult(Collections.singletonList(result), aggResults);

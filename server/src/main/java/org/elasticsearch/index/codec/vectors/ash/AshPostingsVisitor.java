@@ -20,6 +20,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
+import org.elasticsearch.search.vectors.KnnSearchProfileData;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -242,6 +243,12 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     private float currentQueryCentroidSqDist;
     private float currentCentroidNormSq;
 
+    // Profiling: enabled once before any visit() call, keeping System.nanoTime() off the hot path otherwise.
+    private boolean collectProfile = false;
+    private long profileDocIdReadTimeNs;
+    private long profileScoringTimeNs;
+    private long profileCentroidReadTimeNs;
+
     /**
      * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
      * @param originalDim original vector dimensionality (number of columns in wT)
@@ -315,6 +322,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
     @Override
     public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
+        long startNs = collectProfile ? System.nanoTime() : 0;
         indexInput.seek(metadata.offset());
         vectors = indexInput.readVInt();
         int centroidOrd = indexInput.readVInt();
@@ -332,6 +340,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         docEncoding = indexInput.readByte();
         docBase = 0;
 
+        if (collectProfile) {
+            profileCentroidReadTimeNs += System.nanoTime() - startNs;
+        }
         return vectors;
     }
 
@@ -356,7 +367,11 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     }
 
     private int processBlock(KnnCollector knnCollector, int blockSize) throws IOException {
+        long docIdStartNs = collectProfile ? System.nanoTime() : 0;
         readDocIds(blockSize);
+        if (collectProfile) {
+            profileDocIdReadTimeNs += System.nanoTime() - docIdStartNs;
+        }
         int docsToScore = filterAcceptedDocs(blockSize);
         if (docsToScore == 0) {
             // Skip the entire block: codes + corrections
@@ -364,6 +379,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
             indexInput.skipBytes(bytesToSkip);
             return 0;
         }
+
+        long scoreStartNs = collectProfile ? System.nanoTime() : 0;
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
         scorer.scoreBulk(scorerQuery, blockSize, scores);
@@ -382,6 +399,9 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                     maxScore = scores[j];
                 }
             }
+        }
+        if (collectProfile) {
+            profileScoringTimeNs += System.nanoTime() - scoreStartNs;
         }
 
         if (knnCollector.minCompetitiveSimilarity() < maxScore) {
@@ -434,5 +454,25 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 knnCollector.collect(doc, scores[ii]);
             }
         }
+    }
+
+    @Override
+    public void enableProfiling() {
+        this.collectProfile = true;
+    }
+
+    @Override
+    public Profile profile() {
+        // ASH quantizes the query once per search rather than per centroid, so it reports no
+        // query-quantization time of its own.
+        return collectProfile
+            ? new Profile(
+                profileDocIdReadTimeNs,
+                profileScoringTimeNs,
+                0L,
+                profileCentroidReadTimeNs,
+                KnnSearchProfileData.scorerImplementation(scorer)
+            )
+            : null;
     }
 }

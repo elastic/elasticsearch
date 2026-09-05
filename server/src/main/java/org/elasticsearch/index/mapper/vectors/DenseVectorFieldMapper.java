@@ -113,6 +113,7 @@ import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.PostFilterableKnnQuery;
+import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -3691,6 +3692,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
             }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
+            }
             return knnQuery;
         }
 
@@ -3807,6 +3813,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
+            }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             return knnQuery;
         }
@@ -3931,6 +3942,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     similarity.score(similarityThreshold, element.elementType(), dims)
                 );
+            }
+            // Applied to the outermost query: every wrapper built above (post-filter, rescore, similarity
+            // threshold) forwards it down to the query that actually collects the breakdown.
+            if (indexOptions != null && knnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+                queryProfilerProvider.setQuantization(indexOptions.getType().getName());
             }
             return knnQuery;
         }

@@ -15,7 +15,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TimeLimitingKnnCollectorManager;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -38,6 +40,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
+    private String quantization;
+    /** Non-null only while this query is being profiled; see {@link HnswKnnProfileSupport}. */
+    private HnswKnnProfileSupport profiling;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -84,22 +89,62 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
-    public Query rewrite(IndexSearcher searcher) throws IOException {
-        this.leaves = searcher.getIndexReader().leaves();
-        return super.rewrite(searcher);
+    public void enableProfiling() {
+        profiling = new HnswKnnProfileSupport(field, quantization, kParam, getK(), getFilter() != null);
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        assert profiling == null : "quantization must be set before profiling is enabled, it is snapshotted when it is";
+        this.quantization = quantization;
+    }
+
+    @Override
+    protected TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, TimeLimitingKnnCollectorManager cm) throws IOException {
+        long start = profiling == null ? 0 : System.nanoTime();
+        TopDocs result = super.searchLeaf(ctx, filterWeight, cm);
+        if (profiling != null) {
+            profiling.recordLeafSearch(ctx, start, result);
+        }
+        return result;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         this.rawPerLeafResults = perLeafResults;
+        long start = profiling == null ? 0 : System.nanoTime();
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
+        if (profiling != null) {
+            profiling.recordMerge(start, topK);
+        }
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
 
     @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        this.leaves = searcher.getIndexReader().leaves();
+        // Enabling ourselves here is also what earns us the right to publish: if profiling was already on, a
+        // caller enabled it and will harvest us itself, so profiler stays null and we only collect.
+        QueryProfiler profiler = profiling == null ? QueryProfilerProvider.activeProfiler(searcher) : null;
+        if (profiler != null) {
+            enableProfiling();
+        }
+        long start = profiling == null ? 0 : System.nanoTime();
+        Query result = super.rewrite(searcher);
+        if (profiling != null) {
+            profiling.recordTotalSearchTime(start);
+            profiling.publish(profiler, this);
+        }
+        return result;
+    }
+
+    @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
+        if (profiling != null) {
+            profiling.addBreakdownTo(queryProfiler);
+        }
     }
 
     @Override

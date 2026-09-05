@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
@@ -230,6 +231,11 @@ public abstract class AbstractPhysicalOperationProviders {
                 HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
                 if (topAggregation != null) {
                     builder.topAggregation(topAggregation);
+                } else {
+                    HashAggregationOperator.LimitAggregation limitAggregation = extractLimitAggregation(aggregateExec, context);
+                    if (limitAggregation != null) {
+                        builder.limitAggregation(limitAggregation);
+                    }
                 }
                 operatorFactory = builder.build();
             }
@@ -532,6 +538,43 @@ public abstract class AbstractPhysicalOperationProviders {
                 return new HashAggregationOperator.TopAggregation(aggregatorIndex, order.direction() == Order.OrderDirection.ASC, limit);
             }
             aggregatorIndex++;
+        }
+        return null;
+    }
+
+    private static HashAggregationOperator.LimitAggregation extractLimitAggregation(
+        AggregateExec aggregateExec,
+        LocalExecutionPlannerContext context
+    ) {
+        if (aggregateExec.getMode().isOutputPartial()) {
+            return null;
+        }
+        LimitExec limit = context.lastVisitedLimit().get();
+        if (limit == null) {
+            return null;
+        }
+        PhysicalPlan child = limit.child();
+        while (child != aggregateExec) {
+            if (child instanceof EvalExec eval) {
+                child = eval.child();
+            } else if (child instanceof ProjectExec project) {
+                child = project.child();
+            } else {
+                return null;
+            }
+        }
+        if (limit.limit().foldable() == false) {
+            return null;
+        }
+        if (limit.limit().fold(context.foldCtx()) instanceof Number number) {
+            try {
+                int limitValue = Math.toIntExact(number.longValue());
+                if (limitValue >= 0) {
+                    return new HashAggregationOperator.LimitAggregation(limitValue);
+                }
+            } catch (ArithmeticException e) {
+                return null;
+            }
         }
         return null;
     }

@@ -45,6 +45,12 @@ abstract class AdaptiveBlockHash extends BlockHash {
         current.add(page, addInput);
     }
 
+    @Override
+    public final void addAfterLimitReached(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        prepareAddInput(page);
+        current.addAfterLimitReached(page, addInput);
+    }
+
     /**
      * Prepare the delegate block hash to add input from the given page.
      */

@@ -287,6 +287,66 @@ public class EscfColumnSliceTests extends ESTestCase {
     }
 
     /**
+     * A sliced ARRAY column with a nullable child must still read null elements at the correct
+     * absolute element indices. The child stays unsliced; only {@link ColumnarArrayReader} uses
+     * absolute element positions.
+     */
+    public void testArraySliceWithNullableChild() {
+        // 3 rows: [[1, null, 3], [null, 99], [5]]
+        // Total 6 elements; child validity: bits 1 and 3 are clear (null).
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.beginArray(0);
+        b.appendLong(1L);
+        b.appendNull();    // element 1 → null
+        b.appendLong(3L);
+        b.endArray();
+        b.beginArray(1);
+        b.appendNull();    // element 3 (absolute) → null
+        b.appendLong(99L);
+        b.endArray();
+        b.beginArray(2);
+        b.appendLong(5L);
+        b.endArray();
+        EscfColumnData data = b.finish(3);
+        EscfColumn col = EscfColumn.from(data);
+
+        // Slice [1, 3) → rows 1 and 2: [[null, 99], [5]]
+        EscfColumn slice = col.sliceInternal(1, 2);
+        assertEquals(2, slice.docCount);
+
+        // Row 0 of slice: [null, 99]
+        var r0 = slice.getArrayValue(0);
+        assertTrue(r0.next());
+        assertTrue(r0.isNull());
+        assertEquals(SourceValueType.NULL, r0.type());
+        assertTrue(r0.next());
+        assertFalse(r0.isNull());
+        assertEquals(SourceValueType.LONG, r0.type());
+        assertEquals(99L, r0.longValue());
+        assertFalse(r0.next());
+
+        // Row 1 of slice: [5]
+        var r1 = slice.getArrayValue(1);
+        assertTrue(r1.next());
+        assertFalse(r1.isNull());
+        assertEquals(5L, r1.longValue());
+        assertFalse(r1.next());
+
+        // toColumnData round-trip
+        EscfColumnData sliceData = slice.toColumnData();
+        assertEquals(EscfColumnKind.ARRAY, sliceData.kind());
+        assertNotNull("nullable child must carry its validity after round-trip", sliceData.child().validity());
+        EscfColumn reparsed = EscfColumn.from(sliceData);
+        var rep0 = reparsed.getArrayValue(0);
+        assertTrue(rep0.next());
+        assertTrue(rep0.isNull());
+        assertTrue(rep0.next());
+        assertFalse(rep0.isNull());
+        assertEquals(99L, rep0.longValue());
+        assertFalse(rep0.next());
+    }
+
+    /**
      * Returns the {@link EscfColumnData} for the given column (materialized via {@link EscfColumn#toColumnData}).
      * Package-private method, so this helper is in the same package.
      */

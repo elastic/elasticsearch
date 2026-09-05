@@ -220,7 +220,7 @@ public final class EscfBatchScatterer implements Releasable {
         switch (childKind) {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> {
                 // Both LONG and DOUBLE: raw 64-bit words via appendFixedBits (no decode/re-encode).
-                var childCursor = ((AbstractFixed64Column) child).longValuesCursor();
+                var childCursor = ((AbstractFixed64Column) child).rawLongValuesCursor();
                 if (docCount > 0 && startElem > 0) {
                     childCursor.skip(startElem);
                 }
@@ -240,7 +240,7 @@ public final class EscfBatchScatterer implements Releasable {
             }
             case EscfColumnKind.STRING, EscfColumnKind.BINARY -> {
                 // Var-width children: opaque byte payloads via a dense cursor.
-                var childCursor = ((AbstractVarColumn) child).bytesRefValuesCursor(false);
+                var childCursor = ((AbstractVarColumn) child).rawBytesRefValuesCursor(false);
                 if (docCount > 0 && startElem > 0) {
                     childCursor.skip(startElem);
                 }

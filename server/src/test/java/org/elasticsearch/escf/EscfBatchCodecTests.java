@@ -158,6 +158,69 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertEquals(new BytesArray(childBytes), decoded.data());
     }
 
+    /** Dense (no-null) children encode with child_flags == 0 and decode without a validity bitset. */
+    public void testEncodeDecodeDenseChildFlagClear() {
+        // A long child with no null elements.
+        byte[] childBytes = new byte[2 * 8];
+        ByteUtils.writeLongLE(42L, childBytes, 0);
+        ByteUtils.writeLongLE(-7L, childBytes, 8);
+        EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 2, null, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        // child_kind(1) + child_flags(1) + data(16) = 18 bytes; flags byte must be 0.
+        assertEquals(18, encoded.length());
+        assertEquals(0, encoded.get(1) & 0xFF); // child_flags == 0
+
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2);
+        assertEquals(EscfColumnKind.LONG, decoded.kind());
+        assertNull("dense child must decode without a validity bitset", decoded.validity());
+    }
+
+    /** Nullable long child: child_flags has CHILD_FLAG_VALIDITY set; validity bitset round-trips. */
+    public void testEncodeDecodeLongArrayChildWithNullValidity() {
+        // 3 elements: present, null (bit clear), present — validity = {1,0,1}
+        FixedBitSet validity = new FixedBitSet(3);
+        validity.set(0);
+        validity.set(2); // element 1 is null (bit 1 clear)
+        byte[] childBytes = new byte[3 * 8]; // 8-byte placeholder per element
+        ByteUtils.writeLongLE(10L, childBytes, 0);
+        ByteUtils.writeLongLE(0L, childBytes, 8);   // placeholder for null
+        ByteUtils.writeLongLE(30L, childBytes, 16);
+        EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 3, validity, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        // child_kind(1) + child_flags(1) + validity(bitsetBytes(3)=8) + data(24) = 34 bytes.
+        assertEquals(34, encoded.length());
+        assertEquals(1, encoded.get(1) & 0xFF); // CHILD_FLAG_VALIDITY set
+
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 3);
+        assertEquals(EscfColumnKind.LONG, decoded.kind());
+        assertNotNull("nullable child must decode with a validity bitset", decoded.validity());
+        assertTrue("element 0 must be non-null", decoded.validity().get(0));
+        assertFalse("element 1 must be null (bit clear)", decoded.validity().get(1));
+        assertTrue("element 2 must be non-null", decoded.validity().get(2));
+    }
+
+    /** Nullable string child: validity bitset is placed before the child offsets. */
+    public void testEncodeDecodeStringArrayChildWithNullValidity() {
+        // 2 elements: null, "hi" — validity = {0,1}
+        FixedBitSet validity = new FixedBitSet(2);
+        validity.set(1); // element 0 is null
+        int[] childOffsets = { 0, 0, 2 }; // zero-length for null, then "hi"
+        byte[] childBytes = "hi".getBytes(StandardCharsets.UTF_8);
+        EscfColumnData child = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, validity, childOffsets, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2);
+
+        assertEquals(EscfColumnKind.STRING, decoded.kind());
+        assertNotNull(decoded.validity());
+        assertFalse("element 0 must be null", decoded.validity().get(0));
+        assertTrue("element 1 must be non-null", decoded.validity().get(1));
+        assertArrayEquals(childOffsets, decoded.offsets());
+        assertEquals(new BytesArray(childBytes), decoded.data());
+    }
+
     public void testParseOfInMemoryBatchBytes() throws IOException {
         String[] docs = {
             "{\"i\":1,\"s\":\"alice\",\"arr\":[1,2,3]}",

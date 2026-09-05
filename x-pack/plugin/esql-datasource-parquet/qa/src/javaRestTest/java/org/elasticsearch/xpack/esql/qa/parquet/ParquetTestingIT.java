@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -49,6 +50,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -383,9 +385,8 @@ public class ParquetTestingIT extends ESRestTestCase {
             return;
         }
 
-        // Not using expectThrows here: a transient external-host failure (client-side timeout, or a
-        // server-side 503 after the cluster exhausts its own retry budget) must be told apart from the
-        // expected 4xx client error *before* asserting on the status code below.
+        // Not using expectThrows here: a network timeout must skip before the 4xx assert; any other
+        // IOException (including a 503) must fail the test.
         ResponseException ex;
         try {
             runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
@@ -449,34 +450,36 @@ public class ParquetTestingIT extends ESRestTestCase {
     }
 
     /**
-     * Whether {@code failure} is an environmental symptom of {@code raw.githubusercontent.com}
-     * throttling/slowness reaching the cluster's {@code http} data source read, rather than a query or
-     * reader defect: either the REST client gave up waiting on a response (a bare transport-level
-     * {@link IOException}, e.g. {@link java.net.SocketTimeoutException}, carrying no HTTP response), or
-     * the cluster itself gave up after exhausting its own retry budget against the throttled/unavailable
-     * host (surfaced as a {@code 503} -- see {@code ExternalUnavailableException#status()} in the ESQL
-     * datasources retry layer). Mirrors the handling already applied to {@link #downloadFile} failures.
+     * Whether {@code failure} is a <em>network</em> timeout (REST/HTTP socket or connect timeout
+     * talking to the cluster or to {@code raw.githubusercontent.com}), including when wrapped as a
+     * cause. A JUnit / RandomizedRunner / Gradle <em>test</em> timeout is a different type and is
+     * not an {@link IOException}; those must fail the test, not skip it.
      */
-    private static boolean isTransientExternalFailure(IOException failure) {
-        if (failure instanceof ResponseException responseException) {
-            return responseException.getResponse().getStatusLine().getStatusCode() == 503;
+    private static boolean isNetworkTimeout(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof SocketTimeoutException || current instanceof ConnectTimeoutException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
         }
-        return true;
+        return false;
     }
 
     /**
      * Skips the test via {@code assumeNoException} if {@code failure} is a
-     * {@linkplain #isTransientExternalFailure transient external-host failure} encountered while
-     * {@code action} (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this
-     * method never returns normally in that case. Otherwise returns {@code failure} unchanged, so
-     * callers can either {@code throw} it to propagate as-is, or assign it (the declared type is the
-     * caller's exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling
-     * it below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
+     * {@linkplain #isNetworkTimeout network timeout} encountered while {@code action}
+     * (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this method never
+     * returns normally in that case. Otherwise returns {@code failure} unchanged, so callers can
+     * either {@code throw} it to propagate as-is, or assign it (the declared type is the caller's
+     * exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling it
+     * below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
      * {@code runEsqlSync} call site in this class.
      */
     private <T extends IOException> T skipIfTransientFailure(T failure, String action) {
-        if (isTransientExternalFailure(failure)) {
-            assumeNoException("External host unavailable while " + action + " [" + parquetFile + "]", failure);
+        if (isNetworkTimeout(failure)) {
+            assumeNoException("Network timeout while " + action + " [" + parquetFile + "]", failure);
         }
         return failure;
     }

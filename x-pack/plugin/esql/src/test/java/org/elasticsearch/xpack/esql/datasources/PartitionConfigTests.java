@@ -213,4 +213,48 @@ public class PartitionConfigTests extends ESTestCase {
         PartitionConfig.validate(Map.of());
         PartitionConfig.validate(null);
     }
+
+    public void testValidateRejectsPlaceholderlessTemplate() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_PATH));
+        assertThat(e.getMessage(), containsString("year={year}"));
+        assertThat(e.getMessage(), containsString("{name}"));
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_DETECTION));
+    }
+
+    public void testValidateRejectsPlaceholderlessPathUnderAuto() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "auto", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        expectThrows(IllegalArgumentException.class, () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_PATH, "year={year}")));
+    }
+
+    public void testValidateHiveContradictionBeatsPlaceholderlessPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("never reads a path template"));
+    }
+
+    public void testValidateNoneContradictionBeatsPlaceholderlessPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "none", CONFIG_PARTITIONING_PATH, "year={year}"))
+        );
+        assertThat(e.getMessage(), containsString("would be ignored"));
+    }
+
+    /** A stored placeholderless path must still resolve; validate is registration-only. */
+    public void testFromConfigAcceptsStoredPlaceholderlessTemplate() {
+        PartitionConfig stored = PartitionConfig.fromConfig(
+            Map.of(CONFIG_PARTITIONING_DETECTION, "template", CONFIG_PARTITIONING_PATH, "year={year}")
+        );
+        assertEquals(PartitionConfig.Strategy.TEMPLATE, stored.strategy());
+        assertEquals("year={year}", stored.pathTemplate());
+    }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -967,62 +968,87 @@ public final class GlobExpander {
     }
 
     public static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
-        List<String> templateColumns = TemplatePartitionDetector.parseTemplateColumns(template);
-        if (templateColumns.isEmpty()) {
+        List<TemplateSegment> templateSegments = TemplatePartitionDetector.parseTemplate(template);
+        if (hasPlaceholder(templateSegments) == false) {
             return null;
         }
 
-        String[] segments = pattern.split("/");
-        List<Integer> wildcardPositions = new ArrayList<>();
-        for (int i = 0; i < segments.length; i++) {
-            if ("*".equals(segments[i])) {
-                wildcardPositions.add(i);
+        StoragePath parsed;
+        try {
+            parsed = StoragePath.of(pattern);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String path = parsed.path();
+        if (path == null || path.isEmpty() || pattern.endsWith(path) == false) {
+            return null;
+        }
+
+        // Edit a path()-shaped split (leading empty and filename kept). Joining directorySegments
+        // would drop the leading slash and smash the authority: s3://bucket + logs/... = s3://bucketlogs/...
+        String[] raw = path.split("/");
+        List<Integer> nonEmptyIdx = new ArrayList<>();
+        for (int i = 0; i < raw.length; i++) {
+            if (raw[i].isEmpty() == false) {
+                nonEmptyIdx.add(i);
             }
         }
-
-        if (wildcardPositions.size() < templateColumns.size()) {
+        if (nonEmptyIdx.size() < templateSegments.size() + 1) {
             return null;
         }
-
-        // Map template columns to wildcard positions (positional mapping)
-        int offset = wildcardPositions.size() - templateColumns.size();
+        List<Integer> dirIdx = nonEmptyIdx.subList(0, nonEmptyIdx.size() - 1);
+        int offset = dirIdx.size() - templateSegments.size();
         boolean changed = false;
-        for (int t = 0; t < templateColumns.size(); t++) {
-            String colName = templateColumns.get(t);
-            PartitionFilterHint hint = rewritableHints.get(colName);
-            if (hint == null) {
-                continue;
-            }
-            int segIdx = wildcardPositions.get(offset + t);
-            List<Object> values = hint.values();
-            if (hint.isSingleValue()) {
-                String value = String.valueOf(values.get(0));
-                if (globExpressible(value) == false) {
-                    continue; // leave the wildcard so the full set is listed (superset); the row filter narrows
+        for (int t = 0; t < templateSegments.size(); t++) {
+            int rawIdx = dirIdx.get(offset + t);
+            String globSlot = raw[rawIdx];
+            switch (templateSegments.get(t)) {
+                case TemplateSegment.Literal(String value) -> {
+                    if ("*".equals(globSlot) == false && value.equals(globSlot) == false) {
+                        return null;
+                    }
                 }
-                segments[segIdx] = value;
-            } else {
-                Set<String> spellings = partitionValueSpellings(values);
-                if (braceExpressible(spellings) == false) {
-                    continue; // leave the wildcard so the full set is listed (superset); the row filter narrows
+                case TemplateSegment.Placeholder(String name) -> {
+                    if ("*".equals(globSlot) == false) {
+                        return null;
+                    }
+                    PartitionFilterHint hint = rewritableHints.get(name);
+                    if (hint == null) {
+                        continue;
+                    }
+                    List<Object> values = hint.values();
+                    if (hint.isSingleValue()) {
+                        String value = String.valueOf(values.get(0));
+                        if (globExpressible(value) == false) {
+                            continue;
+                        }
+                        raw[rawIdx] = value;
+                    } else {
+                        Set<String> spellings = partitionValueSpellings(values);
+                        if (braceExpressible(spellings) == false) {
+                            continue;
+                        }
+                        raw[rawIdx] = brace(spellings);
+                    }
+                    changed = true;
                 }
-                segments[segIdx] = brace(spellings);
             }
-            changed = true;
         }
 
         if (changed == false) {
             return null;
         }
+        String newPath = String.join("/", raw);
+        return pattern.substring(0, pattern.length() - path.length()) + newPath;
+    }
 
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < segments.length; i++) {
-            if (i > 0) {
-                result.append('/');
+    private static boolean hasPlaceholder(List<TemplateSegment> segments) {
+        for (TemplateSegment segment : segments) {
+            if (segment instanceof TemplateSegment.Placeholder) {
+                return true;
             }
-            result.append(segments[i]);
         }
-        return result.toString();
+        return false;
     }
 
     private static Map<String, PartitionFilterHint> indexRewritableHints(List<PartitionFilterHint> hints) {

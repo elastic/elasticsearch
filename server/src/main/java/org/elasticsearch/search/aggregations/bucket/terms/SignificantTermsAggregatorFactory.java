@@ -343,7 +343,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 Map<String, Object> metadata
             ) throws IOException {
 
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
+                final IncludeExclude.StringFilter filter = includeExclude == null
+                    ? null
+                    : includeExclude.convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength());
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -405,7 +407,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     null,
                     format,
                     bucketCountThresholds,
-                    TermsAggregatorFactory.gloabalOrdsFilter(includeExclude, format, values),
+                    TermsAggregatorFactory.gloabalOrdsFilter(
+                        includeExclude,
+                        format,
+                        values,
+                        context.getIndexSettings().getMaxRegexLength()
+                    ),
                     context,
                     parent,
                     remapGlobalOrd,

@@ -12,7 +12,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -132,16 +131,12 @@ public class LabelMatcher implements NodeStringRenderable {
             result = Operations.union(automata);
         } else if (isMultiValue()) {
             // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
+            List<Automaton> automata = values.stream().map(LabelMatcher::regexAutomaton).toList();
             result = Operations.union(automata);
         } else {
             // Single value
             String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+            result = matcher.isRegex() ? regexAutomaton(v) : Automata.makeString(v);
         }
         result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // negate if needed
@@ -150,6 +145,18 @@ public class LabelMatcher implements NodeStringRenderable {
         }
         automaton = result;
         return automaton;
+    }
+
+    /** A bad pattern is the user's, so both failures are client errors; QlIllegalArgumentException would be a 500. */
+    private static Automaton regexAutomaton(String regex) {
+        try {
+            return new RegExp(regex).toAutomaton();
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
+        } catch (StackOverflowError e) {
+            // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
+            throw new IllegalArgumentException("Regex [" + regex + "] is too deeply nested");
+        }
     }
 
     public boolean matchesAll() {

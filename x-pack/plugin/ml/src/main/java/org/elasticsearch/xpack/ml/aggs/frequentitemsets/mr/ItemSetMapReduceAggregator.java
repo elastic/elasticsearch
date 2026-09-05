@@ -90,7 +90,7 @@ public abstract class ItemSetMapReduceAggregator<
         for (var c : configsAndValueFilters) {
             ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
                 .getAggregator(registryKey, c.v1())
-                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx);
+                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx, context.getIndexSettings().getMaxRegexLength());
             if (e.getField().getName() != null) {
                 fields.add(e.getField());
                 valueSources.add(e);

@@ -402,7 +402,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ) throws IOException {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(valuesSourceConfig.format());
+                    : includeExclude.convertToStringFilter(valuesSourceConfig.format(), context.getIndexSettings().getMaxRegexLength());
                 return new MapStringTermsAggregator(
                     name,
                     factories,
@@ -462,7 +462,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         valuesSourceConfig,
                         order,
                         bucketCountThresholds,
-                        gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
+                        gloabalOrdsFilter(
+                            includeExclude,
+                            valuesSourceConfig.format(),
+                            values,
+                            context.getIndexSettings().getMaxRegexLength()
+                        ),
                         () -> globalOrdsValues(context, ordinalsValuesSource)
                     );
                     if (adapted != null) {
@@ -557,7 +562,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     order,
                     valuesSourceConfig.format(),
                     bucketCountThresholds,
-                    gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
+                    gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values, context.getIndexSettings().getMaxRegexLength()),
                     context,
                     parent,
                     remapGlobalOrds,
@@ -617,12 +622,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         return valuesSource.globalOrdinalsValues(reader.leaves().get(0));
     }
 
-    public static LongPredicate gloabalOrdsFilter(IncludeExclude includeExclude, DocValueFormat format, SortedSetDocValues values)
-        throws IOException {
+    public static LongPredicate gloabalOrdsFilter(
+        IncludeExclude includeExclude,
+        DocValueFormat format,
+        SortedSetDocValues values,
+        int maxRegexLength
+    ) throws IOException {
 
         if (includeExclude == null) {
             return GlobalOrdinalsStringTermsAggregator.ALWAYS_TRUE;
         }
-        return includeExclude.convertToOrdinalsFilter(format).acceptedGlobalOrdinals(values)::get;
+        return includeExclude.convertToOrdinalsFilter(format, maxRegexLength).acceptedGlobalOrdinals(values)::get;
     }
 }

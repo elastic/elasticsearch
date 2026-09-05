@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class LabelMatcherTests extends ESTestCase {
 
@@ -183,5 +187,40 @@ public class LabelMatcherTests extends ESTestCase {
         assertFalse(Matcher.NEQ.isRegex());
         assertTrue(Matcher.REG.isRegex());
         assertTrue(Matcher.NREG.isRegex());
+    }
+
+    public void testMultiValueInvalidRegexIsReported() {
+        LabelMatcher matcher = new LabelMatcher("host", List.of("server-.*", "web-("), Matcher.REG);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
+        assertThat(e.getMessage(), containsString("Cannot parse regex web-("));
+        assertNotNull("the Lucene parse error is kept as the cause", e.getCause());
+    }
+
+    /**
+     * Lucene compiles nested groups recursively, so a deep pattern overflows the stack. It must surface as a client error,
+     * not an {@link Error}. Runs on a thread with a fixed, small stack so the depth needed does not depend on the platform's
+     * default stack size.
+     */
+    public void testDeeplyNestedRegexIsAClientError() throws Exception {
+        int depth = 20_000;
+        String regex = "(".repeat(depth) + "a" + ")".repeat(depth);
+        for (LabelMatcher matcher : List.of(
+            new LabelMatcher("host", regex, Matcher.REG),
+            new LabelMatcher("host", List.of("server-.*", regex), Matcher.NREG)
+        )) {
+            AtomicReference<Throwable> thrown = new AtomicReference<>();
+            Thread thread = new Thread(null, () -> {
+                try {
+                    matcher.automaton();
+                } catch (Throwable t) {
+                    thrown.set(t);
+                }
+            }, "small-stack-regex", 256 * 1024);
+            thread.start();
+            thread.join(TimeValue.timeValueSeconds(30).millis());
+            assertFalse("regex compilation did not finish", thread.isAlive());
+            assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
+            assertThat(thrown.get().getMessage(), containsString("too deeply nested"));
+        }
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -63,6 +64,16 @@ public final class ProjectState {
 
     public Settings settings() {
         return projectSettings;
+    }
+
+    /**
+     * Rejects project metadata mutations when the project is blocked for metadata writes.
+     *
+     * This check is intended for cluster state update tasks, which must validate the latest
+     * cluster state rather than relying only on an earlier transport-action block check.
+     */
+    public void ensureProjectMetadataWritable() {
+        blocks().globalBlockedRaiseException(projectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

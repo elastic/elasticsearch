@@ -535,6 +535,7 @@ public class MetadataCreateIndexService {
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 try (var ignored = taskContext.captureResponseHeaders()) {
+                    state.projectState(task.request.projectId()).ensureProjectMetadataWritable();
                     state = applyCreateIndexRequest(
                         state,
                         task.request,

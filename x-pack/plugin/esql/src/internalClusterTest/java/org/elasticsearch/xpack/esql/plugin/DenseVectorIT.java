@@ -13,6 +13,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension.TestInferenceService;
 import org.junit.After;
 import org.junit.Before;
@@ -37,10 +38,13 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Integration tests for the ESQL DENSE_VECTOR command's inference-endpoint resolution and command settings.
  * <p>
- * The built-in default endpoint ({@link org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector#DEFAULT_INFERENCE_ID},
- * E5) requires real ML infrastructure that is unavailable in tests, so the "no WITH" path is exercised through the
- * cluster-level default setting ({@code esql.command.dense_vector.default_inference_id}) pointed at a mock endpoint; this
- * covers the same resolution branch. The pure built-in-default injection is covered by the parser-level tests.
+ * Neither endpoint a query with no {@code WITH} falls back to ({@link DenseVector#DEFAULT_INFERENCE_ID_CANDIDATES}) can be
+ * hosted here: one needs ML infrastructure this cluster lacks, and a mock cannot stand in for either because
+ * {@code PutInferenceModelAction} requires an inference id to start with an alphanumeric character, which the candidate ids do
+ * not. So this suite covers the state where no candidate exists, while selecting among available candidates is covered in
+ * {@code AnalyzerTests}, which describes endpoints directly rather than hosting them. The cluster-level default setting
+ * ({@code esql.command.dense_vector.default_inference_id}) points at a mock endpoint to cover the no-{@code WITH} path that
+ * does reach inference.
  */
 public class DenseVectorIT extends InferenceCommandIntegTestCase {
 
@@ -243,6 +247,37 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(customLimit));
         }
+    }
+
+    public void testDenseVectorReportsWhenNoCandidateEndpointExists() {
+        // This cluster hosts neither candidate, which is the state a deployment is in before either is available. The failure
+        // names both candidates and the option to set.
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title
+            """, TEST_INDEX);
+
+        VerificationException e = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "no inference endpoint is available for the DENSE_VECTOR command: none of "
+                    + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
+                    + " is available with the task type [text_embedding, embedding]. "
+                    + "Specify an endpoint using the [inference_id] option."
+            )
+        );
+    }
+
+    public void testDenseVectorImageRequiresExplicitInferenceId() {
+        // The candidates embed text, so an image input has nothing to fall back to and is rejected while the query is parsed.
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title WITH { "type": "image" }
+            """, TEST_INDEX);
+
+        ParsingException e = expectThrows(ParsingException.class, () -> run(query));
+        assertThat(e.getMessage(), containsString("Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"));
     }
 
     public void testDenseVectorChainedClausesWithDistinctEndpoints() throws IOException {

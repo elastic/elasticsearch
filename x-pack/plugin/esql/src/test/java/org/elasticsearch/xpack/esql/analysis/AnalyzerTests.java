@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -196,6 +197,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -4498,7 +4500,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
         assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
-        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+        assertThat(completionFunction.taskType(), equalTo(TaskType.COMPLETION));
     }
 
     public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
@@ -4697,6 +4699,90 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    /**
+     * A query naming no endpoint takes the first candidate this deployment has. The EIS endpoint is preferred over the ML-node
+     * one, so a serverless deployment - which runs no ML nodes - still resolves.
+     */
+    public void testDenseVectorDefaultInferenceIdPrefersEisCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.EIS_JINA_V5_INFERENCE_ID)));
+        assertThat(denseVector.endpointTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Where the EIS endpoint is absent - a stateful deployment that never reached it - the ML-node endpoint is used instead.
+     */
+    public void testDenseVectorDefaultInferenceIdFallsBackToMlCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * An endpoint the query names is used as given, even when a candidate is available: selecting a candidate over it would move
+     * the query off the endpoint its author chose.
+     */
+    public void testDenseVectorExplicitInferenceIdIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    /**
+     * Naming the ML-node endpoint explicitly keeps it, even though it is also the last candidate. The id alone cannot tell the
+     * two apart, so this pins the behaviour that distinguishes them.
+     */
+    public void testDenseVectorExplicitMlEndpointIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * Where the deployment has no candidate at all, the failure names every candidate tried and the option to set.
+     */
+    public void testDenseVectorNoDefaultInferenceIdAvailable() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title",
+            containsString(
+                "no inference endpoint is available for the DENSE_VECTOR command: none of "
+                    + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
+                    + " is available with the task type [text_embedding, embedding]. "
+                    + "Specify an endpoint using the [inference_id] option."
+            )
+        );
+    }
+
+    /**
+     * A candidate whose task type the input cannot use is skipped. A sparse EIS endpoint under the candidate id leaves the
+     * ML-node candidate as the only usable one.
+     */
+    public void testDenseVectorSkipsCandidateWithUnusableTaskType() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
     public void testDenseVectorUnknownColumnFails() {
         assumeDenseVectorCommandEnabled();
         books().error(
@@ -4724,6 +4810,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(denseVector.fields(), hasSize(1));
         assertThat(denseVector.generatedAttributes(), hasSize(1));
         assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorExplicitOutputNameResolves() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("vec"));
+        Attribute generated = getAttributeByName(denseVector.output(), "vec");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+        // The default name is not produced alongside the explicit one.
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+        // The source column survives; DENSE_VECTOR appends rather than replaces.
+        assertThat(getAttributeByName(denseVector.output(), "title"), notNullValue());
+    }
+
+    public void testDenseVectorSuffixResolvesForEachField() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dv"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dv"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+    }
+
+    /**
+     * An explicit name that collides with an existing column replaces it, the same shadowing rule EVAL follows. The surviving
+     * column carries the generated {@code dense_vector} type rather than the shadowed column's type.
+     */
+    public void testDenseVectorExplicitNameShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "description");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("description")).count(), equalTo(1L));
+    }
+
+    /**
+     * Naming the output after its own input leaves the embedding in place of the source text, so the source column is no longer
+     * reachable downstream.
+     */
+    public void testDenseVectorOutputNameMatchingInputReplacesIt() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute title = getAttributeByName(denseVector.output(), "title");
+        assertThat(title, notNullValue());
+        assertThat(title.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title")).count(), equalTo(1L));
+    }
+
+    /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
+    public void testDenseVectorChainedClausesWithSameOutputName() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector outer = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(outer.fields().get(0).name(), equalTo("description"));
+        assertThat(outer.output().stream().filter(a -> a.name().equals("vec")).count(), equalTo(1L));
+        assertThat(getAttributeByName(outer.output(), "vec").dataType(), equalTo(DataType.DENSE_VECTOR));
+    }
+
+    /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
+    public void testDenseVectorSuffixShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | EVAL title_dv = "placeholder"
+            | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "title_dv");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title_dv")).count(), equalTo(1L));
+    }
+
+    public void testDenseVectorNamedOutputOnNonTextFieldFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+        books().error(
+            "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorNamedOutputOnUnknownColumnFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [no_such_column]")
+        );
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {

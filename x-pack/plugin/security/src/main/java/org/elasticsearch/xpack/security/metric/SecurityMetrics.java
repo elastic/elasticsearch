@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.metric;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -28,6 +30,7 @@ public final class SecurityMetrics<C> {
     private final LongHistogram timeHistogram;
 
     private final SecurityMetricAttributesBuilder<C> attributesBuilder;
+    private final String failureReasonAttributeName;
     private final LongSupplier nanoTimeSupplier;
     private final SecurityMetricType metricType;
 
@@ -35,6 +38,7 @@ public final class SecurityMetrics<C> {
         final SecurityMetricType metricType,
         final MeterRegistry meterRegistry,
         final SecurityMetricAttributesBuilder<C> attributesBuilder,
+        final String failureReasonAttributeName,
         final LongSupplier nanoTimeSupplier
     ) {
         this.metricType = Objects.requireNonNull(metricType);
@@ -42,6 +46,7 @@ public final class SecurityMetrics<C> {
         this.failuresCounter = metricType.failuresMetricInfo().registerAsLongCounter(meterRegistry);
         this.timeHistogram = metricType.timeMetricInfo().registerAsLongHistogram(meterRegistry);
         this.attributesBuilder = Objects.requireNonNull(attributesBuilder);
+        this.failureReasonAttributeName = Objects.requireNonNull(failureReasonAttributeName);
         this.nanoTimeSupplier = Objects.requireNonNull(nanoTimeSupplier);
     }
 
@@ -66,13 +71,11 @@ public final class SecurityMetrics<C> {
         this.successCounter.incrementBy(1L, attributesBuilder.build(context));
     }
 
-    /**
-     * Records a single failed execution.
-     *
-     * @param context       The context object which is used to attach additional attributes to failed metric.
-     */
-    public void recordFailure(final C context) {
-        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context));
+    /** Bump the failure counter with the usual attributes plus the failure reason label. */
+    public void recordFailure(final C context, final SecurityAuthcFailureReason reason) {
+        Objects.requireNonNull(reason);
+        final Map<String, Object> baseAttributes = context == null ? Map.of() : Objects.requireNonNull(attributesBuilder.build(context));
+        this.failuresCounter.incrementBy(1L, Maps.copyMapWithAddedEntry(baseAttributes, failureReasonAttributeName, reason.value()));
     }
 
     /**

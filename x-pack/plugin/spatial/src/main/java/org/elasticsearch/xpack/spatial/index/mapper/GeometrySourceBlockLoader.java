@@ -40,14 +40,23 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
         if (docValues == null) {
             return ConstantNull.COLUMN_READER;
         }
-        return new GeometrySourceReader(docValues);
+        return new GeometrySourceReader(breaker, docValues);
     }
 
-    private static class GeometrySourceReader implements BlockLoader.ColumnAtATimeReader {
+    private static class GeometrySourceReader extends BlockDocValuesReader {
+        /**
+         * Forward-only, so this reader cannot revisit a document. See {@link #canReuse}.
+         */
         private final BinaryDocValues docValues;
 
-        GeometrySourceReader(BinaryDocValues docValues) {
+        GeometrySourceReader(CircuitBreaker breaker, BinaryDocValues docValues) {
+            super(breaker);
             this.docValues = docValues;
+        }
+
+        @Override
+        protected int docId() {
+            return docValues.docID();
         }
 
         @Override
@@ -62,6 +71,7 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
         }
 
         private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            assert doc >= docId() : "docs must be read in order, got [" + doc + "] after [" + docId() + "]";
             if (docValues.advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
@@ -76,11 +86,6 @@ public class GeometrySourceBlockLoader extends BlockDocValuesReader.DocValuesBlo
                 builder.appendBytesRef(wkb);
             }
             builder.endPositionEntry();
-        }
-
-        @Override
-        public boolean canReuse(int startingDocID) {
-            return true;
         }
 
         @Override

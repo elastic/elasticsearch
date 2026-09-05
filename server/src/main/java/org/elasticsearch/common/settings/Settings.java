@@ -22,6 +22,7 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -82,6 +83,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
+
+    private static final String LIST_AS_STRING_DEPRECATION_KEY_SUFFIX = ".list_as_string";
 
     public static final MapParams FLAT_SETTINGS_TRUE = new MapParams(Map.of(FLAT_SETTINGS_PARAM, "true"));
 
@@ -279,7 +282,17 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
      * @return The setting value, {@code null} if it does not exists.
      */
     public String get(String setting) {
-        return toString(settings.get(setting));
+        Object value = settings.get(setting);
+        if (value instanceof List<?>) {
+            DeprecationLoggerHolder.deprecationLogger.warn(
+                DeprecationCategory.SETTINGS,
+                setting + LIST_AS_STRING_DEPRECATION_KEY_SUFFIX,
+                "[{}] setting is configured as a list but is being read as a string. "
+                    + "This behavior is deprecated and will be removed in a future release. Configure a single value instead.",
+                setting
+            );
+        }
+        return toString(value);
     }
 
     /**

@@ -1662,7 +1662,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    record CapabilitesCacheKey(RestClient client, List<String> capabilities) {}
+    record CapabilitesCacheKey(RestClient client, List<String> capabilities, boolean coordinatorOnly) {}
 
     /**
      * Cache of capabilities.
@@ -1670,12 +1670,28 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final ConcurrentMap<CapabilitesCacheKey, Boolean> capabilities = new ConcurrentHashMap<>();
 
     public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) {
+        return hasCapabilities(client, requiredCapabilities, false);
+    }
+
+    /**
+     * Like {@link #hasCapabilities}, but asks only the node that serves the request - the one that would coordinate a
+     * query sent through {@code client} - instead of ANDing the answer across every node in the cluster. Use this to
+     * reason about the coordinator in a mixed-version cluster, where the cluster-wide answer says only that
+     * <em>some</em> node lacks the capability and cannot tell you whether the coordinator is that node.
+     */
+    public static boolean coordinatorHasCapabilities(RestClient client, List<String> requiredCapabilities) {
+        return hasCapabilities(client, requiredCapabilities, true);
+    }
+
+    private static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities, boolean coordinatorOnly) {
         if (requiredCapabilities.isEmpty()) {
             return true;
         }
-        return capabilities.computeIfAbsent(new CapabilitesCacheKey(client, requiredCapabilities), r -> {
+        return capabilities.computeIfAbsent(new CapabilitesCacheKey(client, requiredCapabilities, coordinatorOnly), r -> {
             try {
-                return clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+                return (coordinatorOnly
+                    ? nodeHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities)
+                    : clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities)).orElse(false);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -1684,6 +1700,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
         return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
+    }
+
+    /**
+     * The coordinator-only counterpart of {@link #doesntHaveCapabilities}: true when the node that serves requests
+     * through {@code client} supports none of {@code capabilities}, regardless of what the other nodes support.
+     */
+    public static boolean coordinatorDoesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> coordinatorHasCapabilities(client, List.of(cap)));
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {

@@ -388,6 +388,20 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
      * Executes a Replace without surpassing the memory limit.
      */
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        try {
+            return doReplace(strBytesRef, regex, newStrBytesRef);
+        } catch (StackOverflowError e) {
+            /*
+             * A bad regex on problematic data can trigger a StackOverflowError. Catch it here and
+             * rethrow as IllegalArgumentException so the evaluator turns it into a warning and a
+             * null result, instead of a fatal JVM error that kills the node. The input string is
+             * omitted from the message to avoid writing potentially sensitive data to logs.
+             */
+            throw new IllegalArgumentException("Caught a StackOverflowError while applying regex [" + regex.pattern() + "]");
+        }
+    }
+
+    private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         String str = strBytesRef.utf8ToString();
         Matcher m = regex.matcher(str);
         if (false == m.find()) {

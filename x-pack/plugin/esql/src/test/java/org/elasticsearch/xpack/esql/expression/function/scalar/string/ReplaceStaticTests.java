@@ -65,6 +65,37 @@ public class ReplaceStaticTests extends ESTestCase {
         assertThat(result, equalTo(newStr.replaceAll("\\$\\d", text)));
     }
 
+    /**
+     * A catastrophic regex like {@code (a|aa)+$} against a long run of {@code a}s
+     * used to throw {@link StackOverflowError} from {@code Matcher.find()}, which
+     * is a fatal JVM error and killed the node. It must be converted to
+     * {@link IllegalArgumentException} so the evaluator can warn and return null.
+     */
+    public void testCatastrophicRegexDoesNotThrowStackOverflowError() {
+        String text = "a".repeat(4000);
+        String regex = "(a|aa)+$";
+        assertNull(process(text, regex, "x"));
+        assertDriverWarnings(
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
+        );
+    }
+
+    /**
+     * Same payload as {@link #testCatastrophicRegexDoesNotThrowStackOverflowError} but through
+     * the constant-regex evaluator, which is the path taken by
+     * {@code EVAL r = REPLACE(f, "(a|aa)+$", "x")}.
+     */
+    public void testCatastrophicConstantRegexDoesNotThrowStackOverflowError() {
+        String text = "a".repeat(4000);
+        String regex = "(a|aa)+$";
+        assertNull(processConstantRegex(text, regex, "x"));
+        assertDriverWarnings(
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: Caught a StackOverflowError while applying regex [" + regex + "]"
+        );
+    }
+
     public void testTooBig() {
         String textAndNewStr = randomAlphaOfLength((int) (ScalarFunction.MAX_BYTES_REF_RESULT_SIZE / 10));
         String regex = ".";

@@ -103,6 +103,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -220,7 +221,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             )
             .build();
 
-        final var settings = Settings.builder().put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled").build();
+        final var settings = Settings.builder()
+            .put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled")
+            .put(WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey(), 0.0)
+            .build();
         final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
         final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
         final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));

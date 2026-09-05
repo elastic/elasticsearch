@@ -71,6 +71,18 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         return maxShardWriteLoadProportion >= maxShardWriteLoadThreshold;
     }
 
+    /**
+     * Returns true when a shard's write load is below the minimum threshold, meaning the shard cannot
+     * meaningfully relieve a hotspot by being moved. Returns false (not negligible) when the threshold
+     * is 0.0 (disabled).
+     */
+    public static boolean isShardWriteLoadContributionNegligible(double minThreshold, double shardWriteLoad) {
+        if (minThreshold == 0.0) {
+            return false;
+        }
+        return shardWriteLoad < minThreshold;
+    }
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().disabled()) {
@@ -180,6 +192,21 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         );
 
         if (nodeIsHotspotting) {
+            final double minShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMinShardWriteLoadThreshold();
+            final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting, 0.0);
+            if (isShardWriteLoadContributionNegligible(minShardWriteLoadThreshold, shardWriteLoad)) {
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] below the minimum threshold [%.5f] to "
+                        + "consider for movement",
+                    node.getShortNodeDescription(),
+                    shardRouting.shardId(),
+                    shardWriteLoad,
+                    minShardWriteLoadThreshold
+                );
+            }
+
             // When a node is hot-spotting, but its write-load is too focused on a single shard, then trying to correct
             // it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
             // shard will be unavailable briefly when it moves.
@@ -195,18 +222,17 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             if (maxShardWriteLoadThreshold == 0.0
                 || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
-                    final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
                         """
                             Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
                             pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
-                            write load [%s]. %s. Should move shard(s) away""",
+                            write load [%.5f]. %s. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
                         nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
                         writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
-                        shardWriteLoad == null ? "unknown" : shardWriteLoad,
+                        shardWriteLoad,
                         maxShardWriteLoadThreshold == 0.0
                             ? "Max shard write-load proportion is disabled"
                             : Strings.format(
@@ -254,6 +280,10 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     @Nullable
     private Double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting) {
         return allocation.clusterInfo().getShardWriteLoads().get(shardRouting.shardId());
+    }
+
+    private double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting, double defaultValue) {
+        return allocation.clusterInfo().getShardWriteLoads().getOrDefault(shardRouting.shardId(), defaultValue);
     }
 
     /**

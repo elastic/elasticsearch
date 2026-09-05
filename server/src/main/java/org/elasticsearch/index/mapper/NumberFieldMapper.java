@@ -2817,8 +2817,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
-        return (allowMultipleValues == false || docValuesParameters.multiValue() == false)
-            && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+        return isSingleValueEnforced() && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
+    }
+
+    private boolean isSingleValueEnforced() {
+        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -2918,7 +2921,7 @@ public class NumberFieldMapper extends FieldMapper {
         );
         assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
             : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
-        if (outData.kind() == EscfColumnKind.ARRAY && shouldEnforceSingleValue(null)) {
+        if (outData.kind() == EscfColumnKind.ARRAY && isSingleValueEnforced()) {
             rejectWideRows(outData);
         }
         if (fieldType().indexType().hasDocValuesSkipper()) {

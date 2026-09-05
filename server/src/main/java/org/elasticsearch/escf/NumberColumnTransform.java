@@ -34,14 +34,16 @@ public final class NumberColumnTransform {
     private NumberColumnTransform() {}
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a BINARY
      * {@link EscfColumnData} containing the 2-byte {@link HalfFloatPoint} BKD point encoding for
      * each value. Use the result with a {@link org.elasticsearch.escf.LuceneBinaryColumn} to emit
-     * the points column for an indexed {@code half_float} field.
+     * the points column for an indexed {@code half_float} field. An ARRAY source yields an ARRAY of
+     * BINARY, one element per source element.
      */
     public static EscfColumnData toHalfFloatPointBinaryColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
+            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
         EscfColumnBuilder builder = newBytesBuilder(recycler);
         final byte[] buf = new byte[Short.BYTES];
         final BytesRef ref = new BytesRef(buf);
@@ -54,15 +56,17 @@ public final class NumberColumnTransform {
     }
 
     /**
-     * Converts a LONG {@link EscfColumn} whose values are
+     * Converts a LONG or ARRAY {@link EscfColumn} whose values are
      * {@link HalfFloatPoint#halfFloatToSortableShort} encoded sortable shorts into a LONG
      * {@link EscfColumnData} containing {@link NumericUtils#floatToSortableInt} encoded sortable ints
      * (widened to long). Use the result with a {@link org.elasticsearch.escf.LuceneLongColumn} and
      * {@link org.apache.lucene.document.column.LongColumn.NumericKind#FLOAT} to emit the stored-fields
-     * column for a {@code half_float} field.
+     * column for a {@code half_float} field. An ARRAY source yields an ARRAY of LONG, one element per
+     * source element.
      */
     public static EscfColumnData toHalfFloatStoredLongColumn(EscfColumn source, Recycler<BytesRef> recycler) {
-        assert source.kind() == EscfColumnKind.LONG : "expected LONG, got " + EscfColumnKind.name(source.kind());
+        assert source.kind() == EscfColumnKind.LONG || source.kind() == EscfColumnKind.ARRAY
+            : "expected LONG or ARRAY, got " + EscfColumnKind.name(source.kind());
         EscfColumnBuilder builder = newLongBuilder(recycler);
         LongTupleCursor cursor = source.longCursor();
         for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
@@ -78,21 +82,27 @@ public final class NumberColumnTransform {
         boolean coerce,
         Recycler<BytesRef> recycler
     ) {
-        return toSortableLongColumn(source, type, coerce, recycler, null);
+        return toSortableLongColumn(source, type, coerce, recycler, null, false);
     }
 
+    /**
+     * @param rejectDroppedValues whether to throw rather than let a source slot produce no output value. The
+     *     offsets sidecar needs one ordinal per slot, so a dropped slot has nothing to point at. Callers that
+     *     emit a sidecar pass {@code true} to fall the chunk back to the row path instead.
+     */
     public static EscfColumnData toSortableLongColumn(
         EscfColumn source,
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        boolean rejectDroppedValues
     ) {
         return switch (source.kind()) {
             case EscfColumnKind.LONG -> fromLong(source, type, recycler);
             case EscfColumnKind.DOUBLE -> fromDouble(source, type, coerce, recycler);
-            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
-            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement);
+            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
+            case EscfColumnKind.ARRAY -> fromArray(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
             default -> throw new UnsupportedOperationException(
                 "toSortableLongColumn: unsupported ESCF column kind ["
                     + EscfColumnKind.name(source.kind())
@@ -106,7 +116,8 @@ public final class NumberColumnTransform {
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        boolean rejectDroppedValues
     ) {
         // Materialize the array structure: offsets + child data. The child is always dense (all
         // elements present — absent rows are represented by an empty offset range, not a child gap).
@@ -114,7 +125,7 @@ public final class NumberColumnTransform {
         EscfColumnData childData = sourceData.child();
         EscfColumn child = EscfColumn.from(childData);
         return switch (child.kind()) {
-            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement);
+            case EscfColumnKind.STRING -> fromString(source, type, coerce, recycler, nullReplacement, rejectDroppedValues);
             case EscfColumnKind.LONG -> EscfColumnData.ofArray(
                 sourceData.docCount(),
                 sourceData.validity(),
@@ -140,26 +151,36 @@ public final class NumberColumnTransform {
         NumberFieldMapper.NumberType type,
         boolean coerce,
         Recycler<BytesRef> recycler,
-        Long nullReplacement
+        Long nullReplacement,
+        boolean rejectDroppedValues
     ) {
         AbstractXContentParser.checkCoerceString(coerce, classForType(type));
         EscfColumnBuilder builder = newLongBuilder(recycler);
-        // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
-        ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-        final long min = integerMinForType(type);
-        final long max = integerMaxForType(type);
-        final long[] scratch = new long[1];
-        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
-            BytesRef value = cursor.value();
-            if (coerce && value.length == 0) {
-                if (nullReplacement != null) {
-                    builder.setLong(doc, nullReplacement);
+        try {
+            // retainValues=false: each value is parsed inside the loop body, before the cursor advances.
+            ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
+            final long min = integerMinForType(type);
+            final long max = integerMaxForType(type);
+            final long[] scratch = new long[1];
+            for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                BytesRef value = cursor.value();
+                if (coerce && value.length == 0) {
+                    if (nullReplacement != null) {
+                        builder.setLong(doc, nullReplacement);
+                    } else if (rejectDroppedValues) {
+                        throw new UnsupportedOperationException(
+                            "toSortableLongColumn: an empty string with no null_value has no output value, which a positional sidecar "
+                                + "cannot represent"
+                        );
+                    }
+                    continue;
                 }
-                continue;
+                builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
             }
-            builder.setLong(doc, stringToSortableLong(value, type, min, max, scratch));
+            return builder.finish(source.docCount());
+        } finally {
+            builder.discard();
         }
-        return builder.finish(source.docCount());
     }
 
     /**

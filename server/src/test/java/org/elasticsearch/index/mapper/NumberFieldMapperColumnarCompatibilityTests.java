@@ -370,12 +370,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     /**
      * {@link NumberFieldMapper#supportsColumnarParse} accepts {@code doc_values.multi_value=true} —
      * the setting defaults to {@code true}, so rejecting it would take every numeric field in a
-     * columnar index off the columnar path. Multi-valued documents themselves are not implemented:
-     * they arrive as an ESCF {@code ARRAY} column and the kind switch in
-     * {@link NumberFieldMapper#mapColumnBatch} throws, which makes {@code ShardBatchMapper} fall the
-     * chunk back to the row path. This test pins the gap that fallback papers over.
+     * columnar index off the columnar path. Multi-valued documents arrive as an ESCF {@code ARRAY}
+     * column, which {@link NumberFieldMapper#mapColumnBatch} maps into a sortable-long array column
+     * plus the positional offsets sidecar the row path records for synthetic source.
      */
-    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement multi-valued numeric fields; ARRAY columns fall back to the row path")
     public void testLongField_multiValue() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
@@ -383,6 +381,148 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             // Every present value is an array so the column is a plain ARRAY; mixing in a scalar
             // would make it a UNION and trip the same switch for a different reason.
             batch("long multi-value", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[7]}"))
+        );
+    }
+
+    /**
+     * An ARRAY column whose child is STRING and whose every row holds exactly one element. The
+     * string transform writes one value per document into a scalar-locked builder, so the output
+     * column is a plain LONG rather than an ARRAY even though the source was an ARRAY. The row path
+     * likewise records no offsets sidecar for single-slot rows, so parity holds.
+     */
+    public void testLongField_multiValue_singleElementStringArrays() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch("long single-element string arrays", 1L, doc("d1", 1L, "{\"f\":[\"1\"]}"), doc("d2", 2L, "{\"f\":[\"2\"]}"))
+        );
+    }
+
+    /**
+     * Every row is a single-element numeric array, so the transform keeps an ARRAY column but no row
+     * has enough slots to be worth recording. The sidecar builder returns nothing, matching the row
+     * path's per-document decision to skip offsets for single-slot rows.
+     */
+    public void testLongField_multiValue_allSingleElementNoOffsets() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch("long all single-element", 1L, doc("d1", 1L, "{\"f\":[1]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[2]}"))
+        );
+    }
+
+    public void testLongField_multiValue_duplicatesAndOrder() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "long duplicates",
+                1L,
+                doc("d1", 1L, "{\"f\":[2,1,2]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[5,5,5,5]}"),
+                doc("d4", 4L, "{\"f\":[-1,7]}")
+            )
+        );
+    }
+
+    public void testIntegerField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "integer").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "integer multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[2147483647,-2147483648,0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[7]}")
+            )
+        );
+    }
+
+    public void testShortField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "short").endObject()),
+            multiValueColumnarSettings(),
+            batch("short multi-value", 1L, doc("d1", 1L, "{\"f\":[32767,-32768,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[1,1]}"))
+        );
+    }
+
+    public void testByteField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "byte").endObject()),
+            multiValueColumnarSettings(),
+            batch("byte multi-value", 1L, doc("d1", 1L, "{\"f\":[127,-128,0]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[9,9]}"))
+        );
+    }
+
+    public void testFloatField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "float multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.75]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testDoubleField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "double").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "double multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,2.718281828]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValueIndexed() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").field("index", true).endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value indexed",
+                1L,
+                doc("d1", 1L, "{\"f\":[1.5,-2.25,3.0]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[0.5,0.5]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_multiValueStringColumn() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "half_float").endObject()),
+            multiValueColumnarSettings(),
+            batch(
+                "half_float multi-value string",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"1.5\",\"-2.25\",\"3.0\"]}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":[\"0.5\",\"0.5\"]}")
+            )
         );
     }
 
@@ -520,6 +660,68 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         }),
             tsdbSettings(),
             batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
+        );
+    }
+
+    public void testLongField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "long").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "long stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[42,7,42]}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":[1]}")
+            )
+        );
+    }
+
+    public void testIntegerField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "integer").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("integer stored multi-value", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[7,-3,7]}"))
+        );
+    }
+
+    public void testDoubleField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "double").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "double stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[2.718281828,-1.5,2.718281828]}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_storedMultiValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "half_float stored multi-value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":[1.5,-2.25,1.5]}")
+            )
         );
     }
 }

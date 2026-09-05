@@ -1,0 +1,213 @@
+// GHCN-D by_year 2024: a 1.3 GB uncompressed CSV single object (37.1M rows, 44,667 stations) plus
+// its 168 MB gzip twin. This is the large-uncompressed-text-over-real-blob-latency leg the suite
+// was missing -- and it is the suite's ONLY invariant-asserted corpus.
+//
+// Why invariant: NOAA's readme-by_year.txt says these files are "updated daily for the entire
+// period of record", and the object demonstrably moves - 1,336,374,349 bytes on one probe,
+// 1,336,374,356 a day later. A frozen expected table over bytes that change nightly would fail for
+// upstream reasons and train the reader to ignore red runs, so instead every query here reduces to
+// something a re-publish cannot change: a band calibrated to the value measured at authoring time
+// (recorded per test as // oracle-observed:), an in-year date range, a fixed cardinality, an absent
+// needle, an exact LIMIT. The READ is unchanged - each test still streams the whole object - so the
+// coverage is real; only the claim is narrower, and coverage.md reports these cells as
+// "covered (invariant)", never plain "covered".
+//
+// The bands are deliberately tight enough (roughly +/-20%) that a truncated, partial or empty read
+// fails rather than passing a vacuous "> 0". The variants' pins are marked volatile: existence and
+// an approximate size are verified, ETag is not - otherwise the pipeline's pre-step would report
+// PIN_DRIFT every single night.
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(count() > 29000000 AND count() < 45000000, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: count() = 37,106,568 on 2026-08-25; band 29,000,000 .. 45,000,000
+q01_y2024CountInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | STATS c = COUNT(*) | EVAL ok = c > 29000000 AND c < 45000000 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(countIf(ELEMENT = 'PRCP') > 9000000 AND countIf(ELEMENT = 'PRCP') < 13500000, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: PRCP rows = 11,265,346 on 2026-08-25; band 9,000,000 .. 13,500,000
+q02_y2024PrcpCountInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | WHERE ELEMENT == "PRCP" | STATS c = COUNT(*) | EVAL ok = c > 9000000 AND c < 13500000 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(avgIf(DATA_VALUE, ELEMENT = 'TMAX') > 140 AND avgIf(DATA_VALUE, ELEMENT = 'TMAX') < 220, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: AVG(TMAX) = 176.5771 tenths-degC on 2026-08-25; band 140 .. 220
+q03_y2024TmaxAvgInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | WHERE ELEMENT == "TMAX" | STATS a = AVG(DATA_VALUE) | EVAL ok = a > 140 AND a < 220 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(uniqExact(ID) > 35000 AND uniqExact(ID) < 55000, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: distinct stations = 44,667 on 2026-08-25; band 35,000 .. 55,000
+q04_y2024StationCountInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | STATS BY ID | STATS u = COUNT(*) | EVAL ok = u > 35000 AND u < 55000 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(uniqExact(ELEMENT) >= 60 AND uniqExact(ELEMENT) <= 90, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: distinct elements = 74 on 2026-08-25; band 60 .. 90
+q05_y2024ElementCountInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | STATS BY ELEMENT | STATS u = COUNT(*) | EVAL ok = u >= 60 AND u <= 90 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(min(DATE) >= 20240101 AND max(DATE) <= 20241231, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: the one invariant that is exact rather than banded: a by_year file's dates cannot leave its year however often NOAA revises the values
+// timing: OUTLIER, measured 2026-08-25: 1235s on the uncompressed leg vs 156s on the gzip twin (same logical rows) and ~65-75s for every other uncompressed test on the same object. Answer correct, no retries, no warnings - a performance observation for triage, not a correctness defect. Watch it in the nightly timings
+// assertion-mode: invariant
+// oracle-observed: MIN/MAX(DATE) = 20240101 / 20241231 on 2026-08-25
+q06_y2024DatesWithinYear
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | STATS mn = MIN(DATE), mx = MAX(DATE) | EVAL ok = mn >= 20240101 AND mx <= 20241231 | KEEP ok;
+
+ok:boolean
+true
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM (SELECT count() AS c, ELEMENT FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY ELEMENT ORDER BY c DESC, ELEMENT ASC LIMIT 5)
+// oracle-run: 2026-08-25
+// read-shape: topn
+// max-rows: 1
+// note: a real TopN over 37M rows whose ROW COUNT is what gets asserted; the ranking itself may be revised, the shape of the answer may not
+// assertion-mode: invariant
+// oracle-observed: the top 5 by count were PRCP, TMAX, TMIN, TAVG, SNOW on 2026-08-25
+q07_y2024TopElementsCount
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | STATS c = COUNT(*) BY ELEMENT | SORT c DESC, ELEMENT ASC | LIMIT 5 | STATS n = COUNT(*);
+
+n:long
+5
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'ZZZZ'
+// oracle-run: 2026-08-25
+// read-shape: scan
+// max-rows: 1
+// note: a full 1.3 GB uncompressed scan with a structurally deterministic answer -- the large-text-over-real-blob-latency shape, asserted exactly
+// assertion-mode: invariant
+// oracle-observed: 0 rows on 2026-08-25; ZZZZ is not a GHCN-D element code
+q08_y2024NeedleAbsent
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | WHERE ELEMENT == "ZZZZ" | STATS c = COUNT(*);
+
+c:long
+0
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM (SELECT * FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') LIMIT 10)
+// oracle-run: 2026-08-25
+// read-shape: limit
+// max-rows: 1
+// assertion-mode: invariant
+// oracle-observed: 10 rows on 2026-08-25; LIMIT is exact whatever the file holds
+q09_y2024LimitTen
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | LIMIT 10 | STATS n = COUNT(*);
+
+n:long
+10
+;
+
+// corpus: ghcnd-by-year-2024
+// reference-variant: ghcnd-by-year-2024-s3-csv-uncompressed-single
+// pinned: 1 object, ~1336374356 bytes (csv) / ~168385897 (csv.gz), VOLATILE - rewritten nightly
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT if(countIf(Q_FLAG != '') > 15000 AND countIf(Q_FLAG != '') < 90000, 'true', 'false') FROM file('2024.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-25
+// read-shape: aggregate
+// max-rows: 1
+// note: the widest band in the set: QC re-runs move this number most, so it is bounded generously on purpose while still catching a read that returns nothing or everything
+// assertion-mode: invariant
+// oracle-observed: quality-flagged rows = 36,383 on 2026-08-25; band 15,000 .. 90,000
+q10_y2024FlaggedInBand
+required_capability: dataset_in_from_command
+dataset: ghcnd_2024: "{{corpus}}"
+FROM ghcnd_2024 | WHERE Q_FLAG != "" | STATS c = COUNT(*) | EVAL ok = c > 15000 AND c < 90000 | KEEP ok;
+
+ok:boolean
+true
+;

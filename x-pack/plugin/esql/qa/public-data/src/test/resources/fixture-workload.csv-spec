@@ -1,0 +1,105 @@
+// Test fixture: a small, fully valid workload exercising the validator's spec rules.
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// pinned: 1 object, 12345678 bytes, verified 2026-08-11T09:14:00Z
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT a, b FROM file('fixture/fixture.parquet') ORDER BY a, b LIMIT 10;
+// oracle-run: 2026-08-11
+// read-shape: scan
+// max-rows: 10
+q1_scan
+required_capability: dataset_in_from_command
+dataset: fixture: "{{corpus}}"
+FROM fixture | KEEP a, b | SORT a ASC, b ASC | LIMIT 10;
+
+a:integer | b:keyword
+1         | x
+2         | y
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT count() FROM file('fixture/fixture.parquet');
+// oracle-run: 2026-08-11
+// read-shape: aggregate
+// max-rows: 1
+q2_agg
+required_capability: dataset_in_from_command
+dataset: fixture: "{{corpus}}"
+FROM fixture | STATS count = COUNT(*);
+
+count:long
+2
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT count() FROM file('fixture/fixture-left.parquet') UNION ALL ...;
+// oracle-run: 2026-08-11
+// read-shape: aggregate
+// max-rows: 1
+q2_aggMulti
+required_capability: dataset_in_from_command
+dataset: fixture_left: "{{corpus:left}}"
+dataset: fixture_right: "{{corpus:right}}"
+FROM fixture_left, fixture_right | STATS count = COUNT(*);
+
+count:long
+2
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT a, count() AS c FROM file('fixture/fixture.parquet') GROUP BY a ORDER BY c DESC, a ASC LIMIT 5;
+// oracle-run: 2026-08-11
+// read-shape: topn
+// max-rows: 5
+q3_topn
+required_capability: dataset_in_from_command
+dataset: fixture: "{{corpus}}"
+FROM fixture | STATS c = COUNT(*) BY a | SORT c DESC, a ASC | LIMIT 5;
+
+c:long | a:integer
+1      | 1
+1      | 2
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT b FROM file('fixture/fixture.parquet') LIMIT 1;
+// oracle-run: 2026-08-11
+// read-shape: limit
+// max-rows: 1
+q4_limit
+required_capability: dataset_in_from_command
+dataset: fixture: "{{corpus}}"
+FROM fixture | KEEP b | SORT b ASC | LIMIT 1;
+
+b:keyword
+x
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT a FROM file('fixture/fixture.parquet') ORDER BY a LIMIT 1;
+// oracle-run: 2026-08-11
+// read-shape: limit
+// max-rows: 1
+// defect: fixture defect entry so unit tests cover the -Ignore + defect block path
+// defect-variant: fixture-s3-csv-gzip-shards
+// defect-oracle: clickhouse local 26.8.1 returns 1; ES|QL returns 0
+// defect-found: 2026-08-11
+q5_defect-Ignore
+required_capability: dataset_in_from_command
+dataset: fixture: "{{corpus}}"
+FROM fixture | KEEP a | SORT a ASC | LIMIT 1;
+
+a:integer
+1
+;

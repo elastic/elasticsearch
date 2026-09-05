@@ -335,6 +335,22 @@ public final class ServiceUtils {
         }
     }
 
+    /**
+     * Creates a {@link URI}, reporting an invalid url with the same field-context message as {@link #convertToUri}. Intended for
+     * {@link org.elasticsearch.xcontent.ObjectParser}-based service settings, which throw directly instead of collecting errors into a
+     * {@link ValidationException} but should still tell the user which service settings field held the unparsable url.
+     *
+     * @param url the url to parse; must not be {@code null}
+     * @param settingName the name of the service settings field the url came from, used in the error message
+     */
+    public static URI createUri(String url, String settingName) throws IllegalArgumentException {
+        try {
+            return createUri(url);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(invalidUrlErrorMsg(url, settingName, SERVICE_SETTINGS, e.getMessage()), e);
+        }
+    }
+
     public static URI createOptionalUri(String url) {
         if (url == null) {
             return null;

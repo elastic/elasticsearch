@@ -538,11 +538,11 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
                 if (format == ARRAY_ORDER_INLINE_NULL) {
                     ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "Elasticsearch");
                     ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "KIBANA", null, "logstash");
-                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "opensearch");
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "nosuchterm");
                 } else {
                     addDoc(writer, fieldName, "Elasticsearch");
                     addDoc(writer, fieldName, "KIBANA", "logstash");
-                    addDoc(writer, fieldName, "opensearch");
+                    addDoc(writer, fieldName, "nosuchterm");
                 }
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);

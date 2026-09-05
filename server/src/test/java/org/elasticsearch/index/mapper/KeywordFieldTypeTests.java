@@ -589,6 +589,23 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testWildcardQueryCaseInsensitiveHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT),
+            ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT)
+        );
+    }
+
     public void testNormalizeQueries() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));

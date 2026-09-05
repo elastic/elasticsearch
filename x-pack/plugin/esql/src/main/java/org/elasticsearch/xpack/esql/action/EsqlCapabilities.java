@@ -3581,6 +3581,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
+         * Fix binary operators between raw selectors of different metrics: the operands collapse per series without
+         * `__name__`, so metrics ingested as separate documents (one per sample, `labels.__name__` a dimension) match,
+         * and the result no longer declares `__name__`.
+         */
+        FIX_PROMQL_BINARY_OP_ACROSS_METRICS,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */

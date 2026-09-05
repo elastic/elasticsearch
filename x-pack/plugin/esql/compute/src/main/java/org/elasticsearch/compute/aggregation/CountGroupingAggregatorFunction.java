@@ -35,12 +35,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         new IntermediateStateDesc("seen", ElementType.BOOLEAN)
     );
 
-    private static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
-    private static final int INTS_PER_PAGE = PAGE_SIZE / Integer.BYTES;
+    private static final int INTS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES;
     private static final int INT_PAGE_SHIFT = Integer.numberOfTrailingZeros(INTS_PER_PAGE);
     private static final int INT_PAGE_MASK = INTS_PER_PAGE - 1;
 
-    private static final int LONGS_PER_PAGE = PAGE_SIZE / Long.BYTES;
+    private static final int LONGS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES;
     private static final int LONG_PAGE_SHIFT = Integer.numberOfTrailingZeros(LONGS_PER_PAGE);
     private static final int LONG_PAGE_MASK = LONGS_PER_PAGE - 1;
 

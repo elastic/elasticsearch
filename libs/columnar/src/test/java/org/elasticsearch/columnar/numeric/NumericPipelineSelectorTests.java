@@ -92,9 +92,9 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             return NumericPipeline.defaultPipeline(bs);
         };
 
-        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, blockSize);
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, field -> ColumnarFieldType.LONG, blockSize);
 
-        final FieldType fieldType = columnarBinaryFieldType(ColumnarFieldType.LONG);
+        final FieldType fieldType = columnarBinaryFieldType();
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (
             Directory dir = newDirectory();

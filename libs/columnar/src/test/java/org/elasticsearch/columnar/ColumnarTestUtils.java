@@ -130,11 +130,11 @@ public final class ColumnarTestUtils {
     }
 
     /**
-     * Returns a {@link Codec} that routes all doc-values fields through a default
-     * {@link ColumNARDocValuesFormat}.
+     * Returns a {@link Codec} that routes all doc-values fields through a {@link ColumNARDocValuesFormat}
+     * whose columns are all of {@code type}.
      */
-    public static Codec columnarCodec() {
-        return columnarCodec(new ColumNARDocValuesFormat());
+    public static Codec columnarCodec(final ColumnarFieldType type) {
+        return columnarCodec(new ColumNARDocValuesFormat(field -> type));
     }
 
     /**
@@ -180,11 +180,10 @@ public final class ColumnarTestUtils {
         };
     }
 
-    /** Returns a frozen {@link FieldType} for a {@code BINARY} doc-values field tagged as {@code fieldType}. */
-    public static FieldType columnarBinaryFieldType(final ColumnarFieldType fieldType) {
+    /** Returns a frozen {@link FieldType} for a {@code BINARY} doc-values field. The column type comes from the format's selector. */
+    public static FieldType columnarBinaryFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, fieldType.name());
         type.freeze();
         return type;
     }

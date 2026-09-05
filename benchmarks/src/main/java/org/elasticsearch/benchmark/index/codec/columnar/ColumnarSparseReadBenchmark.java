@@ -27,8 +27,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -106,7 +104,6 @@ public class ColumnarSparseReadBenchmark {
         final Random random = new Random(17);
         final FieldType fieldType = new FieldType();
         fieldType.setDocValuesType(DocValuesType.BINARY);
-        fieldType.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
         fieldType.freeze();
 
         tempPath = Files.createTempDirectory("columnar-sparse-");

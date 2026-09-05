@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -99,7 +100,10 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
      * knn pre-filtering does not handle nested filters when the knn itself is in a nested query.
      * (see <a href="https://github.com/elastic/elasticsearch/issues/138410">elasticsearch/#138410</a>)
      */
-    public static final Set<Class<? extends QueryBuilder>> UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES = Set.of(NestedQueryBuilder.class);
+    public static final Set<Class<? extends QueryBuilder>> UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES = Set.of(
+    NestedQueryBuilder.class,
+    ExistsQueryBuilder.class
+    );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);

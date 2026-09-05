@@ -682,6 +682,20 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
+     * Triggers worker setup without sending any data pages and returns the probe node's name.
+     * Used in explain-only mode: fires the {@link ServerSetupCallback} so the server performs planning
+     * and returns the lookup plan string, without requiring real input data to flow through the exchange.
+     * <p>
+     * Intentionally bypasses the {@code maxWorkers} cap enforced by {@link #getLeastLoadedWorker()}:
+     * explain mode always needs exactly one probe, regardless of concurrency settings, and no data
+     * pages will follow.
+     */
+    public String triggerSetupForExplain() {
+        Worker worker = createNewWorker();
+        return worker.serverNode.getId();
+    }
+
+    /**
      * Send a Page with BatchMetadata for processing.
      * The worker is selected using least-loaded assignment strategy.
      * Workers are lazily initialized as needed up to maxWorkers.

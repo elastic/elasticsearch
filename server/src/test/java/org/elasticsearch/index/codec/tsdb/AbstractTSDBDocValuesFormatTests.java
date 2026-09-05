@@ -1482,6 +1482,61 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
+    /**
+     * Verifies that consecutive {@code decodeBulk} calls sharing a decoder produce correct results
+     * when page boundaries fall inside the same compressed block. The decoder's boundary-block cache
+     * is exercised: a block that is only partially consumed by one call must be correctly re-used by
+     * the next call that begins in the same block, rather than being decompressed again from scratch.
+     */
+    public void testDecodeBulkCacheReuseAcrossCalls() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_cache_field";
+        // Enough docs to guarantee multiple compressed blocks.
+        final int numDocs = 3 * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT;
+        // Page size chosen to straddle block boundaries: not a multiple of the block count threshold.
+        final int pageSize = BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT / 2 + 1;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long currentTimestamp = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLengthBetween(1, 16))));
+                iw.addDocument(d);
+                currentTimestamp += 1000L;
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                // Build reference values via the per-doc binaryValue() path.
+                List<BytesRef> expected = new ArrayList<>(numDocs);
+                var refDV = getTSDBBinaryValues(leafReader, binaryField);
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(refDV.advanceExact(docId));
+                    expected.add(BytesRef.deepCopyOf(refDV.binaryValue()));
+                }
+
+                // Re-use a single decoder across many pages so the block cache is shared between calls.
+                var factory = TestBlock.factory();
+                var binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                for (int start = 0; start < numDocs; start += pageSize) {
+                    int end = Math.min(start + pageSize, numDocs);
+                    var docs = TestBlock.docs(IntStream.range(start, end).toArray());
+                    var block = (TestBlock) binaryDV.tryRead(factory, docs, 0, false, null, false, false);
+                    assertNotNull("tryRead returned null for dense range [" + start + ", " + end + ")", block);
+                    assertEquals(end - start, block.size());
+                    for (int j = 0; j < block.size(); j++) {
+                        assertEquals("value mismatch at doc " + (start + j), expected.get(start + j), block.get(j));
+                    }
+                }
+            }
+        }
+    }
+
     public void testOptionalColumnAtATimeReaderReadAsInt() throws Exception {
         final String counterField = "counter";
         final String timestampField = TIMESTAMP_FIELD;

@@ -52,6 +52,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
@@ -604,7 +605,21 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final DirectMonotonicReader docOffsets;
         private final IndexInput compressedData;
         private final IndexInput readAhead;
+        /**
+         * Tracks which block is currently materialized in {@link #uncompressedBlock}. Serves two
+         * purposes: (1) cache key — {@link #decode} and {@link #decodeBulk} skip decompression when
+         * the requested block is already in the buffer; (2) lower-bound hint for the binary search in
+         * {@link #findAndUpdateBlock}.
+         */
         private long lastBlockId = -1;
+        /**
+         * Lower-bound hint for the binary search in {@link #decodeBulk}: tracks the last block
+         * index that {@code decodeBulk} processed. Kept separate from {@link #lastBlockId} because
+         * the bulk fast-path decompresses directly into its own output buffer for interior blocks and
+         * does not update {@code lastBlockId} in those cases, so {@code lastBlockId} alone would not
+         * be a reliable forward-search hint after such calls.
+         */
+        private long lastBulkBlockId = -1;
         private final int[] uncompressedDocStarts;
         private final int biggestUncompressedBlockSize;
         // Lazily allocated to avoid eagerly over-consuming memory under a large query fan-out or a single outlier block
@@ -612,7 +627,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
-        private final Decompressor decompressor;
+        private final ZstdCompressionMode.ZstdDecompressor decompressor;
         private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
         BinaryDecoder(
@@ -624,7 +639,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int maxNumDocsInAnyBlock,
             DocOffsetsCodec.Decoder docOffsetsDecoder
         ) {
-            this.decompressor = decompressor;
+            this.decompressor = (ZstdCompressionMode.ZstdDecompressor) decompressor;
             this.addresses = addresses;
             this.docOffsets = docOffsets;
             this.compressedData = compressedData;
@@ -910,7 +925,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         void decodeBulk(int numBlocks, int firstDocId, int lastDocId, int count, BlockLoader.SingletonBytesRefBuilder builder)
             throws IOException {
-            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId == -1 ? 0 : lastBlockId);
+            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBulkBlockId == -1 ? 0 : lastBulkBlockId);
             final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
@@ -919,36 +934,51 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
 
+            int lastOffsetIndex = 0;
             for (long blockId = firstBlockId; blockId <= endBlockId; blockId++) {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
-                if (blockId != lastBlockId) {
-                    decompressBlock(blockId, numDocsInBlock);
+
+                var header = decompressOffsets(blockId, numDocsInBlock);
+                assert header.isCompressed() : "uncompressed blocks shouldn't exist";
+                int fullBlockLength = uncompressedDocStarts[numDocsInBlock];
+
+                if (blockId == lastBlockId) {
+                    // Cache hit: uncompressedBlock already holds this block's decompressed data. Skip
+                    // decompression and copy from the cache. compressedData is positioned after this
+                    // block's offsets but before its value bytes — that's fine because the next
+                    // iteration's decompressOffsets() seeks to the next block's absolute position.
+                    assert fullBlockLength <= uncompressedBlock.length;
+                    System.arraycopy(uncompressedBlock, 0, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                } else if (blockId == endBlockId && lastDocId + 1 < blockEndDocId) {
+                    // Partial last block: cache it in uncompressedBlock so the next decodeBulk call
+                    // can hit the cache on entry when it begins in this same block.
+                    decompressValues(header.isCompressed(), numDocsInBlock);
+                    lastBlockId = blockId;
+                    startDocNumForBlock = blockStartDocId;
+                    limitDocNumForBlock = blockEndDocId;
+                    System.arraycopy(uncompressedBlock, 0, valuesBuffer, valuesBufferIndex, fullBlockLength);
+                } else {
+                    // Fast path: decompress directly into valuesBuffer at valuesBufferIndex, avoiding
+                    // an intermediate buffer and arraycopy for fully-consumed interior blocks.
+                    decompressor.decompressDirect(compressedData, valuesBuffer, valuesBufferIndex, fullBlockLength);
                 }
 
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 int endDocId = blockId == endBlockId ? lastDocId + 1 : blockEndDocId;
-                int offsetStart = uncompressedDocStarts[startDocId - blockStartDocId];
-                int offsetEnd = uncompressedDocStarts[endDocId - blockStartDocId];
 
+                final int blockBase = valuesBufferIndex;
                 for (int docId = startDocId; docId < endDocId; docId++) {
-                    int index = docId - blockStartDocId;
-                    int offset = valuesBufferIndex + uncompressedDocStarts[index] - offsetStart;
-                    offsetBuffer[offsetBufferIndex++] = offset;
+                    offsetBuffer[offsetBufferIndex++] = blockBase + uncompressedDocStarts[docId - blockStartDocId];
                 }
+                // The final iteration's value becomes the sentinel offsetBuffer[count].
+                lastOffsetIndex = blockBase + uncompressedDocStarts[endDocId - blockStartDocId];
 
-                int length = offsetEnd - offsetStart;
-                System.arraycopy(uncompressedBlock, offsetStart, valuesBuffer, valuesBufferIndex, length);
-                valuesBufferIndex += length;
+                valuesBufferIndex += fullBlockLength;
             }
-            offsetBuffer[offsetBufferIndex] = valuesBufferIndex;
-
-            lastBlockId = endBlockId;
-
-            // TODO: This sets state for the decode(...), we should look into removing this.
-            startDocNumForBlock = docOffsets.get(endBlockId);
-            limitDocNumForBlock = docOffsets.get(endBlockId + 1);
+            offsetBuffer[offsetBufferIndex] = lastOffsetIndex;
+            lastBulkBlockId = endBlockId;
 
             assert count == offsetBufferIndex;
             builder.appendBytesRefs(valuesBuffer, offsetBuffer);

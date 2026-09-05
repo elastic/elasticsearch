@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
 import org.elasticsearch.xpack.esql.view.RestPutViewAction;
+import org.elasticsearch.xpack.esql.view.SystemViews;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
@@ -585,6 +586,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
 
+        ViewService viewService = new ViewService(services.clusterService(), parser);
+        SystemViews systemViews = new SystemViews(services.clusterService(), services.threadPool(), viewService);
+
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
@@ -616,7 +620,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.client(),
                 services.crossProjectModeDecider()
             ),
-            new ViewService(services.clusterService(), parser),
+            viewService,
+            systemViews,
             new DataSourceService(services.clusterService(), crudValidators, encryptionService),
             new DatasetService(services.clusterService(), crudValidators),
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)

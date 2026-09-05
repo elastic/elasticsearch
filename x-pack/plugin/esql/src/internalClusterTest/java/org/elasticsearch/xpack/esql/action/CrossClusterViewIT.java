@@ -59,7 +59,7 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
     }
 
     public void testAllViewsOnRemoteExcludedSucceeds() {
-        try (var resp = runQuery("FROM cluster*:logs-*,-cluster-a:*,remote-b:*", null)) {
+        try (var resp = runQuery("FROM cluster*:logs-*,-cluster-a:*,remote-b:*,remote-b:-.ml-anomalies", null)) {
             assertOk(resp);
         }
     }

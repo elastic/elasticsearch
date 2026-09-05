@@ -1091,7 +1091,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(105000L, getValuesList(results).get(0).get(1));
         }
 
-        try (var results = run("from * | stats count(data), sum(count)")) {
+        try (var results = run("from *,-.ml-anomalies | stats count(data), sum(count)")) {
             assertEquals(1, getValuesList(results).size());
             assertEquals(55L, getValuesList(results).get(0).get(0));
             assertEquals(121720L, getValuesList(results).get(0).get(1));
@@ -1121,9 +1121,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::failures", 9L);
 
         // Match all pattern with each selector
-        testCases.put("*", 15L);
-        testCases.put("*::data", 15L);
-        testCases.put("*::failures", 9L);
+        testCases.put("*,-.ml-anomalies", 15L);
+        testCases.put("*::data,-.ml-anomalies", 15L);
+        testCases.put("*::failures,-.ml-anomalies", 9L);
 
         // Concrete multi-pattern
         testCases.put("test_ds_patterns_1,test_ds_patterns_2", 10L);

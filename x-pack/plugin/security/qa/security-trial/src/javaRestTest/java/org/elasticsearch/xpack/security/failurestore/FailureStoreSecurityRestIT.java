@@ -3445,7 +3445,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
 
         Request toEsqlRequest() throws IOException {
-            String command = "from " + searchTarget + " METADATA _id | KEEP _id";
+            String target = searchTarget.contains("*") ? searchTarget + ",-.ml-anomalies" : searchTarget;
+            String command = "from " + target + " METADATA _id | KEEP _id";
             if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
                 // add a (high) limit to avoid warnings on default limit
                 command += " | limit 10000000";

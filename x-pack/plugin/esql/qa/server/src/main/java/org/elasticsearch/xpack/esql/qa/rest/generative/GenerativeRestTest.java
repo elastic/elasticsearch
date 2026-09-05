@@ -150,7 +150,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
-        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains
+        // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
         // a DEDUP and a full-text function appears in the WHERE after the FORK)
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
@@ -1063,8 +1065,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:"
             // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
+            // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
             + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
+            + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
             + "|"
             // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
             + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"

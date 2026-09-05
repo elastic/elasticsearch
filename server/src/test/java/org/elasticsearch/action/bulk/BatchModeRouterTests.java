@@ -43,7 +43,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -178,7 +177,8 @@ public class BatchModeRouterTests extends ESTestCase {
     /**
      * Mirror of {@link BulkOperation}'s shard grouping loop: resolves the concrete write index and
      * routing for each item, then delegates the full routing step — pre-process, routing decision,
-     * post-process, and batch bookkeeping — to {@link BatchModeRouter#route}.
+     * post-process, and batch bookkeeping — to {@link BatchModeRouter#route}. Calls
+     * {@link BatchModeRouter#buildGrouping} after the scan, matching the production path.
      *
      * @param skipRows rows to drop before routing, standing in for items that fail validation in the
      *                 real loop
@@ -189,7 +189,7 @@ public class BatchModeRouterTests extends ESTestCase {
         ProjectMetadata project,
         Set<Integer> skipRows
     ) {
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = new LinkedHashMap<>();
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
         int slot = 0;
         for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests) {
             IndexRequest request = (IndexRequest) docWriteRequest;
@@ -200,10 +200,9 @@ public class BatchModeRouterTests extends ESTestCase {
             IndexAbstraction abstraction = project.getIndicesLookup().get(request.index());
             Index concreteIndex = request.getConcreteWriteIndex(abstraction, project);
             IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(concreteIndex));
-            int shardId = router.route(request, abstraction, concreteIndex, routing, project);
-            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), ignored -> new ArrayList<>()).add(item);
+            router.route(item, request, abstraction, concreteIndex, routing, project, requestsByShard);
         }
-        return requestsByShard;
+        return router.buildGrouping(requestsByShard, (item, e) -> { throw new AssertionError("unexpected routing failure", e); });
     }
 
     private static Map<ShardId, List<BulkItemRequest>> routeAll(BatchModeRouter router, BulkRequest bulkRequest, ProjectMetadata project) {
@@ -338,9 +337,9 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * If some (but not all) rows are dropped before routing, {@code shardBatches()} must fail
-     * rather than silently produce a misaligned batch. Discard-bucket support will be added in a
-     * follow-up.
+     * If some (but not all) rows are dropped before routing, {@code completeDeferredRouting} must
+     * fail rather than silently produce a misaligned batch. Discard-bucket support will be added in
+     * a follow-up.
      */
     public void testThrowsWhenSomeRowsDropped() throws IOException {
         int numDocs = randomIntBetween(3, 20);
@@ -356,8 +355,7 @@ public class BatchModeRouterTests extends ESTestCase {
             dropped.add(randomIntBetween(0, numDocs - 1));
         }
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        routeAll(router, bulkRequest, project, dropped);
-        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        var e = expectThrows(IllegalStateException.class, () -> routeAll(router, bulkRequest, project, dropped));
         assertThat(e.getMessage(), containsString("not yet supported"));
         router.close();
     }
@@ -421,9 +419,10 @@ public class BatchModeRouterTests extends ESTestCase {
         // Carries a row but targets a name with no batch — e.g. because something rewrote _index.
         IndexRequest request = rowRequest("otherindex", batch, 0);
         IndexAbstraction ia = project.getIndicesLookup().get(request.index());
+        BulkItemRequest item = new BulkItemRequest(0, request);
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> router.prepareRouting(request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project)
+            () -> router.route(item, request, ia, other.getIndex(), IndexRouting.fromIndexMetadata(other), project, new HashMap<>())
         );
         assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
         router.close();
@@ -477,13 +476,16 @@ public class BatchModeRouterTests extends ESTestCase {
         // Resolve the abstraction for "myindex" — both items target the same name.
         IndexAbstraction ia = project.getIndicesLookup().get("myindex");
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        router.prepareRouting(first, ia, concreteA, routingA, project);
-        router.markRoutedShard(first, 0);
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        router.route(new BulkItemRequest(0, first), first, ia, concreteA, routingA, project, requestsByShard);
 
         // The second item is artificially routed to a different concrete index — must be rejected.
         IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
         IndexRouting routingB = IndexRouting.fromIndexMetadata(mdB);
-        var e = expectThrows(IllegalArgumentException.class, () -> router.prepareRouting(second, ia, concreteB, routingB, project));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> router.route(new BulkItemRequest(1, second), second, ia, concreteB, routingB, project, requestsByShard)
+        );
         assertThat(e.getMessage(), containsString("not yet supported"));
         router.close();
     }
@@ -498,55 +500,44 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        IndexMetadata md = plainMetadata("myindex", 1);
-        ProjectMetadata project = project(md);
-        IndexRouting routing = IndexRouting.fromIndexMetadata(md);
-        IndexAbstraction ia = project.getIndicesLookup().get("myindex");
-
-        IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        router.prepareRouting(first, ia, md.getIndex(), routing, project);
-        router.markRoutedShard(first, 0);
-
-        IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
-        router.prepareRouting(second, ia, md.getIndex(), routing, project);
-        var e = expectThrows(IllegalArgumentException.class, () -> router.markRoutedShard(second, 0));
+        ProjectMetadata project = project(plainMetadata("myindex", 1));
+        var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
         assertThat(e.getMessage(), containsString("not strictly greater"));
         router.close();
     }
 
-    public void testRejectsShardIdOutsideShardCount() throws IOException {
-        EscfBatch batch = buildBatch(1);
-        BulkRequest bulkRequest = buildBulkRequest("myindex", batch, 1);
-        IndexMetadata md = plainMetadata("myindex", 2);
-        ProjectMetadata project = project(md);
-
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        IndexRequest request = (IndexRequest) bulkRequest.requests.get(0);
-        IndexAbstraction ia = project.getIndicesLookup().get(request.index());
-        router.prepareRouting(request, ia, md.getIndex(), IndexRouting.fromIndexMetadata(md), project);
-        var e = expectThrows(IllegalStateException.class, () -> router.markRoutedShard(request, 2));
-        assertThat(e.getMessage(), containsString("outside the shard count"));
-        router.close();
-    }
-
-    public void testRejectsForIndexDimensionsWithoutTsid() throws IOException {
+    /**
+     * A provided batch without pre-computed {@code _tsid} is now supported: the columnar tsid
+     * calculator derives the tsid from the dimension column ({@code "dim"}) in the batch. The
+     * computed tsid must match what {@link IndexRouting.ExtractFromSource.ForIndexDimensions#buildTsid}
+     * produces from the same source document.
+     */
+    public void testProvidedBatchWithoutTsidRoutesViaColumnarCalculation() throws IOException {
         IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         assertThat(routing, instanceOf(IndexRouting.ExtractFromSource.ForIndexDimensions.class));
+        IndexRouting.ExtractFromSource.ForIndexDimensions dims = (IndexRouting.ExtractFromSource.ForIndexDimensions) routing;
         ProjectMetadata project = projectWithDataStream(md);
 
-        EscfBatch batch = buildBatch(1);
+        // batch has {"dim": "d0", "val": 0} — "dim" is the declared dimension field.
+        Docs docs = buildDocs(1);
+        EscfBatch batch = docs.batch();
         IndexRequest request = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
         request.indexSource().setSourceRow(batch, 0, XContentType.JSON);
-        request.setTimeSeriesTimestamp(IN_GEN_1); // but no tsid
+        request.setTimeSeriesTimestamp(IN_GEN_1); // no pre-computed tsid
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        IndexAbstraction ia = project.getIndicesLookup().get(request.index());
-        var e = expectThrows(IllegalArgumentException.class, () -> router.prepareRouting(request, ia, md.getIndex(), routing, project));
-        assertThat(e.getMessage(), containsString("routes on _tsid"));
+        var requestsByShard = routeAll(router, bulkRequest, project);
+
+        // Tsid must have been computed and attached to the request.
+        assertThat(request.tsid(), notNullValue());
+        BytesRef expectedTsid = dims.buildTsid(XContentType.JSON, docs.sources().get(0));
+        assertThat(request.tsid(), equalTo(expectedTsid));
+
+        assertShardsAligned(requestsByShard, router.shardBatches());
         router.close();
     }
 
@@ -592,7 +583,8 @@ public class BatchModeRouterTests extends ESTestCase {
 
     /**
      * Even a single-shard index throws when a row is dropped, because the passthrough fast path
-     * requires all rows to be present.
+     * requires all rows to be present. The exception comes from {@code completeDeferredRouting},
+     * which is called by {@code routeAll} after the scan.
      */
     public void testSingleShardWithDroppedRowThrows() throws IOException {
         int numDocs = randomIntBetween(2, 20);
@@ -602,8 +594,10 @@ public class BatchModeRouterTests extends ESTestCase {
         ProjectMetadata project = project(md);
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        routeAll(router, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)));
-        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> routeAll(router, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)))
+        );
         assertThat(e.getMessage(), containsString("not yet supported"));
         router.close();
     }
@@ -626,15 +620,19 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
-    /** Resolving an already-bound index must not skip the per-item {@code _tsid} check. */
-    public void testBoundIndexStillValidatesTsid() throws IOException {
+    /**
+     * A batch where some items carry a pre-computed {@code _tsid} and others do not violates the
+     * all-or-none invariant enforced by
+     * {@link IndexRouting.ExtractFromSource.ForIndexDimensions#indexShard(IndexRequest[], org.elasticsearch.sourcebatch.SourceBatch)}.
+     * The violation is detected during {@code completeDeferredRouting}.
+     */
+    public void testMixedTsidBatchIsRejected() throws IOException {
         IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
-        IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         ProjectMetadata project = projectWithDataStream(md);
 
         EscfBatch batch = buildBatch(2);
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1));
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1));  // has pre-set tsid
         IndexRequest withoutTsid = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
         withoutTsid.indexSource().setSourceRow(batch, 1, XContentType.JSON);
         withoutTsid.setTimeSeriesTimestamp(IN_GEN_1); // but no tsid
@@ -642,12 +640,24 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        IndexAbstraction ia = project.getIndicesLookup().get(DATA_STREAM);
-        // The first item binds the index; the second resolves the same one and must still be rejected.
-        IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        router.prepareRouting(first, ia, md.getIndex(), routing, project);
-        var e = expectThrows(IllegalArgumentException.class, () -> router.prepareRouting(withoutTsid, ia, md.getIndex(), routing, project));
-        assertThat(e.getMessage(), containsString("routes on _tsid"));
+        // The all-or-none tsid check fires during buildGrouping: both items are reported via the
+        // onItemFailure callback and the returned grouping is empty.
+        List<Exception> failures = new ArrayList<>();
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        int slot = 0;
+        for (DocWriteRequest<?> req : bulkRequest.requests) {
+            IndexRequest ir = (IndexRequest) req;
+            BulkItemRequest item = new BulkItemRequest(slot++, ir);
+            IndexAbstraction ia = project.getIndicesLookup().get(ir.index());
+            Index idx = ir.getConcreteWriteIndex(ia, project);
+            router.route(item, ir, ia, idx, IndexRouting.fromIndexMetadata(project.getIndexSafe(idx)), project, requestsByShard);
+        }
+        Map<ShardId, List<BulkItemRequest>> result = router.buildGrouping(requestsByShard, (item, e) -> failures.add(e));
+
+        assertThat("grouping must be empty after tsid-consistency failure", result.isEmpty(), equalTo(true));
+        assertThat("both items reported as failed", failures.size(), equalTo(2));
+        assertThat(failures.get(0).getMessage(), containsString("Batch tsid consistency violation"));
+        assertThat(router.shardBatches(), equalTo(Map.of()));
         router.close();
     }
 
@@ -666,16 +676,117 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         IndexAbstraction iaFirst = project.getIndicesLookup().get(first.index());
-        router.prepareRouting(first, iaFirst, md.getIndex(), routing, project);
-        router.markRoutedShard(first, first.route(routing));
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        router.route(new BulkItemRequest(0, first), first, iaFirst, md.getIndex(), routing, project, requestsByShard);
 
         IndexRequest rewritten = rowRequest("otherindex", batch, 1);
         IndexAbstraction iaOther = project.getIndicesLookup().get(rewritten.index());
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> router.prepareRouting(rewritten, iaOther, other.getIndex(), IndexRouting.fromIndexMetadata(other), project)
+            () -> router.route(
+                new BulkItemRequest(1, rewritten),
+                rewritten,
+                iaOther,
+                other.getIndex(),
+                IndexRouting.fromIndexMetadata(other),
+                project,
+                requestsByShard
+            )
         );
         assertThat(e.getMessage(), containsString("no pre-built batch was supplied under that name"));
+        router.close();
+    }
+
+    public void testSingleShardSecondShardBatchesCallIsANoOp() throws IOException {
+        int numDocs = randomIntBetween(1, 10);
+        EscfBatch batch = buildBatch(numDocs);
+        BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
+        ProjectMetadata project = project(plainMetadata("myindex", 1));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> first = router.shardBatches();
+        assertThat(first.size(), equalTo(1));
+        assertSame(batch, first.values().iterator().next());
+
+        // Second call must not re-scatter the already-dispatched batch.
+        assertThat(router.shardBatches(), equalTo(Map.of()));
+        router.close();
+    }
+
+    public void testColumnarRoutingFailureReportsAllItemsViaCallback() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        // Build a batch with two rows; neither has a pre-set tsid, so ColumnarTsidCalculator runs.
+        // By adding an explicit routing value on the request we trigger checkNoRouting inside
+        // ForIndexDimensions.indexShard, which throws before computing any tsid.
+        Docs docs = buildDocs(2);
+        EscfBatch batch = docs.batch();
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 2; i++) {
+            IndexRequest req = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+            req.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            req.setTimeSeriesTimestamp(IN_GEN_1);
+            req.routing("forced-routing"); // triggers checkNoRouting inside indexShard
+            bulkRequest.add(req);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        List<BulkItemRequest> failedItems = new ArrayList<>();
+        List<Exception> failures = new ArrayList<>();
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+        int slot = 0;
+        for (DocWriteRequest<?> req : bulkRequest.requests) {
+            IndexRequest ir = (IndexRequest) req;
+            BulkItemRequest item = new BulkItemRequest(slot++, ir);
+            IndexAbstraction ia = project.getIndicesLookup().get(ir.index());
+            Index idx = ir.getConcreteWriteIndex(ia, project);
+            router.route(item, ir, ia, idx, IndexRouting.fromIndexMetadata(project.getIndexSafe(idx)), project, requestsByShard);
+        }
+        Map<ShardId, List<BulkItemRequest>> result = router.buildGrouping(requestsByShard, (item, e) -> {
+            failedItems.add(item);
+            failures.add(e);
+        });
+
+        assertThat("grouping must be empty after routing failure", result.isEmpty(), equalTo(true));
+        assertThat("all items reported as failed", failedItems.size(), equalTo(2));
+        for (Exception e : failures) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+        }
+        // shardBatches must also be empty: scattered flag was set to prevent a stale scatter.
+        assertThat(router.shardBatches(), equalTo(Map.of()));
+        router.close();
+    }
+
+    /**
+     * A TSDB batch where every item lacks a pre-computed {@code _tsid} routes correctly via
+     * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}: the calculator derives the
+     * tsid from the dimension column and {@link BatchModeRouter#buildGrouping} populates the
+     * grouping without any failure callbacks being fired.
+     */
+    public void testColumnarRoutingSucceedsForBatchWithoutPrecomputedTsid() throws IOException {
+        IndexMetadata md = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(md);
+
+        Docs docs = buildDocs(randomIntBetween(1, 10));
+        EscfBatch batch = docs.batch();
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < docs.sources().size(); i++) {
+            IndexRequest req = new IndexRequest(DATA_STREAM).opType(DocWriteRequest.OpType.CREATE);
+            req.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            req.setTimeSeriesTimestamp(IN_GEN_1); // no pre-set tsid
+            bulkRequest.add(req);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+
+        assertThat("all rows must land on exactly one shard in a 1-shard index", requestsByShard.size(), equalTo(1));
+        assertThat(requestsByShard.values().iterator().next().size(), equalTo(docs.sources().size()));
+        assertShardsAligned(requestsByShard, router.shardBatches());
         router.close();
     }
 

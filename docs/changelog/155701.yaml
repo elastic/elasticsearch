@@ -1,0 +1,6 @@
+area: Infra/REST API
+issues:
+ - 22769
+pr: 155701
+summary: Reject non-UTF-8 charset parameters for textual REST request bodies
+type: bug

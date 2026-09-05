@@ -40,6 +40,17 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaType(mediaType + "; charset=UTF-8"), equalTo(expectedXContentType));
     }
 
+    public void testRejectsUnsupportedCharset() {
+        assertThat(XContentType.fromMediaType("application/json; charset=iso-8859-1"), nullValue());
+        assertThat(XContentType.fromMediaType("application/x-ndjson; charset=iso-8859-1"), nullValue());
+        assertThat(XContentType.fromMediaType("application/yaml; charset=iso-8859-1"), nullValue());
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json; compatible-with=8; charset=iso-8859-1"), nullValue());
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+yaml; compatible-with=8; charset=utf-8"),
+            equalTo(XContentType.VND_YAML)
+        );
+    }
+
     public void testFromJsonUppercase() throws Exception {
         String mediaType = "application/json".toUpperCase(Locale.ROOT);
         XContentType expectedXContentType = XContentType.JSON;

@@ -31,6 +31,7 @@ import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -59,6 +60,21 @@ import static org.hamcrest.Matchers.matchesRegex;
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends HeapAttackTestCase {
+
+    @Before
+    public void maybeCreateView() throws IOException {
+        // Depending on whether a view exists, a slightly different code path is taken.
+        // We want to test both paths, so randomly create a view or not.
+        if (randomBoolean()) {
+            logger.info("Creating view");
+            Request r = new Request("PUT", "/_query/view/my_view");
+            r.setJsonEntity("""
+                { "query": "FROM manylongs" }""");
+            client().performRequest(r);
+        } else {
+            logger.info("Not creating view");
+        }
+    }
 
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.

@@ -34,25 +34,27 @@ import org.junit.rules.TestRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 
 public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
-    private static final String BUCKET = "S3SearchableSnapshotsCredentialsReloadIT-bucket";
-    private static final String BASE_PATH = "S3SearchableSnapshotsCredentialsReloadIT-base-path";
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static volatile String repositoryAccessKey;
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
     );
@@ -207,7 +209,10 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
                     .startObject("settings")
                     .value(
                         settingsOperator.apply(
-                            Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("endpoint", s3Fixture.getAddress())
+                            Settings.builder()
+                                .put("bucket", bucketSupplier.get())
+                                .put("base_path", basePathSupplier.get())
+                                .put("endpoint", s3Fixture.getAddress())
                         ).build()
                     )
                     .endObject()

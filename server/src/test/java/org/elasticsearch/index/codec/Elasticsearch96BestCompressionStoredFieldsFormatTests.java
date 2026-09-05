@@ -4,23 +4,18 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * License v3.0 only", or the "Server Side Public License, v 1";
  */
 
-package org.elasticsearch.index.codec.zstd;
+package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 
-public class Zstd814BestSpeedStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
+public class Elasticsearch96BestCompressionStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
-
-    private final Codec codec = new Elasticsearch93Lucene104Codec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
+    private final Codec codec = new Elasticsearch96Codec(Lucene104Codec.Mode.BEST_COMPRESSION);
 
     @Override
     protected Codec getCodec() {

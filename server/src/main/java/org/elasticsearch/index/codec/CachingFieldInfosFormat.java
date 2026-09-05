@@ -38,7 +38,7 @@ import java.util.Map;
  * is part of the cache key), but the name {@code String} and attribute {@code Map} <em>can</em>, and the node-wide interns
  * collapse those allocations across every shard on the node.
  *
- * <p>Selected by {@link CodecService.DeduplicateFieldInfosCodec} when
+ * <p>Selected by {@link ElasticsearchFieldInfosFormat} when
  * {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled. When the segment's Directory is not wrapped (e.g. tooling paths
  * like snapshot inspection or checkindex), this format falls through to a per-call read with no FieldInfo retention.
  */

@@ -714,9 +714,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158128
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetNullListElementWarningIT
-  method: testDroppedNullElementIsAnnouncedInEveryDistributionMode
-  issue: https://github.com/elastic/elasticsearch/issues/158281
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testPeerRecoveryTrimsLocalTranslog
   issue: https://github.com/elastic/elasticsearch/issues/158303

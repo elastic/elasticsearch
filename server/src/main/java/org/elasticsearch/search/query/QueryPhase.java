@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -60,17 +61,19 @@ public class QueryPhase {
     private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.queryPhaseRankShardContext() == null) {
-            if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
-                // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
-                // and rerank the documents as per the RankBuilder's instructions.
-                // Pagination will take place later once they're all (re)ranked.
-                searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
-                searchContext.from(0);
+        try (var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(searchContext)) {
+            if (searchContext.queryPhaseRankShardContext() == null) {
+                if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
+                    // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
+                    // and rerank the documents as per the RankBuilder's instructions.
+                    // Pagination will take place later once they're all (re)ranked.
+                    searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
+                    searchContext.from(0);
+                }
+                executeQuery(searchContext);
+            } else {
+                executeRank(searchContext);
             }
-            executeQuery(searchContext);
-        } else {
-            executeRank(searchContext);
         }
     }
 

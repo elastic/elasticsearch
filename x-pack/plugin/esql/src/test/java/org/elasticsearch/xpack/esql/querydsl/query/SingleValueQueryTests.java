@@ -207,7 +207,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext baseCtx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 QueryWarnings bridge = QueryWarnings.EMIT;
-                EsqlSearchExecutionContext ctx = new EsqlSearchExecutionContext(baseCtx, bridge);
+                EsqlSearchExecutionContext ctx = new EsqlSearchExecutionContext(baseCtx, bridge, threadContext);
                 QueryBuilder rewritten = builder.rewrite(ctx);
                 Query query = rewritten.toQuery(ctx);
                 try (Releasable ignored = bridge.bind(warningsFor(query))) {

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
@@ -158,6 +159,34 @@ public final class FetchPhase {
      * @throws TaskCancelledException if the task is cancelled
      */
     public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        @Nullable IntConsumer memoryChecker,
+        @Nullable FetchPhaseResponseChunk.Writer writer,
+        @Nullable Integer maxInFlightChunks,
+        @Nullable Integer targetChunkBytes,
+        @Nullable Executor continuationExecutor,
+        @Nullable ActionListener<Void> buildListener,
+        ActionListener<Void> listener
+    ) {
+        try (var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(context)) {
+            executeWithTimeRangeFilterFrom(
+                context,
+                docIdsToLoad,
+                rankDocs,
+                memoryChecker,
+                writer,
+                maxInFlightChunks,
+                targetChunkBytes,
+                continuationExecutor,
+                buildListener,
+                listener
+            );
+        }
+    }
+
+    private void executeWithTimeRangeFilterFrom(
         SearchContext context,
         int[] docIdsToLoad,
         RankDocShardInfo rankDocs,

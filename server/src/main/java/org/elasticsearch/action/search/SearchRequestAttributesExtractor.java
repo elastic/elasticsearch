@@ -15,6 +15,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -25,6 +28,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -401,6 +405,40 @@ public final class SearchRequestAttributesExtractor {
         if (timeRangeFrom != null) {
             String timestampRangeFilter = introspectTimeRange(timeRangeFrom, nowInMillis);
             attributes.put(TIME_RANGE_FILTER_FROM_ATTRIBUTE, timestampRangeFilter);
+        }
+    }
+
+    /**
+     * Stashes the current thread context and, when the search has a time-range filter on {@code @timestamp}
+     * or {@code event.ingested}, records {@link #TIME_RANGE_FILTER_FROM_ATTRIBUTE} as a transient so blob-cache
+     * read/miss metrics can be attributed to the same bucket as search-phase metrics.
+     */
+    public static Releasable withTimeRangeFilterFrom(SearchContext context) {
+        return withTimeRangeFilterFrom(
+            context.indexShard().getThreadPool().getThreadContext(),
+            context.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
+            context.request().nowInMillis()
+        );
+    }
+
+    /**
+     * Stashes {@code threadContext} and optionally records {@link #TIME_RANGE_FILTER_FROM_ATTRIBUTE} as a transient.
+     * Restoring the returned {@link Releasable} reverts the thread context.
+     */
+    public static Releasable withTimeRangeFilterFrom(ThreadContext threadContext, @Nullable Long timeRangeFromMillis, long nowInMillis) {
+        var stored = threadContext.newStoredContext();
+        putTimeRangeFilterFrom(threadContext, timeRangeFromMillis, nowInMillis);
+        return stored;
+    }
+
+    /**
+     * Records {@link #TIME_RANGE_FILTER_FROM_ATTRIBUTE} as a transient when {@code timeRangeFromMillis} is non-null.
+     * Does not stash or restore the thread context; callers that need isolation should wrap with
+     * {@link ThreadContext#newStoredContext()} or {@link #withTimeRangeFilterFrom}.
+     */
+    public static void putTimeRangeFilterFrom(ThreadContext threadContext, @Nullable Long timeRangeFromMillis, long nowInMillis) {
+        if (timeRangeFromMillis != null) {
+            threadContext.putTransient(TIME_RANGE_FILTER_FROM_ATTRIBUTE, introspectTimeRange(timeRangeFromMillis, nowInMillis));
         }
     }
 

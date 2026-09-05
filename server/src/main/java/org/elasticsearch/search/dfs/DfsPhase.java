@@ -19,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -58,21 +59,23 @@ public class DfsPhase {
     private DfsPhase() {}
 
     public static void execute(SearchContext context) {
-        try {
-            final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
-            collectStatistics(context, timeoutRunnable);
+        try (var ignored = SearchRequestAttributesExtractor.withTimeRangeFilterFrom(context)) {
+            try {
+                final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+                collectStatistics(context, timeoutRunnable);
 
-            if (context.dfsResult().searchTimedOut() == false) {
-                executeKnnVectorQuery(context, timeoutRunnable);
-            }
+                if (context.dfsResult().searchTimedOut() == false) {
+                    executeKnnVectorQuery(context, timeoutRunnable);
+                }
 
-            if (context.getProfilers() != null) {
-                context.dfsResult().profileResult(context.getProfilers().getDfsProfiler().buildDfsPhaseResults());
+                if (context.getProfilers() != null) {
+                    context.dfsResult().profileResult(context.getProfilers().getDfsProfiler().buildDfsPhaseResults());
+                }
+            } catch (SearchTimeoutException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
             }
-        } catch (SearchTimeoutException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
     }
 

@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SubjectTests extends ESTestCase {
     private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
@@ -209,14 +210,17 @@ public class SubjectTests extends ESTestCase {
             Map.of()
         );
         assertThat(uncapped.hasCloudLimitedByRoles(), equalTo(false));
+        assertThat(uncapped.getCloudLimitedByRoleNames(), nullValue());
 
+        final List<String> limitedByRoleNames = List.of("role_b");
         final Subject capped = new Subject(
             user,
             new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
             TransportVersion.current(),
-            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, List.of("role_b"))
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
         );
         assertThat(capped.hasCloudLimitedByRoles(), equalTo(true));
+        assertThat(capped.getCloudLimitedByRoleNames(), equalTo(limitedByRoleNames));
     }
 
     public void testGetRoleReferencesForCloudUserWithLimitedByRoles() {

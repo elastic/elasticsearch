@@ -262,7 +262,7 @@ public class DriverTests extends ESTestCase {
             new ArrayIndexOutOfBoundsException("simulated broken invariant"),
             new RuntimeException(new IOException("io failure"))
         )) {
-            assertFailureLogged(failure, failure.getClass(), Level.ERROR, "*Error running driver [test-task]*");
+            assertFailureLogged(failure, failure.getClass(), Level.ERROR, "*Error running driver [session=unset] [test-task]*");
         }
     }
 

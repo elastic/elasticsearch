@@ -221,7 +221,10 @@ public class Driver implements Releasable, Describable {
                 if (status.getStatus() >= 400 && status.getStatus() < 500) {
                     LOGGER.debug(Strings.format("User error running driver [%s]", shortDescription), e);
                 } else {
-                    LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
+                    // Deliberately only the short description. The long pipeline description renders every
+                    // operator factory, and those embed query literals verbatim (see LiteralsEvaluator), so it
+                    // must not reach the logs un-anonymized.
+                    LOGGER.error("Error running driver [session={}] [{}]", sessionId, shortDescription, e);
                 }
                 throw e;
             } finally {

@@ -66,7 +66,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
+import org.elasticsearch.xpack.esql.anonymizer.EsqlFailureLogger;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
@@ -706,7 +706,7 @@ public class EsqlSession {
         return delegate.delegateResponse((next, err) -> {
             // Only log on internal server errors. User-facing failures (verification errors, parse
             // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
-            if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
+            if (ExceptionsHelper.status(err).getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
                 logAnonymizedPlans(planSnapshot, err);
             }
             next.onFailure(err);
@@ -1028,44 +1028,15 @@ public class EsqlSession {
     }
 
     private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
-        if (LOGGER.isErrorEnabled() == false) {
-            return;
-        }
-        // If parse never completed, there's nothing useful to anonymize. The exception message
-        // already carries the parse-error position.
-        if (snap.parsed() == null) {
-            return;
-        }
-        try {
-            var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
-                .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
-            LOGGER.error(
-                """
-                    ES|QL query failed in session [{}]
-                    failure:
-                    {}
-                    parsed:
-                    {}
-                    analyzed:
-                    {}
-                    optimized:
-                    {}
-                    physical:
-                    {}
-                    schema:
-                    {}""".stripIndent(),
-                sessionId,
-                err.getMessage(),
-                anonymized.parsed(),
-                anonymized.analyzed(),
-                anonymized.optimized(),
-                anonymized.physical(),
-                anonymized.schema(),
-                err
-            );
-        } catch (Exception e) {
-            LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
-        }
+        EsqlFailureLogger.logCoordinatorFailure(
+            sessionId,
+            clusterUuid,
+            snap.parsed(),
+            snap.analyzed(),
+            snap.optimized(),
+            snap.physical(),
+            err
+        );
     }
 
     /**

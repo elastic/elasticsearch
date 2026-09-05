@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.anonymizer;
 
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +40,11 @@ import java.util.TreeMap;
  */
 public final class PlanAnonymizer {
 
+    private static final String REDACTED = "<redacted>";
+
     public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
+
+    public record LocalComputePlans(String physical, String executionPlan) {}
 
     private final AnonymizationContext ctx;
     private final NodeStringMapper mapper;
@@ -71,6 +77,86 @@ public final class PlanAnonymizer {
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);
 
         return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText);
+    }
+
+    /**
+     * Anonymizes the local physical plan and the operator skeleton of a
+     * {@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan#describe()} string produced
+     * from that plan.
+     */
+    public LocalComputePlans anonymizeLocalCompute(PhysicalPlan localPlan, String executionPlanDescribe) {
+        var plans = anonymize(null, null, null, localPlan);
+        return new LocalComputePlans(plans.physical(), redactExecutionPlan(executionPlanDescribe));
+    }
+
+    /**
+     * Renders the shards a local compute ran against as {@code [<index token>][<shard number>]}. Index names route
+     * through the same per-submission map the plans use, so a shard's index correlates with the {@code idx_} tokens in
+     * the plan text. Shard numbers carry no user data and are kept as-is.
+     */
+    public String anonymizeShardIds(List<ShardId> shardIds) {
+        StringBuilder sb = new StringBuilder();
+        for (ShardId shardId : shardIds) {
+            if (sb.isEmpty() == false) {
+                sb.append(", ");
+            }
+            sb.append('[').append(mapper.index(shardId.getIndexName())).append("][").append(shardId.id()).append(']');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Keeps the tree prefix and each operator factory's class name from an execution-plan description and drops
+     * everything the factory prints about its arguments.
+     * <p>
+     * Those arguments embed query literals verbatim: {@link org.elasticsearch.compute.operator.EvalOperator}'s
+     * {@code describe()} renders its evaluator, and a constant evaluator renders the raw
+     * {@link org.elasticsearch.xpack.esql.core.expression.Literal} value. There is no token map to substitute against
+     * — literal tokens are per-submission interning ids, not derived from the text — so the contents are dropped
+     * wholesale rather than pattern-matched, the same trade-off
+     * {@link org.elasticsearch.xpack.esql.core.tree.NodeStringMapper#opaque(String)} makes for free-form plan text.
+     * Only characters up to the first non-identifier character survive, which is the factory's simple name.
+     */
+    static String redactExecutionPlan(String executionPlanDescribe) {
+        if (executionPlanDescribe == null || executionPlanDescribe.isEmpty()) {
+            return "";
+        }
+        String[] lines = executionPlanDescribe.split("\n", -1);
+        StringBuilder sb = new StringBuilder(executionPlanDescribe.length());
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                sb.append('\n');
+            }
+            appendRedactedLine(lines[i], sb);
+        }
+        return sb.toString();
+    }
+
+    private static void appendRedactedLine(String line, StringBuilder sb) {
+        int prefixEnd = 0;
+        while (prefixEnd < line.length() && isTreePrefixChar(line.charAt(prefixEnd))) {
+            prefixEnd++;
+        }
+        // Operator factories are Java classes, so a name we are willing to keep starts with an upper-case letter.
+        // Anything else is text we cannot account for, and only the tree prefix survives.
+        int nameEnd = prefixEnd;
+        if (nameEnd < line.length() && Character.isUpperCase(line.charAt(nameEnd))) {
+            while (nameEnd < line.length() && isNameChar(line.charAt(nameEnd))) {
+                nameEnd++;
+            }
+        }
+        sb.append(line, 0, nameEnd);
+        if (nameEnd < line.length()) {
+            sb.append('[').append(REDACTED).append(']');
+        }
+    }
+
+    private static boolean isTreePrefixChar(char c) {
+        return c == '\\' || c == '_' || c == ' ' || c == '\t';
+    }
+
+    private static boolean isNameChar(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$' || c == '.';
     }
 
     /**

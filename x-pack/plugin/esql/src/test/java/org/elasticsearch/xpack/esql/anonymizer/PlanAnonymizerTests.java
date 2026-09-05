@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.anonymizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -58,6 +59,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class PlanAnonymizerTests extends ESTestCase {
 
@@ -138,6 +143,70 @@ public class PlanAnonymizerTests extends ESTestCase {
 
         assertFalse("index name leaked through FragmentExec wrapper:\n" + out.physical(), out.physical().contains(INDEX));
         assertFalse("field name leaked through FragmentExec wrapper:\n" + out.physical(), out.physical().contains(F_EMAIL));
+    }
+
+    public void testAnonymizeLocalComputeDropsExecutionPlanOperatorArguments() {
+        PhysicalPlan physical = new FragmentExec(sampleLogicalPlan());
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymizeLocalCompute(physical, sampleExecutionPlanDescribe());
+
+        for (String secret : List.of(INDEX, F_EMAIL, "alice@example.com")) {
+            assertThat(out.physical(), not(containsString(secret)));
+            assertThat(out.executionPlan(), not(containsString(secret)));
+        }
+    }
+
+    public void testRedactExecutionPlanKeepsOperatorNamesAndTreeShape() {
+        String redacted = PlanAnonymizer.redactExecutionPlan(sampleExecutionPlanDescribe());
+
+        for (String operator : List.of(
+            "DriverFactory",
+            "LuceneSourceOperator",
+            "ValuesSourceReaderOperator",
+            "EvalOperator",
+            "ExchangeSinkOperator"
+        )) {
+            assertThat(redacted, containsString(operator));
+        }
+        assertThat(redacted, containsString("\\_LuceneSourceOperator[<redacted>]"));
+        assertThat(redacted, containsString("\\_ExchangeSinkOperator"));
+        assertThat(redacted.lines().count(), equalTo(5L));
+    }
+
+    public void testRedactExecutionPlanDropsTextWithNoOperatorName() {
+        assertThat(PlanAnonymizer.redactExecutionPlan("alice@example.com"), equalTo("[<redacted>]"));
+        assertThat(PlanAnonymizer.redactExecutionPlan("\\_user_email == 'alice'"), equalTo("\\_[<redacted>]"));
+        assertThat(PlanAnonymizer.redactExecutionPlan("null"), equalTo("[<redacted>]"));
+        assertThat(PlanAnonymizer.redactExecutionPlan(""), equalTo(""));
+        assertThat(PlanAnonymizer.redactExecutionPlan(null), equalTo(""));
+    }
+
+    public void testAnonymizeShardIdsTokenizesIndexNameButKeepsShardNumber() {
+        var anonymizer = PlanAnonymizer.forSubmission(randomUUID());
+
+        String shards = anonymizer.anonymizeShardIds(
+            List.of(new ShardId(INDEX, "_na_", 0), new ShardId(INDEX, "_na_", 3), new ShardId("other-index", "_na_", 1))
+        );
+
+        assertThat(shards, not(containsString(INDEX)));
+        assertThat(shards, not(containsString("other-index")));
+        assertThat(shards, containsString("][0]"));
+        assertThat(shards, containsString("][3]"));
+        assertThat(shards, containsString("][1]"));
+    }
+
+    /**
+     * The shape {@code LocalExecutionPlan.describe()} produces: a {@code DriverFactory} header followed by one
+     * {@code \_}-prefixed line per operator factory. Operator arguments are where user data hides - a constant
+     * evaluator renders the raw literal, and the field reader renders field names.
+     */
+    private static String sampleExecutionPlanDescribe() {
+        return """
+            DriverFactory(instances = 1, type = SINGLETON)
+            \\_LuceneSourceOperator[maxPageSize = 1000, remainingDocs=100]
+            \\_ValuesSourceReaderOperator[fields = [%s], index=%s]
+            \\_EvalOperator[evaluator=LiteralsEvaluator[lit=alice@example.com]]
+            \\_ExchangeSinkOperator""".formatted(F_EMAIL, INDEX);
     }
 
     /**

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150781
+pr: 156031
+summary: Log anonymized local plans on data-node failures
+type: feature

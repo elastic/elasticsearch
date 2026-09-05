@@ -46,6 +46,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -66,6 +67,7 @@ import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.anonymizer.EsqlFailureLogger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -1780,6 +1782,13 @@ public class ComputeService {
             singleValueQueryWarnings
         );
 
+        // Captured now, while the search contexts are guaranteed open. On the async failure path every driver
+        // closes its source operators before completing, which drops the last shard-context reference and swaps
+        // each ComputeSearchContext for a tombstone - so by the time the completion listener runs, reading them
+        // throws AlreadyClosedException and would preempt the listener, stranding the query.
+        final List<ShardId> shardIdsForLogging = context.description().equals(DATA_DESCRIPTION) ? collectShardIds(context) : List.of();
+        PhysicalPlan localPlan = null;
+        String localExecutionPlanDescribe = null;
         try {
             var workerThreadPool = transportService.getThreadPool();
             var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
@@ -1813,7 +1822,6 @@ public class ComputeService {
                 p -> p instanceof ExternalSourceExec
                     || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
             );
-            PhysicalPlan localPlan;
             final String logicalPlanString;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
@@ -1870,8 +1878,9 @@ public class ComputeService {
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
             var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            localExecutionPlanDescribe = localExecutionPlan.describe();
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlanDescribe);
             }
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
@@ -1920,8 +1929,14 @@ public class ComputeService {
             }
             long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
+            final PhysicalPlan localPlanForLogging = localPlan;
+            final String localExecutionPlanDescribeForLogging = localExecutionPlanDescribe;
+            ActionListener<DriverCompletionInfo> failureLoggingListener = listener.delegateResponse((l, e) -> {
+                maybeLogLocalComputeFailure(context, shardIdsForLogging, localPlanForLogging, localExecutionPlanDescribeForLogging, e);
+                l.onFailure(e);
+            });
             ActionListener<Void> driverListener = addCompletionInfo(
-                listener,
+                failureLoggingListener,
                 drivers,
                 context,
                 localPlan,
@@ -1944,11 +1959,51 @@ public class ComputeService {
                 })
             );
         } catch (Exception e) {
+            maybeLogLocalComputeFailure(context, shardIdsForLogging, localPlan, localExecutionPlanDescribe, e);
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
             }
-            LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
+            LOGGER.debug("Error in ComputeService.runCompute for: {}", context.description());
             listener.onFailure(e);
+        }
+    }
+
+    private static List<ShardId> collectShardIds(ComputeContext context) {
+        List<ShardId> shardIds = new ArrayList<>();
+        for (ComputeSearchContext searchContext : context.searchContexts().iterable()) {
+            shardIds.add(searchContext.searchContext().shardTarget().getShardId());
+        }
+        return shardIds;
+    }
+
+    /**
+     * Runs inside a failure handler that still has to complete the listener, so it swallows everything it can
+     * throw: letting an exception escape here would drop the original failure and leave the query hanging.
+     */
+    private void maybeLogLocalComputeFailure(
+        ComputeContext context,
+        List<ShardId> shardIds,
+        PhysicalPlan localPlan,
+        String localExecutionPlanDescribe,
+        Exception err
+    ) {
+        if (context.description().equals(DATA_DESCRIPTION) == false) {
+            return;
+        }
+        try {
+            EsqlFailureLogger.logLocalComputeFailure(
+                new EsqlFailureLogger.LocalComputeFailureContext(
+                    context.sessionId(),
+                    clusterService.state().metadata().clusterUUID(),
+                    context.clusterAlias(),
+                    shardIds,
+                    localPlan,
+                    localExecutionPlanDescribe
+                ),
+                err
+            );
+        } catch (Exception e) {
+            LOGGER.warn("Failed to log local compute failure for session [{}]", context.sessionId(), e);
         }
     }
 

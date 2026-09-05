@@ -230,6 +230,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytesSi;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtDuration;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtPercent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -484,6 +488,10 @@ public class EsqlFunctionRegistry {
                 Contains.DEFINITION,
                 EndsWith.DEFINITION,
                 FieldExtract.DEFINITION,
+                FmtBytes.DEFINITION,
+                FmtBytesSi.DEFINITION,
+                FmtDuration.DEFINITION,
+                FmtPercent.DEFINITION,
                 Hash.DEFINITION,
                 JsonExtract.DEFINITION,
                 LTrim.DEFINITION,

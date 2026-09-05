@@ -58,6 +58,9 @@ public interface ExistingShardsAllocator {
 
     /**
      * Returns an explanation for a single unassigned shard.
+     * <p>
+     * This method may run on threads other than the master service thread. Implementations must not start new
+     * fetches or otherwise mutate allocator fetch state.
      */
     AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation);
 

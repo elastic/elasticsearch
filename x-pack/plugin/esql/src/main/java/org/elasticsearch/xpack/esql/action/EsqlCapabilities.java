@@ -2508,6 +2508,11 @@ public class EsqlCapabilities {
         PROMQL_BINARY_COMPARISON_V0,
 
         /**
+         * Support for PromQL group modifiers.
+         */
+        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+
+        /**
          * Support for PromQL time() function.
          */
         PROMQL_TIME,
@@ -3566,6 +3571,14 @@ public class EsqlCapabilities {
          * so e.g. {@code quantile(1.0, x)} returned ≈ the minimum instead of the maximum. φ is now scaled by 100.
          */
         FIX_PROMQL_QUANTILE_SCALE,
+
+        /**
+         * PromQL binary operators between aggregates with the same grouping keys fuse into one aggregate. The fuse renamed
+         * the grouping columns along with the value aggregates, so over a {@code labels.*} passthrough index the command
+         * projection could no longer find the declared label by its canonical name and the plan failed verification with
+         * "missing references". Grouping columns now keep their names through the fuse.
+         */
+        FIX_PROMQL_FUSED_BINARY_OP_LABELS,
 
         /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:

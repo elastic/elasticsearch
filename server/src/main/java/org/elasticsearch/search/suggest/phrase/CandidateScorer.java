@@ -15,14 +15,30 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 import java.io.IOException;
 
 final class CandidateScorer {
+    /**
+     * Upper bound on the number of scoring steps (recursion entries plus fully scored combinations) a single request
+     * may perform in {@link #findCandidates}. The search space grows combinatorially with the number of tokens,
+     * {@code max_errors} and the number of candidates per term, none of which are otherwise bounded tightly enough to
+     * prevent a single request from consuming CPU indefinitely. The default configuration (10 tokens, 50% error rate,
+     * 5 candidates per term) needs well under one million steps, so this leaves ample headroom for legitimate queries.
+     */
+    static final long MAX_SCORED_PATHS = 10_000_000L;
+
     private final WordScorer scorer;
     private final int maxNumCorrections;
     private final int gramSize;
+    private final long maxScoredPaths;
 
     CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize) {
+        this(scorer, maxNumCorrections, gramSize, MAX_SCORED_PATHS);
+    }
+
+    // Visible for testing: allows exercising the budget without performing MAX_SCORED_PATHS scoring steps.
+    CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize, long maxScoredPaths) {
         this.scorer = scorer;
         this.maxNumCorrections = maxNumCorrections;
         this.gramSize = gramSize;
+        this.maxScoredPaths = maxScoredPaths;
     }
 
     public Correction[] findBestCandiates(CandidateSet[] sets, float errorFraction, double cutoffScore) throws IOException {
@@ -41,7 +57,8 @@ final class CandidateScorer {
         } else {
             numMissspellings = Math.round(errorFraction * sets.length);
         }
-        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMissspellings), corrections, cutoffScore, 0.0);
+        long[] pathsVisited = new long[1];
+        findCandidates(sets, new Candidate[sets.length], 0, Math.max(1, numMissspellings), corrections, cutoffScore, 0.0, pathsVisited);
         Correction[] result = new Correction[corrections.size()];
         for (int i = result.length - 1; i >= 0; i--) {
             result[i] = corrections.pop();
@@ -58,14 +75,19 @@ final class CandidateScorer {
         int numMissspellingsLeft,
         PriorityQueue<Correction> corrections,
         double cutoffScore,
-        final double pathScore
+        final double pathScore,
+        long[] pathsVisited
     ) throws IOException {
+        checkBudget(pathsVisited);
         CandidateSet current = candidates[ord];
         if (ord == candidates.length - 1) {
             path[ord] = current.originalTerm;
             updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
             if (numMissspellingsLeft > 0) {
                 for (int i = 0; i < current.candidates.length; i++) {
+                    // Each alternative at the last position is a complete combination that is scored without a further
+                    // recursive call, so it must be counted here or a single position with many candidates escapes the budget.
+                    checkBudget(pathsVisited);
                     path[ord] = current.candidates[i];
                     updateTop(candidates, path, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
                 }
@@ -80,7 +102,8 @@ final class CandidateScorer {
                     numMissspellingsLeft,
                     corrections,
                     cutoffScore,
-                    pathScore + scorer.score(path, ord, gramSize)
+                    pathScore + scorer.score(path, ord, gramSize),
+                    pathsVisited
                 );
                 for (int i = 0; i < current.candidates.length; i++) {
                     path[ord] = current.candidates[i];
@@ -91,15 +114,33 @@ final class CandidateScorer {
                         numMissspellingsLeft - 1,
                         corrections,
                         cutoffScore,
-                        pathScore + scorer.score(path, ord, gramSize)
+                        pathScore + scorer.score(path, ord, gramSize),
+                        pathsVisited
                     );
                 }
             } else {
                 path[ord] = current.originalTerm;
-                findCandidates(candidates, path, ord + 1, 0, corrections, cutoffScore, pathScore + scorer.score(path, ord, gramSize));
+                findCandidates(
+                    candidates,
+                    path,
+                    ord + 1,
+                    0,
+                    corrections,
+                    cutoffScore,
+                    pathScore + scorer.score(path, ord, gramSize),
+                    pathsVisited
+                );
             }
         }
 
+    }
+
+    private void checkBudget(long[] pathsVisited) {
+        if (++pathsVisited[0] > maxScoredPaths) {
+            throw new IllegalArgumentException(
+                "phrase suggester query is too complex and exceeded maximum combinations [" + maxScoredPaths + "]; reduce token_limit"
+            );
+        }
     }
 
     private void updateTop(

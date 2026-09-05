@@ -25,6 +25,13 @@ import java.util.List;
 final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
+    /**
+     * Upper bound for {@code token_limit}. {@link CandidateScorer#findCandidates} recurses once per analyzed token, so
+     * an unbounded value lets a single request exhaust the thread stack. This is enforced when the request is parsed
+     * ({@link PhraseSuggestionBuilder#tokenLimit(int)}), when it is deserialized from the transport layer, and again in
+     * the constructor here so that the scorer is protected regardless of how the value reached it.
+     */
+    public static final int MAX_TOKEN_LIMIT = 1000;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
     private final int tokenLimit;
@@ -32,7 +39,7 @@ final class NoisyChannelSpellChecker {
     NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram, int tokenLimit) {
         this.realWordLikelihood = nonErrorLikelihood;
         this.requireUnigram = requireUnigram;
-        this.tokenLimit = tokenLimit;
+        this.tokenLimit = Math.min(tokenLimit, MAX_TOKEN_LIMIT);
     }
 
     Result getCorrections(

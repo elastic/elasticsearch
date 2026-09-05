@@ -7,6 +7,7 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.join.ScoreMode;
@@ -27,6 +28,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,13 +45,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests.addSemanticTextInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 
-public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
+public class SemanticTextUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
     private static final String SPARSE_FIELD = "sparse_field";
     private static final String DENSE_FIELD = "dense_field";
@@ -67,6 +74,9 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
     private final boolean useLegacyFormat;
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
     @BeforeClass
     public static void beforeClass() {
         SPARSE_MODEL = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
@@ -74,20 +84,29 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         DENSE_MODEL = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
     }
 
-    public SemanticTextUpgradeIT(boolean useLegacyFormat) {
+    public SemanticTextUpgradeIT(@Name("upgradedNodes") int upgradedNodes, @Name("useLegacyFormat") boolean useLegacyFormat) {
+        super(upgradedNodes);
         this.useLegacyFormat = useLegacyFormat;
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return IntStream.rangeClosed(0, NODE_NUM)
+            .boxed()
+            .flatMap(n -> Stream.of(new Object[] { n, false }, new Object[] { n, true }))
+            .toList();
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     public void testSemanticTextOperations() throws Exception {
-        switch (CLUSTER_TYPE) {
-            case OLD -> createAndPopulateIndex();
-            case MIXED, UPGRADED -> performIndexQueryHighlightOps();
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+        if (isOldCluster()) {
+            createAndPopulateIndex();
+        } else {
+            performIndexQueryHighlightOps();
         }
     }
 
@@ -185,8 +204,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                     fieldModel.getServiceSettings().dimensions()
                 );
 
-                // Create a query vector with a value of 1 for each dimension, which will effectively act as a pass-through for the document
-                // vector
+                // Create a query vector with a value of 1 for each dimension, which will effectively act as a pass-through for the
+                // document vector
                 float[] queryVector = new float[embeddingLength];
                 if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
                     Arrays.fill(queryVector, -128.0f);
@@ -226,7 +245,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         return assertOKAndCreateObjectPath(response);
     }
 
-    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field) throws IOException {
+    private void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field) throws IOException {
         assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
 
@@ -236,6 +255,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             String id = ObjectPath.evaluate(hit, "_id");
             assertThat(id, notNullValue());
             docIds.add(id);
+
+            if (useLegacyFormat) {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields"), nullValue());
+            } else {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields." + field), notNullValue());
+            }
 
             List<String> expectedHighlight = DOC_VALUES.get(id);
             assertThat(expectedHighlight, notNullValue());

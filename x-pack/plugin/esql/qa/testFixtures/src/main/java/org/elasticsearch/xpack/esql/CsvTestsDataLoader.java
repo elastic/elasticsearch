@@ -281,6 +281,17 @@ public class CsvTestsDataLoader {
             EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
             EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS
         ),
+        // Prometheus remote-write layout: one document per sample, `labels.__name__` a dimension, one `metrics.<name>`
+        // field per metric, so two metrics never share a document or a series.
+        new TestDataset(
+            "prom-two-metrics",
+            "prom-two-metrics-mappings.json",
+            "k8s-prometheus-two-metrics.csv",
+            "prom-two-metrics-settings.json"
+        ).withRequiredCapabilities(
+            EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+            EsqlCapabilities.Cap.FIX_PROMQL_BINARY_OP_ACROSS_METRICS
+        ),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")

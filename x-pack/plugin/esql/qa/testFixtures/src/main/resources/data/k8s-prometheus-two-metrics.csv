@@ -1,0 +1,5 @@
+@timestamp:date,labels.__name__:keyword,labels.pod:keyword,labels.zone:keyword,metrics.mem_total:double,metrics.mem_free:double
+2024-05-10T00:58:01.000Z,mem_total,podA,eu,100.0,
+2024-05-10T00:58:02.000Z,mem_free,podA,eu,,40.0
+2024-05-10T00:58:03.000Z,mem_total,podB,us,200.0,
+2024-05-10T00:58:04.000Z,mem_free,podB,us,,50.0

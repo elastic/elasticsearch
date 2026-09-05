@@ -1,0 +1,37 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "type": "passthrough",
+      "priority": 10,
+      "time_series_dimension": true,
+      "properties": {
+        "__name__": {
+          "type": "keyword"
+        },
+        "pod": {
+          "type": "keyword"
+        },
+        "zone": {
+          "type": "keyword"
+        }
+      }
+    },
+    "metrics": {
+      "type": "passthrough",
+      "priority": 20,
+      "properties": {
+        "mem_total": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        },
+        "mem_free": {
+          "type": "double",
+          "time_series_metric": "gauge"
+        }
+      }
+    }
+  }
+}

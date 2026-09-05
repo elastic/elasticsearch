@@ -1,0 +1,40 @@
+// Binary operators between raw selectors of different metrics over the Prometheus remote-write layout: one document per
+// sample, `labels.__name__` a dimension, one `metrics.<name>` field per metric. Two metrics never share a document or a
+// series, so the operands must meet on the series identity without `__name__`, which the operator drops anyway.
+
+subtraction_between_metrics_in_separate_documents
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total - mem_free)
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+60.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+150.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;
+
+division_between_metrics_under_sum_by
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(sum by (zone) (mem_total / mem_free))
+| SORT zone;
+
+result:double | step:datetime            | zone:keyword
+2.5           | 2024-05-10T01:00:00.000Z | eu
+4.0           | 2024-05-10T01:00:00.000Z | us
+;
+
+// Arithmetic with a scalar also drops the metric name from the series identity.
+scalar_arithmetic_drops_metric_name
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total * 2)
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+200.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+400.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
+;

@@ -67,7 +67,9 @@ final class CandidateScorer {
     ) throws IOException {
         if (++pathsVisited[0] > MAX_SCORED_PATHS) {
             throw new IllegalArgumentException(
-                "phrase suggester scoring exceeded maximum path budget [" + MAX_SCORED_PATHS + "]; reduce token_limit or max_errors"
+                "phrase suggester query is too complex and exceeded maximum combinations ["
+                    + MAX_SCORED_PATHS
+                    + "]; reduce token_limit"
             );
         }
         CandidateSet current = candidates[ord];

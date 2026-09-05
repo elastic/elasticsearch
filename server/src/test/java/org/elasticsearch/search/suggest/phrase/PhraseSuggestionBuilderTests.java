@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
@@ -156,6 +158,26 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
 
         e = expectThrows(IllegalArgumentException.class, () -> builder.highlight("<b>", null));
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
+    }
+
+    public void testTokenLimitDeserializationClampsOversizedValues() throws IOException {
+        // Simulate what an old coordinating node might send: a tokenLimit beyond MAX_TOKEN_LIMIT.
+        // The setter now rejects such values, so we bypass it via reflection to forge the stream.
+        PhraseSuggestionBuilder original = new PhraseSuggestionBuilder("field");
+        try {
+            java.lang.reflect.Field field = PhraseSuggestionBuilder.class.getDeclaredField("tokenLimit");
+            field.setAccessible(true);
+            field.set(original, NoisyChannelSpellChecker.MAX_TOKEN_LIMIT + 1);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            original.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                PhraseSuggestionBuilder deserialized = new PhraseSuggestionBuilder(in);
+                assertEquals(NoisyChannelSpellChecker.MAX_TOKEN_LIMIT, (int) deserialized.tokenLimit());
+            }
+        }
     }
 
     @Override

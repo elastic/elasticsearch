@@ -10,6 +10,8 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +50,8 @@ import java.util.Set;
  * Defines the actual suggest command for phrase suggestions ( {@code phrase}).
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
+
+    private static final Logger logger = LogManager.getLogger(PhraseSuggestionBuilder.class);
 
     public static final String SUGGESTION_NAME = "phrase";
 
@@ -120,7 +124,17 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         gramSize = in.readOptionalVInt();
         model = in.readOptionalNamedWriteable(SmoothingModel.class);
         forceUnigrams = in.readBoolean();
-        tokenLimit = Math.min(in.readVInt(), NoisyChannelSpellChecker.MAX_TOKEN_LIMIT);
+        int rawTokenLimit = in.readVInt();
+        if (rawTokenLimit > NoisyChannelSpellChecker.MAX_TOKEN_LIMIT) {
+            logger.warn(
+                "Received token_limit [{}] exceeds maximum [{}]; clamping to maximum",
+                rawTokenLimit,
+                NoisyChannelSpellChecker.MAX_TOKEN_LIMIT
+            );
+            tokenLimit = NoisyChannelSpellChecker.MAX_TOKEN_LIMIT;
+        } else {
+            tokenLimit = rawTokenLimit;
+        }
         preTag = in.readOptionalString();
         postTag = in.readOptionalString();
         separator = in.readString();

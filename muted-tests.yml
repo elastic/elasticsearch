@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitIfPrimaryRelocates
   issue: https://github.com/elastic/elasticsearch/issues/158593
+- class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
+  method: testShutdownBlockIgnoreOtherRoles
+  issue: https://github.com/elastic/elasticsearch/issues/158594

@@ -509,6 +509,55 @@ public class Iterators {
     }
 
     /**
+     * Converts an iterator into one that yields nonempty batches of items of the given size (except the last one, which may be smaller).
+     */
+    public static <T> Iterator<List<T>> batching(int batchSize, final Iterator<T> iterator) {
+        return batching(batchSize, iterator, () -> new ArrayList<>(batchSize));
+    }
+
+    /**
+     * Converts an iterator into one that yields nonempty batches of items of the given size (except the last one, which may be smaller).
+     */
+    public static <T> Iterator<List<T>> batching(int batchSize, final Iterator<T> iterator, Supplier<List<T>> batchContainerSupplier) {
+        if (batchSize <= 0) {
+            assert false : batchSize;
+            throw new IllegalArgumentException("batchSize must be positive but got " + batchSize);
+        }
+        if (iterator.hasNext() == false) {
+            return Collections.emptyIterator();
+        }
+        return new BatchingIterator<>(batchSize, Objects.requireNonNull(iterator), Objects.requireNonNull(batchContainerSupplier));
+    }
+
+    private static class BatchingIterator<T> implements Iterator<List<T>> {
+        private final int batchSize;
+        private final Iterator<T> delegate;
+        private final Supplier<List<T>> batchContainerSupplier;
+
+        BatchingIterator(int batchSize, Iterator<T> delegate, Supplier<List<T>> batchContainerSupplier) {
+            this.batchSize = batchSize;
+            this.delegate = delegate;
+            this.batchContainerSupplier = batchContainerSupplier;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public List<T> next() {
+            final var nextBatch = batchContainerSupplier.get();
+            assert nextBatch != null;
+            assert nextBatch.isEmpty();
+            while (nextBatch.size() < batchSize && delegate.hasNext()) {
+                nextBatch.add(delegate.next());
+            }
+            return nextBatch;
+        }
+    }
+
+    /**
      * Adds a wrapper around {@code iterator} which asserts that {@link Iterator#remove()} is not called.
      */
     public static <T> Iterator<T> assertReadOnly(final Iterator<T> iterator) {

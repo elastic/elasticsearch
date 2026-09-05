@@ -403,27 +403,21 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     private void migrateToLongCounts() {
         assert longPages == null;
-        if (capacity < LONGS_PER_PAGE) {
-            reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByLongArray(capacity));
-            longPages = new long[1][capacity];
-            for (int i = 0; i < capacity; i++) {
-                longPages[0][i] = intPages[0][i];
-            }
-            intPages = null;
-            releaseBytes(bytesUsedByPagesArray(1) + bytesUsedByIntArray(capacity));
-            return;
-        }
-        final int numPages = capacity / LONGS_PER_PAGE;
-        reserveBytes(bytesUsedByPagesArray(numPages) + numPages * bytesUsedByLongArray(LONGS_PER_PAGE));
+        final int numPages = Math.ceilDiv(capacity, LONGS_PER_PAGE);
+        final int longsPerPage = Math.min(capacity, LONGS_PER_PAGE);
+        reserveBytes(bytesUsedByPagesArray(numPages) + numPages * bytesUsedByLongArray(longsPerPage));
         longPages = new long[numPages][];
         for (int p = 0; p < numPages; p++) {
-            longPages[p] = new long[LONGS_PER_PAGE];
+            longPages[p] = new long[longsPerPage];
         }
         for (int i = 0; i < capacity; i++) {
             longPages[i >>> LONG_PAGE_SHIFT][i & LONG_PAGE_MASK] = intPages[i >>> INT_PAGE_SHIFT][i & INT_PAGE_MASK];
         }
-        releaseBytes(bytesUsedByPagesArray(intPages.length) + (long) (capacity >>> INT_PAGE_SHIFT) * bytesUsedByIntArray(INTS_PER_PAGE));
+        long bytesUsedByInts = bytesUsedByPagesArray(intPages.length) + Math.ceilDiv(capacity, INTS_PER_PAGE) * bytesUsedByIntArray(
+            Math.min(capacity, INTS_PER_PAGE)
+        );
         intPages = null;
+        releaseBytes(bytesUsedByInts);
     }
 
     private void reserveBytes(long bytes) {

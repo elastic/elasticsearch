@@ -15,6 +15,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -73,5 +78,13 @@ public class RamUsageEstimatesTests extends ESTestCase {
     public void testShallowSizeOfShallowCompleteIsAtLeastReferenceOverhead() {
         long shallow = RamUsageEstimates.shallowSizeOfShallowComplete(ByteSizeValue.ofMb(1));
         assertThat(shallow, greaterThan(0L));
+    }
+
+    public void testCollectionShallowSizesMatchRamUsageEstimator() {
+        assertThat(RamUsageEstimates.HASH_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(HashMap.class)));
+        assertThat(RamUsageEstimates.HASH_SET_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(HashSet.class)));
+        assertThat(RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(LinkedHashMap.class)));
+        assertThat(RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(ArrayList.class)));
+        assertThat(RamUsageEstimates.TREE_MAP_SHALLOW_SIZE, equalTo(RamUsageEstimator.shallowSizeOfInstance(TreeMap.class)));
     }
 }

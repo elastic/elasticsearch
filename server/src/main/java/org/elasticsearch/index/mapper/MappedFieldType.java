@@ -74,6 +74,19 @@ public abstract class MappedFieldType {
     private final boolean isStored;
     private final Map<String, String> meta;
 
+    /**
+     * The fetch mechanism a caller must use to retrieve a field's embeddings.
+     */
+    public enum EmbeddingsFieldSource {
+        FIELDS,
+        DOC_VALUES
+    }
+
+    /**
+     * A field's embeddings, described as the field-and-format to request and the {@link EmbeddingsFieldSource} to request it through.
+     */
+    public record EmbeddingsField(FieldAndFormat fieldAndFormat, EmbeddingsFieldSource source) {}
+
     public MappedFieldType(String name, IndexType indexType, boolean isStored, Map<String, String> meta) {
         this.name = Mapper.internFieldName(name);
         this.indexType = indexType;
@@ -208,20 +221,21 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns the {@link FieldAndFormat} that retrieves this field's embeddings via the {@code fields} API.
+     * Returns the {@link EmbeddingsField} that retrieves this field's embeddings. Callers must honor the returned
+     * {@link EmbeddingsFieldSource}, as a field's embeddings may only be retrievable through one of the fetch mechanisms.
      *
      * @param vectorType the type of vector the caller requires, or {@code null} if the caller accepts any vector type.
-     * @return the embeddings field-and-format.
+     * @return the embeddings field.
      * @throws IllegalArgumentException if this field cannot produce embeddings of the requested type. Fields that expose no embeddings at
      *                                  all always throw, whatever type is requested.
      */
-    public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+    public EmbeddingsField embeddingsField(@Nullable VectorType vectorType) {
         throw unsupportedEmbeddings(vectorType);
     }
 
     /**
      * Builds the exception to throw when this field cannot produce embeddings of the type
-     * {@link #embeddingsFieldAndFormat(VectorType)} was asked for.
+     * {@link #embeddingsField(VectorType)} was asked for.
      */
     protected final IllegalArgumentException unsupportedEmbeddings(@Nullable VectorType vectorType) {
         return new IllegalArgumentException(

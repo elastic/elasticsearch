@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.encryption.spi;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 
+import java.util.function.UnaryOperator;
+
 /**
  * Implemented by features that own a project-scoped {@link Metadata.ProjectCustom} containing data encrypted under the project
  * encryption key (PEK). The rotation coordinator drives {@link #reEncrypt} when the custom is not yet on the active key, and
@@ -25,15 +27,16 @@ public interface EncryptedDataHandler<T extends Metadata.ProjectCustom> {
     String customName();
 
     /**
-     * Returns a re-encrypted copy of {@code current} where every encrypted value is under {@code activeKeyId}.
+     * Returns a copy of {@code current} where each {@link EncryptedData} value has been passed through {@code rewrapper}. The caller
+     * builds the rewrapper to express the desired transformation — key rotation, snapshot re-wrapping, or drop (when {@code rewrapper}
+     * returns {@code null} for a value). If all values are dropped the implementation should return {@code null} to signal removal.
      *
-     * @param current          the current value of the custom in cluster state, or {@code null} if absent
-     * @param encryptionService used to decrypt with the previous key and encrypt under the active key
-     * @param activeKeyId      the key ID every encrypted value in the returned custom must be under
-     * @return the re-encrypted custom. This may be the same instance if no change is needed. This must not be null when {@code current}
-     *         is not null.
+     * @param current   the current value of the custom in cluster state, or {@code null} if absent
+     * @param rewrapper function that transforms each {@link EncryptedData} — returns {@code null} to drop a value, or the original
+     *                  instance (same reference) to signal no change for that value
+     * @return the transformed custom (may be same instance if no values changed), or {@code null} to remove it from state
      */
-    T reEncrypt(T current, EncryptionService encryptionService, String activeKeyId);
+    T reEncrypt(T current, UnaryOperator<EncryptedData> rewrapper);
 
     /**
      * Decides what happens to this handler's custom when the project encryption key is destructively reset (via

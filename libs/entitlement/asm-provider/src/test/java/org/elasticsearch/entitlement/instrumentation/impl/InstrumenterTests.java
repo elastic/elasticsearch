@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This tests {@link InstrumenterImpl} can instrument various method signatures
@@ -1065,6 +1067,80 @@ public class InstrumenterTests extends ESTestCase {
         );
 
         expectThrows(AssertionError.class, () -> instrumentTestClass(instrumenter, TestConflictingSubclass.class));
+    }
+
+    /**
+     * Verifies that when {@code injectCallerSensitive=true}, {@link InstrumenterImpl} injects a
+     * {@code @CallerSensitive} annotation on the instrumented method and emits a direct call to
+     * the {@code Reflection.getCallerClass()} intrinsic (fast path) instead of routing through
+     * the {@code Util.getCallerClass()} StackWalker fallback (slow path).
+     * <p>
+     * The test only inspects the produced bytecode; it does not invoke the instrumented method,
+     * because the JVM only honors user-injected {@code @CallerSensitive} on classes loaded by the
+     * bootstrap classloader, and the test class is loaded via a regular {@link ClassLoader}.
+     */
+    public void testInjectsCallerSensitiveAnnotationAndFastPath() throws Exception {
+        InstrumentationRegistryImpl reg = new InstrumentationRegistryImpl(null);
+        EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(reg);
+        rulesBuilder.on(TestClassToInstrument.class)
+            .callingVoidStatic(TestClassToInstrument::someStaticMethod, Integer.class)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        InstrumenterTests.registry = reg;
+
+        InstrumenterImpl instrumenter = new InstrumenterImpl(
+            Type.getType(InstrumenterTests.class).getInternalName(),
+            Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
+            reg.getInstrumentedMethods(),
+            true // injectCallerSensitive
+        );
+
+        byte[] newBytecode = instrumenter.instrumentClass(
+            Type.getInternalName(TestClassToInstrument.class),
+            getClassBytecode(TestClassToInstrument.class),
+            true
+        );
+
+        String dump = bytecode2text(newBytecode);
+        assertThat(dump, containsString("Ljdk/internal/reflect/CallerSensitive;"));
+        assertThat(dump, containsString("INVOKESTATIC jdk/internal/reflect/Reflection.getCallerClass"));
+        assertThat(
+            "Fast-path injection must replace the StackWalker Util.getCallerClass call for all instrumented methods",
+            dump,
+            not(containsString("INVOKESTATIC org/elasticsearch/entitlement/bridge/Util.getCallerClass"))
+        );
+    }
+
+    /**
+     * Verifies that when {@code injectCallerSensitive=false} (the default for the 3-arg
+     * {@link InstrumenterImpl} constructor used by tests), no {@code @CallerSensitive} annotation
+     * is injected and the {@code Util.getCallerClass()} StackWalker slow path is retained.
+     */
+    public void testDoesNotInjectCallerSensitiveWhenDisabled() throws Exception {
+        InstrumentationRegistryImpl reg = new InstrumentationRegistryImpl(null);
+        EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(reg);
+        rulesBuilder.on(TestClassToInstrument.class)
+            .callingVoidStatic(TestClassToInstrument::someStaticMethod, Integer.class)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        InstrumenterTests.registry = reg;
+
+        InstrumenterImpl instrumenter = new InstrumenterImpl(
+            Type.getType(InstrumenterTests.class).getInternalName(),
+            Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
+            reg.getInstrumentedMethods()
+            // 3-arg constructor: injectCallerSensitive defaults to false
+        );
+
+        byte[] newBytecode = instrumenter.instrumentClass(
+            Type.getInternalName(TestClassToInstrument.class),
+            getClassBytecode(TestClassToInstrument.class),
+            true
+        );
+
+        String dump = bytecode2text(newBytecode);
+        assertThat(dump, not(containsString("Ljdk/internal/reflect/CallerSensitive;")));
+        assertThat(dump, containsString("INVOKESTATIC org/elasticsearch/entitlement/bridge/Util.getCallerClass"));
     }
 
     private static TestLoader buildInstrumentationForSubclass(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {

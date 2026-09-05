@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -334,6 +336,43 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
+            // If the shard's mapping disagrees with the type the query was planned with (a mapping update landed between field-caps
+            // resolution and execution here), the block loader would emit blocks of the wrong type and trip the sanity check in
+            // ValuesSourceReaderOperator. Detect it up front and fail with a descriptive, retryable 409 instead. Kept narrow so
+            // genuine planner bugs still surface via the sanity check.
+            if (
+            // unsupported fields load as nulls, the shard mapping is irrelevant
+            isUnsupported == false
+                // with a pushed-down function, the block type is the function's output, not the field's
+                && functionConfig == null
+                // only real index fields have a shard mapping to compare against
+                && attr instanceof FieldAttribute fa
+                // LOAD-mode marker reads _source by design
+                && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
+                MappedFieldType mft = shardContext.fieldType(fieldName);
+                // null means unmapped on this shard: loads as nulls, which is always accepted
+                if (mft != null) {
+                    DataType shardType = EsqlDataTypeRegistry.INSTANCE.fromEs(mft.familyTypeName(), mft.getMetricType());
+                    // Compare block element types (what sanityCheckBlock checks), not DataType identity:
+                    // metadata fields, counters, and flattened all share BYTES_REF/LONG with the type ES|QL planned.
+                    // widenSmallNumeric first: toElementType throws on byte/short/float.
+                    ElementType shardElementType = PlannerUtils.toElementType(shardType.widenSmallNumeric());
+                    ElementType plannedElementType = PlannerUtils.toElementType(fa.dataType().widenSmallNumeric());
+                    if (shardElementType != plannedElementType) {
+                        // Report mft.typeName(): exact, and meaningful even for types ES|QL cannot model (where shardType
+                        // would just say "unsupported")
+                        throw new ElasticsearchStatusException(
+                            "field [{}] was resolved as type [{}] when the query started, but is mapped as incompatible type [{}] "
+                                + "in index [{}]; the field was probably mapped concurrently with this query; retrying the query may help",
+                            RestStatus.CONFLICT,
+                            fieldName,
+                            fa.dataType().typeName(),
+                            mft.typeName(),
+                            shardContext.ctx.getFullyQualifiedIndex().getName()
+                        );
+                    }
+                }
+            }
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
                 isUnsupported,

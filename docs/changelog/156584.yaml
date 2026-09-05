@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 154011
+pr: 156584
+summary: Clear error when a field's mapping changes between planning and execution
+type: bug

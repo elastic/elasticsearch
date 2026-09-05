@@ -506,10 +506,12 @@ green      | 3
 knnBeforeMvExpandWithStats
 required_capability: knn_function_v5
 
+// LIMIT 4 (not 3): olive [128,128,0] and teal [0,128,128] are equidistant from [0,120,0].
+// LIMIT is pushed to knn k, so k=3 would drop one of them at random. k=4 returns both.
 from colors metadata _score
 | where knn(rgb_vector, [0, 120, 0])
 | sort _score desc, color asc
-| limit 3
+| limit 4
 | eval x = [1, 2]
 | mv_expand x
 | stats count = count(*) by color
@@ -520,6 +522,7 @@ count:long | color:text
 2          | black
 2          | green
 2          | olive
+2          | teal
 ;
 
 knnAfterSimpleRename
@@ -531,13 +534,14 @@ from colors metadata _score
 | where knn(vec, [0, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
-| limit 3
+| limit 4
 ;
 
 color:text | vec:dense_vector
 green      | [0.0, 128.0, 0.0]
 black      | [0.0, 0.0, 0.0]
 olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
 ;
 
 knnAfterChainedRename
@@ -550,13 +554,14 @@ from colors metadata _score
 | where knn(vec, [0, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
-| limit 3
+| limit 4
 ;
 
 color:text | vec:dense_vector
 green      | [0.0, 128.0, 0.0]
 black      | [0.0, 0.0, 0.0]
 olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
 ;
 
 knnAfterEvalAndRename
@@ -569,13 +574,14 @@ from colors metadata _score
 | where knn(vec, [0, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
-| limit 3
+| limit 4
 ;
 
 color:text | vec:dense_vector
 green      | [0.0, 128.0, 0.0]
 black      | [0.0, 0.0, 0.0]
 olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
 ;
 
 knnAfterRenameWithEval
@@ -588,11 +594,12 @@ from colors metadata _score
 | where knn(vec, [0, 120, 0])
 | sort _score desc, color asc
 | keep color, vec
-| limit 3
+| limit 4
 ;
 
 color:text | vec:dense_vector
 green      | [0.0, 128.0, 0.0]
 black      | [0.0, 0.0, 0.0]
 olive      | [128.0, 128.0, 0.0]
+teal       | [0.0, 128.0, 128.0]
 ;

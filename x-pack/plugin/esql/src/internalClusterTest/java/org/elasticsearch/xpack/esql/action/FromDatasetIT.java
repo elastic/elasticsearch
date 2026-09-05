@@ -19,15 +19,18 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -57,11 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -89,6 +88,17 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class FromDatasetIT extends AbstractExternalDataSourceIT {
+
+    /**
+     * Warning assertions go over HTTP, the channel a client actually reads, rather than by inspecting a node's
+     * {@code ThreadContext} from a transport-client callback. Note this reads the same response headers the callback
+     * did, on the same thread; it is a better-shaped assertion, not a fix for #153187 / #153158 / #157593, which stay
+     * muted until their cause is found.
+     */
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
 
     private Path csvFixture;
     private Path csvFixtureAlt;
@@ -2081,31 +2091,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(2).toString(), equalTo("beta"));
         }
 
-        // The nulled cell must be announced: re-run the eager query and read the coordinator's
-        // accumulated response Warning headers at completion (same probe as
-        // ExternalCsvHivePartitionedIT — the transport client owns the response ref-count, so the
-        // listener only inspects headers).
-        List<String> coercionWarnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM logs_bad_date_token | SORT pri | KEEP ts | LIMIT 10"),
-            ActionListener.running(() -> {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains("could not be coerced to the declared column type"))
-                        .forEach(coercionWarnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            })
+        // The nulled cell must be announced to the client.
+        List<String> coercionWarnings = collectWarningsContaining(
+            "FROM logs_bad_date_token | SORT pri | KEEP ts | LIMIT 10",
+            "could not be coerced to the declared column type"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
         assertThat("the nulled cell must emit a response Warning header", coercionWarnings, not(empty()));
     }
 
@@ -2216,27 +2206,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
 
         // The nulled cell must be announced as a response Warning header, same probe as the columnar test.
-        List<String> coercionWarnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM logs_ndjson_bad_date_permissive | SORT note | KEEP ts | LIMIT 10"),
-            ActionListener.running(() -> {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains("could not be coerced to type"))
-                        .forEach(coercionWarnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            })
+        List<String> coercionWarnings = collectWarningsContaining(
+            "FROM logs_ndjson_bad_date_permissive | SORT note | KEEP ts | LIMIT 10",
+            "could not be coerced to type"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
         assertThat("the nulled NDJSON cell must emit a response Warning header", coercionWarnings, not(empty()));
     }
 
@@ -2737,45 +2710,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Executes the given ES|QL query and returns the response {@code Warning} headers whose text
-     * contains {@code substring}. Waits up to 30 seconds and rethrows any query-level failure.
-     * <p>
-     * Do NOT close the {@link EsqlQueryResponse} inside the listener: the transport framework's
-     * {@code respondAndRelease} wrapper calls {@code decRef()} after {@code onResponse} returns,
-     * and a manual close causes a double-release error.
+     * Runs {@code query} over HTTP and returns the {@code Warning} header messages containing {@code substring}: the
+     * channel a client actually reads, asserted the way a client reads it.
      */
     private List<String> collectWarningsContaining(String query, String substring) throws Exception {
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> queryFailure = new AtomicReference<>();
-        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), new ActionListener<>() {
-            @Override
-            public void onResponse(EsqlQueryResponse r) {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains(substring))
-                        .forEach(warnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            }
+        return collectAllWarnings(query).stream().filter(w -> w.contains(substring)).toList();
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                queryFailure.set(e);
-                latch.countDown();
-            }
-        });
-        assertTrue("query did not complete within timeout", latch.await(30, SECONDS));
-        if (queryFailure.get() != null) {
-            throw queryFailure.get();
+    /** Runs {@code query} over HTTP and returns every {@code Warning} header message of the response. */
+    private List<String> collectAllWarnings(String query) throws Exception {
+        Request request = new Request("POST", "/_query");
+        try (XContentBuilder body = JsonXContent.contentBuilder()) {
+            body.startObject().field("query", query).endObject();
+            request.setJsonEntity(Strings.toString(body));
         }
-        return warnings;
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        return response.getWarnings();
     }
 
     /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
@@ -4318,21 +4269,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /** Runs {@code query} and asserts at least one response {@code Warning} header surfaced (the lenient malformed-cell announcement). */
     private void assertLenientWarning(String query) throws Exception {
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
-            try {
-                internalCluster().getInstance(TransportService.class)
-                    .getThreadPool()
-                    .getThreadContext()
-                    .getResponseHeaders()
-                    .getOrDefault("Warning", List.of())
-                    .forEach(warnings::add);
-            } finally {
-                latch.countDown();
-            }
-        }));
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        List<String> warnings = collectAllWarnings(query);
         assertThat("a lenient malformed-cell read must emit a response Warning header", warnings, not(empty()));
     }
 

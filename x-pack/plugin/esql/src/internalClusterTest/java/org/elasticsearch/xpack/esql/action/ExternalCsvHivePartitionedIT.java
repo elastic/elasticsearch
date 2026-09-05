@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -21,14 +22,11 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -43,6 +41,12 @@ import static org.hamcrest.Matchers.is;
  * the coordinator-key wiring fails with a clear "unknown option" exception rather than silently.
  */
 public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
+
+    /** Warning assertions go over HTTP, the channel a client actually reads. */
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -243,34 +247,17 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         String dataset = registerDataset("hive_collision_warning_csv", glob, Map.of("hive_partitioning", true));
         String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 10";
 
-        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
-        List<String> shadowWarnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        // ActionListener.wrap (not running): a failed query would otherwise look like a missing
-        // Warning header. The transport client owns the response ref-count (closing it here would
-        // double-decRef), so we only read the coordinator's accumulated response headers.
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
-            try {
-                ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
-                    .getThreadPool()
-                    .getThreadContext();
-                threadContext.getResponseHeaders()
-                    .getOrDefault("Warning", List.of())
-                    .stream()
-                    .filter(w -> w.contains("physical column [year] is shadowed"))
-                    .forEach(shadowWarnings::add);
-            } finally {
-                latch.countDown();
-            }
-        }, e -> {
-            failure.set(e);
-            latch.countDown();
-        }));
-        assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
-        if (failure.get() != null) {
-            throw new AssertionError("query must succeed so the shadow warning can reach the client", failure.get());
+        Request request = new Request("POST", "/_query");
+        try (XContentBuilder body = JsonXContent.contentBuilder()) {
+            body.startObject().field("query", query).endObject();
+            request.setJsonEntity(Strings.toString(body));
         }
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<String> shadowWarnings = response.getWarnings()
+            .stream()
+            .filter(w -> w.contains("physical column [year] is shadowed"))
+            .toList();
         assertThat(
             "the shadow warning must reach the client via the response Warning header",
             shadowWarnings.size(),

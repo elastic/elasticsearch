@@ -89,7 +89,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, (String) null)
         .build();
-    private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> CLONE_SETTINGS;
+    private static final Function<IndexMetadata, Settings> CLONE_SETTINGS_SUPPLIER = indexMetadata -> Settings.builder()
+        .put(CLONE_SETTINGS)
+        .put(LifecycleSettings.LIFECYCLE_FORCE_MERGE_CLONE_SOURCE_UUID, indexMetadata.getIndexUUID())
+        .build();
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,

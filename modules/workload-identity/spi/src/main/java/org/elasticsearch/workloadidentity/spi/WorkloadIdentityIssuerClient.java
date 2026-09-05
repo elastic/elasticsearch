@@ -10,6 +10,7 @@
 package org.elasticsearch.workloadidentity.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -62,6 +63,30 @@ public interface WorkloadIdentityIssuerClient {
      */
     default boolean isEnabled() {
         return true;
+    }
+
+    /**
+     * Non-secret identifiers of the token currently cached for {@code audience}, or {@code null}
+     * if none. Best-effort, for audit correlation: lets the ES|QL completion path stamp
+     * {@link DataSourceAuditListener.DataSourceAccess} events with the session id without
+     * threading token material through cloud SDK credential providers.
+     */
+    @Nullable
+    default IssuedTokenInfo peekTokenInfo(String audience) {
+        return null;
+    }
+
+    /**
+     * Non-secret identifiers decoded from an issued token; carries no token material.
+     *
+     * @param subject   the {@code sub} claim, or {@code null}
+     * @param sessionId the {@code jti} claim (per-token session id), or {@code null}
+     * @param expiresAt the issuer-reported expiry
+     */
+    record IssuedTokenInfo(@Nullable String subject, @Nullable String sessionId, Instant expiresAt) {
+        public IssuedTokenInfo {
+            Objects.requireNonNull(expiresAt, "expiresAt must not be null");
+        }
     }
 
     /**

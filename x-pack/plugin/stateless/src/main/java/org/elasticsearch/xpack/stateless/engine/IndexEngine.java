@@ -913,6 +913,10 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        waitForCommitDurability(getCurrentGeneration(), listener);
+    }
+
     @Override
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
         try {

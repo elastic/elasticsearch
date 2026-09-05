@@ -89,7 +89,7 @@ CISCOFW710001_710002_710003_710005_710006 %{WORD:cisco.asa.network.transport} (?
 # ASA-6-713172
 CISCOFW713172 Group = %{DATA:cisco.asa.source.group}, IP = %{IP:source.ip}, Automatic NAT Detection Status:\s+Remote end\s*%{DATA:@metadata.cisco.asa.remote_nat}\s*behind a NAT device\s+This\s+end\s*%{DATA:@metadata.cisco.asa.local_nat}\s*behind a NAT device
 # ASA-4-733100
-CISCOFW733100 \\s*%{DATA:[cisco.asa.burst.object}\s*\] drop %{DATA:cisco.asa.burst.id} exceeded. Current burst rate is %{INT:cisco.asa.burst.current_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_rate:int}; Current average rate is %{INT:cisco.asa.burst.avg_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_avg_rate:int}; Cumulative total count is %{INT:cisco.asa.burst.cumulative_count:int}
+CISCOFW733100 \[\s*%{DATA:cisco.asa.burst.object}\s*\] drop %{DATA:cisco.asa.burst.id} exceeded. Current burst rate is %{INT:cisco.asa.burst.current_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_rate:int}; Current average rate is %{INT:cisco.asa.burst.avg_rate:int} per second, max configured rate is %{INT:cisco.asa.burst.configured_avg_rate:int}; Cumulative total count is %{INT:cisco.asa.burst.cumulative_count:int}
 #== End Cisco ASA ==
 
 

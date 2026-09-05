@@ -243,8 +243,10 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public static final String DOCUMENT_DESCRIPTION = "id";
+
     public String documentDescription() {
-        return "id";
+        return DOCUMENT_DESCRIPTION;
     }
 
     public long getNormalizedSize() {

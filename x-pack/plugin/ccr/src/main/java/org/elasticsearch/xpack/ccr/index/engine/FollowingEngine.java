@@ -167,14 +167,13 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected boolean assertNonPrimaryOrigin(final Operation operation) {
+    protected boolean assertNonPrimaryOrigin(final Operation.Origin origin) {
         return true;
     }
 
     @Override
-    protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
-        assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
-            : "version [" + index.version() + "], type [" + index.versionType() + "]";
+    protected boolean assertPrimaryCanOptimizeAddDocument(final long version, final VersionType versionType) {
+        assert version == 1 && versionType == VersionType.EXTERNAL : "version [" + version + "], type [" + versionType + "]";
         return true;
     }
 

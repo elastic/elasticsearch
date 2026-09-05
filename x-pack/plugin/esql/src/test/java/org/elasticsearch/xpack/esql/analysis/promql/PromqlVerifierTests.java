@@ -396,11 +396,9 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testGroupModifiersNotSupported() {
-        tsdb.error(
-            "PROMQL index=test step=5m foo / on(bar) baz",
-            containsString("queries with group modifiers are not supported at this time")
-        );
+    public void testVectorMatchingRequiresInstantVectors() {
+        // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
+        tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
     public void testNonScalarComparison() {

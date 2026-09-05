@@ -231,9 +231,6 @@ tests:
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/152115
-- class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
-  method: testCsvCountStarScansColdThenSkipsWarm
-  issue: https://github.com/elastic/elasticsearch/issues/152132
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
-  method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
-  issue: https://github.com/elastic/elasticsearch/issues/154023
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498
@@ -489,9 +483,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexFailureTests
   method: testResponseOnSearchFailure
   issue: https://github.com/elastic/elasticsearch/issues/151064
-- class: org.elasticsearch.xpack.esql.ccq.FederationOutgoingDatasetGateRestIT
-  method: testDisabledLocalResolvesRemoteDatasetAsMissingIndex
-  issue: https://github.com/elastic/elasticsearch/issues/155916
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/153406
@@ -766,3 +757,11 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/158462
 - class: org.elasticsearch.xpack.esql.datasources.FileSplitProviderTests
   issue: https://github.com/elastic/elasticsearch/issues/158517
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
+  issue: https://github.com/elastic/elasticsearch/issues/158550
+- class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
+  method: test {csv-spec:tdigest.count with bucket, time, and instance in FROM}
+  issue: https://github.com/elastic/elasticsearch/issues/158089
+- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
+  method: testMetricsCollectorMultiFileCsv
+  issue: https://github.com/elastic/elasticsearch/issues/158463

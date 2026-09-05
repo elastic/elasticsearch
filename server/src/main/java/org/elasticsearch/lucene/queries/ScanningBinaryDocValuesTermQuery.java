@@ -59,15 +59,19 @@ public class ScanningBinaryDocValuesTermQuery extends AbstractBinaryDocValuesQue
         if (values == null) {
             return null;
         }
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
-        // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
-        // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
-        if ((countsSkipper == null || countsSkipper.maxValue() <= 1) && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-            DocIdSetIterator iter = direct.tryTermEqualIterator(term);
-            if (iter != null) {
-                return iter;
+        // A payload blob is never a bare term, so the direct comparison below can never apply to one — and there is no
+        // .counts companion to look up on the way to finding that out.
+        if (binaryFormat != BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+            // tryTermEqualIterator is only valid for single-valued fields (see its javadoc on
+            // BlockLoader.OptionalColumnAtATimeReader). It returns a TwoPhaseIterator-backed iterator,
+            // so sub-segment slicing (DataPartitioning.DOC) scales with cores.
+            if ((countsSkipper == null || countsSkipper.maxValue() <= 1)
+                && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                DocIdSetIterator iter = direct.tryTermEqualIterator(term);
+                if (iter != null) {
+                    return iter;
+                }
             }
         }
         // Fall back to the scanning two-phase path (handles multi-valued via the counts field).

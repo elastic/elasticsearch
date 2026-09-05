@@ -402,7 +402,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useArrayOrderBinaryDocValues;
         }
 
-        /** Which framing a doc-values query has to decode for this field. */
+        /**
+         * Which framing a doc-values query has to decode for this field. A match_only_text field is never routed to
+         * the ColumNAR codec, so {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD} is not among the answers.
+         */
         private BinaryDocValuesFormat binaryFormat() {
             return useArrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
         }

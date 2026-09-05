@@ -40,6 +40,7 @@ configurations.consumable('nativeLibs') {
 
 var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.140"
+var libSimdjsonVersion = "0.2.0"
 
 // vec comes either from its published artifact or from a build of the sources in :libs:simdvec.
 // The plugin choose which one based on "modes" (See libs/simdvec/build.gradle)
@@ -64,6 +65,7 @@ repositories {
     filter {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
+      includeModule("org.elasticsearch", "libsimdjson")
     }
   }
 }
@@ -86,6 +88,12 @@ dependencies {
     libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
     libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
     libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
+  }
+  // See `libs/simdjson/native/Makefile` for local builds.
+  // To use a locally built libsimdjson, set LOCAL_SIMDJSON_BINARY=1 and copy the library to
+  // libs/native/libraries/build/platform/<os>-<arch>/libsimdjson.so (or .dylib on macOS).
+  if (System.getenv("LOCAL_SIMDJSON_BINARY") == null) {
+    libs "org.elasticsearch:libsimdjson:${libSimdjsonVersion}@zip"
   }
 }
 

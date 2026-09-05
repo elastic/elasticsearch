@@ -10,9 +10,15 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.simdjson.SimdJsonDirectWalker;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -37,17 +43,37 @@ import java.util.List;
  * {@link EscfRowBuffer}, and delegates all column-building to the shared {@link EscfBatchBuilder}
  * backend. Implements {@link SourceBatchEncoder}. Single-partition convenience:
  * {@link #encode(List, XContentType)}.
+ *
+ * <p><strong>Parser dispatch:</strong>
+ * <ol>
+ *   <li>JSON, ≤ {@link SimdJsonPool#MAX_DOC_BYTES}, and {@link SimdJsonPool#isEnabled()}:
+ *       {@link SimdJsonDirectWalker} (native SIMD stage 1 + fused stage 2/walk).
+ *       Falls back to Jackson on any failure.</li>
+ *   <li>Otherwise: Jackson stream parser.</li>
+ * </ol>
  */
 public final class EscfEncoder implements SourceBatchEncoder {
 
+    private static final Logger logger = LogManager.getLogger(EscfEncoder.class);
+
     private final EscfBatchBuilder backend;
+    private final boolean allowSimd;
 
     public EscfEncoder() {
-        this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
     }
 
     public EscfEncoder(Recycler<BytesRef> recycler) {
+        this(recycler, true);
+    }
+
+    /**
+     * Constructor used by tests and benchmarks to disable the SIMD path and obtain a Jackson
+     * baseline for differential comparison.
+     */
+    public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
         this.backend = new EscfBatchBuilder(recycler);
+        this.allowSimd = allowSimd;
     }
 
     public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
@@ -56,6 +82,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
+        if (tryDirectWalkSingle(source, xContentType, sink)) {
+            return;
+        }
         EscfRowBuffer row = backend.beginRow();
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
             if (xContentType == XContentType.JSON) {
@@ -67,6 +96,76 @@ public final class EscfEncoder implements SourceBatchEncoder {
         row.finishRow();
     }
 
+    /**
+     * Attempts to parse a single document using the direct walker (SIMD stage 1 + fused walk).
+     * Returns true if successful, false if the document is ineligible or parsing failed
+     * (in which case the caller falls back to Jackson).
+     */
+    private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType, LeafSink sink) {
+        if (allowSimd == false
+            || SimdJsonPool.isEnabled() == false
+            || xContentType.canonical() != XContentType.JSON
+            || source.length() > SimdJsonPool.MAX_DOC_BYTES) {
+            return false;
+        }
+
+        SimdJsonParser parser = SimdJsonPool.parser();
+        SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
+
+        byte[] buf;
+        int offset;
+        try {
+            if (source.hasArray()) {
+                buf = source.array();
+                offset = source.arrayOffset();
+            } else {
+                buf = copyToScratch(source);
+                offset = 0;
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        int len = source.length();
+
+        try {
+            parser.stage1(buf, offset, len);
+            parser.prepareDocumentWindow(offset, len);
+
+            EscfRowBuffer row = backend.beginRow();
+            boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
+            EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
+            walker.walkDocument(buf, parser, handler);
+            row.finishRow();
+            return true;
+        } catch (JsonParsingException e) {
+            logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
+            return false;
+        } catch (RuntimeException e) {
+            logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
+            return false;
+        }
+    }
+
+    /**
+     * Copies a non-array-backed source into the thread-local scratch buffer for SIMD parsing.
+     * Array-backed sources (including bulk slices with a non-zero {@code arrayOffset()}) are used
+     * in place by the caller instead.
+     *
+     * <p>The returned scratch must not be retained past the next call on this thread.
+     */
+    private static byte[] copyToScratch(BytesReference source) throws IOException {
+        int len = source.length();
+        byte[] scratch = SimdJsonPool.scratch();
+        int pos = 0;
+        BytesRefIterator it = source.iterator();
+        for (BytesRef page = it.next(); page != null; page = it.next()) {
+            System.arraycopy(page.bytes, page.offset, scratch, pos, page.length);
+            pos += page.length;
+        }
+        assert pos == len : pos + " != " + len;
+        return scratch;
+    }
+
     @Override
     public int commitScratchTo(int partitionKey) {
         return backend.commit(partitionKey);
@@ -74,6 +173,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public EscfBatch buildPartition(int partitionKey) {
+        if (allowSimd && SimdJsonPool.isEnabled()) {
+            SimdJsonPool.releaseNames();
+        }
         return backend.buildPartition(partitionKey);
     }
 

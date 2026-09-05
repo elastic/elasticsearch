@@ -965,37 +965,31 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-        @Nullable
-        private ExponentialHistogram currentHistogram;
+        private DocValuesReader histogramReader;
+        private boolean hasValue;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            DocValuesReader histogramReader = new DocValuesReader(leafReader, fullPath());
+            histogramReader = new DocValuesReader(leafReader, fullPath());
             if (histogramReader.hasAnyValues() == false) {
+                hasValue = false;
                 return null;
             }
-            return docId -> {
-                if (histogramReader.advanceExact(docId)) {
-                    currentHistogram = histogramReader.histogramValue();
-                    return true;
-                }
-                currentHistogram = null;
-                return false;
-            };
+            return docId -> hasValue = histogramReader.advanceExact(docId);
         }
 
         @Override
         public boolean hasValue() {
-            return currentHistogram != null;
+            return hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (currentHistogram == null) {
+            if (hasValue == false) {
                 return;
             }
-            ExponentialHistogramXContent.serialize(b, currentHistogram);
+            ExponentialHistogramXContent.serialize(b, histogramReader.histogramValue());
         }
 
         @Override
@@ -1004,8 +998,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() {
-            return currentHistogram != null ? 1 : 0;
+        public long valueCount() throws IOException {
+            return hasValue ? 1 : 0;
         }
     };
 }

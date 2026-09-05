@@ -277,6 +277,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        doc = target;
+                        bytesSlice.prefetch((long) doc * length, length);
+                        return true;
+                    }
+
+                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
@@ -342,6 +349,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        doc = target;
+                        long startOffset = addresses.get(doc);
+                        bytesSlice.prefetch(startOffset, addresses.get(doc + 1L) - startOffset);
+                        return true;
+                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -435,6 +450,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        if (disi.advanceExact(target)) {
+                            bytesSlice.prefetch((long) disi.index() * length, length);
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
                         return bytes;
@@ -451,6 +475,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new SparseBinaryDocValues(disi) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        if (disi.advanceExact(target)) {
+                            final int index = disi.index();
+                            long startOffset = addresses.get(index);
+                            bytesSlice.prefetch(startOffset, addresses.get(index + 1L) - startOffset);
+                            return true;
+                        }
+                        return false;
+                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -490,6 +525,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxNumDocsInAnyBlock,
                     offsetsDecoder
                 );
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    doc = target;
+                    decoder.prefetchBlock(doc, entry.numCompressedBlocks);
+                    return true;
+                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -584,6 +626,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxNumDocsInAnyBlock,
                     offsetsDecoder
                 );
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (disi.advanceExact(target)) {
+                        decoder.prefetchBlock(disi.index(), entry.numCompressedBlocks);
+                        return true;
+                    }
+                    return false;
+                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -961,6 +1012,19 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             }
             assert index < numBlocks : "invalid range " + index + " for doc " + docNumber + " in numBlocks " + numBlocks;
             return index;
+        }
+
+        /**
+         * Fires a non-blocking prefetch for the compressed block that contains {@code index}.
+         * Uses {@link #readAhead} so the position of {@link #compressedData} is not disturbed.
+         * Called from {@code advanceExact} so the block download can overlap with other fields'
+         * {@code advanceExact} calls before any {@code binaryValue()} read is issued.
+         */
+        void prefetchBlock(int index, int numBlocks) throws IOException {
+            long blockId = findBlock(index, numBlocks, lastBlockId >= 0 ? lastBlockId : 0);
+            long blockStart = addresses.get(blockId);
+            // addresses has numBlocks+1 entries: the sentinel gives the end of the last block.
+            readAhead.prefetch(blockStart, addresses.get(blockId + 1) - blockStart);
         }
 
         int computeMultipleBlockBufferSize(long firstBlockId, long lastBlockId) throws IOException {
@@ -1470,12 +1534,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public final boolean advanceExact(int target) {
-            doc = target;
-            return true;
-        }
-
-        @Override
         public final long cost() {
             return maxDoc;
         }
@@ -1530,7 +1588,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public final boolean advanceExact(int target) throws IOException {
+        public boolean advanceExact(int target) throws IOException {
             return disi.advanceExact(target);
         }
 
@@ -1639,6 +1697,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
             blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
             bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
+            if (entry.termsDataLength > 0) {
+                bytes.prefetch(0, 1);
+            }
             blockMask = (1L << termsDictBlockLz4Shift) - 1;
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
@@ -2326,9 +2387,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         entry.termsIndexAddressesLength = meta.readLong();
     }
 
-    @FunctionalInterface
     private interface NumericValues {
         long advance(long index) throws IOException;
+
+        default void prefetch(long index) throws IOException {}
     }
 
     @FunctionalInterface
@@ -2401,6 +2463,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             if (entry.docsWithFieldOffset == -1) {
                 return new BaseDenseNumericValues(maxDoc) {
                     @Override
+                    public boolean advanceExact(int target) {
+                        doc = target;
+                        return true;
+                    }
+
+                    @Override
                     public long longValue() {
                         return 0L;
                     }
@@ -2445,6 +2513,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
+            final long numBlocks = (entry.numValues + numericBlockSize - 1) >>> numericBlockShift;
             return new BaseDenseNumericValues(maxDoc) {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private long currentBlockIndex = -1;
@@ -2453,6 +2522,20 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
+                private long prefetchedBlockIndex = -1;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    doc = target;
+                    final long blockIndex = target >>> numericBlockShift;
+                    if (blockIndex != prefetchedBlockIndex) {
+                        prefetchedBlockIndex = blockIndex;
+                        final long startOffset = indexReader.get(blockIndex);
+                        final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
+                        valuesData.prefetch(startOffset, endOffset - startOffset);
+                    }
+                    return true;
+                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -2592,11 +2675,28 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
+            final long numBlocks = (entry.numValues + numericBlockSize - 1) >>> numericBlockShift;
             return new BaseSparseNumericValues(disi) {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
+                private long prefetchedBlockIndex = -1;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (disi.advanceExact(target)) {
+                        final long blockIndex = disi.index() >>> numericBlockShift;
+                        if (blockIndex != prefetchedBlockIndex) {
+                            prefetchedBlockIndex = blockIndex;
+                            final long startOffset = indexReader.get(blockIndex);
+                            final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
+                            valuesData.prefetch(startOffset, endOffset - startOffset);
+                        }
+                        return true;
+                    }
+                    return false;
+                }
 
                 @Override
                 public long longValue() throws IOException {
@@ -2696,6 +2796,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -1) {
             return new BaseDenseNumericValues(maxDoc) {
                 @Override
+                public boolean advanceExact(int target) {
+                    // TODO: prefetch the ordinals section on first access
+                    doc = target;
+                    return true;
+                }
+
+                @Override
                 long lookAheadValueAt(int targetDoc) {
                     return ordinalsReader.lookAheadValue(targetDoc);
                 }
@@ -2738,20 +2845,37 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final int numericBlockSize = entry.blockSize;
         final int numericBlockShift = Integer.numberOfTrailingZeros(numericBlockSize);
         final int numericBlockMask = numericBlockSize - 1;
-        final long[] currentBlockIndex = { -1 };
-        final long[] currentBlock = new long[numericBlockSize];
+        final long numBlocks = (entry.numValues + numericBlockSize - 1) >>> numericBlockShift;
         final BlockDecoder decoder = blockDecoder(entry, maxOrd);
-        return index -> {
-            final long blockIndex = index >>> numericBlockShift;
-            final int blockInIndex = (int) (index & numericBlockMask);
-            if (blockIndex != currentBlockIndex[0]) {
-                if (currentBlockIndex[0] + 1 != blockIndex) {
-                    valuesData.seek(indexReader.get(blockIndex));
+        return new NumericValues() {
+            private long currentBlockIndex = -1;
+            private final long[] currentBlock = new long[numericBlockSize];
+            private long prefetchedBlockIndex = -1;
+
+            @Override
+            public long advance(long index) throws IOException {
+                final long blockIndex = index >>> numericBlockShift;
+                final int blockInIndex = (int) (index & numericBlockMask);
+                if (blockIndex != currentBlockIndex) {
+                    if (currentBlockIndex + 1 != blockIndex) {
+                        valuesData.seek(indexReader.get(blockIndex));
+                    }
+                    currentBlockIndex = blockIndex;
+                    decoder.decode(valuesData, currentBlock);
                 }
-                currentBlockIndex[0] = blockIndex;
-                decoder.decode(valuesData, currentBlock);
+                return currentBlock[blockInIndex];
             }
-            return currentBlock[blockInIndex];
+
+            @Override
+            public void prefetch(long index) throws IOException {
+                final long blockIndex = index >>> numericBlockShift;
+                if (blockIndex != prefetchedBlockIndex) {
+                    prefetchedBlockIndex = blockIndex;
+                    final long startOffset = indexReader.get(blockIndex);
+                    final long endOffset = blockIndex + 1 < numBlocks ? indexReader.get(blockIndex + 1) : valuesData.length();
+                    valuesData.prefetch(startOffset, endOffset - startOffset);
+                }
+            }
         };
     }
 
@@ -2811,6 +2935,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     end = addresses.get(target + 1L);
                     count = (int) (end - start);
                     doc = target;
+                    values.prefetch(start);
                     return true;
                 }
 

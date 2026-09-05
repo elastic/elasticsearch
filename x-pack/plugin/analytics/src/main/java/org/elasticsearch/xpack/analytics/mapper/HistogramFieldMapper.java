@@ -481,37 +481,31 @@ public class HistogramFieldMapper extends FieldMapper {
 
     private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalHistogramValue value = new InternalHistogramValue();
-        private BytesRef binaryValue;
+        private BinaryDocValues docValues;
+        private boolean hasValue;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+            docValues = leafReader.getBinaryDocValues(fieldType().name());
             if (docValues == null) {
-                // No values in this leaf
-                binaryValue = null;
+                hasValue = false;
                 return null;
             }
-            return docId -> {
-                if (docValues.advanceExact(docId)) {
-                    binaryValue = docValues.binaryValue();
-                    return true;
-                }
-                binaryValue = null;
-                return false;
-            };
+            return docId -> hasValue = docValues.advanceExact(docId);
         }
 
         @Override
         public boolean hasValue() {
-            return binaryValue != null;
+            return hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (binaryValue == null) {
+            if (hasValue == false) {
                 return;
             }
+            BytesRef binaryValue = docValues.binaryValue();
             b.startObject();
 
             value.reset(binaryValue);
@@ -537,8 +531,8 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() {
-            return binaryValue != null ? 1 : 0;
+        public long valueCount() throws IOException {
+            return hasValue ? 1 : 0;
         }
     };
 }

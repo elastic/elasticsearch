@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class IndexLongFieldRangeRamBytesUsedTests extends AbstractAccountableFieldsTestCase {
@@ -30,17 +31,31 @@ public class IndexLongFieldRangeRamBytesUsedTests extends AbstractAccountableFie
 
     @Override
     protected Accountable createRandomTestInstance() {
-        // Mix of null shards (complete/empty) and non-null arrays of varying length, so a missed array-length term fails.
-        return IndexLongFieldRangeTestUtils.randomSpecificRange();
+        // Mix of null shards (complete) and non-null arrays of varying length, so a missed array-length term fails.
+        // Skip shared sentinels: they deliberately report 0 and are covered by testRamBytesUsedExcludesSharedSentinels.
+        IndexLongFieldRange range;
+        do {
+            range = IndexLongFieldRangeTestUtils.randomSpecificRange();
+        } while (range == IndexLongFieldRange.NO_SHARDS || range == IndexLongFieldRange.EMPTY || range == IndexLongFieldRange.UNKNOWN);
+        return range;
     }
 
     /**
-     * Non-tautology check: a range still tracking shards (holding a non-null {@code shards} array, e.g. {@code NO_SHARDS}) must be larger
-     * than a complete range whose array is {@code null} (e.g. {@code UNKNOWN}).
+     * Shared sentinels are reused across indices; their body must not contribute to per-reference estimates.
+     */
+    public void testRamBytesUsedExcludesSharedSentinels() {
+        assertThat(IndexLongFieldRange.NO_SHARDS.ramBytesUsed(), equalTo(0L));
+        assertThat(IndexLongFieldRange.EMPTY.ramBytesUsed(), equalTo(0L));
+        assertThat(IndexLongFieldRange.UNKNOWN.ramBytesUsed(), equalTo(0L));
+    }
+
+    /**
+     * Non-tautology check: a non-sentinel range still tracking shards must report a positive size larger than a shared sentinel.
      */
     public void testRamBytesUsedCountsTrackedShardsArray() {
-        assertThat(IndexLongFieldRange.NO_SHARDS.isComplete(), org.hamcrest.Matchers.is(false));
-        assertThat(IndexLongFieldRange.UNKNOWN.isComplete(), org.hamcrest.Matchers.is(true));
-        assertThat(IndexLongFieldRange.NO_SHARDS.ramBytesUsed(), greaterThan(IndexLongFieldRange.UNKNOWN.ramBytesUsed()));
+        IndexLongFieldRange tracking = IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 2, ShardLongFieldRange.of(1L, 10L));
+        assertThat(tracking.isComplete(), org.hamcrest.Matchers.is(false));
+        assertThat(tracking.ramBytesUsed(), greaterThan(0L));
+        assertThat(tracking.ramBytesUsed(), greaterThan(IndexLongFieldRange.NO_SHARDS.ramBytesUsed()));
     }
 }

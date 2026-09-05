@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -92,7 +94,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
-public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
+public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment, Accountable {
 
     private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
 
@@ -3399,5 +3401,64 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Float weight
     ) {
         matches.compute(inferenceFieldMetadata, (k, v) -> v == null ? weight : v * weight);
+    }
+
+    // takes into account references to enums such as state
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexMetadata.class);
+
+    private volatile long ramBytesUsed = -1;
+
+    /**
+     * Returns an estimated heap footprint for this index metadata instance. Each owned object that implements
+     * {@link Accountable} contributes its own recursive {@link Accountable#ramBytesUsed()}; leaf value types (and Lucene types that
+     * cannot implement {@link Accountable}) are sized shallowly here. The result is memoized because {@link IndexMetadata} is immutable.
+     * <p>
+     * Shared instances (e.g. deduplicated {@link MappingMetadata} in {@link ProjectMetadata}) may be counted multiple times when this
+     * value is summed across indices; callers that need accurate cross-index totals should deduplicate shared mappings using
+     * {@link MappingMetadata#ramBytesUsed()}.
+     */
+    @Override
+    public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = computeRamBytesUsed();
+        }
+        return ramBytesUsed;
+    }
+
+    private long computeRamBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimator.sizeOfCollection(routingPaths);
+        size += RamUsageEstimator.sizeOfCollection(timeSeriesDimensions);
+        size += index.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(transportVersion);
+        size += RamUsageEstimator.sizeOf(primaryTerms);
+        size += aliases.ramBytesUsed();
+        size += settings.estimatedRamBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(mapping);
+        size += inferenceFields.ramBytesUsed();
+        size += customData.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfMap(inSyncAllocationIds);
+        size += RamUsageEstimator.sizeOfObject(requireFilters);
+        size += RamUsageEstimator.sizeOfObject(includeFilters);
+        size += RamUsageEstimator.sizeOfObject(excludeFilters);
+        size += RamUsageEstimator.sizeOfObject(initialRecoveryFilters);
+        size += indexCreatedVersion.ramBytesUsed();
+        size += mappingsUpdatedVersion.ramBytesUsed();
+        size += indexCompatibilityVersion.ramBytesUsed();
+        size += RamUsageEstimator.shallowSizeOf(waitForActiveShards);
+        size += rolloverInfos.ramBytesUsed();
+        size += RamUsageEstimator.sizeOfObject(timestampRange);
+        size += RamUsageEstimator.sizeOfObject(eventIngestedRange);
+        size += RamUsageEstimator.sizeOfCollection(tierPreference);
+        size += RamUsageEstimator.sizeOf(lifecyclePolicyName);
+        size += RamUsageEstimator.sizeOfObject(lifecycleExecutionState);
+        size += RamUsageEstimator.shallowSizeOf(autoExpandReplicas);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesStart);
+        size += RamUsageEstimator.shallowSizeOf(timeSeriesEnd);
+        size += RamUsageEstimator.sizeOfObject(stats);
+        size += RamUsageEstimator.shallowSizeOf(writeLoadForecast);
+        size += RamUsageEstimator.shallowSizeOf(shardSizeInBytesForecast);
+        size += RamUsageEstimator.sizeOfObject(reshardingMetadata);
+        return size;
     }
 }

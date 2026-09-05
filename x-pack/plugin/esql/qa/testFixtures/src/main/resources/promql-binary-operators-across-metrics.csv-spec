@@ -91,6 +91,30 @@ result:double | step:datetime            | _timeseries:keyword
 0.2           | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podB"",""zone"":""us""}}"
 ;
 
+// Label matchers on the operands become filters on the per-series functions of the fused aggregate, not on the
+// aggregates of its second phase, where the matched fields no longer exist.
+chained_addition_with_matchers
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total{pod="podA"} + mem_free{pod="podA"} + mem_total{pod="podA"})
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+240.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+;
+
+nested_subtraction_with_matchers
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fix_promql_binary_op_across_metrics
+PROMQL index=prom-two-metrics step=1h result=(mem_total{zone="eu"} - mem_free{zone="eu"} - (mem_total{zone="eu"} + mem_free{zone="eu"}))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+-80.0         | 2024-05-10T01:00:00.000Z | "{""labels"":{""pod"":""podA"",""zone"":""eu""}}"
+;
+
 sum_by_over_chained_subtraction
 required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing

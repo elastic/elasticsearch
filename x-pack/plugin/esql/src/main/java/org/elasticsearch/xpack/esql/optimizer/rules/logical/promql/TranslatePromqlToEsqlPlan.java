@@ -116,7 +116,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.emitNullExpression;
@@ -1052,8 +1051,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     .toList();
 
                 var uniqueAggregates = new LinkedHashSet<Expression>();
-                uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.pendingFilter()));
-                uniqueAggregates.addAll(withFilter(rightAggregates, right.pendingFilter()));
+                uniqueAggregates.addAll(withSeriesFilter(leftAgg.aggregates(), left.pendingFilter()));
+                uniqueAggregates.addAll(withSeriesFilter(rightAggregates, right.pendingFilter()));
 
                 // Only the aggregate functions need fresh names: both operands define `value`. Grouping columns keep their
                 // own names - the command projection finds a passthrough label (`labels.pod`) by its canonical name when the
@@ -1073,6 +1072,21 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 result = new Eval(eval.source(), result, eval.fields());
             }
             return result;
+        }
+
+        /**
+         * Attaches an operand's pending filter to the time-series functions of its aggregates only. The selector matchers
+         * reference source fields, which exist in the per-series first phase of the time-series aggregate but not in its
+         * second phase; an outer aggregate nested in an expression (the {@code Max} of a paired collapse) would keep a
+         * filter over vanished columns.
+         */
+        private static List<? extends Expression> withSeriesFilter(List<? extends Expression> aggregates, Expression filter) {
+            if (filter == null) {
+                return aggregates;
+            }
+            return aggregates.stream()
+                .map(e -> e.transformDown(TimeSeriesAggregateFunction.class, function -> function.withFilter(filter)))
+                .toList();
         }
 
         /** Translates a selector (instant, range, or literal); label matchers lower to a pending filter predicate. */

@@ -522,6 +522,100 @@ public class ScanningBinaryDocValuesAutomatonQueryTests extends ESTestCase {
         return new RandomIndexWriter(random(), dir, iwc);
     }
 
+    /**
+     * Verifies that {@link ScanningBinaryDocValuesAutomatonQuery#forCaseInsensitiveTerm} matches documents whose value equals the
+     * target string under Unicode case-folding, regardless of the original case written to the index.
+     */
+    public void testForCaseInsensitiveTerm() throws Exception {
+        String fieldName = "field";
+        BinaryDocValuesFormat format = randomFormat();
+        try (org.apache.lucene.store.Directory dir = newDirectory()) {
+            try (
+                RandomIndexWriter writer = format == ARRAY_ORDER_INLINE_NULL
+                    ? ArrayOrderInlineNullTestUtils.newWriter(dir)
+                    : newRandomIndexWriter(dir)
+            ) {
+                if (format == ARRAY_ORDER_INLINE_NULL) {
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "Elasticsearch");
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "KIBANA", null, "logstash");
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "nosuchterm");
+                } else {
+                    addDoc(writer, fieldName, "Elasticsearch");
+                    addDoc(writer, fieldName, "KIBANA", "logstash");
+                    addDoc(writer, fieldName, "nosuchterm");
+                }
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // "elasticsearch" in any case matches the first doc
+                    assertEquals(
+                        1,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(fieldName, "elasticsearch", format))
+                    );
+                    assertEquals(
+                        1,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(fieldName, "ELASTICSEARCH", format))
+                    );
+                    // "kibana" matches the second doc (stored as "KIBANA")
+                    assertEquals(
+                        1,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(fieldName, "kibana", format))
+                    );
+                    // "logstash" matches the second doc
+                    assertEquals(
+                        1,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(fieldName, "logstash", format))
+                    );
+                    // unrelated value → no match
+                    assertEquals(
+                        0,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(fieldName, "beats", format))
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies that {@link ScanningBinaryDocValuesAutomatonQuery#forFuzzy} matches documents within the specified edit distance
+     * and does not match documents whose values are farther away.
+     */
+    public void testForFuzzy() throws Exception {
+        String fieldName = "field";
+        BinaryDocValuesFormat format = randomFormat();
+        try (org.apache.lucene.store.Directory dir = newDirectory()) {
+            try (
+                RandomIndexWriter writer = format == ARRAY_ORDER_INLINE_NULL
+                    ? ArrayOrderInlineNullTestUtils.newWriter(dir)
+                    : newRandomIndexWriter(dir)
+            ) {
+                if (format == ARRAY_ORDER_INLINE_NULL) {
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "elastic");    // exact
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "elastik");    // 1 edit
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "elasti");     // 1 edit (deletion)
+                    ArrayOrderInlineNullTestUtils.addDoc(writer, fieldName, "something");  // too far
+                } else {
+                    addDoc(writer, fieldName, "elastic");
+                    addDoc(writer, fieldName, "elastik");
+                    addDoc(writer, fieldName, "elasti");
+                    addDoc(writer, fieldName, "something");
+                }
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // maxEdits=1 matches "elastic", "elastik", and "elasti" (3 docs); "something" is too far
+                    assertEquals(
+                        3,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forFuzzy(fieldName, "elastic", 1, 0, true, format))
+                    );
+                    // exact match only (maxEdits=0)
+                    assertEquals(
+                        1,
+                        searcher.count(ScanningBinaryDocValuesAutomatonQuery.forFuzzy(fieldName, "elastic", 0, 0, true, format))
+                    );
+                }
+            }
+        }
+    }
+
     private static BinaryDocValuesFormat randomFormat() {
         return randomFrom(SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL);
     }

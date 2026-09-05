@@ -145,7 +145,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -201,6 +200,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -271,76 +271,92 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new ReferenceAttribute(Source.EMPTY, null, NO_FIELDS_NAME, NULL, Nullability.TRUE, null, true)
     );
 
-    private static final List<Batch<LogicalPlan>> RULES = List.of(
-        new Batch<>(
-            "Initialize",
-            Limiter.ONCE,
-            new ResolveConfigurationAware(),
-            new ResolveTable(),
-            new ResolveViewShadow(),
-            new ResolveDatasetShadow(),
-            new StripDatasetShadowRelations(),
-            new ViewCompactionPostIndexResolution(),
-            new ResolveExternalRelations(),
-            new PruneEmptyUnionAllBranch(),
-            new ResolveEnrich(),
-            new ResolveIpLocation(),
-            new ResolveLookupTables(),
-            new ResolveFunctions(),
-            new ResolvePromqlFunctions(),
-            new ResolveTimestampBoundsAware(),
-            new ResolveInference(),
-            new DateMillisToNanosInEsRelation(),
-            new ResolveTwoLeggedPunksInEsRelation(),
-            // Must happen before Translating PromQL plan to ESQL plan
-            new ResolveAndVerifyPromqlRefs(),
-            // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
-            // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
-            new TranslateTimeSeriesCollapse(),
-            // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
-            new TranslatePromqlToEsqlPlan()
-        ),
-        new Batch<>(
-            "Resolution",
-            new ResolveRefs(),
-            new ImplicitCasting(),
-            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ResolveUnionTypesInUnionAll(),
-            new ResolveUnmapped(),
-            new InsertDefaultInnerTimeSeriesAggregate(),
-            new ImplicitCastAggregateMetricDoubles(),
-            new InsertFromAggregateMetricDouble()
-        ),
-        new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new DetermineUnmappedFieldsToKeep(),
-            new ResolveImplicitTimeSeriesIdentityGrouping(),
-            new ResolvedProjects(),
-            new AddImplicitLimit(),
-            new AddImplicitTimestampSort(),
-            new VerifyTimeSeries(),
-            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
-            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
-            new TranslateTimeSeriesWithout(),
-            // translate metric aggregates early before they are converted to nested expressions
-            new TranslateTimeSeriesAggregate(),
-            new ApplyWindowFilter(),
-            new UnionTypesCleanup()
-        )
-    );
+    /**
+     * Built per {@link Analyzer} instance rather than statically so that {@link DetermineUnmappedFieldsToKeep} can hand the
+     * {@link UnmappedFieldsOrdering} it captures back to this analyzer, for the caller to read once analysis has finished.
+     */
+    @Override
+    protected List<Batch<LogicalPlan>> batches() {
+        return List.of(
+            new Batch<>(
+                "Initialize",
+                Limiter.ONCE,
+                new ResolveConfigurationAware(),
+                new ResolveTable(),
+                new ResolveViewShadow(),
+                new ResolveDatasetShadow(),
+                new StripDatasetShadowRelations(),
+                new ViewCompactionPostIndexResolution(),
+                new ResolveExternalRelations(),
+                new PruneEmptyUnionAllBranch(),
+                new ResolveEnrich(),
+                new ResolveIpLocation(),
+                new ResolveLookupTables(),
+                new ResolveFunctions(),
+                new ResolvePromqlFunctions(),
+                new ResolveTimestampBoundsAware(),
+                new ResolveInference(),
+                new DateMillisToNanosInEsRelation(),
+                new ResolveTwoLeggedPunksInEsRelation(),
+                // Must happen before Translating PromQL plan to ESQL plan
+                new ResolveAndVerifyPromqlRefs(),
+                // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
+                // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
+                new TranslateTimeSeriesCollapse(),
+                // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
+                new TranslatePromqlToEsqlPlan()
+            ),
+            new Batch<>(
+                "Resolution",
+                new ResolveRefs(),
+                new ImplicitCasting(),
+                new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+                new ResolveUnionTypesInUnionAll(),
+                new ResolveUnmapped(),
+                new InsertDefaultInnerTimeSeriesAggregate(),
+                new ImplicitCastAggregateMetricDoubles(),
+                new InsertFromAggregateMetricDouble()
+            ),
+            new Batch<>(
+                "Finish Analysis",
+                Limiter.ONCE,
+                new DetermineUnmappedFieldsToKeep(ordering -> unmappedFieldsOrdering = ordering),
+                new ResolveImplicitTimeSeriesIdentityGrouping(),
+                new ResolvedProjects(),
+                new AddImplicitLimit(),
+                new AddImplicitTimestampSort(),
+                new VerifyTimeSeries(),
+                // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+                // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+                new TranslateTimeSeriesWithout(),
+                // translate metric aggregates early before they are converted to nested expressions
+                new TranslateTimeSeriesAggregate(),
+                new ApplyWindowFilter(),
+                new UnionTypesCleanup()
+            )
+        );
+    }
+
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
         "esql_lookup_join_full_text_function"
     );
 
     private final Verifier verifier;
 
+    private UnmappedFieldsOrdering unmappedFieldsOrdering;
+
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         this.verifier = verifier;
     }
 
+    @Nullable
+    public UnmappedFieldsOrdering unmappedFieldsOrdering() {
+        return unmappedFieldsOrdering;
+    }
+
     public LogicalPlan analyze(LogicalPlan plan) {
+        unmappedFieldsOrdering = null;
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
         LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
@@ -355,11 +371,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
-    }
-
-    @Override
-    protected List<Batch<LogicalPlan>> batches() {
-        return RULES;
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {
@@ -1114,18 +1125,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
                 }
-                List<Attribute> scope = PromqlAttributesTranslationContext.shadowedResolutionScope(
-                    childrenOutput,
-                    activeDestinations(node)
-                );
+                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDestinations(node));
                 return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
             });
 
             // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = PromqlAttributesTranslationContext.shadowedResolutionScope(
-                childrenOutput,
-                collapseByName(relabels)
-            );
+            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }
@@ -1161,6 +1166,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return destinations;
+        }
+
+        /**
+         * The attribute resolution scope for a PromQL command that derives labels: each derived destination shadows any
+         * stored label of the same name. Stored attributes whose canonical name collides with a destination are dropped and
+         * the destinations added, so an enclosing {@code by(dst)}/{@code KEEP dst} binds unambiguously to the derived label
+         * (a bare destination would otherwise collide with the stored label's bare passthrough alias).
+         */
+        private static List<Attribute> shadowedResolutionScope(List<Attribute> childrenOutput, List<Attribute> destinations) {
+            Set<String> shadowed = new HashSet<>();
+            for (Attribute destination : destinations) {
+                shadowed.add(PromqlLabels.labelName(destination));
+            }
+            List<Attribute> scope = new ArrayList<>(childrenOutput.size() + destinations.size());
+            for (Attribute attribute : childrenOutput) {
+                if (shadowed.contains(PromqlLabels.labelName(attribute)) == false) {
+                    scope.add(attribute);
+                }
+            }
+            scope.addAll(destinations);
+            return scope;
         }
     }
 

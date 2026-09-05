@@ -1,0 +1,5 @@
+pr: 158377
+summary: Forward optional X-elastic-product-solution, X-elastic-product-feature, and X-Elastic-Inference-Interaction-Id headers to Elastic Inference Service.
+area: Inference
+type: enhancement
+issues: []

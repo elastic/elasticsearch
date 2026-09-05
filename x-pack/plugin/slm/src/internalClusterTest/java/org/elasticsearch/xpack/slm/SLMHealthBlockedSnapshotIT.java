@@ -475,8 +475,8 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
-    private void waitForNoSnapshotsInProgress() throws Exception {
-        assertBusy(() -> assertTrue(SnapshotsInProgress.get(internalCluster().clusterService().state()).isEmpty()));
+    private void waitForNoSnapshotsInProgress() {
+        awaitClusterState(state -> SnapshotsInProgress.get(state).isEmpty());
     }
 
     private void assertInvocationsSinceLastSuccess(String policyName, long expectedInvocations) {
@@ -515,7 +515,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (String snapshot : snapshots) {
             waitForSnapshot(repo, snapshot);
         }
-        assertBusy(() -> assertTrue(SnapshotsInProgress.get(internalCluster().clusterService().state()).isEmpty()));
+        awaitClusterState(state -> SnapshotsInProgress.get(state).isEmpty());
     }
 
     private void waitForSnapshot(String repo, String snapshotName) throws Exception {

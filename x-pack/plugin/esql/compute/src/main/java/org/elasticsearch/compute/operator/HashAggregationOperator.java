@@ -416,6 +416,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     HashAggregationOperator spawnWorker() {
+        assert parallelConfig != null : "parallel config is not set for workers";
         DriverContext mainDriverContext = this.driverContext;
         var workerBlockFactory = mainDriverContext.createChildBlockFactory();
         boolean success = false;

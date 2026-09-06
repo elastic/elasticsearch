@@ -173,6 +173,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/158519
+- class: org.elasticsearch.compute.aggregation.SumDenseVectorGroupingAggregatorFunctionTests
+  method: testManyInitialManyPartialFinalRunner
+  issue: https://github.com/elastic/elasticsearch/issues/158614
 
 # Examples:
 #

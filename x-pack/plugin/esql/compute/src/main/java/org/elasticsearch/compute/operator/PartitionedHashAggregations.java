@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
@@ -73,16 +72,8 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
 
     @Override
     protected void closeInternal() {
-        RuntimeException firstException = null;
-        for (final var gen : generations) {
-            try {
-                gen.release(globalBreaker);
-            } catch (RuntimeException e) {
-                firstException = ExceptionsHelper.useOrSuppress(firstException, e);
-            }
-        }
-        if (firstException != null) {
-            throw firstException;
+        for (var gen : generations) {
+            gen.release(globalBreaker);
         }
     }
 

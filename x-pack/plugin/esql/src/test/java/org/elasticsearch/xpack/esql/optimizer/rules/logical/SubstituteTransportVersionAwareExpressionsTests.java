@@ -75,7 +75,9 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_MAX_MIN = TransportVersion.fromName("esql_promql_non_finite_max_min");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_AVG = TransportVersion.fromName("esql_promql_non_finite_avg");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_STDDEV = TransportVersion.fromName("esql_promql_non_finite_stddev");
-    private static final TransportVersion ESQL_PROMQL_NON_FINITE_PERCENTILE = TransportVersion.fromName("esql_promql_non_finite_percentile");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_PERCENTILE = TransportVersion.fromName(
+        "esql_promql_non_finite_percentile"
+    );
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
@@ -68,24 +69,24 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuth(ADMIN_USER, ADMIN_PASSWORD)).build();
     }
 
-    public void testBaseRoleSeesOnlyNonManagedDocsInGrantedSpace() throws Exception {
+    @Before
+    public void createTestFixtures() throws Exception {
         putPrivilege(EXEC_READ_PRIVILEGE, READ_EXECUTION_ACTION);
+        putPrivilege(EXEC_READ_MANAGED_PRIVILEGE, READ_MANAGED_EXECUTION_ACTION);
         putRole("wf_base_role", EXEC_READ_PRIVILEGE, "space:marketing");
+        putRoleBothActions("wf_managed_role", "space:marketing");
         putUser(BASE_USER, BASE_USER_PASSWORD, "wf_base_role");
+        putUser(MANAGED_USER, MANAGED_USER_PASSWORD, "wf_managed_role");
         createExecutionsIndexWithDocs();
+    }
 
+    public void testBaseRoleSeesOnlyNonManagedDocsInGrantedSpace() throws Exception {
         assertImplicitGrantSurfaced("wf_base_role", "marketing");
         assertUserSeesDocuments(BASE_USER, BASE_USER_PASSWORD, 2);
         assertUserSeesStepDocuments(BASE_USER, BASE_USER_PASSWORD, 1);
     }
 
     public void testManagedRoleSeesAllDocsInGrantedSpace() throws Exception {
-        putPrivilege(EXEC_READ_PRIVILEGE, READ_EXECUTION_ACTION);
-        putPrivilege(EXEC_READ_MANAGED_PRIVILEGE, READ_MANAGED_EXECUTION_ACTION);
-        putRoleBothActions("wf_managed_role", "space:marketing");
-        putUser(MANAGED_USER, MANAGED_USER_PASSWORD, "wf_managed_role");
-        createExecutionsIndexWithDocs();
-
         assertUserSeesDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3);
         assertUserSeesStepDocuments(MANAGED_USER, MANAGED_USER_PASSWORD, 3);
     }

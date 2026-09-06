@@ -169,11 +169,11 @@ public final class ParallelHashAggregationOperator implements Operator {
     private void processInputPagesWithMainThread() {
         final long startNanos = System.nanoTime();
         final int startWorker = Randomness.get().nextInt(workers.length);
+        final int halfCurrentSize = Math.ceilDiv(in.size(), 2);
         for (int i = 0; i < workers.length; i++) {
             final int w = (i + startWorker) % workers.length;
             final Worker worker = workers[w];
             if (worker.tryLock()) {
-                final int halfCurrentSize = Math.ceilDiv(in.size(), 2);
                 try {
                     Page page;
                     while (in.size() >= halfCurrentSize && (page = in.pollPage()) != null) {

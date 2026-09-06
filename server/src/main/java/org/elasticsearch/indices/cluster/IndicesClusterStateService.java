@@ -429,7 +429,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            client.executeLocally(
+            client.execute(
                 GlobalCheckpointSyncAction.TYPE,
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
@@ -979,7 +979,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
         long delayMillis,

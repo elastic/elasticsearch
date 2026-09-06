@@ -117,7 +117,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     }
 
     /**
-     * Combines one partition of every generations
+     * Combines one partition from every generation
      */
     final class Combiner implements Releasable {
         private final HashAggregationOperator op;

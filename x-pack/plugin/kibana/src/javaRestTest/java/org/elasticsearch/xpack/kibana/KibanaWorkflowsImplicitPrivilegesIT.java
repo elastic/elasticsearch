@@ -290,7 +290,6 @@ public class KibanaWorkflowsImplicitPrivilegesIT extends ESRestTestCase {
 
         final Map<String, Object> source = (Map<String, Object>) hitList.get(0).get("_source");
         assertNotNull("usage must be present (FLS object-pattern check)", source.get("usage"));
-        @SuppressWarnings("unchecked")
         final Map<String, Object> usage = (Map<String, Object>) source.get("usage");
         assertNotNull("usage.totalTokens must be present", usage.get("totalTokens"));
         assertNull("workflowDefinition must be absent (FLS excluded)", source.get("workflowDefinition"));

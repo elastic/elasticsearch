@@ -1,6 +1,6 @@
-pr: 158621
-summary: Report undeterminizable `_source` filters as a bad request and build the ES|QL source loader once per shard
 area: ES|QL
+issues: []
+pr: 158621
+summary: Report undeterminizable `_source` filters as a bad request and build the
+  ES|QL source loader once per shard
 type: bug
-issues:
- - 142554

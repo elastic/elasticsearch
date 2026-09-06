@@ -84,7 +84,6 @@ public class Acosh extends AbstractTrigonometricFunction implements AnyNullIsNul
         this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_TRIG);
     }
 
-
     @Override
     public TransportVersion nonFiniteTransportVersion() {
         return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_TRIG;

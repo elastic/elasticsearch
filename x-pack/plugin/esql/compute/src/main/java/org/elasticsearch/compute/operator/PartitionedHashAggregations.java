@@ -151,10 +151,9 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         private void ensureMergedIdsForGen(int numKeys) {
             final int oldLength = mergedIds == null ? 0 : mergedIds.length;
             if (oldLength < numKeys) {
-                int newLength = ArrayUtil.oversize(numKeys, Integer.BYTES);
-                breaker.addEstimateBytesAndMaybeBreak((long) newLength * Integer.BYTES, "PartitionedHashAggregations");
+                final int newLength = ArrayUtil.oversize(numKeys, Integer.BYTES);
+                breaker.addEstimateBytesAndMaybeBreak((long) (newLength - oldLength) * Integer.BYTES, "PartitionedHashAggregations");
                 mergedIds = new int[newLength];
-                breaker.addWithoutBreaking(-(long) (oldLength) * Integer.BYTES, "PartitionedHashAggregations");
             }
         }
 

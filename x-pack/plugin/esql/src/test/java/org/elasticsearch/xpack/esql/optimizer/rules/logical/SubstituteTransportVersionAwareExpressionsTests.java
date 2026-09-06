@@ -43,7 +43,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase {
     private static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_MATH = TransportVersion.fromName("esql_promql_non_finite_math");
-    private static final TransportVersion ESQL_PROMQL_NON_FINITE_UNARY_MATH = TransportVersion.fromName("esql_promql_non_finite_unary_math");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_UNARY_MATH = TransportVersion.fromName(
+        "esql_promql_non_finite_unary_math"
+    );
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);

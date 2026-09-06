@@ -94,7 +94,6 @@ public class Pow extends EsqlScalarFunction implements AnyNullIsNull, NonFiniteS
         );
     }
 
-
     @Override
     public TransportVersion nonFiniteTransportVersion() {
         return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC;

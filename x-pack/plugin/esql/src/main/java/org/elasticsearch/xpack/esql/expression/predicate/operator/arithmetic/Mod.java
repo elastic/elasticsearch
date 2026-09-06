@@ -85,7 +85,6 @@ public class Mod extends EsqlArithmeticOperation implements AnyNullIsNull, NonFi
         );
     }
 
-
     @Override
     public TransportVersion nonFiniteTransportVersion() {
         return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC;

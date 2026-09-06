@@ -111,7 +111,6 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
         );
     }
 
-
     @Override
     public TransportVersion nonFiniteTransportVersion() {
         return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC;

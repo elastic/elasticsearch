@@ -99,7 +99,6 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
         );
     }
 
-
     @Override
     public TransportVersion nonFiniteTransportVersion() {
         return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_ARITHMETIC;

@@ -1,41 +1,12 @@
-area: ES|QL
-highlight:
-  body: |-
-    **Draft — do not merge yet.** Held pending sign-off (Tyler happy with
-    the state of things) and completion of the remaining flattened GA
-    testing/benching. Per Alex's guidance this can land at or after feature
-    freeze.
-
-    ## What this does
-
-    Declares the ES|QL `FIELD_EXTRACT` function — the surface used for
-    `flattened` field support — **generally available**, flipping it from
-    technical preview:
-
-    - `FieldExtract.java` `@FunctionInfo`: drop `preview = true`; keep the historical `PREVIEW` `appliesTo` entry (9.5.0) and add a `GA` entry (9.6.0), matching the established pattern (e.g. `CosineSimilarity`).
-    - Regenerated the generated doc snippets:
-      - `layout/field_extract.md`: `stack: preview 9.5.0` → `stack: preview 9.5.0, ga 9.6.0`; `serverless: preview` → `serverless: ga`.
-      - Kibana `field_extract.json`: `"preview": false`.
-    - **Documents the one known functional limitation at GA**: the full-text functions (`MATCH`, `MATCH_PHRASE`, `KQL`, `KNN`) and the `:` operator require a directly mapped field and reject a `FIELD_EXTRACT` expression as an argument (esql-planning#853). This is now called out both in the `FIELD_EXTRACT` appendix and in the `esql-flattened-fields.md` "Key behaviors" section; `appendix/field_extract.md` was regenerated via `FieldExtractTests`. This limitation is a documented caveat / fast-follow, not a GA gate (the issue carries no blocker label or milestone).
-
-    ## Why it's this small
-
-    `FIELD_EXTRACT` is already registered in the **release** function list
-    (not snapshot-only), and the flattened / `field_extract` ES|QL
-    capabilities are always-on. The `flattened` mapping type itself is
-    already GA (`stack: 9.4.0`). So the only thing marking the ES|QL surface
-    as tech-preview was the `@FunctionInfo` `preview` flag + `PREVIEW`
-    lifecycle — no registry or capability change is required.
-
-    ## Before un-drafting / merging
-
-    - [x] Sign-off received (Tyler happy with the state) and remaining flattened GA testing/benching complete.
-    - [x] **Retarget the appendix cross-link** — done now that #153310 (flattened ES|QL docs page) has merged: the "other flattened caveats" link in `FieldExtract.java`'s `@FunctionInfo` appendix now points at `/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-behaviors` (the two leaf-array/storage links still point at the mapping-reference doc), and `appendix/field_extract.md` was regenerated via `FieldExtractTests`.
-    - [x] **Document the MATCH-family limitation** — the full-text functions / `:` operator reject a `FIELD_EXTRACT` argument; captured in the appendix and the flattened-fields page so the caveat ships with GA.
-    - [ ] Feature-freeze timing confirmed (per Alex, this can land at/after freeze).
-  notable: true
-  title: Declare `FIELD_EXTRACT` (flattened field support) GA
-issues: []
 pr: 156976
-summary: Declare `FIELD_EXTRACT` (flattened field support) GA
+summary: "ES|QL: `FIELD_EXTRACT` is generally available"
+area: ES|QL
 type: enhancement
+issues: []
+highlight:
+  notable: true
+  title: "Query `flattened` fields in ES|QL"
+  body: |-
+    ES|QL can now read [`flattened`](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/flattened) fields and pull out their sub-fields with the [`FIELD_EXTRACT`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/string-functions/field_extract) function, which is now generally available.
+    A `flattened` field stores an entire object as a single field — handy for data with a large or unpredictable set of keys, such as OpenTelemetry attributes. Previously those values were opaque to ES|QL. Now you can extract any leaf value by key and use it like any other keyword column: filter, sort, `STATS`, `LOOKUP JOIN`, `ENRICH`, and more.
+    See [ES|QL and flattened fields](https://www.elastic.co/docs/reference/query-languages/esql/esql-flattened-fields) to get started.

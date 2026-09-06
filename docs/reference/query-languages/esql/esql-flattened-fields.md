@@ -1,7 +1,7 @@
 ---
 applies_to:
-  stack: preview 9.5+
-  serverless: preview
+  stack: preview 9.5, ga 9.6
+  serverless: ga
 navigation_title: "Flattened fields"
 description: How ES|QL queries flattened fields and extracts sub-fields using FIELD_EXTRACT.
 ---

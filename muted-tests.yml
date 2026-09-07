@@ -182,6 +182,9 @@ tests:
 - class: org.elasticsearch.action.admin.indices.forcemerge.ForceMergeBlocksIT
   method: testForceMergeWithBlocks
   issue: https://github.com/elastic/elasticsearch/issues/158626
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testExecute_Throws_WhenRateLimitedQueueIsFull
+  issue: https://github.com/elastic/elasticsearch/issues/158627
 
 # Examples:
 #

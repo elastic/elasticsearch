@@ -23,7 +23,7 @@ import java.io.IOException;
  * the segment used is invisible here — a layout resolves its own encoding inside the reader, so nothing
  * layout-specific reaches this surface.
  */
-public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
+public final class ColumnarStringBinaryDocValues extends BinaryDocValues implements StringColumnSource {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
@@ -49,6 +49,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
                 + reader.valueCount(rank)
                 + " values; this surface carries one value per document";
         return reader.valueAt(reader.firstValueAddress(rank));
+    }
+
+    /** The column behind this surface, so a merge can read what it recorded rather than its values. */
+    @Override
+    public StringColumnReader reader() {
+        return reader;
     }
 
     @Override
@@ -86,10 +92,22 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
      * a payload round-trip. Used on merge to feed one segment's values into the writer.
      */
     public StringColumnValues directValues() {
+        return directValues(null);
+    }
+
+    /**
+     * As {@link #directValues()}, but reporting each value's ordinal translated through {@code ordinalMap}
+     * so a merge can carry it over instead of resolving the value's bytes and looking them up again. A null
+     * map, or a value that escaped this column's dictionary, falls back to the bytes.
+     */
+    public StringColumnValues directValues(int[] ordinalMap) {
+        // A map is only ever built from a dictionary, so that is the only column with ordinals to carry over.
+        final DictionaryStringColumnReader dictionary = reader instanceof DictionaryStringColumnReader typed ? typed : null;
         return new StringColumnValues() {
             private long first;
             private long count;
             private int upto;
+            private long at = -1;
 
             @Override
             public int valueCount() {
@@ -97,8 +115,26 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public BytesRef nextValue() throws IOException {
-                return reader.valueAt(first + upto++);
+            public void nextValue() {
+                at = first + upto++;
+            }
+
+            @Override
+            public int ordinal() throws IOException {
+                if (ordinalMap == null || dictionary == null) {
+                    return -1;
+                }
+                final int ordinal = dictionary.ordinalAt(at);
+                if (ordinal >= ordinalMap.length) {
+                    // Escaped this column's dictionary, so only its bytes say what it is.
+                    return -1;
+                }
+                return ordinalMap[ordinal];
+            }
+
+            @Override
+            public BytesRef value() throws IOException {
+                return reader.valueAt(at);
             }
 
             @Override
@@ -147,7 +183,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public BytesRef nextValue() throws IOException {
+            public void nextValue() {}
+
+            @Override
+            public BytesRef value() throws IOException {
                 return binary.binaryValue();
             }
 

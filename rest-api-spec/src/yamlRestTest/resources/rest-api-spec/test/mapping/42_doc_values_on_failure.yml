@@ -5,7 +5,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -94,7 +94,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -181,7 +181,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
@@ -268,7 +268,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into columnar_stored source reconstruction"
 
@@ -353,7 +353,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -400,7 +400,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -446,7 +446,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -518,7 +518,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -588,7 +588,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -690,7 +690,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -790,7 +790,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -822,7 +822,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -854,7 +854,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -931,7 +931,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1006,7 +1006,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1110,7 +1110,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1214,7 +1214,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1277,7 +1277,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1335,7 +1335,7 @@
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: ["mapper.doc_values.on_failure"]
       reason: "._on_failure sidecar wired into synthetic source reconstruction"
 
@@ -1359,3 +1359,148 @@
 
   - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.nullability: false }
   - match: { test_on_failure_nullability_roundtrip.mappings.properties.kw.doc_values.on_failure: "ignore" }
+
+---
+"on_failure=ignore multi-field receives all values; parent only keeps first (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_multifield
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+                fields:
+                  child:
+                    type: keyword
+
+  - do:
+      index:
+        index: test_on_failure_multifield
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]
+
+  - do:
+      indices.refresh:
+        index: test_on_failure_multifield
+
+  # The parent keeps only the first value.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent: "a"
+
+  - match: { hits.total.value: 1 }
+
+  # The second value is NOT searchable on the parent.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent: "b"
+
+  - match: { hits.total.value: 0 }
+
+  # The multi-field child indexes all values — both are searchable.
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent.child: "a"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              parent.child: "b"
+
+  - match: { hits.total.value: 1 }
+
+  # _ignored contains the parent but not the child (child applied no constraint).
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              _ignored: "parent"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_on_failure_multifield
+        body:
+          query:
+            term:
+              _ignored: "parent.child"
+
+  - match: { hits.total.value: 0 }
+
+---
+"on_failure=fail (default) on multi-field rejects document even when parent ignores (logsdb_columnar)":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.on_failure"]
+      reason: "._on_failure sidecar wired into synthetic source reconstruction"
+
+  - do:
+      indices.create:
+        index: test_on_failure_child_fail
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              parent:
+                type: keyword
+                doc_values:
+                  multi_value: false
+                  on_failure: ignore
+                fields:
+                  child:
+                    type: keyword
+                    doc_values:
+                      multi_value: false
+                      # on_failure defaults to "fail"
+
+  # Indexing a multi-valued array is rejected because the child field's on_failure is "fail".
+  - do:
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
+      index:
+        index: test_on_failure_child_fail
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          parent: ["a", "b"]

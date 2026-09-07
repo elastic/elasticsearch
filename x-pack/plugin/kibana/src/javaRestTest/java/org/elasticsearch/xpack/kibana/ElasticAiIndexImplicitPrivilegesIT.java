@@ -71,18 +71,23 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // filter to exactly these sets.
     private static final List<String> SPACE_SCOPED_VISIBLE_DOC_IDS = List.of(
         "all-spaces-dashboard",
+        "all-spaces-public",
         "global-no-perms",
         "marketing-dashboard",
+        "marketing-public",
         "mixed-counts",
         "shared-dashboard"
     );
-    // The wildcard-resource grant reaches finance-dashboard (no space restriction), but it holds
-    // only dashboard/read, so mixed-counts (satisfiable only with workflow/read) drops out.
+    // The wildcard-resource grant reaches finance-dashboard and engineering-public, but holds only
+    // dashboard/read, so mixed-counts (needs workflow/read) drops out.
     private static final List<String> WILDCARD_GRANT_VISIBLE_DOC_IDS = List.of(
         "all-spaces-dashboard",
+        "all-spaces-public",
+        "engineering-public",
         "finance-dashboard",
         "global-no-perms",
         "marketing-dashboard",
+        "marketing-public",
         "shared-dashboard"
     );
 
@@ -394,7 +399,61 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: no permissions block → public document.
+        // VISIBLE: requires no action, in marketing where the user is. This is what Kibana writes for
+        // an SML type that opts out of gating: empty `name`, `count: 0`.
+        indexDoc("marketing-public", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": [], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // HIDDEN: requires no action, but in a space the user is not in (public only within its space).
+        indexDoc("engineering-public", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "engineering", "name": [], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // VISIBLE: requires no action, in every space — genuinely public to any granted user.
+        indexDoc("all-spaces-public", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "*", "name": [], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // HIDDEN: malformed — `count: 0` while still naming an action. Only a buggy or hostile producer
+        // writes this, so it must fail closed. No test role holds the named action, so `terms_set` never
+        // visits it — isolating the count:0 escape (arm one) from the terms_set arm.
+        indexDoc("malformed-zero-count", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:workflow/read"], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // Malformed count:0 must remain hidden even when the named action is held.
+        indexDoc("malformed-zero-count-held-action", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // VISIBLE: no permissions block → public, via the must_not(nested(match_all)) branch. Kibana
+        // never writes this, but the branch must work for any other producer.
         indexDoc("global-no-perms", """
             {
               "type": "dashboard"
@@ -439,6 +498,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, containsString(ELASTIC_AI_INDEX_DASHBOARD_READ_ACTION));
         assertThat(query, containsString(ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION));
         assertThat(query, containsString("terms_set"));
+        assertThat(query, containsString("\"permissions.kibana.privileges.count\":{\"value\":0}"));
+        // The zero-requirement escape is gated on the element carrying no action name.
+        assertThat(query, containsString("\"must_not\":[{\"exists\":{\"field\":\"permissions.kibana.privileges.name\""));
         // No delimiter anywhere — space and action are separate fields now.
         assertThat(query, not(containsString("|")));
         // Only ai_index: actions become DLS terms — login:/saved_object: in the same grant are dropped.

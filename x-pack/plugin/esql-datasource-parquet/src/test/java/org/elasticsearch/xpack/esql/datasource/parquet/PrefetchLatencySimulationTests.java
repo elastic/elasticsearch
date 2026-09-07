@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -41,10 +47,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Tests that the prefetch pipeline reduces the number of synchronous I/O calls by serving
@@ -204,6 +217,308 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         }
     }
 
+    /**
+     * Pins the request shape used to validate the retained depth-three floor. A deterministic
+     * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
+     * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
+     * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
+     * assertions; this test fixes only the deterministic fan-out policy.
+     */
+    public void testCappedRequestWaveFanOutPolicy() {
+        BlockMetaData block = createCappedRequestWaveBlock();
+        Set<String> projectedColumns = block.getColumns()
+            .stream()
+            .map(column -> column.getPath().toDotString())
+            .collect(Collectors.toSet());
+        List<CoalescedRangeReader.MergedRange> requests = CoalescedRangeReader.mergeRanges(
+            ColumnChunkPrefetcher.computeColumnChunkRanges(block, projectedColumns),
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
+        );
+
+        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
+        assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
+        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals(
+            "adaptive maximum queue-wide request fan-out",
+            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
+        );
+    }
+
+    public void testPrefetchFailureEntersAndSuccessfulProbeExitsProbeMode() throws Exception {
+        byte[] parquetData = createLargeUncompressedProjectedRowGroupsFile();
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new IOException("injected prefetch failure")
+        );
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int floor = opi.prefetchDepth();
+            assertTrue("fixture must produce a nontrivial byte-based prefetch floor", floor > 1);
+
+            assertTrue(iter.hasNext());
+            assertEquals("the first real prefetch must fail", 1, storage.failedAsyncReadCount.get());
+            assertTrue(opi.probingPrefetch());
+            assertEquals(1, opi.prefetchDepth());
+            Page first = iter.next();
+            first.releaseBlocks();
+
+            assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
+            assertTrue(iter.hasNext());
+            assertFalse(opi.probingPrefetch());
+            assertEquals(floor, opi.prefetchDepth());
+            assertEquals("the fallback barrier must not leak queued-byte accounting", 0L, opi.queuedPrefetchBytes());
+            Page second = iter.next();
+            second.releaseBlocks();
+            assertFalse(iter.hasNext());
+        }
+    }
+
+    public void testNestedWrappedErrorFromPrefetchEscapesWithoutSyncFallback() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        AssertionError injected = new AssertionError("injected wrapped prefetch error");
+        FailFirstAsyncStorageObject storage = new FailFirstAsyncStorageObject(
+            parquetData,
+            asyncIoExecutor,
+            new CompletionException(new CompletionException(injected))
+        );
+
+        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+            int syncReadBaseline = storage.syncReadCount.get();
+            AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
+            assertSame(injected, actual);
+            assertEquals("wrapped Errors must be classified before synchronous fallback", syncReadBaseline, storage.syncReadCount.get());
+        }
+    }
+
+    private byte[] createLargeUncompressedProjectedRowGroupsFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named("payload")
+            .named("large_projected_row_group");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1)
+                .withRowGroupRowCountLimit(1)
+                .withPageSize(10 * 1024 * 1024)
+                .build()
+        ) {
+            // Two >8 MB row groups cross SHALLOW_PREFETCH_BYTES and provide a real successful
+            // probe after the first row group's failed prefetch falls back synchronously.
+            byte[] value = new byte[9 * 1024 * 1024];
+            for (int i = 0; i < 2; i++) {
+                writer.write(groupFactory.newGroup().append("payload", Binary.fromConstantByteArray(value)));
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    @SuppressWarnings("deprecation")
+    private static BlockMetaData createCappedRequestWaveBlock() {
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        long chunkBytes = 5L * 1024 * 1024;
+        long position = 1;
+        for (int i = 0; i < 30; i++) {
+            String name = "col_" + i;
+            block.addColumn(
+                ColumnChunkMetaData.get(
+                    ColumnPath.get(name),
+                    PrimitiveType.PrimitiveTypeName.INT64,
+                    CompressionCodecName.UNCOMPRESSED,
+                    Set.of(Encoding.PLAIN),
+                    Statistics.createStats(Types.required(PrimitiveType.PrimitiveTypeName.INT64).named(name)),
+                    position,
+                    0,
+                    100,
+                    chunkBytes,
+                    chunkBytes
+                )
+            );
+            position += chunkBytes;
+        }
+        return block;
+    }
+
+    /**
+     * Small row groups under the default queued-byte cap fill to the count wish.
+     * This is the complement of the byte-cap tests: the cap must not starve a narrow scan.
+     * It does not by itself prove that a byte cap exists.
+     */
+    public void testDefaultBudgetFillsToCountCap() throws Exception {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            int ctorCount = opi.pendingPrefetchCount();
+            assertTrue("constructor should queue at least one group", ctorCount >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
+            long rgBytes = opi.queuedPrefetchBytes() / ctorCount;
+            assertEquals("constructor should fill to the count wish", opi.prefetchDepth(), ctorCount);
+            assertTrue(
+                "queued bytes should be well under the default cap: " + opi.queuedPrefetchBytes(),
+                opi.queuedPrefetchBytes() < OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES
+            );
+
+            growPrefetchDepth(opi, 5);
+            int wish = opi.prefetchDepth();
+            opi.refillPrefetchQueue();
+            assertEquals("narrow scans still fill to the count cap; need >=" + wish + " row groups", wish, opi.pendingPrefetchCount());
+            assertTrue(opi.queuedPrefetchBytes() >= rgBytes * 2);
+            assertTrue(opi.queuedPrefetchBytes() < OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+        }
+    }
+
+    /**
+     * An empty queue always admits the next row group even when that group exceeds the byte cap,
+     * so the scan cannot stall. Depth is raised first so count-only admission would queue more
+     * than one group.
+     */
+    public void testByteBudgetOverrunWhenQueueEmpty() throws Exception {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            growPrefetchDepth(opi, 3);
+            opi.setPrefetchByteBudget(1);
+            opi.refillPrefetchQueue();
+            assertEquals("empty queue admits one group over the cap", 1, opi.pendingPrefetchCount());
+            assertTrue("queued bytes should overrun a 1-byte budget: " + opi.queuedPrefetchBytes(), opi.queuedPrefetchBytes() > 1);
+            assertTrue("byte cap, not the count wish, limited occupancy", opi.pendingPrefetchCount() < opi.prefetchDepth());
+        }
+    }
+
+    /**
+     * A budget equal to the first two groups admits exactly those two, regardless of the count wish.
+     */
+    public void testByteBudgetAdmitsTwoNotThree() throws Exception {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            assertTrue("constructor should queue at least one group", opi.pendingPrefetchCount() >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
+
+            long bytesTwo = queuedBytesAtDepth(opi, 2);
+            long bytesThree = queuedBytesAtDepth(opi, 3);
+            assertTrue("third group must contribute bytes so a 2-group budget is distinguishable", bytesThree > bytesTwo);
+
+            growPrefetchDepth(opi, 3);
+            opi.setPrefetchByteBudget(bytesTwo);
+            opi.refillPrefetchQueue();
+            assertEquals(2, opi.pendingPrefetchCount());
+            assertEquals("admitted bytes should match the injected 2-group budget", bytesTwo, opi.queuedPrefetchBytes());
+            assertTrue("byte cap, not the count wish, limited occupancy", opi.pendingPrefetchCount() < opi.prefetchDepth());
+        }
+    }
+
+    /**
+     * Stall-growth raises the count wish to {@code MAX_PREFETCH_DEPTH} but does not raise queued
+     * occupancy past the byte cap.
+     */
+    public void testStallsDoNotExceedByteBudget() throws Exception {
+        try (CloseableIterator<Page> iter = openOptimized(smallInt64MultiRowGroupFile())) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            assertTrue("constructor should queue at least one group", opi.pendingPrefetchCount() >= 1);
+            assertTrue("constructor should record prefetch bytes", opi.queuedPrefetchBytes() > 0);
+
+            long bytesTwo = queuedBytesAtDepth(opi, 2);
+            long bytesThree = queuedBytesAtDepth(opi, 3);
+            assertTrue("third group must contribute bytes so a 2-group budget is distinguishable", bytesThree > bytesTwo);
+
+            growPrefetchDepth(opi, 8);
+            assertEquals(8, opi.prefetchDepth());
+            opi.setPrefetchByteBudget(bytesTwo);
+            opi.refillPrefetchQueue();
+            assertEquals("stall-growth wish stays at max depth", 8, opi.prefetchDepth());
+            assertEquals("queued occupancy follows the byte cap, not the wish", 2, opi.pendingPrefetchCount());
+            assertEquals("admitted bytes should match the injected 2-group budget", bytesTwo, opi.queuedPrefetchBytes());
+        }
+    }
+
+    /**
+     * Consume and cancel must keep queued-byte accounting in sync: a tiny budget scan returns
+     * the same rows as an unconstrained read and drains the queue at exhaustion.
+     */
+    public void testTinyBudgetScanDrainsQueue() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        int unconstrained = countRows(new ParquetFormatReader(blockFactory, true), new CountingStorageObject(parquetData, asyncIoExecutor));
+        try (CloseableIterator<Page> iter = openOptimized(parquetData)) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) iter;
+            opi.setPrefetchByteBudget(1);
+            opi.refillPrefetchQueue();
+            int rows = 0;
+            while (iter.hasNext()) {
+                rows += iter.next().getPositionCount();
+            }
+            assertEquals(unconstrained, rows);
+            assertEquals(0, opi.queuedPrefetchBytes());
+            assertEquals(0, opi.pendingPrefetchCount());
+        }
+    }
+
+    private byte[] smallInt64MultiRowGroupFile() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        return createMultiRowGroupFile(schema, 5000, 4096);
+    }
+
+    private CloseableIterator<Page> openOptimized(byte[] parquetData) throws IOException {
+        return new ParquetFormatReader(blockFactory, true).read(
+            new CountingStorageObject(parquetData, asyncIoExecutor),
+            FormatReadContext.of(null, 1024)
+        );
+    }
+
+    private static void growPrefetchDepth(OptimizedParquetColumnIterator opi, int minDepth) {
+        int safety = 0;
+        while (opi.prefetchDepth() < minDepth) {
+            int before = opi.prefetchDepth();
+            opi.adaptPrefetchDepth(false);
+            assertTrue("prefetch depth should grow on stall, was " + before, opi.prefetchDepth() > before);
+            if (++safety > 32) {
+                fail("could not grow prefetch depth to " + minDepth);
+            }
+        }
+    }
+
+    private static void shrinkPrefetchDepthTo(OptimizedParquetColumnIterator opi, int targetDepth) {
+        int safety = 0;
+        while (opi.prefetchDepth() > targetDepth) {
+            int before = opi.prefetchDepth();
+            for (int i = 0; i < OptimizedParquetColumnIterator.SHRINK_AFTER_NO_STALLS; i++) {
+                opi.adaptPrefetchDepth(true);
+            }
+            if (opi.prefetchDepth() >= before) {
+                fail("could not shrink prefetch depth to " + targetDepth + ", stuck at " + opi.prefetchDepth());
+            }
+            if (++safety > 32) {
+                fail("could not shrink prefetch depth to " + targetDepth);
+            }
+        }
+        if (opi.prefetchDepth() != targetDepth) {
+            fail("wanted prefetch depth " + targetDepth + " but got " + opi.prefetchDepth() + " (floor too high for this fixture?)");
+        }
+    }
+
+    /**
+     * Unlimited-budget refill at exactly {@code depth}. Fails if the file has fewer than
+     * {@code depth} row groups or the depth floor is above {@code depth}.
+     */
+    private static long queuedBytesAtDepth(OptimizedParquetColumnIterator opi, int depth) {
+        growPrefetchDepth(opi, depth);
+        shrinkPrefetchDepthTo(opi, depth);
+        opi.setPrefetchByteBudget(Long.MAX_VALUE);
+        opi.refillPrefetchQueue();
+        assertEquals("unlimited budget should fill to the count wish; need >=" + depth + " row groups", depth, opi.pendingPrefetchCount());
+        long bytes = opi.queuedPrefetchBytes();
+        assertTrue("queued bytes at depth " + depth + " should be positive", bytes > 0);
+        return bytes;
+    }
+
     private void readAll(ParquetFormatReader reader, StorageObject storageObject) throws IOException {
         try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
             while (iter.hasNext()) {
@@ -292,6 +607,47 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
                     buffer.flip();
                     listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                 } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }
+    }
+
+    private static final class FailFirstAsyncStorageObject extends CountingStorageObject {
+        private final Executor failureExecutor;
+        private final Exception firstFailure;
+        private final AtomicBoolean failNextAsyncRead = new AtomicBoolean(true);
+        private final AtomicInteger failedAsyncReadCount = new AtomicInteger();
+        private final CountDownLatch successfulAsyncReads = new CountDownLatch(2);
+
+        private FailFirstAsyncStorageObject(byte[] data, ExecutorService asyncIoExecutor, Exception firstFailure) {
+            super(data, asyncIoExecutor);
+            this.failureExecutor = asyncIoExecutor;
+            this.firstFailure = firstFailure;
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (failNextAsyncRead.compareAndSet(true, false)) {
+                failedAsyncReadCount.incrementAndGet();
+                failureExecutor.execute(() -> listener.onFailure(firstFailure));
+                return;
+            }
+            super.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer response) {
+                    listener.onResponse(response);
+                    successfulAsyncReads.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
             });

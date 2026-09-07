@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -98,7 +99,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
                 if (statusCode != HttpStatus.SC_OK) {
-                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()), retryAfterMs);
                 }
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent()) {
@@ -119,15 +123,17 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
      * any other status becomes an {@link IOException}, which the external source operator classifies as
      * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
-     * (a raw status alone is opaque; stores typically return a descriptive body). Returns (never throws)
-     * so both the synchronous and async read paths can route it.
+     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
+     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
+     * synchronous and async read paths can route it.
      */
-    private Exception mapReadFailure(String context, int statusCode, String detail) {
+    private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
         String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
             return new ExternalUnavailableException(
                 throttling,
+                throttling ? retryAfterMs : 0L,
                 "HTTP store unavailable reading [{}] (HTTP {}){}",
                 path,
                 statusCode,
@@ -141,8 +147,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
      * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
      */
-    private RuntimeException throwReadFailure(String context, int statusCode, String detail) throws IOException {
-        Exception mapped = mapReadFailure(context, statusCode, detail);
+    private RuntimeException throwReadFailure(String context, int statusCode, String detail, long retryAfterMs) throws IOException {
+        Exception mapped = mapReadFailure(context, statusCode, detail, retryAfterMs);
         if (mapped instanceof RuntimeException re) {
             throw re;
         }
@@ -212,7 +218,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     // contract for an open-ended read past the end is an empty stream.
                     return InputStream.nullInputStream();
                 } else {
-                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()), retryAfterMs);
                 }
             });
         } finally {
@@ -299,10 +308,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Wrap with path context so stack-trace-only triage names the offending URL.
-                    // The original cause (CompletionException, body subscriber's IOException,
-                    // transport error, etc.) is preserved in the cause chain.
-                    listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
+                    listener.onFailure(mapAsyncSendFailure(throwable));
                     return;
                 }
 
@@ -314,9 +320,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     deliverRead(listener, response.body(), startNanos);
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
-                    // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
                     response.body().close();
-                    listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    listener.onFailure(mapReadFailure("Range request failed for", statusCode, null, retryAfterMs));
                 }
             }
         );
@@ -327,6 +335,11 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      */
     @Override
     public boolean supportsNativeAsync() {
+        return true;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
         return true;
     }
 
@@ -399,14 +412,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.apply(null);
-        try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + path, e);
-        }
+        return responseHandler.apply(sendChecked(requestSupplier.apply(null), bodyHandler));
     }
 
     /**
@@ -422,14 +428,50 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.get();
+        return responseHandler.apply(sendChecked(requestSupplier.get(), bodyHandler));
+    }
+
+    /**
+     * Sends {@code request} and types a transport fault the same way
+     * {@link HttpTransientTypingInputStream} types a mid-body drop. The JDK {@code HttpClient}
+     * reuses HTTP/1.1 keep-alive connections; when the peer has already closed one, {@code send()}
+     * throws a plain {@link IOException} or {@link IllegalStateException} with message {@code closed}
+     * before any response body exists. Those are retryable transport drops (a fresh connection
+     * succeeds), not client errors, so they become {@link ExternalUnavailableException}.
+     * Interrupt stays an {@link IOException} so it is not retried. Status-bearing failures are
+     * handled by the caller after a successful send.
+     */
+    private <T> HttpResponse<T> sendChecked(HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
         try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
+            return client.send(request, bodyHandler);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("HTTP request interrupted for " + path, e);
+        } catch (IOException e) {
+            throw typeTransportFailure(e);
+        } catch (IllegalStateException e) {
+            throw typeTransportFailure(e);
         }
+    }
+
+    /**
+     * Types an async {@code sendAsync} failure. Unwraps {@link CompletionException} so the same
+     * closed-keep-alive {@link IOException} / {@link IllegalStateException} that {@link #sendChecked}
+     * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
+     */
+    private Exception mapAsyncSendFailure(Throwable throwable) {
+        Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
+        if (cause instanceof ExternalUnavailableException eue) {
+            return eue;
+        }
+        if (cause instanceof IOException || cause instanceof IllegalStateException) {
+            return typeTransportFailure((Exception) cause);
+        }
+        return new IOException("HTTP read failed for " + path, throwable);
+    }
+
+    private ExternalUnavailableException typeTransportFailure(Exception e) {
+        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
     }
 
     /**

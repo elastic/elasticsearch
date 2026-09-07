@@ -8,7 +8,8 @@
 # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-# Builds and pushes the cross-compilation toolchain image for libvec.
+# Builds and pushes the cross-compilation toolchain image for Elasticsearch
+# native libraries (libvec, libes_simdjson, and future native modules).
 # Run this script when compiler versions need updating.
 # No Mac or macOS SDK required — can be run on any machine with Docker.
 #
@@ -27,7 +28,7 @@ case "${1:-}" in
   *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
 esac
 
-VERSION=3
+VERSION=6
 HOST=docker.elastic.co
 REPOSITORY=elasticsearch-infra/es-native-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION

@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -25,6 +26,7 @@ import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -115,6 +117,34 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     @Input
     public abstract MapProperty<String, String> getEnvironment();
 
+    /**
+     * Base URL of the repository holding published artifacts.
+     * When absent the task always builds from source.
+     */
+    @Input
+    @Optional
+    public abstract Property<String> getArtifactRepositoryUrl();
+
+    /** Artifact name in the repository. */
+    @Input
+    @Optional
+    public abstract Property<String> getArtifactName();
+
+    /**
+     * Credential for publishing. Deliberately {@link Internal} to avoid recording in build scans and cache keys.
+     * When absent the task will not publish.
+     */
+    @Internal
+    public abstract Property<String> getPublishApiKey();
+
+    /**
+     * Whether the build is running with {@code --offline}. Passed in by the plugin because a task must
+     * not reach for {@code Project}, and {@link Internal} because being offline changes whether the
+     * artifact can be fetched, not what the artifact is.
+     */
+    @Internal
+    public abstract Property<Boolean> getOffline();
+
     @OutputDirectory
     public abstract DirectoryProperty getOutputDir();
 
@@ -123,6 +153,9 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
 
     @Inject
     public abstract FileSystemOperations getFileSystemOperations();
+
+    @Inject
+    public abstract ArchiveOperations getArchiveOperations();
 
     @TaskAction
     public void build() {
@@ -133,14 +166,112 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         getFileSystemOperations().delete(spec -> spec.delete(outputDir));
         outputDir.mkdirs();
 
+        if (getArtifactRepositoryUrl().isPresent() && materializeFromRepository(outputDir)) {
+            return;
+        }
+
         switch (mode) {
-            case DOCKER_MODE -> buildDocker(nativeDir, outputDir);
-            case HOST_MODE -> buildHost(nativeDir, outputDir);
-            case PUBLISHED_MODE -> throw new GradleException(
-                "This library is configured to come from its published artifact. Select a build mode "
-                    + "('docker' for every platform, 'host' for the current one) to build it from source."
+            case DOCKER_MODE:
+                buildDocker(nativeDir, outputDir);
+                if (getArtifactRepositoryUrl().isPresent() && getPublishApiKey().isPresent()) {
+                    LOGGER.info("Publishing artifact");
+                    publish(outputDir);
+                } else {
+                    LOGGER.warn("No repository or no credential specified: skipping publish");
+                }
+                break;
+            case HOST_MODE:
+                buildHost(nativeDir, outputDir);
+                LOGGER.info("Host mode: skipping publish. Only a complete cross-platform build is publishable");
+                break;
+            case PUBLISHED_MODE:
+                throw new GradleException(
+                    "This library is configured to come from its published artifact. Select a build mode "
+                        + "('docker' for every platform, 'host' for the current one) to build it from source."
+                );
+            default:
+                throw new GradleException("Unknown mode: '" + mode + "'. Expected 'docker' or 'host'.");
+        }
+    }
+
+    /**
+     * Answers "do we already have an artifact for this source?". Returns true when the published artifact was
+     * fetched and unpacked, false when the sources have no published artifact and must be built.
+     */
+    private boolean materializeFromRepository(File outputDir) {
+        String hash = sourceHash();
+        String name = getArtifactName().get();
+
+        if (getOffline().get()) {
+            throw new GradleException(
+                "Cannot fetch "
+                    + name
+                    + " for hash "
+                    + hash
+                    + " while offline. Run without --offline, or build it from source with a build mode."
             );
-            default -> throw new GradleException("Unknown mode: '" + mode + "'. Expected 'docker' or 'host'.");
+        }
+
+        java.util.Optional<byte[]> published = repository().download(name, hash);
+        if (published.isEmpty()) {
+            return false;
+        }
+
+        LOGGER.lifecycle("Using published {} for hash {}", name, hash);
+        unpack(published.get(), outputDir);
+        verifyOutput(outputDir, getSupportedPlatforms().get());
+        return true;
+    }
+
+    private void publish(File outputDir) {
+        String hash = sourceHash();
+        String name = getArtifactName().get();
+        byte[] archive = pack(outputDir);
+
+        NativeArtifactRepository repository = repository();
+        repository.publish(name, hash, archive, getPublishApiKey().get());
+        repository.verifyPublished(name, hash, archive);
+    }
+
+    private String sourceHash() {
+        return NativeSourceHash.compute(getNativeDir().get().getAsFile(), getSourceFiles().getFiles(), getToolchainImage().get());
+    }
+
+    private NativeArtifactRepository repository() {
+        return new NativeArtifactRepository(getArtifactRepositoryUrl().get());
+    }
+
+    /** Unpacks a published archive into the platform layout */
+    private void unpack(byte[] archive, File outputDir) {
+        File temporary = new File(getTemporaryDir(), "published.zip");
+        try {
+            Files.write(temporary.toPath(), archive);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to stage the published archive at " + temporary, e);
+        }
+        getFileSystemOperations().copy(spec -> {
+            spec.from(getArchiveOperations().zipTree(temporary));
+            spec.into(outputDir);
+        });
+    }
+
+    /** Packs the built platform layout for publishing */
+    private byte[] pack(File outputDir) {
+        Path archive = getTemporaryDir().toPath().resolve("to-publish.zip");
+        try {
+            Files.deleteIfExists(archive);
+            try (var out = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive)); var paths = Files.walk(outputDir.toPath())) {
+                for (Path path : paths.filter(Files::isRegularFile).sorted().toList()) {
+                    out.putNextEntry(
+                        new java.util.zip.ZipEntry(outputDir.toPath().relativize(path).toString().replace(File.separatorChar, '/'))
+                    );
+                    Files.copy(path, out);
+                    out.closeEntry();
+                }
+            }
+            return Files.readAllBytes(archive);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to package " + outputDir + " for publishing", e);
         }
     }
 
@@ -211,6 +342,12 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
      * verifies the same way wherever it runs.
      */
     static void verifyOutput(File outputDir, Collection<String> expectedPlatforms) {
+        if (expectedPlatforms.isEmpty()) {
+            throw new GradleException(
+                "nativeLibraryBuild.supportedPlatforms is empty. Declare the <os>-<arch> platforms this "
+                    + "library is built for, for example ['darwin-aarch64', 'linux-aarch64', 'linux-x64']."
+            );
+        }
         List<String> missing = expectedPlatforms.stream()
             .filter(platform -> isEmptyDirectory(outputDir.toPath().resolve(platform)))
             .sorted()

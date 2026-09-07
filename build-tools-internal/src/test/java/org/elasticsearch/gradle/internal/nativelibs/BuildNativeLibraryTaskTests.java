@@ -123,6 +123,19 @@ public class BuildNativeLibraryTaskTests {
         assertTrue(ex.getMessage().contains("Expected build output not found"));
     }
 
+    /**
+     * An unconfigured platform set must not silently verify nothing: with no expected platforms a
+     * build that produced no library at all would be accepted, and the missing file would surface far
+     * later as a link error.
+     */
+    @Test
+    public void testVerifyOutputRequiresAtLeastOneExpectedPlatform() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+
+        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of()));
+        assertTrue(ex.getMessage().contains("supportedPlatforms"));
+    }
+
     @Test
     public void testVerifyOutputThrowsWhenNothingProduced() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");

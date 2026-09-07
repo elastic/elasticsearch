@@ -40,6 +40,21 @@ public abstract class NativeLibraryBuildExtension {
      */
     public abstract SetProperty<String> getSupportedPlatforms();
 
+    /**
+     * Repository holding published artifacts, addressed by the hash of the sources they were built
+     * from. When unset the build always compiles from source.
+     */
+    public abstract Property<String> getArtifactRepositoryUrl();
+
+    /** Artifact name in that repository. */
+    public abstract Property<String> getArtifactName();
+
+    /**
+     * Environment variable holding the credential that permits publishing.
+     * If omitted, a build can fetch and compile but will not publish.
+     */
+    public abstract Property<String> getPublishCredentialEnvironmentVariable();
+
     /** Command run inside the container, building all platforms. */
     public abstract ListProperty<String> getDockerCommand();
 

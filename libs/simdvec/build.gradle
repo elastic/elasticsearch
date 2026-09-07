@@ -89,6 +89,11 @@ nativeLibraryBuild {
   // fall back to the Panama implementation when they don't have a platform-specific implementation.
   supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64']
 
+  // Reuse the published artifact whenever these sources already have one, addressed by their hash.
+  artifactRepositoryUrl = 'https://artifactory.elastic.dev/artifactory/elasticsearch-native'
+  artifactName = 'vec'
+  publishCredentialEnvironmentVariable = 'ARTIFACTORY_API_KEY'
+
   dockerCommand = ['make', 'all']
   collect = [
     'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',

@@ -11,6 +11,10 @@ package org.elasticsearch.gradle.internal.nativelibs
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
+import org.gradle.testkit.runner.TaskOutcome
+
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class NativeLibrariesPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -38,19 +42,21 @@ class NativeLibrariesPluginFuncTest extends AbstractGradleInternalPluginFuncTest
           hostCommand { outputDir -> ['sh', '-c', "mkdir -p \$outputDir.asFile/${PLATFORM} && echo built > \$outputDir.asFile/${PLATFORM}/libtest.so"] }
         }
         """
+        publishArtifact()
         buildFile << """
+        repositories {
+          maven {
+            url = layout.projectDirectory.dir('maven-repo')
+            metadataSources { artifact() }
+          }
+        }
+
         nativeLibraries {
           test {
             modeEnvironmentVariable = 'TEST_NATIVE_BUILD'
             publishedModule = 'org.example:test:1.0.0@zip'
             builtBy = ':producer'
           }
-        }
-
-        tasks.register('showSelection') {
-          def selected = configurations.${NativeLibrariesPlugin.SOURCES_CONFIGURATION}
-              .incoming.dependencies.collect { it.toString() }
-          doLast { println "selected=" + selected }
         }
 
         tasks.register('collectLibraries', Copy) {
@@ -60,30 +66,35 @@ class NativeLibrariesPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         """
     }
 
-    def "selects the published module when no build mode is set"() {
+    def "takes the published artifact and does not build when no build mode is set"() {
         when:
-        def result = gradleRunner("showSelection").build()
+        def result = gradleRunner("collectLibraries").build()
 
         then:
-        result.output.contains("org.example:test:1.0.0")
-        result.output.contains("project ':producer'") == false
+        result.task(":collectLibraries").outcome == TaskOutcome.SUCCESS
+        result.task(":producer:buildNativeLibrary") == null
+        file("build/collected/${PLATFORM}/libtest.so").text.trim() == "from-repository"
     }
 
-    def "selects the building project when a build mode is set"() {
-        when:
-        def result = gradleRunner("showSelection").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
-
-        then:
-        result.output.contains("project ':producer'")
-        result.output.contains("org.example:test:1.0.0") == false
-    }
-
-    def "resolving the libraries builds them from source and yields the platform tree"() {
+    def "builds from source when a build mode is set"() {
         when:
         def result = gradleRunner("collectLibraries").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
 
         then:
-        result.task(":producer:buildNativeLibrary") != null
-        file("build/collected/${PLATFORM}/libtest.so").exists()
+        result.task(":producer:buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+        file("build/collected/${PLATFORM}/libtest.so").text.trim() == "built"
+    }
+
+    /** A published artifact in a local Maven repository, so the published path is resolvable. */
+    private void publishArtifact() {
+        def zip = new ByteArrayOutputStream()
+        new ZipOutputStream(zip).withStream { out ->
+            out.putNextEntry(new ZipEntry("${PLATFORM}/libtest.so"))
+            out.write("from-repository\n".getBytes("UTF-8"))
+            out.closeEntry()
+        }
+        def artifact = file("maven-repo/org/example/test/1.0.0/test-1.0.0.zip")
+        artifact.parentFile.mkdirs()
+        artifact.bytes = zip.toByteArray()
     }
 }

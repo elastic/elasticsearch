@@ -58,6 +58,11 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
             task.getMode().set(mode);
             task.getToolchainImage().set(extension.getToolchainImage());
             task.getSupportedPlatforms().set(extension.getSupportedPlatforms());
+            task.getArtifactRepositoryUrl().set(extension.getArtifactRepositoryUrl());
+            task.getArtifactName().set(extension.getArtifactName());
+            task.getPublishApiKey().set(extension.getPublishCredentialEnvironmentVariable().flatMap(providers::environmentVariable));
+            // Read here because a task must not reach for Project; see the property's javadoc.
+            task.getOffline().set(project.getGradle().getStartParameter().isOffline());
             task.getDockerCommand().set(extension.getDockerCommand());
             task.getHostCommand().set(outputDir.map(extension::hostCommandFor));
             task.getCollect().set(extension.getCollect());

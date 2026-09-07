@@ -14,6 +14,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -49,6 +50,13 @@ public class NativeLibrariesPlugin implements Plugin<Project> {
         // Gradle 9 rejects a configuration that both declares dependencies and is resolved, so two
         // configurations are needed: libraries are declared in the first, consumers resolve the second.
         Configuration sources = project.getConfigurations().dependencyScope(SOURCES_CONFIGURATION).get();
+
+        // Published artifacts are zips and consumers ask for directories, so without this the
+        // published path resolves to nothing at all rather than failing.
+        dependencyHandler.registerTransform(UnzipTransform.class, spec -> {
+            spec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+            spec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        });
 
         project.getConfigurations().resolvable(LIBRARIES_CONFIGURATION, configuration -> {
             configuration.extendsFrom(sources);

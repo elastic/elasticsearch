@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +22,7 @@ import java.io.IOException;
 import java.io.StringReader;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertStreamHasNumberOfTokens;
+import static org.hamcrest.Matchers.containsString;
 
 public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
@@ -112,7 +112,64 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
             IllegalArgumentException.class,
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString(IndexSettings.MAX_TOKEN_COUNT_SETTING.getKey()));
+        assertThat(e.getMessage(), containsString("must not exceed"));
+    }
+
+    public void testIndividualParameterCapEnforced() {
+        // Each parameter should be independently rejected when it exceeds its cap
+        String[][] paramsAndLimits = {
+            { "hash_count", Integer.toString(MinHashTokenFilterFactory.MAX_HASH_COUNT + 1) },
+            { "bucket_count", Integer.toString(MinHashTokenFilterFactory.MAX_BUCKET_COUNT + 1) },
+            { "hash_set_size", Integer.toString(MinHashTokenFilterFactory.MAX_HASH_SET_SIZE + 1) } };
+        for (String[] entry : paramsAndLimits) {
+            String param = entry[0];
+            String overLimit = entry[1];
+            Settings settings = Settings.builder()
+                .put("index.analysis.filter.test_min_hash.type", "min_hash")
+                .put("index.analysis.filter.test_min_hash." + param, overLimit)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+            );
+            assertThat(e.getMessage(), containsString("[" + param + "] must not exceed"));
+        }
+    }
+
+    public void testOverflowBypassRejected() {
+        // Regression test: three values whose mathematical product wraps to zero in long arithmetic
+        // should still be rejected by the per-parameter cap. This is the bypass described in
+        // elastic/security#12881 where hash_set_size was raised to force a long overflow.
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "2097152")
+            .put("index.analysis.filter.test_min_hash.bucket_count", "2097152")
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "4194304")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
+        assertThat(e.getMessage(), containsString("must not exceed"));
+    }
+
+    public void testMaxParamValueAllowed() throws IOException {
+        // Boundary test: exactly the maximum should pass the per-parameter cap (but may still
+        // be rejected by the product check against max_token_count).
+        int maxBucketCount = MinHashTokenFilterFactory.MAX_BUCKET_COUNT;
+        Settings settings = Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", "1")
+            .put("index.analysis.filter.test_min_hash.bucket_count", maxBucketCount)
+            .put("index.analysis.filter.test_min_hash.hash_set_size", "1")
+            .put("index.analyze.max_token_count", maxBucketCount)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        // Should not throw — product is 1 * 10000 * 1 = 10000, which equals max_token_count
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        assertNotNull(analysis.tokenFilter.get("test_min_hash"));
     }
 
 }

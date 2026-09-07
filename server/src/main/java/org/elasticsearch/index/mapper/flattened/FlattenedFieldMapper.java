@@ -73,6 +73,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BatchMappingContext;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
@@ -729,7 +730,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     if (usesArrayOrderBinaryDocValues) {
                         return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
-                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
+                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, BinaryDocValuesFormat.SEPARATE_COUNT);
                 } else {
                     return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
@@ -759,7 +760,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
-                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, BinaryDocValuesFormat.SEPARATE_COUNT);
                 }
 
                 // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.

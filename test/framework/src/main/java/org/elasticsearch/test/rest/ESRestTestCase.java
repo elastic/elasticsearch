@@ -881,6 +881,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "agentless",
             "synthetics@lifecycle",
             "traces@lifecycle",
+            "exemplars@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",

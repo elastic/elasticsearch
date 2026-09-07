@@ -19,12 +19,17 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompress
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -238,9 +243,14 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
-    public void testUncompressedDictionaryPageWithHeapInputSkipsAllocAndCopy() throws IOException {
-        // Same short-circuit, exercised through the dictionary-page path.
+    /**
+     * Production already copied dictionary bytes before constructing the reader, so no caller
+     * depended on aliasing. The reader now owns the defensive copy and later source mutation must
+     * not affect it.
+     */
+    public void testUncompressedDictionaryPageIsDefensivelyCopied() throws IOException {
         byte[] payload = randomBytesOfLength(48);
+        byte original = payload[0];
         ByteBuffer heap = ByteBuffer.wrap(payload);
         DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(heap.duplicate()), payload.length, 4, Encoding.PLAIN);
         try (
@@ -252,18 +262,96 @@ public class PrefetchedPageReaderTests extends ESTestCase {
                 0
             )
         ) {
+            byte sentinel = (byte) (original ^ 0xFF);
+            heap.put(0, sentinel);
             DictionaryPage out = reader.readDictionaryPage();
             assertThat(out, notNullValue());
             ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
-            assertFalse("Uncompressed dictionary page aliases the heap I/O buffer", decompressedBuf.isDirect());
-            byte sentinel = (byte) (payload[0] ^ 0xFF);
-            heap.put(0, sentinel);
-            assertEquals(
-                "Returned BytesInput must alias the heap dictionary input slice, not a copy",
-                sentinel,
-                out.getBytes().toByteArray()[0]
-            );
+            assertFalse("Uncompressed dictionary page copy is heap-backed", decompressedBuf.isDirect());
+            assertEquals("Reader must snapshot dictionary input at construction", original, out.getBytes().toByteArray()[0]);
         }
+    }
+
+    public void testUncompressedDictionaryCopyIsChargedUntilClose() {
+        byte[] payload = randomBytesOfLength(48);
+        DictionaryPage dictionaryPage = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
+        LimitedBreaker trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            trackingBreaker,
+            List.of(),
+            dictionaryPage,
+            0
+        );
+        assertEquals(payload.length, trackingBreaker.getUsed());
+        try {
+            assertNotNull(reader.readDictionaryPage());
+            assertEquals(payload.length, trackingBreaker.getUsed());
+        } finally {
+            reader.close();
+        }
+        assertEquals(0L, trackingBreaker.getUsed());
+    }
+
+    public void testDictionaryCopyBreakerRefusalLeavesNoCharge() {
+        byte[] payload = randomBytesOfLength(48);
+        DictionaryPage dictionaryPage = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
+        LimitedBreaker trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(payload.length - 1L));
+
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+                trackingBreaker,
+                List.of(),
+                dictionaryPage,
+                0
+            )
+        );
+        assertEquals(0L, trackingBreaker.getUsed());
+    }
+
+    public void testDictionaryCopySourceFailureReleasesCharge() {
+        LimitedBreaker trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
+        BytesInput failing = BytesInput.from(new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("injected copy failure");
+            }
+        }, 10);
+        DictionaryPage dictionaryPage = new DictionaryPage(failing, 10, 4, Encoding.PLAIN);
+
+        ParquetDecodingException exception = expectThrows(
+            ParquetDecodingException.class,
+            () -> new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+                trackingBreaker,
+                List.of(),
+                dictionaryPage,
+                0
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("Could not copy compressed dictionary page"));
+        assertEquals(0L, trackingBreaker.getUsed());
+    }
+
+    public void testDictionaryCopyLengthMismatchReleasesCharge() {
+        LimitedBreaker trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1));
+        BytesInput mismatched = BytesInput.from(new ByteArrayInputStream(new byte[9]), 10);
+        DictionaryPage dictionaryPage = new DictionaryPage(mismatched, 10, 4, Encoding.PLAIN);
+
+        ParquetDecodingException exception = expectThrows(
+            ParquetDecodingException.class,
+            () -> new PrefetchedPageReader(
+                codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+                trackingBreaker,
+                List.of(),
+                dictionaryPage,
+                0
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("Could not copy compressed dictionary page"));
+        assertEquals(0L, trackingBreaker.getUsed());
     }
 
     public void testReadDictionaryPageDecompressesLazilyAndCaches() throws IOException {
@@ -289,6 +377,41 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadDictionaryPageRejectsReaderClosedBeforeRead() {
+        byte[] payload = randomBytesOfLength(48);
+        DictionaryPage dictionaryPage = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            breaker,
+            List.of(),
+            dictionaryPage,
+            0
+        );
+        reader.close();
+
+        ParquetDecodingException exception = expectThrows(ParquetDecodingException.class, reader::readDictionaryPage);
+        assertThat(exception.getMessage(), equalTo("PrefetchedPageReader closed"));
+    }
+
+    public void testReadDictionaryPageRejectsReaderClosedAfterCaching() throws IOException {
+        byte[] payload = randomBytesOfLength(48);
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.SNAPPY);
+        BytesInput compressed = compressor.compress(BytesInput.from(payload));
+        DictionaryPage dictionaryPage = new DictionaryPage(BytesInput.from(compressed.toByteArray()), payload.length, 4, Encoding.PLAIN);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.SNAPPY),
+            breaker,
+            List.of(),
+            dictionaryPage,
+            0
+        );
+        assertNotNull(reader.readDictionaryPage());
+        reader.close();
+
+        ParquetDecodingException exception = expectThrows(ParquetDecodingException.class, reader::readDictionaryPage);
+        assertThat(exception.getMessage(), equalTo("PrefetchedPageReader closed"));
+    }
+
     public void testReadDictionaryPageReturnsNullWhenAbsent() {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
@@ -301,6 +424,20 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         ) {
             assertNull(reader.readDictionaryPage());
         }
+    }
+
+    public void testReadDictionaryPageRejectsClosedReaderWhenAbsent() {
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            breaker,
+            List.of(),
+            null,
+            0
+        );
+        reader.close();
+
+        ParquetDecodingException exception = expectThrows(ParquetDecodingException.class, reader::readDictionaryPage);
+        assertThat(exception.getMessage(), equalTo("PrefetchedPageReader closed"));
     }
 
     public void testReadPageReturnsNullWhenQueueEmpty() {

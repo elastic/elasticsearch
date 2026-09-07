@@ -11,7 +11,9 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EstimatedHeapUsageStats;
 import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link StatelessMemoryMetricsService}, focusing on {@code getPerNodeMemoryMetrics} and {@code getShardHeapUsages}.
@@ -170,6 +173,101 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             node0EstimateWithPoints.hostedShardsHeapUsage() - node0EstimateWithoutPoints.hostedShardsHeapUsage(),
             equalTo(expectedDelta)
         );
+    }
+
+    public void testEstimatedHeapUsageStatsUsesSingleShardMemoryMetricsSnapshot() {
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(1);
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        final ShardId shardId = clusterState.getRoutingNodes().node(node0.getId()).iterator().next().shardId();
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+
+        final ShardMappingSize initialMappingSize = new ShardMappingSize(
+            10_000L,
+            1,
+            1,
+            100L,
+            100L,
+            100L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            node0.getId()
+        );
+        final ShardMappingSize updatedMappingSize = new ShardMappingSize(
+            100_000L,
+            10,
+            10,
+            10_000L,
+            1_000L,
+            1_000L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            node0.getId()
+        );
+        final var updatingMetric = new UpdatingOnSnapshotShardMemoryMetrics(initialMappingSize, updatedMappingSize);
+        service.getShardMemoryMetrics().put(shardId, updatingMetric);
+
+        // These expected values are computed before the snapshot hook mutates the live metric, so they represent the old data.
+        final NodeHeapEstimates expectedNodeHeapEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+        final ShardAndIndexHeapUsage expectedShardHeapUsage = service.getShardHeapUsageEstimates().perShard().get(shardId);
+
+        // getEstimatedHeapUsageStats snapshots shardMemoryMetrics first. The custom metric below returns the old values to that
+        // snapshot and then updates the live metric. Both node-level and shard-level estimates must keep reading from the old
+        // captured snapshot; without that snapshot, one side of the combined response could observe the live updated values.
+        final EstimatedHeapUsageStats estimatedHeapUsageStats = service.getEstimatedHeapUsageStats(clusterState);
+
+        assertThat(updatingMetric.updatedDuringSnapshot(), equalTo(true));
+        assertThat(estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId()), equalTo(expectedNodeHeapEstimate));
+        assertThat(estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId), equalTo(expectedShardHeapUsage));
+
+        // Subsequent direct service reads use the live metric map, so they should observe the update made after the snapshot was copied.
+        assertThat(service.getPerNodeMemoryMetrics(clusterState).get(node0.getId()), not(equalTo(expectedNodeHeapEstimate)));
+        assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(expectedShardHeapUsage)));
+    }
+
+    private static class UpdatingOnSnapshotShardMemoryMetrics extends StatelessMemoryMetricsService.ShardMemoryMetrics {
+
+        private final ShardMappingSize updatedMappingSize;
+        private boolean updatedDuringSnapshot;
+
+        UpdatingOnSnapshotShardMemoryMetrics(ShardMappingSize initialMappingSize, ShardMappingSize updatedMappingSize) {
+            super(
+                initialMappingSize.mappingSizeInBytes(),
+                initialMappingSize.numSegments(),
+                initialMappingSize.totalFields(),
+                initialMappingSize.postingsInMemoryBytes(),
+                initialMappingSize.liveDocsBytes(),
+                initialMappingSize.pointsInMemoryBytes(),
+                initialMappingSize.shardMemoryOverheadBytes(),
+                1L,
+                MetricQuality.EXACT,
+                initialMappingSize.nodeId(),
+                1L
+            );
+            this.updatedMappingSize = updatedMappingSize;
+        }
+
+        @Override
+        synchronized StatelessMemoryMetricsService.ShardMemoryMetrics snapshot() {
+            final StatelessMemoryMetricsService.ShardMemoryMetrics snapshot = super.snapshot();
+            if (updatedDuringSnapshot == false) {
+                update(
+                    updatedMappingSize.mappingSizeInBytes(),
+                    updatedMappingSize.numSegments(),
+                    updatedMappingSize.totalFields(),
+                    updatedMappingSize.postingsInMemoryBytes(),
+                    updatedMappingSize.liveDocsBytes(),
+                    updatedMappingSize.pointsInMemoryBytes(),
+                    updatedMappingSize.shardMemoryOverheadBytes(),
+                    2L,
+                    updatedMappingSize.nodeId(),
+                    2L
+                );
+                updatedDuringSnapshot = true;
+            }
+            return snapshot;
+        }
+
+        synchronized boolean updatedDuringSnapshot() {
+            return updatedDuringSnapshot;
+        }
     }
 
     /**

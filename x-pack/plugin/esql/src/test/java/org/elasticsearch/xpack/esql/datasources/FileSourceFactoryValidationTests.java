@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
@@ -93,6 +95,26 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     public void testPartitionConfigKeysMatchConstants() {
         assertConfigKeysMatchConstants(PartitionConfig.class, PartitionConfig.CONFIG_KEYS);
+    }
+
+    public void testCoordinatorKeysIncludesAllExclusionConfigKeys() {
+        for (String key : ExclusionConfig.CONFIG_KEYS) {
+            assertTrue("ExclusionConfig key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testExclusionConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(ExclusionConfig.class, ExclusionConfig.CONFIG_KEYS);
+    }
+
+    public void testCoordinatorKeysIncludesAllFileOrderConfigKeys() {
+        for (String key : FileOrderConfig.CONFIG_KEYS) {
+            assertTrue("FileOrderConfig key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testFileOrderConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(FileOrderConfig.class, FileOrderConfig.CONFIG_KEYS);
     }
 
     /**

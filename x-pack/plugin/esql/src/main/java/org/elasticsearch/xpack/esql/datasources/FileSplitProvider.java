@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1255,12 +1256,56 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
+     * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
+     * when known) so {@code length()} does not probe the object store. Size {@code 0} is a real
+     * empty object; missing length falls back to the path-only constructor.
+     * <p>
+     * Used by {@link #storageObjectForSplit} (which then range-wraps the view span) and by COUNT(*)
+     * schema bind, which must see file-leading bytes rather than the split window.
+     */
+    static StorageObject newObjectForFile(StorageProvider storageProvider, FileSplit fileSplit) {
+        StoragePath path = fileSplit.path();
+        Long length = fileLengthHint(fileSplit);
+        if (length == null) {
+            return storageProvider.newObject(path);
+        }
+        Long mtime = fileMtimeHint(fileSplit);
+        return mtime != null
+            ? storageProvider.newObject(path, length, Instant.ofEpochMilli(mtime))
+            : storageProvider.newObject(path, length);
+    }
+
+    /**
      * Builds a {@link StorageObject} that exposes only the bytes for the given {@link FileSplit}.
      * Always wraps the provider's base object in {@link RangeStorageObject} so format readers and
      * splittable decompressors only see the split's compressed byte span (including offset {@code 0}).
+     * The inner object is the full file, seeded from listing metadata when present — never from
+     * {@link FileSplit#length()}, which is the view span.
      */
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
-        return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
+        return new RangeStorageObject(newObjectForFile(storageProvider, fileSplit), fileSplit.offset(), fileSplit.length());
+    }
+
+    @Nullable
+    private static Long fileLengthHint(FileSplit fileSplit) {
+        Object configured = fileSplit.config().get(FILE_LENGTH_KEY);
+        if (configured instanceof String s) {
+            return Long.parseLong(s);
+        }
+        Object listed = fileSplit.partitionValues().get(FileMetadataColumns.SIZE);
+        return listed instanceof Number n ? n.longValue() : null;
+    }
+
+    @Nullable
+    private static Long fileMtimeHint(FileSplit fileSplit) {
+        Object modified = fileSplit.partitionValues().get(FileMetadataColumns.MODIFIED);
+        if (modified instanceof Number n) {
+            long millis = n.longValue();
+            if (millis > 0) {
+                return millis;
+            }
+        }
+        return null;
     }
 
     /**

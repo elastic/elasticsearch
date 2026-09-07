@@ -97,6 +97,9 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public void checkIntegrity() throws IOException {
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.checkIntegrity();
+            }
             storedFieldsReader.checkIntegrity();
         }
 

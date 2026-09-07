@@ -118,7 +118,9 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {}
+    public void checkIntegrity() throws IOException {
+        docValuesProducer.checkIntegrity();
+    }
 
     @Override
     public void close() throws IOException {

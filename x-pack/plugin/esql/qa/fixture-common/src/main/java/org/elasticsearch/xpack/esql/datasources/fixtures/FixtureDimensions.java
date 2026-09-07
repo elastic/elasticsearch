@@ -175,6 +175,7 @@ public final class FixtureDimensions {
     private final Map<String, Map<String, String>> extensionByName;
     private final Map<String, Map<String, String>> absenceByName;
     private final Map<String, Map<String, String>> tierByName;
+    private final Set<String> formatSpecificKeys;
     private final Map<String, Set<String>> valueDisjointByPair;
     private final Map<String, Verdict> verdicts;
 
@@ -196,6 +197,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> extensionByName,
         Map<String, Map<String, String>> absenceByName,
         Map<String, Map<String, String>> tierByName,
+        Set<String> formatSpecificKeys,
         Map<String, Set<String>> valueDisjointByPair,
         Map<String, Verdict> verdicts
     ) {
@@ -216,6 +218,7 @@ public final class FixtureDimensions {
         this.extensionByName = Map.copyOf(extensionByName);
         this.absenceByName = Map.copyOf(absenceByName);
         this.tierByName = Map.copyOf(tierByName);
+        this.formatSpecificKeys = Set.copyOf(formatSpecificKeys);
         this.valueDisjointByPair = Map.copyOf(valueDisjointByPair);
         this.verdicts = Map.copyOf(verdicts);
     }
@@ -406,33 +409,13 @@ public final class FixtureDimensions {
     }
 
     /**
-     * The config keys that are FORMAT-SPECIFIC: those belonging to a dimension scoped by {@code applies_to}.
+     * The config keys the CRUD validator treats as format-specific, read from {@code format_specific_keys}.
      *
-     * <p>Asked rather than listed, because the product asks the same question and a second list drifts. A
-     * dimension that applies to every format travels under a key every format understands; one that
-     * declares {@code applies_to} does not, which is exactly what makes its key format-specific to the
-     * CRUD validator.
-     *
-     * <p>{@code trim_spaces} is added by hand because it is injected by the harness rather than declared
-     * as a dimension -- the one key here with no row of its own. It is a genuine format-specific key to
-     * the validator all the same, so leaving it out would make this set quietly wrong.
+     * <p>A declared MIRROR of the plugins' {@code FormatSpec.configKeys()}, not a derivation -- see the
+     * declaration for why it cannot be one and which direction its drift is loud in.
      */
     public Set<String> formatSpecificKeys() {
-        Set<String> keys = new LinkedHashSet<>();
-        keys.add("trim_spaces");
-        for (String name : names) {
-            if (appliesToByName.containsKey(name) == false) {
-                continue;
-            }
-            String key = directiveKeyByName.get(name);
-            if (key == null) {
-                key = readKeyByName.get(name);
-            }
-            if (key != null) {
-                keys.add(key);
-            }
-        }
-        return keys;
+        return formatSpecificKeys;
     }
 
     /** What a dimension's value is derived from when no constant can express it, or null when one can. */
@@ -582,6 +565,7 @@ public final class FixtureDimensions {
         Map<String, Map<String, String>> extensions = new LinkedHashMap<>();
         Map<String, Map<String, String>> absences = new LinkedHashMap<>();
         Map<String, Map<String, String>> tiers = new LinkedHashMap<>();
+        Set<String> formatSpecificKeys = new LinkedHashSet<>();
         Map<String, Verdict> verdicts = new LinkedHashMap<>();
         Map<String, Set<String>> valueDisjoint = new LinkedHashMap<>();
         Set<String> disjointWhys = new LinkedHashSet<>();
@@ -702,6 +686,8 @@ public final class FixtureDimensions {
                     continue;
                 }
                 verdicts.put(rest, parseVerdict(key, value));
+            } else if (key.equals("format_specific_keys")) {
+                formatSpecificKeys.addAll(splitList(value));
             } else if (key.endsWith(".why") || key.endsWith(".needs")) {
                 // prose attached to a verdict; carried for the reader, not consumed here
             } else {
@@ -1001,6 +987,7 @@ public final class FixtureDimensions {
             extensions,
             absences,
             tiers,
+            formatSpecificKeys,
             normalisedDisjoint,
             verdicts
         );

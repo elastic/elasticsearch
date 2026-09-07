@@ -300,7 +300,7 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
      *
      * <p>The assumption is tempting and was acted on: the fixture matrix crosses this pragma into vectors
      * where it accounts for roughly 45% of every single-node suite -- on the order of 233,000 of the
-     * nightly's 518,687 cases -- and dropping it would have been the single largest reduction available.
+     * nightly's 515,894 cases -- and dropping it would have been the single largest reduction available.
      * Measured, it is wrong. On one node with varying split sizes:
      *
      * <ul>

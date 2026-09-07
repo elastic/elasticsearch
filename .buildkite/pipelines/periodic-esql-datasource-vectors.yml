@@ -27,7 +27,7 @@
 # therefore balances every shard to within one case. Widths below are sized so a shard runs about 55
 # minutes -- measured, not derived: csv shard 1/8 ran 28,920 cases in 55 minutes, which puts the pipeline's wall clock near one shard rather than near the sum. The counts
 # behind them were measured by running each suite against a deliberately impossible bound and reading
-# the refusal: 518,687 cases across the five suites. The per-case rates are measured for csv and tsv
+# the refusal: 515,894 cases across the five suites. The per-case rates are measured for csv and tsv
 # and carried over for the rest, so those three widths are the ones to revisit after a real run.
 #
 # The shard is a slice of the SAME crossing: vector names are unchanged by sharding, so a failure
@@ -55,8 +55,8 @@ steps:
   - group: esql-datasource-vectors
     steps:
       # csv carries both the csv and tsv vector suites -- there is no :esql-datasource-tsv project --
-      # so one step is two crossings: 132,061 and 99,294 cases, at 111ms and 106ms measured on this
-      # tree. 231,355 cases is about six hours in one JVM, which is why eight.
+      # so one step is two crossings: 133,787 and 105,593 cases, at 111ms and 106ms measured on this
+      # tree. 239,380 cases is about seven hours in one JVM, which is why eight.
       - label: "esql-datasource-csv / vector crossing {{matrix.shard}}/8"
         command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/8 :x-pack:plugin:esql-datasource-csv:qa:vectorSpecTests
         timeout_in_minutes: 300
@@ -99,9 +99,9 @@ steps:
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
 
-      # 124,722 cases, which settles a figure that was in doubt: a run had reported 4,375, about four
-      # per vector, as though only one spec were routed. Measured, it is twenty-eight times that, so
-      # the small number was the anomaly and ndjson is the second-largest crossing we have.
+      # 113,904 cases, which settles a figure that was in doubt: a run had reported 4,375, about four
+      # per vector, as though only one spec were routed. Measured, it is twenty-six times that. It came
+      # down from 124,722 when datetime_format=custom x path_shape=glob was declared unconstructible.
       - label: "esql-datasource-ndjson / vector crossing {{matrix.shard}}/6"
         command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/6 :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecTests
         timeout_in_minutes: 300

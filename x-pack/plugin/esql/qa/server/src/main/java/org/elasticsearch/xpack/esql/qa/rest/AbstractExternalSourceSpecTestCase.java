@@ -653,21 +653,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Whether the case declares a PRAGMA the vector also pins.
-     *
-     * <p>The directive pin check cannot see this: a pragma is not in the dataset JSON, it is a
-     * {@code pragma:} line on the case, so {@code DatasetRegistry.declaresSetting} looks straight past it.
-     * And the collision resolves the wrong way. {@code EsqlSpecTestCase.addPragmas} applies
-     * {@code addSuitePragmas} -- the vector's -- and THEN {@code testCase.pragmas.forEach(put)}, so the
-     * case's value overwrites the vector's. A case pinning {@code external_distribution=coordinator_only}
-     * crossed with a {@code distribution=round_robin} vector would run coordinator-only under a name
-     * claiming round-robin: green, announcing a configuration the engine never used.
-     *
-     * <p>That is the same silent pass the read-key gate closed on the directive seam, on the one seam left
-     * unguarded. No routed spec carries a {@code pragma:} line today, so it is latent rather than live --
-     * which is exactly how the directive-seam instance sat undetected until a vector happened to reach it.
-     */
-    /**
      * Whether a glob vector would ask for a dataset the CRUD validator will refuse to register.
      *
      * <p>elastic/esql-planning#1841: {@code FileDataSourceValidator.extractObjectName} truncates an object
@@ -712,13 +697,37 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             if (template == null) {
                 continue;
             }
-            if (MATRIX.paddedForTemplate(template) || "brackets".equals(MATRIX.writeDialectForTemplate(template))) {
+            // Only the text formats get anything injected per source, so only they can pick up a key this
+            // way. Asking the others is not merely pointless -- writeDialectForTemplate throws for a
+            // dataset that declares no dialect, which the columnar datasets legitimately do not, bracket
+            // multi-values being a delimited-text notion. Measured: this filter reaching clickbench on
+            // parquet failed the whole suite at initialization. Scoped with the same question
+            // withJsonForSource asks before it injects anything.
+            if (dimensions.appliesTo("text_mode").contains(FixtureMatrix.baseFormat(vector.get("format"))) == false) {
+                continue;
+            }
+            if (MATRIX.paddedForTemplate(template, vector.get("format")) || "brackets".equals(MATRIX.writeDialectForTemplate(template))) {
                 return true;
             }
         }
         return false;
     }
 
+    /**
+     * Whether the case declares a PRAGMA the vector also pins.
+     *
+     * <p>The directive pin check cannot see this: a pragma is not in the dataset JSON, it is a
+     * {@code pragma:} line on the case, so {@code DatasetRegistry.declaresSetting} looks straight past it.
+     * And the collision resolves the wrong way. {@code EsqlSpecTestCase.addPragmas} applies
+     * {@code addSuitePragmas} -- the vector's -- and THEN {@code testCase.pragmas.forEach(put)}, so the
+     * case's value overwrites the vector's. A case pinning {@code external_distribution=coordinator_only}
+     * crossed with a {@code distribution=round_robin} vector would run coordinator-only under a name
+     * claiming round-robin: green, announcing a configuration the engine never used.
+     *
+     * <p>That is the same silent pass the read-key gate closed on the directive seam, on the one seam left
+     * unguarded. No routed spec carries a {@code pragma:} line today, so it is latent rather than live --
+     * which is exactly how the directive-seam instance sat undetected until a vector happened to reach it.
+     */
     static boolean pragmaPins(Object[] baseTest, Map<String, String> vectorPragmas) {
         if (vectorPragmas.isEmpty()) {
             return false;
@@ -1515,7 +1524,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // the formats whose reader accepts the delimited-text keys. Listing them meant a new text
             // format would silently stop getting trim_spaces while every test still passed.
             boolean csvOrTsv = FixtureDimensions.get().appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
-            String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson(), s.resource()), s.resource()) : s.withJson();
+            String json = csvOrTsv
+                ? injectMultiValueSyntax(injectTrimSpaces(s.withJson(), s.resource(), format), s.resource())
+                : s.withJson();
             // Then whatever the running vector pins. A directive-bound dimension at its default injects
             // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to
             // before, which is what lets vectors be introduced one dimension at a time.
@@ -1674,7 +1685,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
      * structural closer, outside any nested object.
      */
-    static String injectTrimSpaces(String withJson, String resource) {
+    static String injectTrimSpaces(String withJson, String resource, String format) {
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;
         }
@@ -1684,7 +1695,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // path_shape=glob cell on csv and tsv. Measured: eight of the ten routed datasets pad nothing.
         // This mirrors injectMultiValueSyntax, which has always been per-source for the same reason.
         String template = templateNameIn(resource);
-        if (template != null && MATRIX.paddedForTemplate(template) == false) {
+        if (template != null && MATRIX.paddedForTemplate(template, format) == false) {
             return withJson;
         }
         if (withJson == null) {

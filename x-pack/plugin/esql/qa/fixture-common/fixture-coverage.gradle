@@ -223,6 +223,86 @@ tasks.register('checkFixtureCoverage') {
  */
 def dataDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/data')
 
+tasks.register('checkFixturePadding') {
+  description = 'Fails when a dataset\'s declared padding disagrees with its canonical CSV.'
+  group = 'verification'
+
+  doLast {
+    def text = declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')
+    def props = new Properties()
+    props.load(new StringReader(text))
+
+    // A field is padded when it carries leading or trailing whitespace as the reader would see it.
+    // Split honours quotes, bracket multi-values and backslash escapes, because a comma inside any of
+    // those is data rather than a separator -- splitting naively reports padding that is not there.
+    def fieldsOf = { String line ->
+      def out = []
+      def cur = new StringBuilder()
+      boolean inQuote = false, inBracket = false, escaped = false
+      for (int i = 0; i < line.length(); i++) {
+        def c = line.charAt(i)
+        if (escaped) { cur.append(c); escaped = false; continue }
+        if (c == '\\' as char) { escaped = true; cur.append(c); continue }
+        if (c == '"' as char) { inQuote = !inQuote; cur.append(c); continue }
+        if (c == '[' as char) { inBracket = true; cur.append(c); continue }
+        if (c == ']' as char) { inBracket = false; cur.append(c); continue }
+        if (c == ',' as char && !inQuote && !inBracket) { out.add(cur.toString()); cur = new StringBuilder(); continue }
+        cur.append(c)
+      }
+      out.add(cur.toString())
+      out
+    }
+
+    def problems = []
+    def datasets = props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.endsWith('.padded') }
+        .collect { it.substring('dataset.'.length(), it.length() - '.padded'.length()) }
+        .sort()
+
+    datasets.each { ds ->
+      def declared = props.getProperty("dataset.${ds}.padded").trim()
+      if (declared in ['true', 'false'] == false) {
+        problems.add("dataset [${ds}] declares padded [${declared}]; expected true or false")
+        return
+      }
+      def csv = new File(dataDir, "${ds}.csv")
+      if (csv.exists() == false) {
+        problems.add("dataset [${ds}] declares padding but ${csv.name} does not exist")
+        return
+      }
+      def lines = csv.readLines()
+      int paddedFields = 0
+      lines.each { line ->
+        fieldsOf(line).each { f ->
+          def stripped = f.replaceAll(/^"|"$/, '')
+          if (stripped != stripped.trim()) { paddedFields++ }
+        }
+      }
+      def actual = paddedFields > 0 ? 'true' : 'false'
+      if (actual != declared) {
+        problems.add("dataset [${ds}] declares padded [${declared}] but ${csv.name} has ${paddedFields} " +
+                     "field(s) carrying edge whitespace, i.e. [${actual}]")
+      }
+    }
+
+    // Every declared dataset must state it: an unstated one throws at read time, but only for the
+    // template that happens to be used first, which is a worse place to find out.
+    props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.count('.') == 1 }
+        .collect { it.substring('dataset.'.length()) }
+        .each { ds ->
+          if (props.getProperty("dataset.${ds}.padded") == null) {
+            problems.add("dataset [${ds}] declares no padded; trim_spaces would be injected or withheld by guess")
+          }
+        }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("fixture padding declaration is wrong:\n  " + problems.join("\n  "))
+    }
+    logger.lifecycle("fixture padding: ${datasets.size()} dataset(s) linted against their canonical CSV")
+  }
+}
+
 tasks.register('checkFixtureDialect') {
   description = 'Fails when a dataset\'s declared write dialect disagrees with its canonical CSV.'
   group = 'verification'
@@ -423,7 +503,7 @@ tasks.register('checkFixtureGeneration') {
 // and the authored data, need no build output, and are therefore meaningful everywhere -- including
 // release builds, where csvSpecTests is disabled entirely.
 tasks.named('precommit').configure {
-  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixtureExclusions'
+  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixturePadding', 'checkFixtureExclusions'
 }
 
 // checkFixtureGeneration is different in kind: it observes ARTIFACTS, so it is only meaningful where

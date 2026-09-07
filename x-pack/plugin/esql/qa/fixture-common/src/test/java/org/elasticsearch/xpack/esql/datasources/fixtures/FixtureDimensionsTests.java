@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -691,6 +692,37 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     private static List<Map<String, String>> ciVectors(FixtureDimensions d, String format) {
         return d.expressibleVectors(format, FixtureMatrix.get().seams(format + "-vector"), FixtureDimensions.Tier.CI);
+    }
+
+    /**
+     * Every dimension key that is scoped to some formats is on the format-specific list.
+     *
+     * <p>The list is a mirror of the plugins' {@code FormatSpec.configKeys()} and cannot be derived from
+     * them here, so it drifts in two directions with very different symptoms. A key the plugins have and
+     * the list lacks makes a dataset register and then 400 -- loud, and the crossing cannot prevent it.
+     * A key the list has spuriously only over-filters, which is silent.
+     *
+     * <p>This catches the half we CAN check: a dimension declaring {@code applies_to} travels under a key
+     * not every format understands, so adding one without listing it here reintroduces exactly the gap
+     * that let {@code column_prefix} go missing.
+     */
+    public void testEveryFormatScopedDimensionKeyIsDeclaredFormatSpecific() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Set<String> declared = d.formatSpecificKeys();
+        List<String> missing = new ArrayList<>();
+        for (String name : d.names()) {
+            if (d.appliesTo(name).isEmpty()) {
+                continue;
+            }
+            String key = d.directiveKey(name);
+            if (key == null) {
+                key = d.readKey(name);
+            }
+            if (key != null && declared.contains(key) == false) {
+                missing.add(name + " -> " + key);
+            }
+        }
+        assertThat("a format-scoped dimension's key must be on format_specific_keys", missing, empty());
     }
 
     public void testTheVectorUniverseSizeIsPinned() {

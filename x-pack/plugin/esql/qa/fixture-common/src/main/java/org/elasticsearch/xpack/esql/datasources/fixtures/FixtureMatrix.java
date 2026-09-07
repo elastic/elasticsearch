@@ -300,18 +300,29 @@ public final class FixtureMatrix {
     }
 
     /**
-     * Whether a template's authored rows are column-aligned, so reading them needs {@code trim_spaces}.
+     * Whether a template's rows are column-aligned AS READ ON THIS FORMAT, so reading them needs
+     * {@code trim_spaces}.
      *
-     * <p>Declared rather than sniffed, and verified against the bytes by {@code checkFixturePadding} --
-     * the same shape as {@link #writeDialectForTemplate}, because it is the same kind of fact: a property
-     * of the authored data that one spec cannot answer for all the datasets it reads.
+     * <p>Per format, not per dataset alone, because only csv reads the authored bytes. Every other format
+     * is re-rendered from {@link CsvFixtureParser}, whose field values are trimmed on the way out, so a
+     * tsv or ndjson copy of a padded dataset is not padded -- measured: {@code employees.tsv} has zero
+     * padded fields where {@code employees.csv} has 303.
      *
-     * <p>A template with no dataset is assembled from its own authored sources, which are written by
-     * {@code TextRowRenderer} and are unpadded by construction.
+     * <p>Getting this format-blind was worse than leaving it blanket. It made
+     * {@code globCannotCarryAFormatKey} answer true for every tsv {@code employees_no_mv} glob pair --
+     * the most-used template in the corpus -- discarding the exact coverage opening the cell was meant to
+     * add, and silently, because a filtered pair logs a count and not a name.
+     *
+     * <p>Declared rather than sniffed, and verified against the bytes by
+     * {@code FixturePaddingTests.testEveryDatasetsPaddingDeclarationMatchesItsBytes}.
      */
-    public boolean paddedForTemplate(String templateName) {
+    public boolean paddedForTemplate(String templateName, String format) {
+        if (baseFormat(format).equals("csv") == false) {
+            return false;
+        }
         String dataset = datasetForTemplate(templateName);
         if (dataset == null) {
+            // Assembled from its own authored sources, which TextRowRenderer writes unpadded.
             return false;
         }
         String declared = declaration.getProperty("dataset." + dataset + ".padded");

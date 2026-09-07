@@ -113,6 +113,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         this.breaker = breaker;
         try {
             this.length = storageObject.length();
+            this.cacheKey = FooterByteCache.Key.keyFor(storageObject);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
@@ -120,7 +121,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // (pos >= length). For length > 0 this equals min(requested, length), so
         // length <= windowSize iff the object fits in the window (whole-file fill below).
         this.windowSize = (int) Math.min(windowSize, Math.max(1L, this.length));
-        this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
 
     /**

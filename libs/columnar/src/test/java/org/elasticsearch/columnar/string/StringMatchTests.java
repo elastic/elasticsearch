@@ -236,14 +236,21 @@ public class StringMatchTests extends ColumnarStringTestCase {
                     final int at = from;
                     assertTrue("expected a page", reader.readBlock(docs, from, count, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ordinals, int n, BytesRef[] dictionary, int dictionarySize) {
+                        public void appendOrdinals(
+                            int[] ordinals,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {
                             for (int i = 0; i < n; i++) {
                                 rebuilt.add(dictionary[ordinals[i]].utf8ToString());
                             }
                         }
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
                             for (int i = 0; i < n; i++) {
                                 rebuilt.add(values[i].utf8ToString());
                             }
@@ -764,23 +771,14 @@ public class StringMatchTests extends ColumnarStringTestCase {
                     expectedOfSlots(docSlots, "", true),
                     matched(reader.match(value -> value.length == 0))
                 );
-                // A page has no shape for a slot holding nothing, so the column declines to serve one.
+                // A page carries these: a document whose only slot is null simply holds no value in it.
                 final int[] docs = new int[Math.min(256, docSlots.length)];
                 for (int i = 0; i < docs.length; i++) {
                     docs[i] = i;
                 }
-                assertFalse("a column with null slots serves no page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
-                    @Override
-                    public void appendOrdinals(int[] ordinals, int n, BytesRef[] dictionary, int dictionarySize) {
-                        fail("no page expected");
-                    }
-
-                    @Override
-                    public void appendValues(BytesRef[] values, int n) {
-                        fail("no page expected");
-                    }
-                }));
-                assertFalse("nor column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
+                assertEquals("page", expectedPage(docSlots, docs), pageOf(reader, docs));
+                // Column-wide ordinals are one a document and cannot say a document has none, so those still decline.
+                assertFalse("no column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
             });
         }
     }
@@ -813,25 +811,131 @@ public class StringMatchTests extends ColumnarStringTestCase {
                         matched(reader.matchPrefix(new BytesRef(probe)))
                     );
                 }
-                // A page is addressed by rank too, so it has to decline this column for the same reason.
+                // A page carries these too: an empty array is a document holding no value.
                 final int[] docs = new int[Math.min(256, docSlots.length)];
                 for (int i = 0; i < docs.length; i++) {
                     docs[i] = i;
                 }
-                assertFalse("a column with empty arrays serves no page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
-                    @Override
-                    public void appendOrdinals(int[] ordinals, int n, BytesRef[] dictionary, int dictionarySize) {
-                        fail("no page expected");
-                    }
-
-                    @Override
-                    public void appendValues(BytesRef[] values, int n) {
-                        fail("no page expected");
-                    }
-                }));
-                assertFalse("nor column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
+                assertEquals("page", expectedPage(docSlots, docs), pageOf(reader, docs));
+                assertFalse("no column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
             });
         }
+    }
+
+    /**
+     * A page of documents holding several values, some of them null, under both layouts. A page is the shape grouping
+     * reads a column in, and until now it could only describe one value a document: a column of arrays was read a
+     * document at a time instead, which is the whole of what the ordinals were for.
+     */
+    public void testMultiValuedPages() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 4)];
+            for (int s = 0; s < slots.length; s++) {
+                // Some documents end up holding nothing but nulls, which a page has to report as holding nothing.
+                slots[s] = random().nextDouble() < 0.2 ? null : new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+            }
+            docSlots[d] = slots;
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                // Read in several pages, so a page boundary falls inside the run of documents rather than only at its ends.
+                for (int page : new int[] { 1, 7, 64, 512, docSlots.length }) {
+                    for (int from = 0; from < docSlots.length; from += page) {
+                        final int count = Math.min(page, docSlots.length - from);
+                        final int[] docs = new int[count];
+                        for (int i = 0; i < count; i++) {
+                            docs[i] = from + i;
+                        }
+                        assertEquals("page of " + page + " from " + from, expectedPage(docSlots, docs), pageOf(reader, docs));
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * A page of documents holding several values, none escaping the dictionary and none null, which is the shape the
+     * ordinals were designed for: every value of the page names a term, so the page is ordinals into its own distinct
+     * values and a consumer resolves each once.
+     */
+    public void testMultiValuedPagesWithEscapes() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 3)];
+            for (int s = 0; s < slots.length; s++) {
+                slots[s] = (d + s) % 41 == 3 ? new BytesRef("escaped-" + d + "-" + s) : new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            for (int page : new int[] { 7, 128, 512 }) {
+                for (int from = 0; from < docSlots.length; from += page) {
+                    final int count = Math.min(page, docSlots.length - from);
+                    final int[] docs = new int[count];
+                    for (int i = 0; i < count; i++) {
+                        docs[i] = from + i;
+                    }
+                    assertEquals("page of " + page + " from " + from, expectedPage(docSlots, docs), pageOf(reader, docs));
+                }
+            }
+        });
+    }
+
+    /**
+     * A page rebuilt into the values each document holds, whichever shape it arrived in. A document with no value
+     * comes back empty, which is what a page says with a count of zero.
+     */
+    private static List<List<String>> pageOf(StringColumnReader reader, int[] docs) throws IOException {
+        final List<List<String>> rebuilt = new ArrayList<>();
+        final boolean served = reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+            @Override
+            public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+                final BytesRef[] values = new BytesRef[count];
+                for (int i = 0; i < count; i++) {
+                    assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < size);
+                    values[i] = dictionary[ordinals[i]];
+                }
+                appendValues(values, count, valueCounts, docCount);
+            }
+
+            @Override
+            public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
+                int at = 0;
+                for (int d = 0; d < docCount; d++) {
+                    final int held = valueCounts == null ? 1 : valueCounts[d];
+                    final List<String> doc = new ArrayList<>();
+                    for (int i = 0; i < held; i++) {
+                        doc.add(values[at++].utf8ToString());
+                    }
+                    rebuilt.add(doc);
+                }
+                assertEquals("values accounted for", count, at);
+            }
+        });
+        assertTrue("expected a page", served);
+        assertEquals("one entry a document", docs.length, rebuilt.size());
+        return rebuilt;
+    }
+
+    /** What a scan over the slots themselves would hand back, a null being no value a page can carry. */
+    private static List<List<String>> expectedPage(BytesRef[][] docSlots, int[] docs) {
+        final List<List<String>> expected = new ArrayList<>();
+        for (int doc : docs) {
+            final List<String> values = new ArrayList<>();
+            for (BytesRef slot : docSlots[doc]) {
+                if (slot != null) {
+                    values.add(slot.utf8ToString());
+                }
+            }
+            expected.add(values);
+        }
+        return expected;
     }
 
     /** The documents a scan over the slots themselves would find, a null being no value to compare. */

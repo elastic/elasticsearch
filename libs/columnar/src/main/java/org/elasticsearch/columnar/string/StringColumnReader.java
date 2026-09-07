@@ -73,6 +73,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     protected static final int MIN_PAGE_REPEAT = 2;
     protected int[] pageRanks = new int[0];
+    /** Values each document of the page holds, its nulls not counted. */
+    protected int[] pageValueCounts = new int[0];
+    /** Where each of the page's values is, which is a document's rank only where the column holds one apiece. */
+    protected long[] pageValueAddresses = new long[0];
     protected int[] pageOrdinals = new int[0];
     protected BytesRef[] pageValues = new BytesRef[0];
     protected BytesRef[] pageDictionary = new BytesRef[0];
@@ -138,6 +142,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     protected boolean pageable() {
         return meta.hasValueAddresses() == false && meta.hasNullSlots() == false;
+    }
+
+    /**
+     * How many values each document of the page holds, filling {@link #pageValueCounts} and answering the total. A
+     * document's nulls are not among them: a null is not a value a page can carry, so it is dropped and a document
+     * left holding none is a document with nothing to offer.
+     */
+    protected int countPageValues(int docCount) throws IOException {
+        int total = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            final long first = firstValueAddress(rank);
+            final long slots = valueCount(rank);
+            int values = 0;
+            for (long s = 0; s < slots; s++) {
+                if (isNullSlot(first + s) == false) {
+                    values++;
+                }
+            }
+            pageValueCounts[i] = values;
+            total += values;
+        }
+        return total;
     }
 
     /** The value address of a document's first slot, given its rank. */
@@ -477,14 +504,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      *         a time; true when {@code sink} was called exactly once
      */
     public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
-        if (pageable() == false) {
-            return false;
-        }
         if (count == 0) {
-            sink.appendValues(pageValues, 0);
+            sink.appendValues(pageValues, 0, null, 0);
             return true;
         }
-        growPage(count);
+        growPageDocs(count);
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
         }
@@ -572,17 +596,29 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
     }
 
-    protected void growPage(int count) {
-        if (pageRanks.length >= count) {
+    /** Room for a page covering {@code docCount} documents, whatever they turn out to hold. */
+    protected void growPageDocs(int docCount) {
+        if (pageRanks.length < docCount) {
+            pageRanks = new int[docCount];
+            pageValueCounts = new int[docCount];
+        }
+    }
+
+    /**
+     * Room for {@code valueCount} values. Separate from the documents because a page of multi-valued documents holds
+     * more values than documents, and a page whose documents are all null holds fewer.
+     */
+    protected void growPageValues(int valueCount) {
+        if (pageOrdinals.length >= valueCount) {
             return;
         }
-        pageRanks = new int[count];
-        pageOrdinals = new int[count];
-        pageStarts = new int[count];
-        pageLengths = new int[count];
-        pageValues = new BytesRef[count];
-        pageDictionary = new BytesRef[count];
-        for (int i = 0; i < count; i++) {
+        pageOrdinals = new int[valueCount];
+        pageValueAddresses = new long[valueCount];
+        pageStarts = new int[valueCount];
+        pageLengths = new int[valueCount];
+        pageValues = new BytesRef[valueCount];
+        pageDictionary = new BytesRef[valueCount];
+        for (int i = 0; i < valueCount; i++) {
             pageValues[i] = new BytesRef();
             pageDictionary[i] = new BytesRef();
         }

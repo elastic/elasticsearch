@@ -206,7 +206,8 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             // carry several slots, nor on one where a slot may be the reserved null, which names no term.
             return false;
         }
-        growPage(count);
+        growPageDocs(count);
+        growPageValues(count);
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
         }
@@ -445,11 +446,38 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     @Override
-    protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
+    protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
+        // Where the page's values are, as addresses. One a document where the column holds one apiece, and otherwise
+        // a document's run of them with its nulls left out, which are no value a page can carry.
+        final int values;
+        if (pageable()) {
+            values = docCount;
+            growPageValues(docCount);
+            for (int i = 0; i < docCount; i++) {
+                pageValueAddresses[i] = pageRanks[i];
+            }
+        } else {
+            values = countPageValues(docCount);
+            growPageValues(Math.max(values, 1));
+            int at = 0;
+            for (int i = 0; i < docCount; i++) {
+                final long first = firstValueAddress(pageRanks[i]);
+                final long held = valueCount(pageRanks[i]);
+                for (long slotOf = 0; slotOf < held; slotOf++) {
+                    final long address = first + slotOf;
+                    if (isNullSlot(address) == false) {
+                        pageValueAddresses[at++] = address;
+                    }
+                }
+            }
+            assert at == values : "addressed " + at + " values, counted " + values;
+        }
+        final int[] counts = pageable() ? null : pageValueCounts;
+
         int escapedInPage = 0;
         final OrdinalBlockCursor cursor = new OrdinalBlockCursor();
-        for (int i = 0; i < count; i++) {
-            final int ordinal = cursor.at(pageRanks[i]);
+        for (int i = 0; i < values; i++) {
+            final int ordinal = cursor.at(pageValueAddresses[i]);
             pageOrdinals[i] = ordinal;
             if (ordinal >= escapeOrdinal) {
                 escapedInPage++;
@@ -457,7 +485,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
 
         // The ordinals this page holds, each once and in order, so a slot can be found by bisecting them.
-        final int distinct = distinctOrdinals(count, dictionarySize);
+        final int distinct = distinctOrdinals(values, dictionarySize);
 
         pageBytesLength = 0;
         int slot = 0;
@@ -466,7 +494,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             appendToPage(slot, scratch);
         }
         startPageSlots(escapedInPage);
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < values; i++) {
             final int ordinal = pageOrdinals[i];
             if (ordinal < escapeOrdinal) {
                 pageOrdinals[i] = slotOf(ordinal, distinct);
@@ -474,7 +502,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                 // Nothing names an escaped value but its bytes, so two documents holding the same ones are
                 // found to share a slot by those bytes. They cannot be found among the terms: a value
                 // escaped because the vocabulary does not hold it.
-                escapes.get(escapeRankOf(pageRanks[i]), scratch);
+                escapes.get(escapeRankOf(pageValueAddresses[i]), scratch);
                 final int found = pageSlotFor(scratch, slot);
                 if (found == slot) {
                     slot++;
@@ -484,15 +512,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
         point(pageDictionary, slot);
 
-        // A page with as many entries as documents is no shorter as ordinals than as values.
-        if ((long) slot * MIN_PAGE_REPEAT > count) {
-            for (int i = 0; i < count; i++) {
+        // A page with as many entries as values is no shorter as ordinals than as values.
+        if ((long) slot * MIN_PAGE_REPEAT > values) {
+            for (int i = 0; i < values; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count);
+            sink.appendValues(pageValues, values, counts, docCount);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, pageDictionary, slot);
+        sink.appendOrdinals(pageOrdinals, values, counts, docCount, pageDictionary, slot);
         return true;
     }
 

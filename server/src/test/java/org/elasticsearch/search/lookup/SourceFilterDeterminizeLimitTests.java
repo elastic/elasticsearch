@@ -52,7 +52,7 @@ public class SourceFilterDeterminizeLimitTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping(b -> b.startObject("title").field("type", "text").endObject()));
         assertTrue(mapperService.mappingLookup().syntheticVectorFields().isEmpty());
 
-        SourceFilter filter = new SourceFilter(patterns(10, "*group_N.field*"), null);
+        SourceFilter filter = new SourceFilter(patterns(40, "*group_N.field*"), null);
         assertThat(mapperService.mappingLookup().newSourceLoader(filter, SourceFieldMetrics.NOOP, null), notNullValue());
     }
 

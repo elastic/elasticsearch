@@ -74,7 +74,7 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 6;
+    private final int revision = 7;
 
     private static final List<String> REDUNDANT_TEST_STATIC_PREFIXES = List.of(
         "org.junit.Assert.",
@@ -180,8 +180,12 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
      * JUnit {@code Assert}/{@code Assume} and Hamcrest {@code MatcherAssert} methods are inherited
      * from {@code LuceneTestCase}, {@code org.junit.Assert}, and typical {@code *TestCase} types.
      * {@code RandomizedTest} and {@code RestClientTestCase} do not declare those methods, so their
-     * subclasses keep the static imports. {@code RandomizedTest} helpers such as {@code rarely()}
-     * are inherited from {@code RandomizedTest} itself as well as {@code *TestCase} types.
+     * subclasses keep the static imports.
+     * <p>
+     * {@code RandomizedTest} helpers such as {@code randomAsciiAlphanumOfLengthBetween()} are
+     * inherited only by types that extend {@code RandomizedTest} itself. {@code LuceneTestCase}
+     * extends {@code Assert}, not {@code RandomizedTest}, so {@code ESTestCase} subclasses do not
+     * inherit those helpers unless they redeclare them.
      */
     private static boolean isInheritedByEveryUsage(
         ImportDeclaration imp,
@@ -239,8 +243,12 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return simpleName.equals("LuceneTestCase") || simpleName.equals("Assert") || simpleName.endsWith("TestCase");
     }
 
+    /**
+     * Lucene's {@code LuceneTestCase} extends {@code Assert}, not {@code RandomizedTest}.
+     * Only types that actually extend {@code RandomizedTest} inherit its helpers.
+     */
     private static boolean inheritsRandomizedTestMethods(String simpleName) {
-        return simpleName.equals("RandomizedTest") || simpleName.equals("LuceneTestCase") || simpleName.endsWith("TestCase");
+        return simpleName.equals("RandomizedTest");
     }
 
     private static boolean isStaticMethodName(String simpleName) {

@@ -64,7 +64,7 @@ public class RedundantJavaImportsFormatterTests {
     }
 
     @Test
-    public void testRemovesRandomizedTestStaticImportsWhenExtendingTestCase() {
+    public void testKeepsRandomizedTestStaticImportsWhenExtendingTestCase() {
         String input = """
             package org.elasticsearch.example;
 
@@ -80,12 +80,32 @@ public class RedundantJavaImportsFormatterTests {
                 }
             }
             """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesRandomizedTestStaticImportsWhenExtendingRandomizedTest() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import com.carrotsearch.randomizedtesting.RandomizedTest;
+
+            import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
+
+            public class ExampleTests extends RandomizedTest {
+                public void testThing() {
+                    if (rarely()) {
+                        return;
+                    }
+                }
+            }
+            """;
         String expected = """
             package org.elasticsearch.example;
 
-            import org.elasticsearch.test.ESAllocationTestCase;
+            import com.carrotsearch.randomizedtesting.RandomizedTest;
 
-            public class ExampleTests extends ESAllocationTestCase {
+            public class ExampleTests extends RandomizedTest {
                 public void testThing() {
                     if (rarely()) {
                         return;

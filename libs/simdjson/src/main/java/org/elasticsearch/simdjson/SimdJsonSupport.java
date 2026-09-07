@@ -12,9 +12,6 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.SimdJsonNativeSupport;
 import org.elasticsearch.simdjson.internal.parsers.SimdJsonVectorSupport;
 
-import java.util.Locale;
-import java.util.Optional;
-
 /**
  * Entry point for simdjson availability checks on the exported API.
  *

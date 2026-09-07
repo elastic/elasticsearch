@@ -49,11 +49,7 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  */
 public final class StringParser {
 
-    static {
-        SimdJsonSupport.isSupported();
-    }
-
-    private static final VectorSpecies<Byte> BYTE_SPECIES = SimdJsonVectorSupport.byteSpecies();
+    private static final VectorSpecies<Byte> BYTE_SPECIES = bootstrapVectorSpecies();
     private static final byte BACKSLASH = '\\';
     private static final byte QUOTE = '"';
     private static final int BYTES_PROCESSED = BYTE_SPECIES.vectorByteSize();
@@ -197,6 +193,13 @@ public final class StringParser {
 
     private boolean hasBackslash(long backslashBits, long quoteBits) {
         return ((quoteBits - 1) & backslashBits) != 0;
+    }
+
+    private static VectorSpecies<Byte> bootstrapVectorSpecies() {
+        if (SimdJsonSupport.isSupported() == false) {
+            throw new ExceptionInInitializerError("StringParser requires simdjson support");
+        }
+        return SimdJsonVectorSupport.byteSpecies();
     }
 
 }

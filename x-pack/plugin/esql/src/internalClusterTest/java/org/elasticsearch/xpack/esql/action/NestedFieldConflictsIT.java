@@ -141,14 +141,7 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         refresh(nested, object);
         assertThat(
             esql("SET unmapped_fields=\"load_all\"; FROM " + nested + ", " + object + " | KEEP " + keep + " | SORT id"),
-            equalTo(
-                List.of(
-                    Arrays.asList("n00", null),
-                    Arrays.asList("n01", null),
-                    Arrays.asList("o00", 1L),
-                    Arrays.asList("o01", 2L)
-                )
-            )
+            equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null), Arrays.asList("o00", 1L), Arrays.asList("o01", 2L)))
         );
     }
 

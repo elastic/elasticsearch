@@ -399,7 +399,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
         final var estimates = estimateHeapUsageIncludingPostings(service, metricsWithWrongReporter);
-        // total memory difference between nodes should be shard estiamte and index estimate, less the postings estimate that they share
+        // total memory difference between nodes should be shard estimate and index estimate, less the postings estimate that they share
         final long totalDeltaForShard = estimates.shardHeapEstimate() + estimates.indexHeapEstimate() - metricsWithWrongReporter
             .getPostingsInMemoryBytes();
         assertThat(

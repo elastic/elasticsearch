@@ -430,48 +430,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Whether closed-schema mode cannot express this case's data.
-     *
-     * <p>{@code dynamic: false} requires EVERY column declared, and the corpus uses six types the
-     * validator does not admit -- byte, short, float, half_float, scaled_float, version. Measured, only
-     * 4 of 10 datasets are fully declarable. Registering the rest would fail on the declaration rather
-     * than on anything about the reader, which is noise that looks like signal.
-     *
-     * <p>Open mode has no such limit: it declares what it can and lets the reader infer the rest.
-     */
-    /**
-     * Whether a declared-schema vector can carry this case at all.
-     *
-     * <p>Two ways it cannot. The schema is built from a dataset's canonical header, so a source whose
-     * template resolves to NO dataset -- every sources-based layout: multifile, multifile_ubn,
-     * multifile_perm, multifile_temporal, multifile_type_drift, none of which declare derived_from --
-     * has no header to build one from. This used to `continue`, treating "nothing to inject" as
-     * "nothing to do": the pair registered, injectDeclaredSchema returned the JSON untouched, and the
-     * case ran the byte-identical INFERRED baseline while its name announced a declared schema. A pass
-     * that means nothing, which is worse than a failure because nothing downstream can tell them apart.
-     *
-     * <p>And a closed declaration must name every column, so a dataset carrying a type outside
-     * DECLARABLE_TYPES cannot be declared closed at all.
-     */
-    /**
-     * Whether a partition_detection vector can carry this case at all.
-     *
-     * <p>A hive layout derives a column from the path -- lang, languages -- and the cases reading it name
-     * that column in their queries. Turn detection off and the column is never derived, so the query fails
-     * verification with "Unknown column [lang]". Correct on both sides, and not a defect: the case asks for
-     * something the configuration removes.
-     *
-     * <p>Keyed on the LAYOUT rather than a list of case names. The pair became reachable on parquet, ndjson
-     * and tsv only when the crossing stopped pinning format-less cliques to csv, and it produced 228 of 245
-     * parquet failures on the first run afterwards. Enumerating the twelve cases across four suites would
-     * need redoing for the next format or the next hive spec; asking the layout does not.
-     */
-    /**
      * Whether a vector's partition settings contradict what a case's own directive already pins.
      *
      * <p>Two arms, and they answer to different authorities. The first is a harness fact the reader cannot
      * know: a layout whose DIRECTORIES carry the partition column cannot be read with detection off, so
      * the rows would simply not have the column.
+     *
+     * <p>That first arm is keyed on the LAYOUT rather than a list of case names. A hive layout derives a
+     * column from the path -- lang, languages -- and the cases reading it name that column in their
+     * queries, so with detection off the query fails verification with "Unknown column [lang]". Correct on
+     * both sides and not a defect: the case asks for something the configuration removes. The pair became
+     * reachable on parquet, ndjson and tsv only when the crossing stopped pinning format-less cliques to
+     * csv, and it produced 228 of 245 parquet failures on the first run afterwards. Enumerating the twelve
+     * cases across four suites would need redoing for the next format or the next hive spec; asking the
+     * layout does not.
      *
      * <p>The second asks the reader instead of restating it. It builds the config the dataset would
      * actually register with -- every partition key the reader recognises, taking the case's own value
@@ -528,6 +500,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return false;
     }
 
+    /**
+     * Whether a declared-schema vector can carry this case at all.
+     *
+     * <p>Two ways it cannot. The schema is built from a dataset's canonical header, so a source whose
+     * template resolves to NO dataset -- every sources-based layout: multifile, multifile_ubn,
+     * multifile_perm, multifile_temporal, multifile_type_drift, none of which declare derived_from --
+     * has no header to build one from. This used to `continue`, treating "nothing to inject" as
+     * "nothing to do": the pair registered, injectDeclaredSchema returned the JSON untouched, and the
+     * case ran the byte-identical INFERRED baseline while its name announced a declared schema. A pass
+     * that means nothing, which is worse than a failure because nothing downstream can tell them apart.
+     *
+     * <p>And a closed declaration must name every column, so a dataset carrying a type outside
+     * DECLARABLE_TYPES cannot be declared closed at all.
+     *
+     * <p>{@code dynamic: false} requires EVERY column declared, and the corpus uses six types the
+     * validator does not admit -- byte, short, float, half_float, scaled_float, version. Measured, only
+     * 4 of 10 datasets are fully declarable. Registering the rest would fail on the declaration rather
+     * than on anything about the reader, which is noise that looks like signal.
+     *
+     * <p>Open mode has no such limit: it declares what it can and lets the reader infer the rest.
+     */
     private static boolean declaredSchemaCannotCarry(Object[] baseTest, Map<String, String> vector) {
         String mode = vector.get("schema_mode");
         if (mode == null || mode.startsWith("declared") == false) {
@@ -634,14 +627,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Whether the case already pins any key the vector would inject.
-     *
-     * <p>Such a pair must not register. {@code injectSetting} deliberately leaves a directive that
-     * already declares a key alone, so the vector's value would never land -- and the case would pass
-     * under a name claiming a configuration it never ran. That is the silent misbind this contract
-     * exists to catch, and here it would be manufactured by the crossing itself.
-     */
-    /**
      * Every setting a vector would inject into a dataset directive: the directive-bound slots AND the
      * read keys of the fixture-bound ones.
      *
@@ -691,6 +676,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return false;
     }
 
+    /**
+     * Whether the case already pins any key the vector would inject.
+     *
+     * <p>Such a pair must not register. {@code injectSetting} deliberately leaves a directive that
+     * already declares a key alone, so the vector's value would never land -- and the case would pass
+     * under a name claiming a configuration it never ran. That is the silent misbind this contract
+     * exists to catch, and here it would be manufactured by the crossing itself.
+     */
     static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
         if (vectorSettings.isEmpty()) {
             return false;

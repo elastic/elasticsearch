@@ -93,7 +93,11 @@ tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
 tasks.register('vectorSpecCiTests', StandaloneRestIntegTestTask) {
   configureVectorBattery(it)
   systemProperty 'tests.vector.tier', 'ci'
-  systemProperty 'tests.vector.max_cases', vectorCiMaxCases
+  // Through a provider for the same reason the nightly task does it: a bare `systemProperty` is applied
+  // after ElasticsearchTestBasePlugin forwards the command line, so it silently wins and
+  // -Dtests.vector.max_cases is ignored -- while shardAndBound's own message tells the reader to raise
+  // exactly that property. Fixing it on one task and not the other left the message half true.
+  systemProperty 'tests.vector.max_cases', providers.systemProperty('tests.vector.max_cases').getOrElse(vectorCiMaxCases)
   // 40 minutes, against a measured pull-request critical path of 40-56. A step that would extend the
   // build has stopped being free, so this fails rather than runs long -- the whole premise of putting
   // the selection on the PR path is that it hides inside the existing wall clock.

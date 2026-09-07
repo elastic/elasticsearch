@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -179,5 +180,48 @@ public class FixtureExclusionsTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("<dimension>.<value>"));
         }
+    }
+
+    /**
+     * Every qualifier in the REAL declaration names a dimension and a value that exist.
+     *
+     * <p>The parser checks the qualifier's SHAPE, not its referents, and deliberately so: it takes a
+     * synthetic {@code Properties} precisely so the grammar tests do not couple to the live declaration.
+     * That leaves a gap the shape check cannot close -- {@code @text_mod.escaped} parses cleanly and then
+     * matches no vector ever. A dead {@code bug:} entry is loud, because its case runs and fails; a dead
+     * {@code rule:} entry is silent, and silently disables nothing while looking like protection.
+     *
+     * <p>So the referents are checked here, against the real files, where the coupling belongs.
+     */
+    public void testEveryQualifierNamesADeclaredDimensionAndValue() {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        FixtureExclusions exclusions = FixtureExclusions.get();
+        List<String> bad = new ArrayList<>();
+        int qualified = 0;
+        for (String suite : exclusions.suites()) {
+            for (FixtureExclusions.Exclusion e : exclusions.forSuite(suite)) {
+                if (e.vectorSlots() == null) {
+                    continue;
+                }
+                qualified++;
+                for (String slot : e.vectorSlots().split(",")) {
+                    String trimmed = slot.trim();
+                    int dot = trimmed.indexOf('.');
+                    String dimension = trimmed.substring(0, dot);
+                    String value = trimmed.substring(dot + 1);
+                    // `rerendered` is derived by the suite rather than declared, so it has no value list.
+                    if (dimension.equals("rerendered")) {
+                        continue;
+                    }
+                    if (dimensions.names().contains(dimension) == false) {
+                        bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- no such dimension");
+                    } else if (dimensions.values(dimension).contains(value) == false) {
+                        bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- [" + dimension + "] declares no [" + value + "]");
+                    }
+                }
+            }
+        }
+        assertThat("this test proves nothing if no exclusion is qualified", qualified, greaterThan(0));
+        assertThat("qualifiers naming something undeclared match no vector and protect nothing", bad, empty());
     }
 }

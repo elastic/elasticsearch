@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,6 +95,19 @@ public final class FixtureExclusions {
      * filtering after the lookup, which cannot recover an entry the map never stored.
      */
     private final Map<String, Map<SpecCase, Exclusion>> bySuite;
+
+    /** Slot list in a stable order, so two spellings of one conjunction are the same key. */
+    private static String canonicalSlots(String slots) {
+        if (slots == null) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        for (String slot : slots.split(",", -1)) {
+            parts.add(slot.trim());
+        }
+        Collections.sort(parts);
+        return String.join(",", parts);
+    }
 
     /** The identity of an excluded case: its spec and its name. */
     private record SpecCase(String spec, String caseName, String vectorSlots) {}
@@ -266,8 +280,11 @@ public final class FixtureExclusions {
                     }
                 }
             }
+            // The KEY canonicalises the slot list, the stored value keeps the author's spelling. Without
+            // this, `@a.x,b.y` and `@b.y,a.x` are two entries for one cell -- they mean the same
+            // conjunction, so the second is a duplicate that would silently shadow rather than collide.
             Exclusion previous = parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>())
-                .put(new SpecCase(spec, bare, slots), new Exclusion(suite, spec, bare, slots, kind, reason));
+                .put(new SpecCase(spec, bare, canonicalSlots(slots)), new Exclusion(suite, spec, bare, slots, kind, reason));
             if (previous != null) {
                 throw new IllegalStateException(
                     "duplicate exclusion ["

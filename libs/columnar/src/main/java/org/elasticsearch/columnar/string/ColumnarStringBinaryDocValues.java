@@ -63,6 +63,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
+        return reader.extreme(iterator.rank(), max, dst);
+    }
+
+    @Override
     public boolean advanceExact(int target) throws IOException {
         return iterator.advanceExact(target);
     }

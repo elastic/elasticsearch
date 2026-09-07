@@ -35,11 +35,15 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -100,6 +104,89 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
                 docs[d] = new String[] { "unique-value-" + d };
             }
         });
+    }
+
+    /**
+     * The extreme value of each document, which a dictionary column decides over ordinals rather than by comparing
+     * terms. Escapes and nulls are the two ordinals that are not terms, so both shapes are here: an escaped value
+     * sorts by its bytes wherever its ordinal sits, and a null is no value to be the extreme of.
+     */
+    public void testMvMaxAndMvMin() throws IOException {
+        final String[][] docs = new String[between(200, 1200)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 7) {
+                case 0 -> new String[] { "b-" + (d % 5), "a-" + (d % 3), "c" };
+                case 1 -> new String[] { "a-" + (d % 3) };
+                // Rare enough to escape a dictionary built from what the column repeats, and sorting below every
+                // term it holds, so an ordinal comparison would get it wrong.
+                case 2 -> new String[] { "b-" + (d % 5), "AAA-escapes-" + d };
+                case 3 -> new String[] { null, "c" };
+                case 4 -> new String[] { null };
+                case 5 -> new String[0];
+                default -> new String[] { "c", "b-" + (d % 5) };
+            };
+        }
+        for (boolean max : new boolean[] { true, false }) {
+            assertLoaderMatches(
+                docs,
+                fieldName -> max
+                    ? new MvMaxBytesRefsFromBinaryBlockLoader(fieldName, BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+                    : new MvMinBytesRefsFromBinaryBlockLoader(fieldName, BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+                expected(docs, max)
+            );
+        }
+    }
+
+    /** What a scan over the values would decide, which is what the ordinals have to agree with. */
+    private static List<Object> expected(String[][] docs, boolean max) {
+        final List<Object> extremes = new ArrayList<>();
+        for (String[] slots : docs) {
+            String best = null;
+            for (String slot : slots) {
+                if (slot == null) {
+                    continue;
+                }
+                if (best == null || (max ? slot.compareTo(best) > 0 : slot.compareTo(best) < 0)) {
+                    best = slot;
+                }
+            }
+            extremes.add(best == null ? null : new BytesRef(best));
+        }
+        return extremes;
+    }
+
+    private void assertLoaderMatches(
+        String[][] docs,
+        java.util.function.Function<String, BlockDocValuesReader.DocValuesBlockLoader> loaders,
+        List<Object> expected
+    ) throws IOException {
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    doc.add(new Field(FIELD, encode(slots), type));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
+                final var loader = loaders.apply(FIELD);
+                final BlockLoader.RowStrideReader rows = (BlockLoader.RowStrideReader) loader.reader(NOOP, leaf);
+                try (BlockLoader.Builder builder = loader.builder(TestBlock.factory(), docs.length)) {
+                    for (int d = 0; d < docs.length; d++) {
+                        rows.read(d, null, builder);
+                    }
+                    final TestBlock block = (TestBlock) builder.build();
+                    assertEquals("positions", docs.length, block.size());
+                    for (int d = 0; d < docs.length; d++) {
+                        assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
+                    }
+                }
+            }
+        }
     }
 
     private interface Documents {

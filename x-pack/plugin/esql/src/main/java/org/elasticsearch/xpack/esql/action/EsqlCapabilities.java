@@ -2514,6 +2514,12 @@ public class EsqlCapabilities {
         PROMQL_VECTOR_MATCHING_V1(Build.current().isSnapshot()),
 
         /**
+         * PromQL functions (except last_over_time and the label functions), `without` aggregations and classic histogram
+         * functions drop `__name__` from the series identity, as Prometheus does.
+         */
+        FIX_PROMQL_METRIC_NAME_DROP,
+
+        /**
          * Support for PromQL time() function.
          */
         PROMQL_TIME,

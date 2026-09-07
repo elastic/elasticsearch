@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -91,9 +92,10 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     /**
-     * In PromQL {@code without ()} (empty parens) means "group by every label", i.e. the full runtime label set - not
-     * "no grouping". The innermost aggregate must therefore still own a {@code _timeseries} grouping key (with an empty
-     * exclusion set), otherwise the final PromQL projection references a {@code _timeseries} the plan never produced.
+     * In PromQL {@code without ()} (empty parens) means "group by every label but the metric name", i.e. the full runtime
+     * label set minus {@code __name__} - not "no grouping". The innermost aggregate must therefore still own a
+     * {@code _timeseries} grouping key (excluding only {@code __name__}), otherwise the final PromQL projection references
+     * a {@code _timeseries} the plan never produced.
      */
     public void testTopLevelWithoutEmptyProducesTimeSeriesOutput() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -110,7 +112,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .findFirst()
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), empty());
+        assertThat(timeSeriesMetadata.excludedFields(), equalTo(Set.of(LabelMatcher.NAME)));
     }
 
     /**
@@ -277,7 +279,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
         assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod", LabelMatcher.NAME));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             innerAggregate.aggregates()
@@ -428,10 +430,11 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
                 .toList(),
             hasSize(1)
         );
-        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
+        // without () drops nothing but the metric name, so the packing excludes exactly __name__
         EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
         var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(0));
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of(LabelMatcher.NAME));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

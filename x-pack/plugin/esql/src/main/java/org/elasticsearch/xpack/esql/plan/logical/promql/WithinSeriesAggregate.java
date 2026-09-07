@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -68,6 +69,12 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.WITHIN_SERIES_AGGREGATION;
+    }
+
+    @Override
+    public boolean dropsMetricName() {
+        // last_over_time acts like an offset and keeps the metric name; every other range function drops it
+        return functionName().equals(LastOverTime.PROMQL_DEFINITION.name()) == false;
     }
 
     @Override

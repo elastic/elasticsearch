@@ -104,6 +104,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     }
 
     /**
+     * Whether the result drops {@code __name__} from the series identity. Prometheus drops the metric name from the result
+     * of every function, except the label functions (they return the input series relabeled), {@code topk}/{@code bottomk}/
+     * {@code limitk} (they return input series unchanged) and {@code last_over_time}, which acts like an offset.
+     */
+    public boolean dropsMetricName() {
+        return true;
+    }
+
+    /**
      * Builds the ES|QL expression that implements this PromQL function call.
      *
      * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions

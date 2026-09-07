@@ -292,17 +292,25 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         TestStatelessPlugin.commitStartedLatch = null;
         TestStatelessPlugin.unblockCommitLatch = null;
 
+        // Randomly release gen1 before or after the relocation starts, exercising both the case where
+        // waitForCurrentCommitDurability blocks (gen1 still in flight) and where it resolves synchronously
+        // (gen1 already complete). Gen2 holds flushLock either way, so the relocation cannot complete.
+        boolean releaseGen1BeforeRelocation = randomBoolean();
+        if (releaseGen1BeforeRelocation) {
+            unblockFirstUpload.countDown();
+        }
+
         PreFlushObserver preFlush = installPreFlushInterceptor();
         PlainActionFuture<Void> preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
 
-        // Unblock gen1 BCC: waitForCurrentCommitDurability(gen1) resolves, then the pre-flush calls flush().
-        // Gen2 still holds flushLock, so the relocation cannot complete regardless of threshold.
-        unblockFirstUpload.countDown();
-        assertThat(preRecoveryFlushDone.isDone(), is(false));
+        if (releaseGen1BeforeRelocation == false) {
+            unblockFirstUpload.countDown();
+        }
 
         if (threshold.equals(TimeValue.ZERO)) {
             assertThat(safeGet(preFlush.waitIfOngoing()), is(true));
             assertThat(preFlush.result().isDone(), is(false));
+            assertThat(preRecoveryFlushDone.isDone(), is(false));
         } else {
             assertThat(safeGet(preFlush.waitIfOngoing()), is(false));
         }

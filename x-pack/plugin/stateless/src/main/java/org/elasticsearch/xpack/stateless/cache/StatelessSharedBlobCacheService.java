@@ -124,10 +124,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
      * Note this setting is only relevant when the eviction policy does reject eviction. For example, the default
      * {@link DefaultEvictionPolicy} does not reject eviction and so this setting is effectively ignored.
      */
-    public static final Setting<RatioValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING = Setting.ratioSetting(
         "stateless.cache_boost_preference.eviction_policy_degradation.threshold",
-        "95%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(95),
         Setting.Property.NodeScope
     );
 

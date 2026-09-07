@@ -303,6 +303,25 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         );
     }
 
+    /**
+     * Returns a copy retaining only the given input fields and their matching generated attributes. The two lists must be
+     * aligned 1:1 (each {@code field} with its {@code <field>_dense_vector} attribute). Used by column pruning to drop the
+     * fields whose generated column is unused, avoiding wasted inference calls.
+     */
+    public DenseVector withPrunedFields(List<NamedExpression> prunedFields, List<Attribute> prunedGeneratedFields) {
+        return new DenseVector(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            prunedFields,
+            prunedGeneratedFields,
+            timeout(),
+            inputType,
+            endpointTaskType
+        );
+    }
+
     @Override
     public List<String> validOptionNames() {
         return List.of(INFERENCE_ID_OPTION_NAME, TIMEOUT_OPTION_NAME, TYPE_OPTION_NAME);

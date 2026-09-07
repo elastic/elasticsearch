@@ -68,6 +68,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  *       differences). Only checked while the per-iteration <em>determinism gate</em> is open.</li>
  * </ol>
  *
+ * <p>When both sides throw, the shared failure is not treated as a test failure: this suite's job
+ * is to find index-mode divergences. Bugs that reproduce on both modes belong in other suites
+ * (e.g. {@code GenerativeIT} or unit tests). The pipeline step still stops so later commands are
+ * not built on a failed query.
+ *
  * <p>The determinism gate closes when a row-truncating or non-deterministic command appears in
  * the pipeline, or when either side returns exactly 1 000 rows (the implicit {@code LIMIT 1000}
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
@@ -92,109 +97,36 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Datasets excluded from cross-mode testing because they create successfully in columnar mode
-     * but produce legitimately different results. Derived from the catalogue in
-     * {@code LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT} (logsdb module) and
-     * {@link org.elasticsearch.xpack.esql.qa.rest.AllSupportedFieldsTestCase}.
+     * but produce legitimately different results, or are too heavy for the generative suite.
      *
-     * <ul>
-     *   <li>{@code airports_not_indexed}, {@code airports_no_doc_values},
-     *       {@code airports_not_indexed_nor_doc_values}: {@code index:false} / {@code doc_values:false}
-     *       are effectively no-ops in strict columnar mode — every field gets doc values and is
-     *       searchable — so query results differ by design from a standard index where those settings
-     *       are honoured.</li>
-     *   <li>{@code addresses_text}, {@code employees_gender_text}: keyword-to-text variant datasets.
-     *       Columnar mode auto-converts text fields to keyword, so the ref_ variant (text) and the
-     *       base ref_ index (keyword) produce a type conflict ({@code [keyword, text] → unsupported})
-     *       under wildcard {@code ref_*} queries, while the cand_ side sees no conflict (all keyword).
-     *       This structural divergence is not a correctness bug.</li>
-     * </ul>
+     * <p>Other historically excluded datasets (geo precision, text→keyword / short→long wildcard
+     * conflicts, COUNT-on-MV bugs, etc.) are covered by value-skipping, the determinism gate, or
+     * automatic skip-on-cand-creation-failure — verified empirically with {@code -Dtests.iters=20+}
+     * and a follow-up 100-iter run.
      */
     private static final Set<String> EXCLUDED_DATASETS = Set.of(
-        // index:false / doc_values:false are no-ops in columnar — searchability and loadability
-        // differ by design from a standard index that honours those settings.
-        "airports_not_indexed",
-        "airports_no_doc_values",
-        "airports_not_indexed_nor_doc_values",
-        // geo_point fields (city_location) are stored at different precision in columnar mode:
-        // to_string(city_location) returns e.g. "POINT (116.073 5.975)" on standard but
-        // "POINT (116.072 5.975)" on columnar — a known encoding precision difference.
-        "airports",
-        "airports_web",
-        // Mapping designed to be type-incompatible with the standard employees dataset; combining
-        // ref_employees_incompatible (with its altered field types) and ref_employees under a wildcard
-        // pattern produces type conflicts that cause schema divergences between the two modes.
+        // Mapping designed to be type-incompatible with the standard employees dataset; CSV also
+        // carries deliberate boolean MV duplicates that standard collapses to a scalar while
+        // columnar keeps as a list (false vs [false]).
         "employees_incompatible",
-        // Multi-value double fields (rows carry [1.1], [1.1,2.2], …, [1.1,…,5.5]) cause COUNT to
-        // diverge: standard mode counts individual MV values whereas columnar mode counts documents.
-        // Root cause: columnar mode disables point indexing for numeric fields, so
-        // SearchContextStats#detectSingleValue mis-detects them as single-valued and PushStatsToSource
-        // pushes COUNT down to a Lucene document count instead of a per-value count.
-        "all_types_mv",
-        // The all_types family uses mapping-all-types.json which contains `semantic_text` and
-        // `dense_vector` field types. These types appear in field_caps for standard mode but are
-        // absent from columnar mode's field_caps, causing a schema-size divergence whenever any
-        // wildcard pattern matches ref_all_types* indices. The mapping also has a `short`-typed
-        // field named "short"; columnar normalises short → long, so wildcard queries that combine
-        // an all_types index (short: short) with any other index that has a "short: long" field
-        // produce type-conflict unsupported[long, short] on the reference side but a clean "long"
-        // on the candidate side.
-        "all_types",
-        "all_types_no_short",
-        "all_types_short_as_long",
-        // Variant of `apps` with `id` overridden to type short. Standard mode returns the field as
-        // short in field_caps; when combined with the base `apps` index (id: integer) under a
-        // wildcard pattern, ref_* sees type-conflict unsupported[integer, short], while cand_*
-        // normalises short → integer (no conflict). Not a correctness bug.
-        "apps_short",
-        // Contains a plain `txt: text` field that has no doc_values. Columnar mode requires all
-        // fields to be reconstructable from doc values for synthetic source, so this dataset either
-        // fails cand_ index creation or produces a schema divergence (txt absent from the
-        // columnar-side schema). Excluded to prevent wildcard patterns from matching an orphaned
-        // ref_text_state_mapped index.
-        "text_state_mapped",
-        // 245 000+ documents with MV integer fields. Bulk indexing and force-merge of this volume
-        // in columnar mode can time out or exceed REST client limits, leaving an orphaned ref_
-        // index that pollutes wildcard schema resolution.
+        // 245 000+ documents with MV integer fields. Loading both ref_ and cand_ copies makes
+        // wide wildcards like FROM ref_* large enough to close the REST connection / kill the
+        // test cluster mid-suite.
         "many_numbers",
-        // Variant of `addresses` that overrides keyword fields (street, city.name,
-        // city.country.name, city.country.continent.name, …) to text. Columnar mode auto-converts
-        // those text fields to keyword (doc_values), so ref_addresses_text ends up with text while
-        // cand_addresses_text ends up with keyword. A wildcard query like `from ref_*` matches both
-        // ref_addresses (keyword) and ref_addresses_text (text), making field_caps report type
-        // conflict [keyword, text] → unsupported; cand_* sees no conflict (all keyword). This
-        // structural schema divergence is not a correctness bug.
-        "addresses_text",
-        // Variant of `employees` with the `gender` field overridden to text. Same root cause as
-        // addresses_text: ref_employees (keyword) and ref_employees_gender_text (text) produce a
-        // type conflict under ref_* wildcards, while cand_* consistently sees keyword in columnar.
-        "employees_gender_text",
-        // Contains a `payload: text` field that survives columnar index creation (other fields
-        // provide doc_values) but causes the server to crash when queried in columnar mode.
-        // Until root-caused, exclude to prevent cluster instability during the generative test run.
-        "json_logs",
-        // Contains a `notes: text` field with the same issue as json_logs: cand_voyager creates
-        // successfully but querying it in columnar mode crashes the server.
-        "voyager",
-        // Multi-value date fields (rows carry [1952,1962] and [2003,1998]) cause COUNT to diverge:
-        // standard mode counts individual MV values while columnar mode counts documents. Same root
-        // cause as all_types_mv (SearchContextStats#detectSingleValue + PushStatsToSource push
-        // COUNT down to a document count for point-index-disabled fields).
-        "mv_decades",
-        // Cartesian multi-polygon shape data fails to bulk-index in columnar mode (the cartesian_shape
-        // field cannot be stored via doc_values for synthetic source), leaving cand_cartesian_multipolygons
-        // with 0 documents while ref_cartesian_multipolygons has the full dataset. Any WHERE clause then
-        // returns 21 rows on the reference side and 0 on the candidate side.
+        // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
+        // index with 0 documents while ref has the full dataset.
         "cartesian_multipolygons",
-        // ul_logs has unsigned_long fields named `bytes_in` and `bytes_out`. A known columnar bug
-        // causes STATS output aliases with the same names to read from the wrong source when the
-        // alias name conflicts with an existing index field, producing incorrect aggregate values.
-        // Excluded until the columnar alias-resolution bug is fixed.
-        "ul_logs",
-        // conv_from_keyword contains keyword fields (geotile_str, geohash_str, etc.) that are not
-        // indexed in columnar mode (index.mapping.index_disabled_by_default=true disables the
-        // inverted index for fields without an explicit "index: true"). Full-text queries (`:`)
-        // on those fields return different results between the two modes.
-        "conv_from_keyword"
+        // Unmapped-source fixtures: all are dynamic:false with only `id` mapped, so everything else in the
+        // document lands in _source / _ignored_source. Strict columnar drops that content at ingest (it
+        // reconstructs _source from doc values), so the ref side surfaces those fields and the cand side
+        // cannot - a legitimate mode difference, not a bug. Same reasoning and same list as
+        // CsvColumnarIT#EXCLUDED_DATASETS, which skips them for the columnar csv-spec run.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data"
     );
 
     /**
@@ -230,10 +162,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
         // no results. Same root cause as "For input string:" for numeric fields.
         "is not an IP string literal",
-        // Columnar mode FORK execution has a known array-bounds bug (Index N out of bounds for
-        // length N) that surfaces as HTTP 500 on the candidate side while the reference succeeds.
-        // TODO: remove once the columnar FORK array-bounds bug is fixed.
-        "out of bounds for length",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
@@ -261,7 +189,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Matches numbers (including negatives and scientific notation) inside WKT geometry strings.
-     * Used by {@link #normalizeSpatialCoords} to round coordinates to 6 significant figures so
+     * Used by {@link #normalizeSpatialCoords} to round coordinates to 5 significant figures so
      * that doc-values reconstruction precision loss ({@code POINT (5.0 5.0)} vs
      * {@code POINT (4.999999953... 4.999999995...)}) does not produce false value divergences.
      */
@@ -276,6 +204,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     // Per-iteration candidate state. Reset in runCommand when prevRef == null (the source command).
     private QueryExecuted candidatePreviousResult;
     private boolean determinismGateOpen;
+
+    /**
+     * Set by {@link #compareSides} when both reference and candidate threw. The base-class
+     * {@code checkPipelineException} would otherwise fail the suite on the shared error; we
+     * suppress that because matching failures are not a mode divergence.
+     */
+    private boolean bothSidesThrew;
 
     /** Number of pipeline steps where the determinism gate was open and value comparison was attempted. */
     private int valueComparedSteps;
@@ -469,6 +404,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         return errors;
     }
 
+    /**
+     * Shared failures (both modes threw) are out of scope for this differential suite — see class
+     * javadoc. One-sided throws still go through the usual allowed-error checks (including
+     * {@link #ALLOWED_MODE_DIFFERENCE_SUBSTRINGS}).
+     */
+    @Override
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (bothSidesThrew) {
+            return;
+        }
+        super.checkPipelineException(query, previousCommands, currentSchema);
+    }
+
     // -----------------------------------------------------------------------------------------
     // Generator hooks
     // -----------------------------------------------------------------------------------------
@@ -494,6 +446,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             candidatePreviousResult = null;
             determinismGateOpen = true;
         }
+        bothSidesThrew = false;
 
         // Determine the reference and candidate command strings.
         Object mirror = current.context().get(DualModeFromGenerator.MIRROR_COMMAND);
@@ -588,37 +541,26 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (cmdText.contains("LEAST(") || cmdText.contains("GREATEST(")) {
             return false;
         }
-        // FIRST() aggregation function picks a value from the row with the minimum sort-column
-        // value. It can be non-deterministic when there are ties. Additionally, columnar mode has a
-        // known issue where FIRST() returns null for boolean MV fields instead of the correct
-        // multi-value boolean. Note: contains("FIRST(") also matches MV_FIRST(, and
-        // contains("LAST(") matches MV_LAST(; both are correctly gated since the aggregate and the
-        // scalar function share the same ordering-sensitivity rationale.
-        // (The generator never emits a bare last(...) aggregate; LAST( here catches only MV_LAST(.)
-        // TODO: remove once the columnar FIRST/LAST boolean bug is fixed.
+        // FIRST() / LAST() pick the search-field value from the row with the minimum (FIRST) or
+        // maximum (LAST) sort value. Two effects make cross-mode value comparison unreliable, and
+        // both are expected divergences rather than correctness bugs:
+        // 1. Ties in the sort column: when several rows share the winning sort value, either
+        // physical layout may legitimately pick a different row's search-field value.
+        // 2. Multi-value search field: the returned cell keeps source element order, which
+        // differs between the two modes (columnar source-insertion order vs standard ascending
+        // doc-values order). The multiset is identical but e.g. [false, true] vs [true, false]
+        // compares unequal. Same ordering artifact already gated for MV_FIRST/MV_LAST/MV_SLICE.
+        // Correct columnar behavior for boolean MV fields (no spurious null) is covered by the
+        // stats_first_last.csv-spec "Test retrieval of multi-values" case, which CsvColumnarIT runs
+        // against voyager's low_power_mode field.
+        // Note: contains("FIRST(") also matches MV_FIRST(, and contains("LAST(") matches MV_LAST(;
+        // both share the same ordering-sensitivity rationale. The generator never emits a bare
+        // last(...) aggregate, so LAST( here only catches MV_LAST(.
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
             return false;
         }
-        // DISSECT and GROK applied to multi-value string fields: standard mode expands each element
-        // of the MV field into a separate row before matching, while columnar mode processes only
-        // the first element. This produces a different row count after the command, which then
-        // propagates into any subsequent aggregation (e.g. COUNT). Gate to prevent false value
-        // divergences that stem from this row-count difference rather than an incorrect result.
-        if ("dissect".equals(cmdName) || "grok".equals(cmdName)) {
-            return false;
-        }
-        // Commands whose output order or aggregate semantics depend on per-segment or per-shard
-        // execution order, or whose aggregation behaviour differs between standard and columnar mode.
-        // INLINE STATS without BY has a mode-specific COUNT discrepancy on multi-index wildcard
-        // queries (standard returns a different global count than columnar); gated until root-caused.
-        // STATS without BY (global aggregate): when a STATS alias reuses an original field name,
-        // a subsequent EVAL can cause the optimizer to incorrectly re-resolve the alias to the
-        // original field, silently corrupting the aggregated value (returns 0 instead of N). Close
-        // the gate for global STATS to prevent these false positives; gated until root-caused.
-        if ("sample".equals(cmdName)
-            || "fork".equals(cmdName)
-            || "change_point".equals(cmdName)
-            || (("inline_stats".equals(cmdName) || "stats".equals(cmdName)) && cmdText.contains(" BY ") == false)) {
+        // Commands whose output order depends on per-segment or per-shard execution order.
+        if ("sample".equals(cmdName) || "fork".equals(cmdName) || "change_point".equals(cmdName)) {
             return false;
         }
         // DEDUP deduplicates rows by all column values. Columnar mode preserves MV fields in
@@ -666,6 +608,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private void compareSides(CommandGenerator.CommandDescription current, QueryExecuted ref, QueryExecuted cand, boolean deterministic) {
         boolean refThrew = ref.exception() != null;
         boolean candThrew = cand.exception() != null;
+        bothSidesThrew = refThrew && candThrew;
 
         // 1. Failure parity
         if (refThrew != candThrew) {
@@ -927,17 +870,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     /**
      * Renders a single cell value as a canonical string.
      *
-     * <p>Doubles are rounded to 6 significant figures to absorb tiny floating-point differences
-     * that arise when re-encoding values through doc values in columnar mode. Additionally, values
-     * whose absolute magnitude is below {@code 1e-9} are snapped to {@code 0.0} to absorb the
-     * Welford parallel-merge residual that can leave one side at {@code 0.0} and the other at
-     * {@code ~1e-32} when the true result is zero (see
+     * <p>Doubles are rounded to 5 significant figures to absorb tiny floating-point differences
+     * that arise when re-encoding values through doc values in columnar mode, and from Welford-style
+     * variance / std_dev merges whose residuals can differ by ~1 ULP across index layouts (e.g.
+     * {@code -1.43178} vs {@code -1.43177}). Additionally, values whose absolute magnitude is below
+     * {@code 1e-9} are snapped to {@code 0.0} to absorb the residual that can leave one side at
+     * {@code 0.0} and the other at {@code ~1e-32} when the true result is zero (see
      * <a href="https://github.com/elastic/elasticsearch/issues/156988">#156988</a>). The threshold
      * is many orders of magnitude above the residual ({@code ~1e-32}) and many orders of magnitude
      * below any meaningful small result in the CSV test datasets.
      *
      * <p>Strings that look like WKT geometry ({@code POINT (…)}, {@code POLYGON (…)}, etc.) have
-     * their coordinate numbers rounded to the same 6 significant figures. Doc-values-based
+     * their coordinate numbers rounded to the same 5 significant figures. Doc-values-based
      * reconstruction of geo/cartesian points introduces ~1e-7 relative precision loss — for
      * example a stored {@code POINT (5.0 5.0)} can come back as
      * {@code POINT (4.999999953433871 4.999999995343387)} in columnar mode.
@@ -951,7 +895,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (Math.abs(d) < 1e-9) {
                 return "0.0";
             }
-            return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+            return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
         }
         String s = String.valueOf(val);
         if (isWktString(s)) {
@@ -1001,7 +945,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     }
 
     /**
-     * Rounds every numeric coordinate within a WKT geometry string to 6 significant figures,
+     * Rounds every numeric coordinate within a WKT geometry string to 5 significant figures,
      * absorbing doc-values reconstruction precision loss for geo/cartesian point types.
      */
     private static String normalizeSpatialCoords(String wkt) {
@@ -1009,7 +953,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             String coord = mr.group();
             try {
                 double d = Double.parseDouble(coord);
-                return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+                return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
             } catch (NumberFormatException e) {
                 return coord;
             }

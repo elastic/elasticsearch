@@ -1,0 +1,42 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "metadata",
+  "name" : "label_join",
+  "description" : "Joins the values of the source labels `src_label_1` .. `src_label_N` using `separator` and stores the result in the label `dst_label`. A missing source label contributes an empty string.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        },
+        {
+          "name" : "dst_label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of the label to set."
+        },
+        {
+          "name" : "separator",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "String inserted between the source values."
+        },
+        {
+          "name" : "src_label",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Name of a label to join (repeatable)."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sum by (endpoint) (label_join(http_requests_total, \"endpoint\", \"/\", \"job\", \"instance\"))"
+  ],
+  "snapshot_only" : false
+}

@@ -253,20 +253,26 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Emits a response {@code Warning} header noting that a Parquet timestamp column carried instants
-     * outside the representable {@code date_nanos} range and those values were returned as null. The
-     * message is column-scoped and constant, so the response-header machinery deduplicates it to a
-     * single entry per affected column regardless of how many values or batches triggered it.
+     * Reports that a Parquet timestamp column carried instants outside the representable {@code date_nanos} range and
+     * those values were returned as null. When supplied, {@code warningSink} relays the message through the external
+     * driver's warning channel so it survives a scan on another node; the {@code null} fallback writes directly to
+     * the current thread's response headers for tests and synchronous callers.
+     *
+     * <p>The message is column-scoped and constant, so both the production informational-warning budget and response
+     * headers deduplicate it regardless of how many values or batches triggered it.
      */
-    static void warnTimestampOutOfRange(ColumnInfo info) {
+    static void warnTimestampOutOfRange(ColumnInfo info, @Nullable Consumer<String> warningSink) {
         ColumnDescriptor descriptor = info.descriptor();
         String column = descriptor == null ? "<unknown>" : String.join(".", descriptor.getPath());
-        HeaderWarning.addWarning(
-            "Parquet timestamp column ["
-                + column
-                + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
-                + "such values are returned as null"
-        );
+        String warning = "Parquet timestamp column ["
+            + column
+            + "] contains values outside the representable date_nanos range (~1677-09-21 to 2262-04-11); "
+            + "such values are returned as null";
+        if (warningSink != null) {
+            warningSink.accept(warning);
+        } else {
+            HeaderWarning.addWarning(warning);
+        }
     }
 
     /** Converts a date32 value (days since epoch) to epoch milliseconds. */
@@ -1003,8 +1009,10 @@ final class ParquetColumnDecoding {
      *                   pairs: the list decodes at the file's own element type, then
      *                   {@link DeclaredTypeCoercions#castBlock} coerces each element. {@code null} = strict, the
      *                   coercion failure propagates
-     * @param lossWarnings always-live collector for the dropped-null-element notice; required, since a
-     *                     {@code null} here would silently restore the pre-fix silence
+     * @param informationalWarningSink relay for unconditional read-time notices such as out-of-range timestamps, or
+     *                                 {@code null} to emit directly to the current thread's response headers
+     * @param lossWarnings always-live collector for the dropped-null-element notice; required, since a {@code null}
+     *                     here would silently restore the pre-fix silence
      */
     static Block readListColumn(
         ListColumnReader input,
@@ -1014,6 +1022,7 @@ final class ParquetColumnDecoding {
         String columnName,
         @Nullable SkipWarnings warnings,
         @Nullable IntConsumer failedPositionSink,
+        @Nullable Consumer<String> informationalWarningSink,
         SkipWarnings lossWarnings
     ) {
         DataType declared = info.esqlType();
@@ -1024,7 +1033,17 @@ final class ParquetColumnDecoding {
             && DeclaredTypeCoercions.supports(fileElementType, declared)) {
             // The recursion decodes at the file's own element type and owns the drop notice for this read; this
             // frame deliberately keeps no tally of its own, since it never reaches the row loops below.
-            Block physical = readListColumn(input, info.fileTyped(), rows, blockFactory, columnName, null, null, lossWarnings);
+            Block physical = readListColumn(
+                input,
+                info.fileTyped(),
+                rows,
+                blockFactory,
+                columnName,
+                null,
+                null,
+                informationalWarningSink,
+                lossWarnings
+            );
             try {
                 return DeclaredTypeCoercions.castBlock(
                     physical,
@@ -1060,7 +1079,7 @@ final class ParquetColumnDecoding {
             case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory, tally);
             case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory, tally);
             case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
-            case DATE_NANOS -> readListDateNanosColumn(input, info, rows, blockFactory, tally);
+            case DATE_NANOS -> readListDateNanosColumn(input, info, rows, blockFactory, tally, informationalWarningSink);
             default -> {
                 skipListValues(input, rows);
                 yield blockFactory.newConstantNullBlock(rows);
@@ -1370,8 +1389,8 @@ final class ParquetColumnDecoding {
      * {@code LongBlock} of epoch-nanoseconds. {@code MICROS} elements whose scaled value would overflow the
      * representable {@code date_nanos} range are dropped from their list (mirroring how the generic list reader
      * already skips null elements); a list whose elements <em>all</em> overflow becomes a null position. A single
-     * deduplicated warning header is emitted when any element was dropped. This uses a lazy {@code beginPositionEntry}
-     * so an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
+     * deduplicated warning is reported when any element was dropped. This uses a lazy {@code beginPositionEntry} so
+     * an all-overflow defined list never triggers the empty-position assertion in {@link Block.Builder}.
      *
      * <p>Overflow and null-element drops are announced separately — they are different losses with different
      * remedies — so this loop feeds both {@code anyOverflow} and {@code tally}.
@@ -1381,7 +1400,8 @@ final class ParquetColumnDecoding {
         ColumnInfo info,
         int rows,
         BlockFactory blockFactory,
-        NullElementTally tally
+        NullElementTally tally,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         int maxDef = info.maxDefLevel();
         LogicalTypeAnnotation logical = info.logicalType();
@@ -1392,7 +1412,7 @@ final class ParquetColumnDecoding {
                 readDateNanosListRow(input, maxDef, micros, logical, builder, anyOverflow, tally);
             }
             if (anyOverflow[0]) {
-                warnTimestampOutOfRange(info);
+                warnTimestampOutOfRange(info, informationalWarningSink);
             }
             return builder.build();
         }

@@ -278,6 +278,13 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .privileges("all")
                     .build(),
+                // Used in Security Solution for the threat intel supply pipeline.
+                // Kibana user creates this index, reads / writes to it, and maintains the
+                // per-space filtered aliases that Indicator Match rules read.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_INDEX)
+                    .privileges("all")
+                    .build(),
                 // "Alerts as data" internal backing indices used in Security Solution,
                 // Observability, etc.
                 // Kibana system user creates these indices; reads / writes to them via the

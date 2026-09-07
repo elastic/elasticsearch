@@ -403,10 +403,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          */
         private IntermediateResult doTranslateAcrossSeriesAgg(AcrossSeriesAggregate agg) {
             List<String> keys = mapFinite(agg.groupings());
+            // an aggregation drops the metric name; without (K) drops K on top and declares the rest of the child's label set
+            List<String> dropped = withMetricName(keys);
             Header childRequired = switch (agg.grouping()) {
                 case BY -> finite(keys);
-                // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
-                case WITHOUT -> keys.isEmpty() ? required : required.subtract(keys).union(open(keys));
+                case WITHOUT -> required.subtract(dropped).union(open(dropped));
                 case NONE -> Header.EMPTY;
             };
             Translation translation = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time);
@@ -416,7 +417,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
             Header header = switch (agg.grouping()) {
                 case BY -> finite(mapFinite(agg.output()));
-                case WITHOUT -> regroupWithout(ir.header(), keys);
+                case WITHOUT -> regroupWithout(ir.header(), dropped);
                 case NONE -> Header.EMPTY;
             };
 
@@ -669,10 +670,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         private IntermediateResult doTranslateHistogramFunction(HistogramFunctionCall function) {
-            // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
-            // bucket bound off the `le` column itself, so the child must also expose it by name.
+            // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, dropping the
+            // metric name with it, and read the bucket bound off the `le` column itself, so the child must also expose it
+            // by name.
             List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-            Header childRequired = required.subtract(le).union(open(le)).union(finite(le));
+            List<String> dropped = withMetricName(le);
+            Header childRequired = required.subtract(dropped).union(open(dropped)).union(finite(le));
             IntermediateResult result = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(
                 function.child()
             );
@@ -707,7 +710,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
 
             // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-            Header header = regroupWithout(result.header(), le);
+            Header header = regroupWithout(result.header(), dropped);
             Expression count = new ToDouble(function.source(), result.value());
             return regroup(result, header, true, function.buildAggregateFunction(count, leColumn));
         }
@@ -728,9 +731,17 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 : collapse(child, Header.EMPTY, scalarExpr);
         }
 
-        /** Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. */
+        /**
+         * Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value. A
+         * function that drops the metric name transposes the requirement below itself without {@code __name__}, so the
+         * child exposes its packings already excluding it, and exposes its own header without it.
+         */
         private IntermediateResult doTranslateFunc(PromqlFunctionCall functionCall) {
-            IntermediateResult child = doTranslateNode(functionCall.child());
+            boolean dropsMetricName = functionCall.dropsMetricName();
+            Translation childTranslation = dropsMetricName
+                ? new Translation(cmd, analyzer, stepBucketAlias, withoutMetricName(required), time)
+                : this;
+            IntermediateResult child = childTranslation.doTranslateNode(functionCall.child());
             if (child.kind().constant) {
                 return child;
             }
@@ -739,7 +750,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 window = isImplicitRangePlaceholder(rangeSelector.range()) ? cmd.resolveImplicitRangeWindow() : rangeSelector.range();
             }
             var promqlCtx = new PromqlContext(time, window, child.step(), configuration());
-            return doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx));
+            IntermediateResult result = doTranslateAddValueEval(child, functionCall.buildEsqlFunction(child.value(), promqlCtx));
+            return dropsMetricName ? result.with(result.plan(), withoutMetricName(result.header()), result.value()) : result;
         }
 
         /**
@@ -944,6 +956,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /** The series identity Prometheus matches on: every label except {@code __name__}. */
         private static Header withoutMetricName(Header header) {
             return header.subtract(Set.of(LabelMatcher.NAME));
+        }
+
+        /** The labels a node drops, with the metric name among them. */
+        private static List<String> withMetricName(List<String> keys) {
+            if (keys.contains(LabelMatcher.NAME)) {
+                return keys;
+            }
+            var dropped = new ArrayList<>(keys);
+            dropped.add(LabelMatcher.NAME);
+            return dropped;
         }
 
         /**

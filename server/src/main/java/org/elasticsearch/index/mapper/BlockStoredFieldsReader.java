@@ -16,9 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 

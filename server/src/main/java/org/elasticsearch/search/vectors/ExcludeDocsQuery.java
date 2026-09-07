@@ -25,8 +25,6 @@ import org.apache.lucene.util.FixedBitSet;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-
 /**
  * A {@link Query} that matches every document <em>except</em> a fixed set of excluded ones.
  * <p>

@@ -39,8 +39,9 @@
  * against it.
  *
  * What remains a floor rather than a ceiling: this gate sees only the tokens a module claims in
- * fixtureCoverageFormats. Seven declared suite tokens are claimed by nobody, so their routing and their
- * exclusions are validated by nothing. That is recorded here rather than in a commit message because it
+ * fixtureCoverageFormats. Thirteen of the nineteen tokens FixtureMatrix enumerates are claimed by
+ * nobody -- including every *-vector token -- so their routing and their exclusions are validated by
+ * nothing. That is recorded here rather than in a commit message because it
  * is the next thing to close, not a property of the design.
  */
 

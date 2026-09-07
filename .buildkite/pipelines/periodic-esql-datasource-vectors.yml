@@ -24,10 +24,10 @@
 # declared shared(true) (see the Clusters class of each qa module), which the test framework rejects
 # alongside parallel forks. So parallelism cannot come from inside a JVM; it comes from slicing the
 # registered cases across steps with -Dtests.vector.shard=i/S, which round-robins case rows and
-# therefore balances every shard to within one case. Widths below are sized so a shard runs about 45
-# minutes, which puts the pipeline's wall clock near one shard rather than near the sum. The counts
+# therefore balances every shard to within one case. Widths below are sized so a shard runs about 55
+# minutes -- measured, not derived: csv shard 1/8 ran 28,920 cases in 55 minutes, which puts the pipeline's wall clock near one shard rather than near the sum. The counts
 # behind them were measured by running each suite against a deliberately impossible bound and reading
-# the refusal: 518,778 cases across the five suites. The per-case rates are measured for csv and tsv
+# the refusal: 518,687 cases across the five suites. The per-case rates are measured for csv and tsv
 # and carried over for the rest, so those three widths are the ones to revisit after a real run.
 #
 # The shard is a slice of the SAME crossing: vector names are unchanged by sharding, so a failure
@@ -57,7 +57,7 @@ steps:
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
 
-      # 112,850 cases. The per-case rate is the one carried over from an earlier run (~148ms) rather
+      # 112,759 cases. The per-case rate is the one carried over from an earlier run (~148ms) rather
       # than measured here, so this width is the least evidenced of the four.
       - label: "esql-datasource-parquet / vector crossing {{matrix.shard}}/6"
         command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/6 :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecTests

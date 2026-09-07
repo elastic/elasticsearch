@@ -63,9 +63,9 @@ tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
   //
   // The battery is far past it. Measured by running each suite against a deliberately impossible bound
   // and reading the count back: csv-vector 132,061, tsv-vector 99,294, ndjson-vector 124,722,
-  // parquet-vector 112,850, orc-vector 49,851 -- 518,778 cases. The csv module hosts two suites, so an
+  // parquet-vector 112,759, orc-vector 49,851 -- 518,687 cases. The csv module hosts two suites, so an
   // unsharded run there is 231,355 cases and, at the 111ms and 106ms per case measured on this tree,
-  // about six hours in one JVM.
+  // about seven hours in one JVM.
   //
   // A consequence worth stating: an unsharded local run of any module now REFUSES, naming the flag to
   // pass. That is intended, not a regression. The last unsharded attempt was abandoned at the 4-hour

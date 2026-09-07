@@ -1473,17 +1473,6 @@ public final class FixtureDimensions {
     }
 
     /**
-     * Feeds every vector to the consumer without materialising the set.
-     *
-     * <p>Vectors are a product, so the count grows multiplicatively with the declaration -- eleven
-     * thousand today, and a single added dimension multiplies rather than adds. Holding them all is a
-     * heap cost with no purpose for a caller that only iterates, so this is the primary form and
-     * {@link #vectors()} is the convenience that pays for a list.
-     *
-     * <p>Deduplication is unavoidable here -- every group shares the all-defaults baseline -- but it
-     * costs one set of maps rather than a set of maps plus a rendered key per vector.
-     */
-    /**
      * The generated vectors, built once.
      *
      * <p>Generation is the expensive half -- t-way completion walks every combination of dimensions -- and
@@ -1532,7 +1521,19 @@ public final class FixtureDimensions {
         }
     }
 
-    /** Every vector of the full universe. The nightly tier IS the universe, so this is unrestricted. */
+    /**
+     * Feeds every vector of the full universe to the consumer without materialising the set. The nightly
+     * tier IS the universe, so this form is unrestricted.
+     *
+     * <p>Vectors are a product, so the count grows multiplicatively with the declaration -- thirty-three
+     * thousand today, the figure {@code testTheVectorUniverseSizeIsPinned} pins, and a single added
+     * dimension multiplies rather than adds. Holding them all is a heap cost with no purpose for a caller
+     * that only iterates, so this is the primary form and {@link #vectors()} is the convenience that pays
+     * for a list.
+     *
+     * <p>Deduplication is unavoidable here -- every group shares the all-defaults baseline -- but it
+     * costs one set of maps rather than a set of maps plus a rendered key per vector.
+     */
     public void forEachVector(Consumer<Map<String, String>> consumer) {
         forEachVector(Tier.NIGHTLY, consumer);
     }

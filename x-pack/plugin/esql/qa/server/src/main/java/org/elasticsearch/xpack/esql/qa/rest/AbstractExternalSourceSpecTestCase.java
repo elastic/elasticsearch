@@ -394,6 +394,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     pinned++;
                     continue;
                 }
+                if (pragmaPins(baseTest, dimensions.pragmaSettings(vector, vector.get("format")))) {
+                    pinned++;
+                    continue;
+                }
                 if (bytesCannotCarry(dimensions, baseTest, vector)) {
                     unrepresentable++;
                     continue;
@@ -416,7 +420,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // deliberate omission from an unnoticed one was hidden exactly when it was the only omission.
         if (pinned > 0 || unrepresentable > 0) {
             logger.info(
-                "vector crossing: {} registered, {} filtered as directive-pinned, {} as bytes-cannot-carry",
+                "vector crossing: {} registered, {} filtered as pinned by the case, {} as bytes-cannot-carry",
                 out.size(),
                 pinned,
                 unrepresentable
@@ -491,7 +495,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * exactly while the reader compares case-insensitively, so a directive spelling it {@code False}
      * would have slipped through. Asking the component removes both classes of drift at once.
      */
-    private static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector, Map<String, String> injected) {
+    static boolean partitionDetectionCannotCarry(Object[] baseTest, Map<String, String> vector, Map<String, String> injected) {
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
         if ("none".equals(vector.get("partition_detection"))) {
             for (DatasetSource source : testCase.datasetSources) {
@@ -500,7 +504,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     return true;
                 }
             }
-            return false;
+            // Deliberately NO early return. The layout check above is an ADDITION for this value, not a
+            // substitute for asking the validator: a case declaring only a partition_path, crossed with a
+            // `none` vector, is rejected at registration by PartitionConfig.validate ("[partition_path] is
+            // set but partition detection is disabled") and the layout check cannot see that. Returning
+            // here made the filter ask the validator for three of the dimension's four values.
         }
         for (DatasetSource source : testCase.datasetSources) {
             Map<String, Object> merged = new LinkedHashMap<>();
@@ -649,13 +657,41 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * <p>The vector's own {@code format} slot supplies the per-format defaults, which is what decides
      * whether a slot sits off default and is therefore injected at all.
      */
-    private static Map<String, String> vectorInjectedSettings(FixtureDimensions dimensions, Map<String, String> vector) {
+    static Map<String, String> vectorInjectedSettings(FixtureDimensions dimensions, Map<String, String> vector) {
         Map<String, String> injected = new LinkedHashMap<>(dimensions.directiveSettings(vector));
         injected.putAll(dimensions.readSettings(vector, vector.get("format")));
         return injected;
     }
 
-    private static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
+    /**
+     * Whether the case declares a PRAGMA the vector also pins.
+     *
+     * <p>The directive pin check cannot see this: a pragma is not in the dataset JSON, it is a
+     * {@code pragma:} line on the case, so {@code DatasetRegistry.declaresSetting} looks straight past it.
+     * And the collision resolves the wrong way. {@code EsqlSpecTestCase.addPragmas} applies
+     * {@code addSuitePragmas} -- the vector's -- and THEN {@code testCase.pragmas.forEach(put)}, so the
+     * case's value overwrites the vector's. A case pinning {@code external_distribution=coordinator_only}
+     * crossed with a {@code distribution=round_robin} vector would run coordinator-only under a name
+     * claiming round-robin: green, announcing a configuration the engine never used.
+     *
+     * <p>That is the same silent pass the read-key gate closed on the directive seam, on the one seam left
+     * unguarded. No routed spec carries a {@code pragma:} line today, so it is latent rather than live --
+     * which is exactly how the directive-seam instance sat undetected until a vector happened to reach it.
+     */
+    static boolean pragmaPins(Object[] baseTest, Map<String, String> vectorPragmas) {
+        if (vectorPragmas.isEmpty()) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (String key : vectorPragmas.keySet()) {
+            if (testCase.pragmas.containsKey(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static boolean directivePins(Object[] baseTest, Map<String, String> vectorSettings) {
         if (vectorSettings.isEmpty()) {
             return false;
         }

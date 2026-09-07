@@ -68,7 +68,7 @@ public class BinaryDocValuesScanningQueryTests extends ESTestCase {
     }
 
     public void testWildcardQuery() throws IOException {
-        assertMatchCount(new ScanningBinaryDocValuesWildcardQuery(FIELD, "resea*", false, SEPARATE_COUNT), 1);
+        assertMatchCount(ScanningBinaryDocValuesAutomatonQuery.forWildcard(FIELD, "resea*", false, SEPARATE_COUNT), 1);
     }
 
     public void testRegexpQuery() throws IOException {

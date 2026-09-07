@@ -546,6 +546,65 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // IN subquery as input to == / != in WHERE.
+
+    public void testInSubqueryInEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true
+            """, STAGES);
+    }
+
+    public void testInSubqueryInNotEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) != false
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no NOT IN (FROM employees | KEEP emp_no)) == true
+            """, STAGES);
+    }
+
+    public void testInSubqueryOnRightHandSideOfEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE true == (emp_no IN (FROM employees | KEEP emp_no))
+            """, STAGES);
+    }
+
+    public void testInSubqueriesOnBothSidesOfEquals() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) == (languages IN (FROM employees | KEEP languages))
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsWithBareInSubqueryConjunct() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInsideOr() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true OR salary > 50000
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsNestedInCase() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE CASE((emp_no IN (FROM employees | KEEP emp_no)) == true, true, false)
+            """, STAGES);
+    }
+
     public void testInSubqueryDeeplyNestedInExpressionsWithKeyword() {
         runGoldenTest("""
             FROM employees
@@ -747,6 +806,46 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testMultiColumnInSubqueryInEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInNotEquals() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) != false
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInEqualsInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInEqualsInStatsWhere() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInEqualsInInlineStatsWhere() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) == true
+            """, STAGES);
+    }
+
     public void testCaseWithSingleColumnInSubqueryEqualsCoalesceWithMultiColumnInSubquery() {
         requireMultiColumnInSubquerySupport();
         runGoldenTest("""
@@ -844,6 +943,31 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | EVAL m = (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | KEEP emp_no)) == true
+            """, STAGES);
+    }
+
+    public void testInSubqueryInNotEqualsInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | KEEP emp_no)) != false
+            """, STAGES);
+    }
+
+    /**
+     * The {@code ==} operand's left-hand side is an alias produced by an earlier field of the same EVAL, so the
+     * resolver must split the EVAL to bring {@code a} into scope below the MarkJoin.
+     */
+    public void testInSubqueryInEqualsInEvalReferencingPrecedingField() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 1, m = (a IN (FROM employees | KEEP emp_no)) == true
             """, STAGES);
     }
 
@@ -1064,6 +1188,27 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true
+            """, STAGES);
+    }
+
+    public void testInSubqueryInNotEqualsInStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) != false
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInStatsWhereWithGrouping() {
+        runGoldenTest("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true BY languages
             """, STAGES);
     }
 
@@ -1299,6 +1444,27 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true
+            """, STAGES);
+    }
+
+    public void testInSubqueryInNotEqualsInInlineStatsWhere() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) != false
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEqualsInInlineStatsWhereWithGrouping() {
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS cnt = COUNT(*) WHERE (emp_no IN (FROM employees | KEEP emp_no)) == true BY languages
             """, STAGES);
     }
 

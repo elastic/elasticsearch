@@ -1,0 +1,5 @@
+pr: 158420
+summary: Tolerate existing archived settings in file-based settings updates
+area: Infra/Settings
+type: bug
+issues: []

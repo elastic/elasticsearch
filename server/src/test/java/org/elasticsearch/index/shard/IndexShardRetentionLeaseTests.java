@@ -11,6 +11,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -230,10 +231,11 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             assertThat(writtenRetentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
 
             // when we recover, we should recover the retention leases
-            final IndexShard recoveredShard = reinitShard(
-                indexShard,
-                ShardRoutingHelper.initWithSameId(indexShard.routingEntry(), RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+            ShardRouting reinitRouting = ShardRoutingHelper.initWithSameId(
+                indexShard.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE
             );
+            final IndexShard recoveredShard = reinitShard(indexShard, reinitRouting, null);
             try {
                 recoverShardFromStore(recoveredShard);
                 final RetentionLeases recoveredRetentionLeases = recoveredShard.getEngine().config().retentionLeasesSupplier().get();
@@ -244,13 +246,11 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             }
 
             // we should not recover retention leases when force-allocating a stale primary
-            final IndexShard forceRecoveredShard = reinitShard(
-                indexShard,
-                ShardRoutingHelper.initWithSameId(
-                    indexShard.routingEntry(),
-                    RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
-                )
+            reinitRouting = ShardRoutingHelper.initWithSameId(
+                indexShard.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
             );
+            final IndexShard forceRecoveredShard = reinitShard(indexShard, reinitRouting, null);
             try {
                 recoverShardFromStore(forceRecoveredShard);
                 final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();

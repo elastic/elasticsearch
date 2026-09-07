@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -31,7 +33,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -107,21 +109,30 @@ public class SystemViewsTests extends ESTestCase {
         verify(viewService, times(1)).putView(eq(ProjectId.DEFAULT), eq(EXPECTED_REQUEST), any());
     }
 
-    public void testThrowsWhenNewViewExists() {
+    public void testDoesNotOverwriteConflictingUserDefinedView() {
         // .ml-anomalies is a "new" system view: if a view with that name already exists with a different definition,
-        // the bootstrap must fail fast rather than overwrite it, and must not invoke putView.
+        // the bootstrap logs an error and leaves the user-defined view untouched rather than overwriting it.
         String name = EXPECTED_REQUEST.view().name();
-        views.put(name, new View(name, "FROM this |s a user-defined query"));
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> systemViews.clusterChanged(clusterChangedEvent(true, true))
-        );
-        assertThat(e.getMessage(), containsString("system view [" + name + "] already exists"));
-        flushThreadPoolExecutor(threadPool, ThreadPool.Names.GENERIC);
+        String userQuery = "FROM conflicting-index | WHERE user_defined == true";
+        views.put(name, new View(name, userQuery));
+        try (var mockLog = MockLog.capture(SystemViews.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "conflict error",
+                    SystemViews.class.getCanonicalName(),
+                    Level.ERROR,
+                    "user-defined ES|QL view [" + name + "] already exists*"
+                )
+            );
+            systemViews.clusterChanged(clusterChangedEvent(true, true));
+            flushThreadPoolExecutor(threadPool, ThreadPool.Names.GENERIC);
+            mockLog.assertAllExpectationsMatched();
+        }
         verify(viewService, never()).putView(any(), any(), any());
+        assertThat(views.get(name).query(), equalTo(userQuery));
     }
 
-    public void testUpdatesViewWhenDefinitionIsUpToDate() {
+    public void testDoesNotOverwriteWhenAlreadyUpToDate() {
         // The view already exists with the current definition, so the bootstrap must not overwrite it.
         views.put(EXPECTED_REQUEST.view().name(), EXPECTED_REQUEST.view());
         systemViews.clusterChanged(clusterChangedEvent(true, true));

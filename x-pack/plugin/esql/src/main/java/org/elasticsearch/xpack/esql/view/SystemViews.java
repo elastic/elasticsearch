@@ -67,14 +67,20 @@ public final class SystemViews implements ClusterStateListener {
         """);
 
     /**
-     * System views that are new in this version of Elasticsearch.
-     * If any of these already exist in the cluster, the node will fail to start,
-     * and the user must delete them and restart the node to recreate them.
+     * System views that are new in this version of Elasticsearch. If a user-defined view with the same name already
+     * exists (e.g. one created before the name became a system view), it is left untouched: an error is logged and the
+     * system view is not created. The user must delete the conflicting view, after which the system view is created
+     * automatically on the cluster state update (no restart required).
      */
     private static final Set<String> NEW_SYSTEM_VIEWS = Set.of(".ml-anomalies");
 
     static boolean isSystemView(String name) {
         return VIEWS.containsKey(name);
+    }
+
+    static boolean isSystemView(String name, String query) {
+        String managed = VIEWS.get(name);
+        return managed != null && managed.equals(query);
     }
 
     private final ThreadPool threadPool;
@@ -96,10 +102,6 @@ public final class SystemViews implements ClusterStateListener {
         if (event.localNodeMaster() == false) {
             return;
         }
-        // Fail fast (synchronously) if a "new" system view already exists with a different definition: it must not be
-        // silently overwritten. This runs on the cluster applier thread so the error surfaces immediately rather than as
-        // an uncaught exception from the async creation task.
-        failIfConflictingNewSystemViewExists();
         if (allViewsUpToDate()) {
             return;
         }
@@ -107,22 +109,6 @@ public final class SystemViews implements ClusterStateListener {
             return;
         }
         threadPool.generic().execute(this::createViews);
-    }
-
-    /**
-     * Throws if a {@link #NEW_SYSTEM_VIEWS new} system view already exists with a query that differs from the managed
-     * definition (e.g. a user-defined view with the same name). Such a view must be deleted and the node restarted for
-     * the system view to be (re)created; we never overwrite it automatically.
-     */
-    private void failIfConflictingNewSystemViewExists() {
-        for (String name : NEW_SYSTEM_VIEWS) {
-            String existing = existingQuery(name);
-            if (existing != null && VIEWS.get(name).equals(existing) == false) {
-                throw new IllegalStateException(
-                    "ES|QL system view [" + name + "] already exists. Please delete it and restart the node to recreate it."
-                );
-            }
-        }
     }
 
     private boolean allViewsUpToDate() {
@@ -144,7 +130,12 @@ public final class SystemViews implements ClusterStateListener {
             for (Map.Entry<String, String> entry : VIEWS.entrySet()) {
                 String name = entry.getKey();
                 String query = entry.getValue();
-                if (query.equals(existingQuery(name))) {
+                String existingQuery = existingQuery(name);
+                if (query.equals(existingQuery)) {
+                    continue;
+                }
+                if (existingQuery != null && NEW_SYSTEM_VIEWS.contains(name)) {
+                    logger.error("user-defined ES|QL view [{}] already exists. Please delete it to create the system view.", name);
                     continue;
                 }
                 Releasable ref = refs.acquire();
@@ -153,17 +144,19 @@ public final class SystemViews implements ClusterStateListener {
                     MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                     new View(name, query)
                 );
-                viewService.putView(
-                    Metadata.DEFAULT_PROJECT_ID,
-                    request,
-                    ActionListener.runAfter(
-                        ActionListener.wrap(
-                            acknowledged -> logger.info("created/updated ES|QL system view [{}]", name),
-                            e -> logger.warn(() -> "failed to create ES|QL system view [" + name + "]", e)
-                        ),
-                        ref::close
-                    )
-                );
+                viewService.putView(Metadata.DEFAULT_PROJECT_ID, request, ActionListener.runAfter(ActionListener.wrap(acknowledged -> {
+                    if (existingQuery == null) {
+                        logger.info("created ES|QL system view [{}]", name);
+                    } else {
+                        logger.info("updated ES|QL system view [{}]", name);
+                    }
+                }, e -> {
+                    if (existingQuery == null) {
+                        logger.error(() -> "failed to create ES|QL system view [" + name + "]", e);
+                    } else {
+                        logger.error(() -> "failed to update ES|QL system view [" + name + "]", e);
+                    }
+                }), ref::close));
             }
         }
     }

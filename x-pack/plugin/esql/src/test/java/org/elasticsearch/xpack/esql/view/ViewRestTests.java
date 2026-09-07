@@ -11,7 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -166,6 +169,33 @@ public class ViewRestTests extends AbstractViewTestCase {
             ).actionGet(TEST_REQUEST_TIMEOUT)
         );
         // The built-in view survives the wildcard delete.
+        awaitSystemView(systemView);
+    }
+
+    public void testConflictingUserViewWithSystemNameCanBeDeleted() throws Exception {
+        final String systemView = systemViewName();
+        awaitSystemView(systemView);
+        // Replace the managed system view with a same-named user-defined view that has a different query, bypassing the
+        // put guard the same way the bootstrap does. On the resulting cluster state change the bootstrap detects the
+        // conflict, logs an error and leaves the view untouched (it never overwrites a conflicting user view), so the
+        // user-defined query stays in place until we delete it below.
+        ViewService viewService = getInstanceFromNode(ViewService.class);
+        PlainActionFuture<AcknowledgedResponse> injected = new PlainActionFuture<>();
+        viewService.putView(
+            ProjectId.DEFAULT,
+            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(systemView, "FROM conflicting | WHERE x == 1")),
+            injected
+        );
+        injected.actionGet(TEST_REQUEST_TIMEOUT);
+        // Because its query differs from the built-in definition it is not the managed system view, so an explicit
+        // delete by name is allowed (this is how a naming conflict with a pre-existing user view is resolved).
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { systemView })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        // Once the conflicting view is gone the bootstrap recreates the built-in system view with its managed query.
         awaitSystemView(systemView);
     }
 

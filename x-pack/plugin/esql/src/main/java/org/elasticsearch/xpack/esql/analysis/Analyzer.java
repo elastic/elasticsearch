@@ -147,7 +147,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -201,6 +200,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -1125,12 +1125,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
                 }
-                List<Attribute> scope = TranslationContext.shadowedResolutionScope(childrenOutput, activeDestinations(node));
+                List<Attribute> scope = shadowedResolutionScope(childrenOutput, activeDestinations(node));
                 return node.transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, scope, log));
             });
 
             // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = TranslationContext.shadowedResolutionScope(childrenOutput, collapseByName(relabels));
+            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }
@@ -1166,6 +1166,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return destinations;
+        }
+
+        /**
+         * The attribute resolution scope for a PromQL command that derives labels: each derived destination shadows any
+         * stored label of the same name. Stored attributes whose canonical name collides with a destination are dropped and
+         * the destinations added, so an enclosing {@code by(dst)}/{@code KEEP dst} binds unambiguously to the derived label
+         * (a bare destination would otherwise collide with the stored label's bare passthrough alias).
+         */
+        private static List<Attribute> shadowedResolutionScope(List<Attribute> childrenOutput, List<Attribute> destinations) {
+            Set<String> shadowed = new HashSet<>();
+            for (Attribute destination : destinations) {
+                shadowed.add(PromqlLabels.labelName(destination));
+            }
+            List<Attribute> scope = new ArrayList<>(childrenOutput.size() + destinations.size());
+            for (Attribute attribute : childrenOutput) {
+                if (shadowed.contains(PromqlLabels.labelName(attribute)) == false) {
+                    scope.add(attribute);
+                }
+            }
+            scope.addAll(destinations);
+            return scope;
         }
     }
 

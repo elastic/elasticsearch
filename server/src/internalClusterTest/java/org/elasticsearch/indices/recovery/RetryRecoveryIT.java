@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -331,6 +332,41 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             gate.await();
 
             cancelRecovery(indexName, node);
+            gate.release();
+
+            // Expect the failed recovery to remove the shard locally and not recreate it
+            assertBusy(
+                () -> assertNull(
+                    internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName)).getShardOrNull(0)
+                )
+            );
+            assertThat(RetryRecoveryTestPlugin.recoveryCounter.get(), equalTo(1));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    public void testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore() throws Exception {
+        String node = internalCluster().startNode();
+        String indexName = randomIndexName();
+
+        MockTransportService transportService = MockTransportService.getInstance(node);
+        try {
+            failTestIfReceiveShardFailure(transportService);
+
+            Gate gate = RetryRecoveryTestPlugin.beforeIndexShardRecoveryGate;
+            gate.block();
+
+            prepareCreate(indexName, indexSettings(1, 0)).execute();
+            gate.await();
+
+            internalCluster().getInstance(IndicesService.class, node)
+                .indexServiceSafe(resolveIndex(indexName))
+                .removeShard(0, "test", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
             gate.release();
 
             // Expect the failed recovery to remove the shard locally and not recreate it

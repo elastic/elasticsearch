@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
@@ -94,6 +95,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     }
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
+                    case Highlight h -> pruneUnusedHighlight(h, used, recheck);
                     default -> p;
                 };
             } while (recheck.get());
@@ -432,6 +434,37 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             prunedGeneratedFields.add(denseVector.generatedAttributes().get(i));
         }
         return denseVector.withPrunedFields(prunedFields, prunedGeneratedFields);
+    }
+
+    /**
+     * Prunes a {@link Highlight} to the ON fields whose generated {@code <prefix><field>} column is used downstream.
+     * This is the first change that lets a HIGHLIGHT carry every text/keyword column ({@code ON *}, or the literal /
+     * KQL / QSTR fallback), so without it a {@code KEEP highlight_x} would still extract and highlight every string
+     * column at runtime. The field list and generated attributes are aligned 1:1, so both are filtered by the same
+     * surviving positions. If none of the generated columns is used, the whole node is removed: HIGHLIGHT never filters
+     * rows, so its child is a drop-in replacement.
+     */
+    private static LogicalPlan pruneUnusedHighlight(Highlight highlight, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        List<Integer> retained = retainedGeneratedIndices(highlight.generatedAttributes(), used);
+
+        if (retained.size() == highlight.generatedAttributes().size()) {
+            // every generated column is used; nothing to prune
+            return highlight;
+        }
+
+        if (retained.isEmpty()) {
+            // no generated column is used; drop the node entirely
+            recheck.set(true);
+            return highlight.child();
+        }
+
+        List<NamedExpression> prunedFields = new ArrayList<>(retained.size());
+        List<Attribute> prunedGeneratedFields = new ArrayList<>(retained.size());
+        for (int i : retained) {
+            prunedFields.add(highlight.fields().get(i));
+            prunedGeneratedFields.add(highlight.generatedAttributes().get(i));
+        }
+        return highlight.withPrunedFields(prunedFields, prunedGeneratedFields);
     }
 
     private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {

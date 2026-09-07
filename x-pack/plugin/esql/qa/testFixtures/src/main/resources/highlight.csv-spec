@@ -1264,7 +1264,6 @@ highlight_title:keyword     | highlight_body:keyword
 Return of the <em>King</em> | null
 ;
 
-
 # Without default_field, QSTR expands an unqualified term over every ON field, highlighting each independently.
 highlightQueryStringMultiFieldExpansion
 required_capability: highlight_v6
@@ -2023,6 +2022,58 @@ required_capability: highlight_implicit_query_and_fields
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT MATCH(title, "king") ON *
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | null
+;
+
+
+# QSTR default_field must not drop field: qualifiers from the derived ON list. An explicit qualifier
+# overrides default_field, so description is highlighted and title is not. Currently derivation
+# narrows to default_field [title] and translation then rejects [description].
+highlightQueryStringQualifierOverridesDefaultFieldNoOn
+required_capability: highlight_implicit_query_and_fields
+required_capability: qstr_function
+
+ROW title = "Return of the King", description = "Tolkien wrote the epic saga."
+| HIGHLIGHT QSTR("description:Tolkien", {"default_field": "title"})
+| KEEP highlight_title, highlight_description
+;
+
+highlight_title:keyword | highlight_description:keyword
+null                    | <em>Tolkien</em> wrote the epic saga.
+;
+
+
+# NOT KQL is recognised the same way KQL is: fall back to every string column rather than demanding
+# an explicit ON clause. Negative queries never produce spans, so the generated columns are null.
+highlightNotKqlFallsBackToAllStringFields
+required_capability: highlight_implicit_query_and_fields
+required_capability: kql_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT NOT KQL("foo")
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword | highlight_body:keyword
+null                    | null
+;
+
+
+# Negative QSTR still has to translate against the derived fields. Derivation excludes the negative
+# clause's names, so MATCH(title) AND NOT QSTR("body:bar") currently fails verification even though
+# the user never wrote an ON list. Fall back (or include body in the translation context) so
+# highlight_title is populated and highlight_body is absent-as-null.
+highlightMatchAndNotQstrDerivesWithoutTranslationError
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+required_capability: qstr_function
+
+ROW title = "Return of the King", body = "An ordinary description."
+| HIGHLIGHT MATCH(title, "king") AND NOT QSTR("body:bar")
 | KEEP highlight_title, highlight_body
 ;
 

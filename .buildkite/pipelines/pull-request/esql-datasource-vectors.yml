@@ -2,7 +2,7 @@
 #
 # What it runs: the CI tier of the declared crossing -- the value combinations this project's filed
 # correctness defects actually cluster in, at pairwise strength, against the routed spec corpus.
-# 346 vectors, versus 8,622 in the nightly. The selection lives in fixture-dimensions.properties
+# 393 vectors, versus 9,378 in the nightly. The selection lives in fixture-dimensions.properties
 # under `dimension.<n>.tier.<value>`, each line citing the defect that earned it, so what runs here
 # is an argument anyone can check rather than a list someone curated.
 #

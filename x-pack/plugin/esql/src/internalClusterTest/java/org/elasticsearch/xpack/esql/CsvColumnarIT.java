@@ -132,10 +132,6 @@ public class CsvColumnarIT extends CsvIT {
         // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
         // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
         "employees_incompatible",
-        // Contains an unsigned_long field that is not indexed in columnar mode; MV_INTERSECTS and
-        // MV_CONTAINS tests that use this field in a filter context fail with "Cannot search on
-        // field [unsigned_long] since it is not indexed".
-        "all_types_mv",
         // Contains semantic_text and dense_vector fields that are absent from columnar field_caps,
         // and has a short-typed field "short" that columnar normalises to long — both cause
         // expected column-type header mismatches vs csv-spec declared types.
@@ -158,10 +154,6 @@ public class CsvColumnarIT extends CsvIT {
         // cartesian_shape field with doc_values:false cannot be reconstructed from doc values
         // in columnar mode: "field [shape] cannot reconstruct _source from doc values".
         "cartesian_multipolygons_no_doc_values",
-        // Known columnar bug: STATS output aliases whose names conflict with existing index fields
-        // read from the wrong source, producing incorrect aggregate values.
-        // TODO: file an issue and reference it here.
-        "ul_logs",
         // index.mapping.index_disabled_by_default=true disables the inverted index for fields
         // without an explicit "index: true", so full-text (:) queries return different results
         // between standard and columnar modes.
@@ -180,6 +172,16 @@ public class CsvColumnarIT extends CsvIT {
         // absent from the mapping therefore produce 0-column / 0-row results in columnar mode.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
+        // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
+        // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
+        // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data",
+        "synthetic_source_partial_mapping",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the
         // unmapped fields, columnar mode returns null for them (synthetic _source cannot

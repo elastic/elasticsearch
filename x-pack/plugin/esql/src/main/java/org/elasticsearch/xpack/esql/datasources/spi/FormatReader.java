@@ -85,7 +85,7 @@ public interface FormatReader extends Closeable {
      * detected at glob-expansion time is not yet known when the resolver decides whether to
      * take the read-all-and-reconcile path versus the FFW fast path, so there is no format
      * dispatch here today; if per-format defaults become desirable in the future the resolver
-     * will need to peek at the lex-smallest file's format first, and this constant becomes the
+     * will need to peek at the first listed file's format first, and this constant becomes the
      * fallback only.
      */
     SchemaResolution DEFAULT_SCHEMA_RESOLUTION = SchemaResolution.UNION_BY_NAME;

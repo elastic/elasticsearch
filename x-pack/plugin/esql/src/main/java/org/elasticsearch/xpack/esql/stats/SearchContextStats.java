@@ -148,11 +148,12 @@ public class SearchContextStats implements SearchStats {
 
     /**
      * A field ES|QL can extract from this shard: present in the mapping and not under a nested
-     * parent. Nested subfields are filtered from field caps ({@code -nested}) so treating them
-     * as present here would make {@code exists}/{@code count} disagree with extraction.
+     * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
+     * on the field-caps request, so treating nested subfields as present here would make
+     * {@code exists}/{@code count} disagree with extraction.
      */
     private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
-        return context.isMappedField(field) && context.nestedLookup().getNestedParent(field) == null;
+        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
@@ -230,8 +231,9 @@ public class SearchContextStats implements SearchStats {
         long count = 0;
         for (SearchExecutionContext context : contexts) {
             // Skip shards where this field is a dynamic flattened sub-key (terms exist in Lucene
-            // but field caps does not report it — see #154508) or a nested subfield (field caps
-            // applies -nested; counting nested Lucene docs would disagree with extraction — #154011).
+            // but field caps does not report it — see #154508) or a nested subfield (IndexResolver
+            // applies -nested on the field-caps request; counting nested Lucene docs would disagree
+            // with extraction — #154011).
             if (isExtractableMappedField(context, field.string()) == false) {
                 continue;
             }

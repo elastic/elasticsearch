@@ -22,8 +22,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Cross-index nested-vs-object type skew (#154011): field caps filters {@code -nested},
- * so the coordinator plans the object type and the nested shard must contribute nulls.
+ * Cross-index nested-vs-object type skew (#154011): {@code IndexResolver} applies
+ * {@code -nested} on the field-caps request, so the coordinator plans the object type
+ * and the nested shard must contribute nulls.
  * If ES|QL later supports nested fields, these expectations will need updating.
  * <p>
  *     Each scenario has a {@code SameNode} sibling that pins both indices to the
@@ -102,6 +103,53 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
             equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null)))
         );
         assertThat(esql("SET unmapped_fields=\"load\"; FROM " + nested + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(0L))));
+    }
+
+    /**
+     * {@code LOAD_ALL} with an explicit {@code KEEP} must still nullify the nested shard.
+     * STATS is not allowed in this mode.
+     */
+    public void testUnmappedFieldsLoadAllExplicit() {
+        testUnmappedFieldsLoadAll("id, item.value");
+    }
+
+    /**
+     * {@code LOAD_ALL} with {@code KEEP *} must still nullify nested {@code item.value}.
+     */
+    public void testUnmappedFieldsLoadAllWildcard() {
+        testUnmappedFieldsLoadAll("*");
+    }
+
+    private void testUnmappedFieldsLoadAll(String keep) {
+        assumeTrue("Requires unmapped_fields=\"load_all\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        String nested = "nest_load_" + getTestName().toLowerCase(Locale.ROOT);
+        String object = "obj_load_" + getTestName().toLowerCase(Locale.ROOT);
+        createIndex(nested, """
+            { "properties": { "id": { "type": "keyword" }, "item": {
+              "type": "nested", "properties": { "value": { "type": "integer" } } } } }""");
+        createIndex(object, """
+            { "properties": { "id": { "type": "keyword" }, "item": {
+              "properties": { "value": { "type": "long" } } } } }""");
+        indexJson(nested, "0", """
+            {"id": "n00", "item": [{"value": 100}]}""");
+        indexJson(nested, "1", """
+            {"id": "n01", "item": [{"value": 101}]}""");
+        indexJson(object, "0", """
+            {"id": "o00", "item": {"value": 1}}""");
+        indexJson(object, "1", """
+            {"id": "o01", "item": {"value": 2}}""");
+        refresh(nested, object);
+        assertThat(
+            esql("SET unmapped_fields=\"load_all\"; FROM " + nested + ", " + object + " | KEEP " + keep + " | SORT id"),
+            equalTo(
+                List.of(
+                    Arrays.asList("n00", null),
+                    Arrays.asList("n01", null),
+                    Arrays.asList("o00", 1L),
+                    Arrays.asList("o01", 2L)
+                )
+            )
+        );
     }
 
     private void testIntegerVsLong(boolean sameNode) {
@@ -235,6 +283,18 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
             {"id": "n01", "item": [{"value": 101}]}""");
         refresh(nested);
         return nested;
+    }
+
+    private void createIndex(String index, String mapping) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping(mapping)
+        );
     }
 
     private void createPinnedIndex(String index, String mapping, String node) {

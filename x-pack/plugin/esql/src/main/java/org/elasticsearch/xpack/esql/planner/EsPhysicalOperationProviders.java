@@ -592,8 +592,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
      * extractable. Flattened fields store terms for their sub-keys in Lucene even though those
-     * sub-keys are absent from the real mapping; nested subfields are in the mapping but field caps
-     * applies {@code -nested}, and {@code include_in_root} copies their values onto the parent
+     * sub-keys are absent from the real mapping; nested subfields are in the mapping but
+     * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+     * field-caps request, and {@code include_in_root} copies their values onto the parent
      * document. A plain EXISTS query would therefore inflate field-level COUNT results. Wildcard
      * ({@code "*"}) means COUNT(*) — count every document — so no per-field guard is applied in
      * that case.
@@ -939,8 +940,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Exclude fields that field caps hides from the coordinator so the shard does not load a
             // differently-typed block (see #154508 flattened sub-keys, #154011 nested subfields).
             // Only a dotted name can be either: a flattened sub-key (fieldType() is non-null but the
-            // key is not in the mapping) or a nested subfield (isMappedField is true, but -nested
-            // filtered it from field caps). Gating the extra probes on the dot keeps flat names
+            // key is not in the mapping) or a nested subfield (isMappedField is true, but
+            // IndexResolver applied -nested on the field-caps request). Gating the extra probes
+            // on the dot keeps flat names
             // (the common case) at a single resolution.
             if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys or nested subfields
                 && isExtractableMappedField(name) == false) {

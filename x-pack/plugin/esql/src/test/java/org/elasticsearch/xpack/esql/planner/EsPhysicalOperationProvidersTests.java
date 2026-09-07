@@ -212,8 +212,9 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
-     * Nested subfields are filtered out of field caps ({@code -nested}) so the coordinator
-     * never plans them. The shard must return constant nulls rather than the nested field's
+     * {@code IndexResolver} applies {@code -nested} on the field-caps request, so the
+     * coordinator never plans nested subfields. The shard must return constant nulls rather
+     * than the nested field's
      * real doc-values loader, or a cross-index type skew crashes
      * {@code ValuesSourceReaderOperator.sanityCheckBlock} (see #154011).
      * If ES|QL later supports nested fields, these expectations will need updating.
@@ -243,8 +244,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
-     * {@code include_in_root} copies nested values onto the root Lucene document, but field caps
-     * still applies {@code -nested}. Extraction must stay null to match planning.
+     * {@code include_in_root} copies nested values onto the root Lucene document, but
+     * {@code IndexResolver} still applies {@code -nested}. Extraction must stay null to match planning.
      */
     public void testNestedSubfieldWithIncludeInRootBlockLoaderReturnsNull() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(

@@ -36,6 +36,10 @@ public class DynamicIdentifierSupplier implements Supplier<String> {
     }
 
     private String generateAndGet() {
+        final var alreadyGenerated = generatedIdentifier.get();
+        if (alreadyGenerated != null) {
+            return alreadyGenerated;
+        }
         final var newRegion = ESTestCase.randomIdentifier(prefixSupplier.get());
         return Objects.requireNonNullElse(generatedIdentifier.compareAndExchange(null, newRegion), newRegion);
     }

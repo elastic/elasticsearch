@@ -10,14 +10,17 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 
 import java.util.Objects;
 
@@ -38,7 +41,16 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
         BinaryDocValuesFormat binaryFormat,
         String description
     ) {
-        super(fieldName, new ByteRunAutomaton(automaton), binaryFormat);
+        this(fieldName, new ByteRunAutomaton(automaton), binaryFormat, description);
+    }
+
+    ScanningBinaryDocValuesAutomatonQuery(
+        String fieldName,
+        ByteRunAutomaton automaton,
+        BinaryDocValuesFormat binaryFormat,
+        String description
+    ) {
+        super(fieldName, automaton, binaryFormat);
         this.description = Objects.requireNonNull(description);
     }
 
@@ -55,6 +67,51 @@ public final class ScanningBinaryDocValuesAutomatonQuery extends AbstractBinaryD
             buildAutomaton(fieldName, pattern, caseInsensitive),
             binaryFormat,
             "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive
+        );
+    }
+
+    /**
+     * Creates a case-insensitive term query, using the same Unicode case-folding automaton as
+     * {@link org.elasticsearch.common.lucene.search.CaseInsensitiveTermQuery}.
+     */
+    public static Query forCaseInsensitiveTerm(String fieldName, String value, BinaryDocValuesFormat binaryFormat) {
+        return new ScanningBinaryDocValuesAutomatonQuery(
+            fieldName,
+            Automata.makeCaseInsensitiveString(value),
+            binaryFormat,
+            "caseInsensitiveTerm=" + value
+        );
+    }
+
+    /**
+     * Creates a query matching a fuzzy term (within {@code maxEdits} edit distance). Extracts the compiled
+     * {@link ByteRunAutomaton} from {@link FuzzyQuery} directly, matching what
+     * {@link org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery} does internally, but without the script overhead.
+     */
+    public static Query forFuzzy(
+        String fieldName,
+        String term,
+        int maxEdits,
+        int prefixLength,
+        boolean transpositions,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        FuzzyQuery delegate = FuzzyQueries.create(
+            new Term(fieldName, term),
+            maxEdits,
+            prefixLength,
+            1,
+            transpositions,
+            null,
+            null,
+            fieldName
+        );
+        ByteRunAutomaton automaton = delegate.getAutomata().runAutomaton;
+        return new ScanningBinaryDocValuesAutomatonQuery(
+            fieldName,
+            automaton,
+            binaryFormat,
+            "fuzzy,term=" + term + ",maxEdits=" + maxEdits
         );
     }
 

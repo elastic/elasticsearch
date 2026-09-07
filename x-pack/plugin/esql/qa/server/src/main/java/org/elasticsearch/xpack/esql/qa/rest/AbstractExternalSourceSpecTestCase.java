@@ -472,8 +472,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * <p>The second asks the reader instead of restating it. It builds the config the dataset would
      * actually register with -- every partition key the reader recognises, taking the case's own value
      * where it declares one, because {@link #injectSetting} leaves a declared key untouched -- and hands
-     * it to {@link PartitionConfig#fromConfig}. If that throws, registration would 400 and the dataset
+     * it to {@link PartitionConfig#validate}. If that throws, registration would 400 and the dataset
      * would never exist, so the pairing cannot run.
+     *
+     * <p>{@code validate}, NOT {@code fromConfig}, and the difference is the whole check.
+     * {@code fromConfig} is the READ path and is deliberately tolerant -- it says so itself: an
+     * unparseable strategy is swallowed there because "reading must not fail on it; the registration path
+     * rejects it, and validate() reports it". So it never throws on a cross-key conflict, and a filter
+     * built on it reports "can carry" for every combination the product refuses. Measured: 13 parquet
+     * cases pinning {@code hive_partitioning: false} crossed with vectors pinning
+     * {@code partition_detection: hive}, each one registering and then failing its PUT with a 400 that
+     * names the conflict. Calling one of a component's two entry points is not asking the component.
      *
      * <p>Restating the rule here was wrong twice over, and both ways were live. It compared the vector's
      * SLOT rather than what gets injected, and every vector carries a partition_detection slot -- most at
@@ -503,7 +512,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 }
             }
             try {
-                PartitionConfig.fromConfig(merged);
+                PartitionConfig.validate(merged);
             } catch (IllegalArgumentException e) {
                 return true;
             }

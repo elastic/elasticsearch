@@ -1,20 +1,20 @@
-# MANUAL TRIGGER ONLY -- deliberately not scheduled. The `-manual` suffix follows
-# flakiness-detection-manual.yml; a `periodic-` name would claim a cron this does not have and
-# should not get without a decision. Nothing here schedules itself: Buildkite schedules live in the
-# UI, so this file is the definition and someone has to choose to run it.
+# NIGHTLY. Registered and scheduled in catalog-info.yaml
+# (buildkite-pipeline-elasticsearch-periodic-esql-datasource-vectors), daily from main, following
+# periodic-micro-benchmarks: `trigger_mode: none` with a `schedules:` block. Those two are not in
+# tension -- trigger_mode suppresses builds from repo webhooks, and the schedule is what makes it run.
+# Reading trigger_mode as "manual only" is what first registered this in the manual pattern.
 #
-# It IS now a registered pipeline. It was not: the file existed and no Buildkite pipeline pointed at
-# it, so every "nightly" step here had no executing surface at all and the whole crossing had only
-# ever run on a developer's laptop. The Backstage entry in catalog-info.yaml
-# (buildkite-pipeline-elasticsearch-esql-datasource-vectors-manual) is what makes it runnable, and it
-# carries trigger_mode: none, so registering it did not schedule it.
+# It had no executing surface at all before this. The yml existed and no Buildkite pipeline pointed at
+# it, so the whole crossing had only ever run on a developer's laptop -- which is how a real tsv
+# failure sat unread in local results for two days, and how three defects in the test scaffolding
+# survived: a filter asking a component's tolerant read path instead of its validator, an exclusion
+# over-excluding eighteen passing cells, and a case added to a spec without the exclusion its eleven
+# siblings carry. None of them were findable by reading.
 #
-# It is also NOT a licence to season cells out of the PR path. Seasoning removes a cell from CI on
-# the grounds that the nightly still covers it; until this actually runs on a cadence, that premise
-# is false and seasoning would remove coverage with nothing behind it. Note what the PR path now
-# carries is a SELECTION, not a seasoned remainder: pull-request/esql-datasource-vectors.yml runs the
-# `ci` tier, whose every value cites the defect that earned it, and it was added by argument from the
-# bug history rather than by subtracting whatever this pipeline happened to cover.
+# Seasoning cells out of the PR path becomes legitimate once this runs on a cadence, which it now
+# does -- but note that the PR path does not carry a seasoned remainder. It carries a SELECTION:
+# pull-request/esql-datasource-vectors.yml runs the `ci` tier, whose every value cites the defect that
+# earned it, argued from the bug history rather than subtracted from whatever this pipeline covers.
 #
 # The full vector crossing: every routed spec case against every vector the contract makes
 # expressible, per format, at three-way strength. This is where COMPLETENESS lives -- the PR path

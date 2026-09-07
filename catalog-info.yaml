@@ -488,11 +488,11 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-esql-datasource-vectors-manual
-  description: Run the full ES|QL external-dataset vector crossing, sharded across steps
+  name: buildkite-pipeline-elasticsearch-periodic-esql-datasource-vectors
+  description: Runs the full ES|QL external-dataset vector crossing nightly from the main branch
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch-esql-datasource-vectors-manual
+      url: https://buildkite.com/elastic/elasticsearch-periodic-esql-datasource-vectors
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -501,18 +501,26 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ":elasticsearch: ES|QL external-dataset vector crossing (manual)"
-      name: elasticsearch / esql datasource vectors / manual
+      description: ":elasticsearch: Runs the nightly ES|QL external-dataset vector crossing from the main branch"
+      name: elasticsearch / periodic / esql-datasource-vectors
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/esql-datasource-vectors-manual.yml
+      pipeline_file: .buildkite/pipelines/periodic-esql-datasource-vectors.yml
+      branch_configuration: main
       teams:
         elasticsearch-team: {}
         ml-core: {}
         everyone:
-          access_level: READ_ONLY
+          access_level: BUILD_AND_READ
       provider_settings:
+        build_branches: false
+        build_pull_requests: false
+        publish_commit_status: false
         trigger_mode: none
+      schedules:
+        Daily:
+          branch: main
+          cronline: "@daily"
 ---
 # yaml-language-server: $schema=https://gist.githubusercontent.com/elasticmachine/988b80dae436cafea07d9a4a460a011d/raw/e57ee3bed7a6f73077a3f55a38e76e40ec87a7cf/rre.schema.json
 apiVersion: backstage.io/v1alpha1

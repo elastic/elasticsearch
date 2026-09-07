@@ -32,6 +32,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Randomized property tests for external source distribution strategies.
@@ -291,6 +292,59 @@ public class ExternalDistributionPropertyTests extends ESTestCase {
             nodes.add(DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build());
         }
         return nodes;
+    }
+
+    /**
+     * The {@code external_distribution} pragma decides something even when there is one node, and this
+     * pins that so nobody removes it on the assumption that it cannot.
+     *
+     * <p>The assumption is tempting and was acted on: the fixture matrix crosses this pragma into vectors
+     * where it accounts for roughly 45% of every single-node suite -- on the order of 233,000 of the
+     * nightly's 518,778 cases -- and dropping it would have been the single largest reduction available.
+     * Measured, it is wrong. On one node with varying split sizes:
+     *
+     * <ul>
+     *   <li>{@code coordinator_only} keeps the work local at every split count; {@code adaptive}
+     *       distributes from two splits upward. They disagree everywhere above one split.</li>
+     *   <li>{@code round_robin} distributes even a single split, where {@code adaptive} stays local.</li>
+     * </ul>
+     *
+     * <p>So the modes reach different code with one node to distribute to, and the crossing keeps them.
+     *
+     * <p>Asserted on the PLAN, not on query results: equal results would only say the modes agree on this
+     * data, whereas an equal plan would say the mode made no decision. One observation deliberately NOT
+     * asserted -- {@code weighted_round_robin} matched {@code round_robin} in every cell measured, which
+     * makes sense with a single destination to weight. It is the one remaining reduction candidate, and
+     * pinning it here would turn a genuine improvement to weighting into a spurious failure.
+     */
+    public void testTheDistributionPragmaDecidesSomethingEvenOnOneNode() {
+        DiscoveryNodes oneNode = createNodes(1);
+
+        List<ExternalSplit> many = createSplits(between(2, 50));
+        assertThat(
+            "coordinator_only must keep work local on one node",
+            planOn(oneNode, many, "coordinator_only").distributed(),
+            equalTo(false)
+        );
+        assertThat(
+            "adaptive must distribute more than one split, so it differs from coordinator_only",
+            planOn(oneNode, many, "adaptive").distributed(),
+            equalTo(true)
+        );
+
+        List<ExternalSplit> single = createSplits(1);
+        assertThat("adaptive keeps a lone split local", planOn(oneNode, single, "adaptive").distributed(), equalTo(false));
+        assertThat(
+            "round_robin distributes a lone split, so it differs from adaptive",
+            planOn(oneNode, single, "round_robin").distributed(),
+            equalTo(true)
+        );
+    }
+
+    private static ExternalDistributionPlan planOn(DiscoveryNodes nodes, List<ExternalSplit> splits, String mode) {
+        return resolveStrategy(mode).planDistribution(
+            new ExternalDistributionContext(createAggPlan(splits), splits, nodes, QueryPragmas.EMPTY)
+        );
     }
 
     private static DiscoveryNodes mixedRoleNodes() {

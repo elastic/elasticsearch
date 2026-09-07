@@ -10,13 +10,14 @@
 # across all 57 step files -- so every PR step runs concurrently and the build's wall clock is the
 # MAX over steps, not the sum. The three latest passed builds put the critical path at 40-56 minutes
 # (part-5 55.7, bwc-snapshots Part 3 54.1, part-2 40.3). A step finishing well inside that adds
-# nothing to how long a PR takes. Three more steps against ~57 is about 5% more machine time.
+# nothing to how long a PR takes. Four more steps against ~57 is about 7% more machine time.
 #
-# Why three steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
+# Why four steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
 # shared @ClassRule per suite. maxParallelForks is pinned to 1 because every vector suite's cluster
 # is declared shared(true), which the test framework rejects alongside parallel forks -- so slicing
 # across steps is the only parallelism available, and it is what keeps the slowest step under the
-# window. Not a matrix: the third step runs two tasks, so the entries are not the same shape.
+# window. Not a matrix: the four differ in more than a task name, and the measured per-case cost
+# differs by 3.6x between the text formats and the rest, so they are not interchangeable entries.
 #
 # Why not on `check`. `check` is reached by checkPart1..6, which IS the critical path. Putting the
 # crossing there would add it to the longest step instead of running beside it.
@@ -59,12 +60,22 @@ steps:
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
 
-      # Two tasks, two JVMs, one agent. Neither format's selection fills a step on its own, and a
-      # fourth agent for ORC's 46 vectors buys less than the two sharing one costs.
-      - label: "ndjson + orc / vector selection"
-        command: |
-          .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecCiTests
-          .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-orc:qa:vectorSpecCiTests
+      # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
+      # neither would fill a step; measured, each suite is over half an hour on its own (ndjson 35.6
+      # min, orc 31.9), so one step running both serially would be ~68 minutes -- past this file's own
+      # 45-minute bound and past the whole build's critical path. Steps are concurrent, so splitting
+      # costs one more agent and nothing in wall clock.
+      - label: "ndjson / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecCiTests
+        timeout_in_minutes: 45
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+
+      - label: "orc / vector selection"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-orc:qa:vectorSpecCiTests
         timeout_in_minutes: 45
         agents:
           provider: gcp

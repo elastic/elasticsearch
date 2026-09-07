@@ -4994,6 +4994,8 @@ public class VerifierTests extends AnalyzerTestCase {
                 not(containsString("found no text or keyword fields to highlight"))
             )
         );
+        // Derived from an upstream WHERE the same query is accepted: id is left out of the derived ON list.
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\") AND MATCH(id, 1) | HIGHLIGHT");
     }
 
     public void testNotUnsupportedQueryReportsStructuralErrorNotEmptyOn() {

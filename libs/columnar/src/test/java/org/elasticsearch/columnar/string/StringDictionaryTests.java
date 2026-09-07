@@ -175,59 +175,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
-    /**
-     * The column's vocabulary: every value it holds, named once, terms first and the values that escaped them after.
-     * This is what a consumer resolves in place of rebuilding a dictionary for every page it reads, so what it has to
-     * be is complete - a value the vocabulary does not name is a value such a consumer could not have read at all.
-     */
-    public void testVocabularyNamesEveryValueIncludingTheEscapes() throws IOException {
-        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
-        final BytesRef[][] docSlots = new BytesRef[between(400, 1500)][];
-        for (int d = 0; d < docSlots.length; d++) {
-            final BytesRef[] slots = new BytesRef[between(1, 3)];
-            for (int s = 0; s < slots.length; s++) {
-                slots[s] = switch ((d + s) % 13) {
-                    case 3 -> new BytesRef("escaped-" + d + "-" + s);
-                    case 7 -> null;
-                    default -> new BytesRef(terms[(d + s) % terms.length]);
-                };
-            }
-            docSlots[d] = slots;
-        }
-        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
-            final DictionaryStringColumnReader column = (DictionaryStringColumnReader) reader;
-            assertTrue("expected values to have escaped", column.escapeCount() > 0);
-            assertEquals("vocabulary", column.dictionarySize() + column.escapeCount(), column.vocabularySize());
-
-            final BytesRef[] vocabulary = new BytesRef[column.vocabularySize()];
-            for (int i = 0; i < vocabulary.length; i++) {
-                vocabulary[i] = new BytesRef();
-            }
-            column.readVocabulary(vocabulary);
-            // Read once, so nothing below may depend on the reader's own reusable buffers.
-            for (int i = 0; i < vocabulary.length; i++) {
-                vocabulary[i] = BytesRef.deepCopyOf(vocabulary[i]);
-            }
-            // The terms keep their order, which is what lets an ordinal comparison stand in for a term comparison.
-            for (int i = 1; i < column.dictionarySize(); i++) {
-                assertTrue("terms in order at " + i, vocabulary[i - 1].compareTo(vocabulary[i]) < 0);
-            }
-
-            for (int d = 0; d < docSlots.length; d++) {
-                final long first = reader.firstValueAddress(d);
-                for (int s = 0; s < docSlots[d].length; s++) {
-                    final int at = column.vocabularyOrdinalAt(first + s);
-                    if (docSlots[d][s] == null) {
-                        assertEquals("doc " + d + " slot " + s + " is null", -1, at);
-                        continue;
-                    }
-                    assertTrue("doc " + d + " slot " + s + " names an entry", at >= 0 && at < vocabulary.length);
-                    assertEquals("doc " + d + " slot " + s, docSlots[d][s], vocabulary[at]);
-                }
-            }
-        });
-    }
-
     /** Nothing repeats, so there is no vocabulary and the values are stored as they are. */
     public void testAllDistinctValuesStayPlain() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 1500)];

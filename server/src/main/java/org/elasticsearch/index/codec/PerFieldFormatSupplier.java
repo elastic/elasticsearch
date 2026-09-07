@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -257,15 +258,16 @@ public class PerFieldFormatSupplier {
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        final boolean isDimension = mapper instanceof FieldMapper fm && fm.fieldType().isDimension();
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
             final PipelineDescriptor.DataType dataType = toPipelineDataType(numberFieldMapper.type());
             final MetricRole metricRole = toMetricRole(numberFieldMapper.fieldType().getMetricType());
-            return new FieldContext(blockSize, fieldName, dataType, metricRole);
+            return new FieldContext(blockSize, fieldName, dataType, metricRole, isDimension);
         }
         if (mapper instanceof DateFieldMapper) {
-            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
+            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null, isDimension);
         }
-        return new FieldContext(blockSize, fieldName, null, null);
+        return new FieldContext(blockSize, fieldName, null, null, isDimension);
     }
 
     private static PipelineDescriptor.DataType toPipelineDataType(final NumberFieldMapper.NumberType type) {

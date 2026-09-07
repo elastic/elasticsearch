@@ -49,7 +49,8 @@ public final class TSDBDocValuesFormatSelector {
                 useLargeNumericBlockSize,
                 useLargeBinaryBlockSize,
                 writePartitions,
-                fieldContextResolver
+                fieldContextResolver,
+                useES95RunTable(indexSettings)
             );
         }
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
@@ -64,5 +65,11 @@ public final class TSDBDocValuesFormatSelector {
         return indexSettings.getMode().isTsdb()
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG)
             && indexSettings.isTimeSeriesEs95CodecEnabled();
+    }
+
+    static boolean useES95RunTable(final IndexSettings indexSettings) {
+        return indexSettings.getMode().isTsdb()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT)
+            && indexSettings.isTimeSeriesRunTableOrdinalEnabled();
     }
 }

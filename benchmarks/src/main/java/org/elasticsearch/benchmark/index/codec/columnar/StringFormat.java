@@ -92,7 +92,7 @@ public enum StringFormat {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
             case ES819_SORTED -> new ES819TSDBDocValuesFormat();
             case ES819_BINARY -> new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1);
-            case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
+            case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null, false);
             default -> throw new AssertionError(this);
         };
         final Codec codec = new Elasticsearch93Lucene104Codec() {
@@ -231,7 +231,7 @@ public enum StringFormat {
             case LUCENE_SORTED -> new Lucene90DocValuesFormat();
             case ES819_SORTED -> new ES819TSDBDocValuesFormat();
             case ES819_BINARY -> new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1);
-            case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
+            case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null, false);
             case COLUMNAR_PLAIN, COLUMNAR_DICTIONARY, COLUMNAR -> new ColumNARDocValuesFormat(
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,

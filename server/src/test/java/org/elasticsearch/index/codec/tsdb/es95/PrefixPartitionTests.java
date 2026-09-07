@@ -20,7 +20,7 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
     @Override
     protected Codec getCodec(boolean writePrefixPartitions) {
         return TestUtil.alwaysDocValuesFormat(
-            new ES95TSDBDocValuesFormat(
+            new ES95RunTableTSDBDocValuesFormat(
                 random().nextInt(4, 16),
                 random().nextInt(1, 32),
                 random().nextBoolean(),

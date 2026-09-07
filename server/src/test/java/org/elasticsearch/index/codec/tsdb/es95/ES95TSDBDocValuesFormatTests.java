@@ -58,7 +58,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
-        final DocValuesFormat docValuesFormat = new ES95TSDBDocValuesFormat(
+        final DocValuesFormat docValuesFormat = new ES95RunTableTSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
@@ -302,7 +302,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
         for (int blockShift : new int[] { NUMERIC_BLOCK_SHIFT, NUMERIC_LARGE_BLOCK_SHIFT }) {
             try (Directory dir = newDirectory()) {
-                final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+                final DocValuesFormat format = new ES95RunTableTSDBDocValuesFormat(
                     DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
                     ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
                     true,
@@ -538,7 +538,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     public void testPipelinePathIsUsedForNumericFields() throws IOException {
-        final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+        final DocValuesFormat format = new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1228,7 +1228,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     private static DocValuesFormat buildOrdinalFormat(int blockShift) {
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1254,9 +1254,9 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             } else {
                 blockSize = defaultBlockSize;
             }
-            return new FieldContext(blockSize, fieldName, null, null);
+            return new FieldContext(blockSize, fieldName, null, null, false);
         };
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -1288,15 +1288,15 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private static final FieldContextResolver ROLE_RESOLVER = (fieldName, blockSize) -> {
         if (DOUBLE_GAUGE_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.GAUGE, false);
         }
         if (DOUBLE_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER);
+            return new FieldContext(blockSize, fieldName, DataType.DOUBLE, MetricRole.COUNTER, false);
         }
         if (LONG_COUNTER_FIELD.equals(fieldName)) {
-            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER);
+            return new FieldContext(blockSize, fieldName, DataType.LONG, MetricRole.COUNTER, false);
         }
-        return new FieldContext(blockSize, fieldName, null, null);
+        return new FieldContext(blockSize, fieldName, null, null, false);
     };
 
     private void assertDoubleRoundTrip(final String field, int blockShift, final double[] values) throws IOException {
@@ -1400,7 +1400,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         final DataType dataType,
         final MetricRole metricRole
     ) {
-        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole);
+        final FieldContext context = new FieldContext(1 << blockShift, fieldName, dataType, metricRole, false);
         assertEquals(expectedStages, StaticPipelineConfigResolver.INSTANCE.resolve(context).describeStages());
     }
 
@@ -1443,7 +1443,7 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
     }
 
     private static DocValuesFormat buildRolePipelineFormat(int blockShift) {
-        return new ES95TSDBDocValuesFormat(
+        return new ES95RunTableTSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,

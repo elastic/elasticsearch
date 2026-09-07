@@ -14,6 +14,10 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  * bridge the mapper layer (which knows the field's data type and time-series
  * metric role) and the codec layer (which decides the pipeline). The codec layer
  * receives this function and does not import mapper classes directly.
+ *
+ * <p>A {@code null} resolver passed to a codec signals that the feature gated by
+ * that resolver is disabled: the codec falls back to its baseline layout for every
+ * field without consulting the resolver at all.
  */
 @FunctionalInterface
 public interface FieldContextResolver {

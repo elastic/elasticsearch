@@ -185,6 +185,12 @@ public class Top extends AggregateFunction
         return parameters().size() > 2 ? parameters().get(2) : null;
     }
 
+    @Override
+    public List<? extends Expression> channelParameters() {
+        // only outputField is read as a per-row input channel; limit and order are folded into the aggregator supplier
+        return outputField() == null ? List.of() : List.of(outputField());
+    }
+
     private Integer limitValue() {
         return Foldables.limitValue(limitField(), sourceText());
     }

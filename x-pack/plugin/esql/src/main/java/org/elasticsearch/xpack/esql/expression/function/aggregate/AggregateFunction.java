@@ -126,6 +126,18 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return parameters;
     }
 
+    /**
+     * The subset of {@link #parameters()} that the aggregator consumes as per-row input channels
+     * (e.g. TOP's outputField) as opposed to configuration constants that are folded into the
+     * {@link org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier} (e.g. TOP's limit).
+     * Each of these must be materialized into its own input channel (even when it is a constant),
+     * so that the aggregator's fixed channel arity is satisfied.
+     * Defaults to none, which is correct for aggregates whose only per-row input is {@link #field()}.
+     */
+    public List<? extends Expression> channelParameters() {
+        return emptyList();
+    }
+
     public boolean hasFilter() {
         return filter != null
             && (filter.foldable() == false || (filter instanceof Literal literal && Boolean.TRUE.equals(literal.value()) == false));

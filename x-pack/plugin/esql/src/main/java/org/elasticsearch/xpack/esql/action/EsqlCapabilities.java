@@ -3849,6 +3849,16 @@ public class EsqlCapabilities {
          */
         FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS(INLINE_STATS.enabled),
 
+        /**
+         * Materialize more aggregate inputs into a synthetic pre-agg eval.
+         * This covers two cases that previously failed, namely expressions in an aggregate
+         * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and
+         * constant fields for aggregates that don't special-case them (e.g. {@code TOP(42, 2, "ASC")}).
+         * See <a href="https://github.com/elastic/elasticsearch/issues/158467">#158467</a>
+         * and <a href="https://github.com/elastic/elasticsearch/issues/158659">#158659</a>.
+         */
+        AGGS_MORE_INPUTS_VIA_EVAL,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

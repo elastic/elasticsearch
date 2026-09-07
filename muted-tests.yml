@@ -179,6 +179,9 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/158625
+- class: org.elasticsearch.action.admin.indices.forcemerge.ForceMergeBlocksIT
+  method: testForceMergeWithBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/158626
 
 # Examples:
 #

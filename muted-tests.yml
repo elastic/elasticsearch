@@ -176,6 +176,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumDenseVectorGroupingAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunner
   issue: https://github.com/elastic/elasticsearch/issues/158614
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/158625
 
 # Examples:
 #

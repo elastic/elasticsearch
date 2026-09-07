@@ -12,12 +12,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -73,6 +80,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -106,6 +114,7 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -278,12 +287,57 @@ public class ComputeService {
             recordExternalScanStats(execInfo, result);
             return coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration));
         } catch (TaskCancelledException e) {
-            // Cancellation is not a discovery failure — propagate it without the warn.
             throw e;
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
         }
+    }
+
+    /**
+     * Starts Phase-2 split discovery without joining. Completes {@code listener} with the rewritten plan.
+     * The inbound thread returns immediately; object-store IO runs on {@code esql_external_io}.
+     */
+    void startSplitDiscovery(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        ActionListener<PhysicalPlan> listener
+    ) {
+        ActionListener.run(listener, l -> {
+            if (operatorFactoryRegistry == null) {
+                l.onResponse(plan);
+                return;
+            }
+            Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+            SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+                plan,
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes(configuration),
+                isCancelled,
+                List.of(),
+                ioExecutor,
+                ActionListener.wrap(result -> {
+                    try {
+                        recordExternalScanStats(execInfo, result);
+                        l.onResponse(coalesceSplits(result.plan(), () -> externalCoalesceFloor(configuration)));
+                    } catch (TaskCancelledException e) {
+                        l.onFailure(e);
+                    } catch (Exception e) {
+                        LOGGER.warn("split discovery failed for external source", e);
+                        l.onFailure(e);
+                    }
+                }, e -> {
+                    if (e instanceof TaskCancelledException) {
+                        l.onFailure(e);
+                        return;
+                    }
+                    LOGGER.warn("split discovery failed for external source", e);
+                    l.onFailure(e);
+                })
+            );
+        });
     }
 
     /**
@@ -294,6 +348,9 @@ public class ComputeService {
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         if (execInfo != null && result.splitsScanned() > 0) {
             execInfo.queryProfile().addExternalScanStats(result.filesScanned(), result.splitsScanned(), result.bytesScanned());
+        }
+        if (execInfo != null && result.cpuNanos() > 0) {
+            execInfo.queryProfile().addSplitDiscoveryCpuNanos(result.cpuNanos());
         }
     }
 
@@ -326,27 +383,35 @@ public class ComputeService {
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
-        int eligibleNodes = Math.max(1, NodeEligibilityStrategy.DATA_NODES_ONLY.eligibleNodes(clusterService.state().nodes()).size());
-        return externalCoalesceFloor(effectiveConcurrency, eligibleNodes);
+        return externalCoalesceFloor(effectiveConcurrency, clusterService.state().nodes());
     }
 
     /**
      * The minimum number of coalesced groups to keep for an external scan, so read parallelism is not collapsed
      * to a single unit. It is the per-node driver cap ({@code task_concurrency}) times the number of eligible
-     * data nodes: after distribution each node receives about {@code task_concurrency} groups and runs that many
-     * scan drivers. {@link SplitCoalescer} clamps the result to the input split count. The value is held at or
-     * above one (a degenerate {@code task_concurrency} of zero or below still leaves the scan coalescible) and at
-     * or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
+     * remote workers: after distribution each worker receives about {@code task_concurrency} groups and runs that
+     * many scan drivers. Index nodes contribute no remote external-scan capacity, so they are omitted. On an
+     * index-only cluster the eligible-worker count is zero and is normalised to one, which holds the floor at
+     * {@code task_concurrency}: the scan is about to run on the coordinator alone, and that one node still fills
+     * {@code task_concurrency} scan drivers. Normalising the product instead would drop the floor to one and leave
+     * the coordinator with fewer groups than it has drivers. {@link SplitCoalescer} clamps the result to the input
+     * split count. The value is held at or above one (a degenerate {@code task_concurrency} of zero or below still
+     * leaves the scan coalescible) and at or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
      *
-     * <p>Deliberately counts the whole cluster even for a scan that ends up staying local: coalescing runs before
-     * the distribution decision, and the group count is itself an input to that decision
-     * ({@code AdaptiveStrategy} weighs splits against nodes). A local scan therefore gets more groups than its one
-     * node can occupy. That overshoot is harmless — the groups become slices in a shared queue and the driver count
-     * is still capped at {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a
-     * distributable scan unable to fill the cluster.
+     * <p>Deliberately counts the whole eligible cluster even for a scan that ends up staying local: coalescing
+     * runs before the distribution decision, and the group count is itself an input to that decision
+     * ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote workers exist, a local scan
+     * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
+     * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
+     * undershooting would leave a distributable scan unable to fill the cluster.
      */
+    static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
+        int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();
+        return externalCoalesceFloor(taskConcurrency, eligibleNodeCount);
+    }
+
     static int externalCoalesceFloor(int taskConcurrency, int eligibleNodeCount) {
-        long floor = (long) taskConcurrency * eligibleNodeCount;
+        long floor = (long) taskConcurrency * Math.max(1, eligibleNodeCount);
         return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
@@ -370,7 +435,13 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         BooleanSupplier isCancelled
     ) {
-        CollectedSplits collected = collectExternalSplits(plan, configuration, execInfo, isCancelled);
+        return applyExternalDistributionStrategy(collectExternalSplits(plan, configuration, execInfo, isCancelled), configuration);
+    }
+
+    /**
+     * CPU-only distribution after splits are already collected. Must not perform object-store IO.
+     */
+    ExternalDistributionResult applyExternalDistributionStrategy(CollectedSplits collected, Configuration configuration) {
         // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
         // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
         // for those relations instead of scanning the whole dataset only to have a downstream row filter drop it all.
@@ -399,6 +470,20 @@ public class ComputeService {
             return new ExternalDistributionResult(resolvedPlan, distributionPlan, List.of());
         }
 
+        return localExternalScanResult(resolvedPlan, externalSplits, clusterService.localNode().getId());
+    }
+
+    /**
+     * Coordinator-local placement after a strategy returned {@code LOCAL}. A gather-boundary plan
+     * with more than one split is self-assigned on the coordinator so the exchange stays in place;
+     * everything else is collapsed onto local drivers. The coordinator is not added to the worker
+     * list to reach this path -- {@code LOCAL} already means "run here".
+     */
+    static ExternalDistributionResult localExternalScanResult(
+        PhysicalPlan resolvedPlan,
+        List<ExternalSplit> externalSplits,
+        String localNodeId
+    ) {
         // Staying local but a gather is required: preserve the exchange and run the partial-aggregation stage on the local
         // (coordinator) node via the same path the distributed modes use, so the parallel per-group drivers are gathered into a
         // single final aggregation. Collapsing here instead would drop the gather boundary and emit one row per split group.
@@ -408,14 +493,54 @@ public class ComputeService {
         if (externalSplits.size() > 1
             && ExternalDistributionStrategy.needsGatherBoundary(resolvedPlan)
             && hasCollapsibleExternalExchange(resolvedPlan)) {
-            ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(
-                Map.of(clusterService.localNode().getId(), externalSplits),
-                true
-            );
+            ExternalDistributionPlan localNodePlan = new ExternalDistributionPlan(Map.of(localNodeId, externalSplits), true);
             return new ExternalDistributionResult(resolvedPlan, localNodePlan, List.of());
         }
 
         return new ExternalDistributionResult(collapseExternalSourceExchanges(resolvedPlan), null, externalSplits);
+    }
+
+    static boolean hasNonEmptyExternalSplits(ExternalDistributionResult result) {
+        return result.coordinatorSplits().isEmpty() == false || result.distributionPlan() != null;
+    }
+
+    /**
+     * Whether a non-empty external scan reads on the coordinator rather than on remote workers. Both
+     * coordinator-local shapes count: splits collapsed onto local drivers, and the gather-boundary
+     * self-assignment that keeps the exchange in place but still reads here.
+     */
+    static boolean runsExternalScanLocally(ExternalDistributionResult result, String localNodeId) {
+        if (result.coordinatorSplits().isEmpty() == false) {
+            return true;
+        }
+        ExternalDistributionPlan plan = result.distributionPlan();
+        return plan != null && plan.nodeAssignments().keySet().equals(Set.of(localNodeId));
+    }
+
+    /**
+     * Logs at most once per top-level request when an index node reads an external scan itself. An index node
+     * that coordinates and hands the scan to eligible workers is the normal split-role path and is not logged;
+     * this fires whenever the selected placement keeps the read on the coordinator, including an explicit or
+     * adaptive local placement and the fallback when no worker is eligible. Such execution is allowed -- this is
+     * visibility for a transition-state routing choice, not a placement violation.
+     */
+    static void warnIndexCoordinatorOnce(DiscoveryNode localNode, AtomicBoolean alreadyWarned) {
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) && alreadyWarned.compareAndSet(false, true)) {
+            LOGGER.warn(
+                "index node [{}] is running an external ES|QL scan locally; this is expected only as a transition state",
+                localNode.getId()
+            );
+        }
+    }
+
+    static Runnable newIndexCoordinatorWarningCallback(DiscoveryNode localNode) {
+        // Only an index node can ever warn, and the role set is fixed for the lifetime of the node. Skipping the
+        // per-request state for every other node keeps the callback off the allocation path of the common query.
+        if (localNode.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false) {
+            return () -> {};
+        }
+        AtomicBoolean alreadyWarned = new AtomicBoolean();
+        return () -> warnIndexCoordinatorOnce(localNode, alreadyWarned);
     }
 
     /** Bundles the (possibly rewritten) plan produced by split discovery with the splits collected from it. */
@@ -462,6 +587,45 @@ public class ComputeService {
             // else: splits stays empty — the optimizer will use sourceMetadata for pushdown
         }
         return new CollectedSplits(plan, splits);
+    }
+
+    /**
+     * Async counterpart of {@link #collectExternalSplits}. Fragment-path footer/probe IO must not run on
+     * {@code SEARCH}; this returns immediately and completes {@code listener} when collection is done.
+     */
+    private void collectExternalSplitsAsync(
+        PhysicalPlan plan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        ActionListener<CollectedSplits> listener
+    ) {
+        List<ExternalSplit> splits = new ArrayList<>();
+        plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        if (splits.isEmpty() == false) {
+            listener.onResponse(new CollectedSplits(plan, splits));
+            return;
+        }
+        if (canSkipSplitDiscovery(plan, formatReaderRegistry)) {
+            recordExternalWarmAggregates(execInfo, plan);
+            listener.onResponse(new CollectedSplits(plan, splits));
+            return;
+        }
+        discoverSplitsFromFragmentsAsync(
+            plan,
+            splits,
+            maxRecordBytes(configuration),
+            execInfo,
+            isCancelled,
+            ActionListener.wrap(rewritten -> {
+                if (SplitCoalescer.shouldCoalesce(splits.size())) {
+                    List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
+                    splits.clear();
+                    splits.addAll(coalesced);
+                }
+                listener.onResponse(new CollectedSplits(rewritten, splits));
+            }, listener::onFailure)
+        );
     }
 
     /**
@@ -636,6 +800,125 @@ public class ComputeService {
         });
     }
 
+    private record FragmentWork(FragmentExec fragment, SplitDiscoveryPhase.GuardedRelation guarded) {}
+
+    /**
+     * Async fragment-path discovery. Completes without joining; IO runs on {@code esql_external_io}.
+     */
+    private void discoverSplitsFromFragmentsAsync(
+        PhysicalPlan plan,
+        List<ExternalSplit> splits,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        ActionListener<PhysicalPlan> listener
+    ) {
+        if (operatorFactoryRegistry == null) {
+            listener.onResponse(plan);
+            return;
+        }
+        List<FragmentWork> workItems = new ArrayList<>();
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
+                workItems.add(new FragmentWork(fragment, guarded));
+            }
+        });
+        if (workItems.isEmpty()) {
+            listener.onResponse(plan);
+            return;
+        }
+        Map<FragmentExec, List<ExternalRelation>> pruned = new IdentityHashMap<>();
+        Executor ioExecutor = threadPool.executor(EsqlPlugin.externalBlobStorePool());
+        discoverFragmentWork(
+            workItems,
+            0,
+            splits,
+            pruned,
+            maxRecordBytes,
+            execInfo,
+            isCancelled,
+            ioExecutor,
+            ActionListener.wrap(ignored -> listener.onResponse(rewritePrunedFragments(plan, pruned)), listener::onFailure)
+        );
+    }
+
+    private void discoverFragmentWork(
+        List<FragmentWork> workItems,
+        int index,
+        List<ExternalSplit> splits,
+        Map<FragmentExec, List<ExternalRelation>> pruned,
+        int maxRecordBytes,
+        EsqlExecutionInfo execInfo,
+        BooleanSupplier isCancelled,
+        Executor ioExecutor,
+        ActionListener<Void> listener
+    ) {
+        if (index >= workItems.size()) {
+            listener.onResponse(null);
+            return;
+        }
+        FragmentWork work = workItems.get(index);
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            work.guarded().relation().toPhysicalExec(),
+            operatorFactoryRegistry.sourceFactories(),
+            maxRecordBytes,
+            isCancelled,
+            work.guarded().filters(),
+            ioExecutor,
+            ActionListener.wrap(result -> {
+                try {
+                    if (result.plan() instanceof ExternalSourceExec withSplits) {
+                        splits.addAll(withSplits.splits());
+                        if (withSplits.fileList() == FileList.EMPTY) {
+                            pruned.computeIfAbsent(work.fragment(), k -> new ArrayList<>()).add(work.guarded().relation());
+                        }
+                    }
+                    recordExternalScanStats(execInfo, result);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                Runnable next = () -> discoverFragmentWork(
+                    workItems,
+                    index + 1,
+                    splits,
+                    pruned,
+                    maxRecordBytes,
+                    execInfo,
+                    isCancelled,
+                    ioExecutor,
+                    listener
+                );
+                try {
+                    ioExecutor.execute(next);
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure)
+        );
+    }
+
+    private static PhysicalPlan rewritePrunedFragments(PhysicalPlan plan, Map<FragmentExec, List<ExternalRelation>> pruned) {
+        if (pruned.isEmpty()) {
+            return plan;
+        }
+        return plan.transformDown(FragmentExec.class, fragment -> {
+            List<ExternalRelation> exhaustivelyPruned = pruned.get(fragment);
+            if (exhaustivelyPruned == null || exhaustivelyPruned.isEmpty()) {
+                return fragment;
+            }
+            LogicalPlan rewrittenFragment = fragment.fragment().transformDown(ExternalRelation.class, relation -> {
+                for (ExternalRelation prunedRelation : exhaustivelyPruned) {
+                    if (relation == prunedRelation) {
+                        return relation.withFileList(FileList.EMPTY);
+                    }
+                }
+                return relation;
+            });
+            return fragment.withFragment(rewrittenFragment);
+        });
+    }
+
     private static int maxRecordBytes(Configuration configuration) {
         return Math.toIntExact(configuration.pragmas().maxRecordSize().getBytes());
     }
@@ -706,6 +989,8 @@ public class ComputeService {
             initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
         }
 
+        Runnable warnIndexCoordinatorOnce = newIndexCoordinatorWarningCallback(clusterService.localNode());
+
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
             executePlan(
@@ -720,7 +1005,8 @@ public class ComputeService {
                 listener,
                 null,
                 initialClusterStatuses,
-                planTimeProfile
+                planTimeProfile,
+                warnIndexCoordinatorOnce
             );
             return;
         }
@@ -788,7 +1074,8 @@ public class ComputeService {
                 execInfo,
                 queryPragmas,
                 mainExchangeSource,
-                initialClusterStatuses
+                initialClusterStatuses,
+                warnIndexCoordinatorOnce
             );
             subPlansExecutor.execute(branchParallelDegree);
         }
@@ -811,6 +1098,7 @@ public class ComputeService {
         final QueryPragmas queryPragmas;
         final ExchangeSourceHandler mainExchangeSource;
         final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
+        final Runnable warnIndexCoordinatorOnce;
         final AtomicInteger nextId = new AtomicInteger();
         final AtomicInteger completedSubPlanCount = new AtomicInteger();
         final Releasable emptySinkRef;
@@ -826,7 +1114,8 @@ public class ComputeService {
             EsqlExecutionInfo execInfo,
             QueryPragmas queryPragmas,
             ExchangeSourceHandler mainExchangeSource,
-            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
+            Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+            Runnable warnIndexCoordinatorOnce
         ) {
             this.subplans = subplans;
             // Pre-acquire all subplan listeners upfront so that the ComputeListener's ref count
@@ -845,6 +1134,7 @@ public class ComputeService {
             this.queryPragmas = queryPragmas;
             this.mainExchangeSource = mainExchangeSource;
             this.initialClusterStatuses = initialClusterStatuses;
+            this.warnIndexCoordinatorOnce = warnIndexCoordinatorOnce;
             this.emptySinkRef = Releasables.releaseOnce(mainExchangeSource.addEmptySink());
         }
 
@@ -895,7 +1185,8 @@ public class ComputeService {
                 }),
                 () -> exchangeSink.createExchangeSink(() -> {}),
                 initialClusterStatuses,
-                configuration.profile() ? new PlanTimeProfile() : null
+                configuration.profile() ? new PlanTimeProfile() : null,
+                warnIndexCoordinatorOnce
             );
         }
 
@@ -922,19 +1213,130 @@ public class ComputeService {
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce
     ) {
-        final PhysicalPlan splitPlan;
-        final ExternalDistributionResult distributionResult;
-        long splitDiscoveryStart = System.nanoTime();
+        final long splitDiscoveryStart = System.nanoTime();
+        // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
+        // threads. Those completions have no security user; SEARCH's executor would then
+        // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
+            ActionListener.wrap(
+                collected -> runOnSearch(
+                    () -> executePlanAfterDiscovery(
+                        sessionId,
+                        rootTask,
+                        flags,
+                        collected,
+                        configuration,
+                        foldContext,
+                        execInfo,
+                        profileQualifier,
+                        listener,
+                        exchangeSinkSupplier,
+                        initialClusterStatuses,
+                        planTimeProfile,
+                        warnIndexCoordinatorOnce,
+                        splitDiscoveryStart
+                    ),
+                    listener
+                ),
+                listener::onFailure
+            ),
+            threadPool.getThreadContext()
+        );
+        // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
+        if (operatorFactoryRegistry == null) {
+            afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
+            return;
+        }
+        if (canSkipSplitDiscovery(physicalPlan, formatReaderRegistry)) {
+            recordExternalWarmAggregates(execInfo, physicalPlan);
+            afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
+            return;
+        }
+        startSplitDiscovery(
+            physicalPlan,
+            configuration,
+            execInfo,
+            rootTask::isCancelled,
+            afterDiscovery.delegateFailureAndWrap(
+                (l, splitPlan) -> collectExternalSplitsAsync(splitPlan, configuration, execInfo, rootTask::isCancelled, l)
+            )
+        );
+    }
+
+    /**
+     * Snapshots {@code threadContext} now and restores it when {@code listener} is invoked.
+     * Phase-2 discovery completes on SDK/Netty threads that never had the inbound user;
+     * restoring here means {@link #runOnSearch} submits to SEARCH with that user installed
+     * so the SEARCH executor preserves it instead of an empty SDK context.
+     */
+    static <T> ActionListener<T> restoreContextOnCompletion(ActionListener<T> listener, ThreadContext threadContext) {
+        return ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+    }
+
+    /**
+     * Runs {@code cpuWork} on {@code SEARCH}. Already-SEARCH callers run inline (no hop). Object-store IO
+     * must already have finished: this hop is CPU only, not a wait for discovery.
+     * <p>
+     * The SEARCH executor snapshots {@link ThreadContext} at {@code execute} time. Callers hopping
+     * from a non-ES thread must restore the inbound context first ({@link #restoreContextOnCompletion});
+     * otherwise SEARCH preserves an empty context into {@code runCompute}.
+     */
+    static void runOnSearch(Executor searchExecutor, Runnable cpuWork, ActionListener<?> failureListener) {
+        Runnable guarded = () -> {
+            try {
+                cpuWork.run();
+            } catch (Exception e) {
+                failureListener.onFailure(e);
+            }
+        };
+        if (ThreadPool.Names.SEARCH.equals(EsExecutors.executorName(Thread.currentThread()))) {
+            guarded.run();
+            return;
+        }
         try {
-            // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
-            // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
-            // (or any discovery failure) is surfaced through the listener rather than thrown raw.
-            splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
-            distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
-            if (execInfo != null
-                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+            searchExecutor.execute(guarded);
+        } catch (EsRejectedExecutionException e) {
+            failureListener.onFailure(e);
+        }
+    }
+
+    private void runOnSearch(Runnable cpuWork, ActionListener<?> failureListener) {
+        runOnSearch(searchExecutor, cpuWork, failureListener);
+    }
+
+    private void executePlanAfterDiscovery(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        CollectedSplits collected,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
+        long splitDiscoveryStart
+    ) {
+        final ExternalDistributionResult distributionResult;
+        try {
+            // SEARCH-thread CPU after the IO hop (distribution / coalesce). Footer and probe CPU
+            // already landed via recordExternalScanStats from the fan-out executor. Do not start
+            // this timer before the hop: start and completion would be different threads.
+            long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
+            distributionResult = applyExternalDistributionStrategy(collected, configuration);
+            if (runsExternalScanLocally(distributionResult, clusterService.localNode().getId())) {
+                warnIndexCoordinatorOnce.run();
+            }
+            if (execInfo != null && hasNonEmptyExternalSplits(distributionResult)) {
+                if (splitDiscoveryCpuStart >= 0) {
+                    execInfo.queryProfile().addSplitDiscoveryCpuNanos(ThreadCpuTimer.elapsedNanos(splitDiscoveryCpuStart));
+                }
                 execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }
         } catch (Exception e) {

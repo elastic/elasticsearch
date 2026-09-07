@@ -11,12 +11,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -60,7 +60,7 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
  * compact at the per-level boundary, so wide branching levels of compactable views (e.g.
  * {@code FROM v1, v2, ... v9}) collapse to a single {@link UnresolvedRelation} rather than
- * tripping {@link Fork#MAX_BRANCHES} at post-analysis verification.
+ * tripping {@link UnionPlan#MAX_BRANCHES} at post-analysis verification.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
@@ -121,7 +121,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * Drop any still-unresolved {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s.
      * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so the
      * named-subqueries map stays in sync with the surviving children. Shares the same primitive
-     * as {@code Analyzer.PruneEmptyUnionAllBranch} and {@code PruneEmptyForkBranches} —
+     * as {@code Analyzer.PruneEmptyUnionAllBranch} and {@code PruneEmptyUnionBranches} —
      * different predicates, same shape — which keeps these rules order-independent: running
      * them in any order yields the same end state for the branches each predicate identifies.
      * <p>
@@ -220,21 +220,21 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // Trial pass: collect all entries from full flattening and check for conflicts.
         // Inner ViewUnionAlls that only contain UnresolvedRelations are lifted into the parent,
         // eliminating nesting that the runtime doesn't yet support.
-        // Inner Forks/UnionAlls (from user-written subqueries inside views) are also lifted,
+        // Inner UnionPlans (from user-written subqueries inside views) are also lifted,
         // with each child becoming a separate named entry suffixed from the parent view name.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
 
-        // Process non-fork entries first so that all outer keys are in `flat` before we attempt
-        // to flatten inner forks. This makes the conflict check order-independent —
-        // without it, an inner fork processed before a later outer entry with the same key would
-        // miss the conflict, producing extra branches that can exceed the Fork limit.
-        List<Map.Entry<String, LogicalPlan>> forkEntries = new ArrayList<>();
+        // Process non-union entries first so that all outer keys are in `flat` before we attempt
+        // to flatten inner unions. This makes the conflict check order-independent —
+        // without it, an inner union processed before a later outer entry with the same key would
+        // miss the conflict, producing extra branches that can exceed the UnionPlan branch limit.
+        List<Map.Entry<String, LogicalPlan>> unionEntries = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof Fork) {
-                forkEntries.add(entry);
+            if (inner instanceof UnionPlan) {
+                unionEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 flat.put(makeUniqueKey(flat, key), value);
             } else {
@@ -245,7 +245,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
 
-        for (Map.Entry<String, LogicalPlan> entry : forkEntries) {
+        for (Map.Entry<String, LogicalPlan> entry : unionEntries) {
             String parentKey = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
@@ -264,13 +264,13 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                     flat.put(makeUniqueKey(flat, innerKey), innerValue);
                 }
             } else {
-                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed
+                // Plain UnionPlan from user-written subqueries: lift children with suffixed
                 // parent name. As in the ViewUnionAll branch above, a bare UnresolvedRelation child
                 // with an exclusion must be wrapped in a NamedSubquery before lifting so the
                 // subsequent merge step does not widen its scope.
-                Fork fork = (Fork) inner;
+                UnionPlan unionPlan = (UnionPlan) inner;
                 int childIndex = 1;
-                for (LogicalPlan child : fork.children()) {
+                for (LogicalPlan child : unionPlan.children()) {
                     LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
                     String childKey = parentKey + "#" + childIndex++;
                     if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
@@ -294,7 +294,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // multi-level nesting variant of the alias scenario — not a production concern.
         mergeUnresolvedRelationEntries(flat);
 
-        if (flat.size() > Fork.MAX_BRANCHES) {
+        if (flat.size() > UnionPlan.MAX_BRANCHES) {
             return vua; // flattening would exceed the branch limit, keep the nested structure
         }
         if (flat.size() == 1) {

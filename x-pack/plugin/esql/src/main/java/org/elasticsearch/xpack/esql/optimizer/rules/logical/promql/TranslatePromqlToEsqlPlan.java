@@ -71,13 +71,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -251,12 +251,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
          */
         private LogicalPlan doTranslateUnion(List<IntermediateResult> intermediateResults) {
-            // Already validated against Fork.MAX_BRANCHES by PromqlCommand.verify
-            assert Fork.exceedsMaxBranches(intermediateResults.size()) == false
+            // Already validated against UnionPlan.MAX_BRANCHES by PromqlCommand.verify
+            assert UnionPlan.exceedsMaxBranches(intermediateResults.size()) == false
                 : "invariant: union branch count ["
                     + intermediateResults.size()
-                    + "] must be less of equal Fork.MAX_BRANCHES ["
-                    + Fork.MAX_BRANCHES
+                    + "] must be less of equal UnionPlan.MAX_BRANCHES ["
+                    + UnionPlan.MAX_BRANCHES
                     + "]";
 
             var source = cmd.source();

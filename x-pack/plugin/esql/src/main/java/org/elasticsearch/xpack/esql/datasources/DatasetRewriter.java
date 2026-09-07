@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -305,15 +305,15 @@ public final class DatasetRewriter {
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by Fork.checkBranchCount.
-        if (Fork.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded post-analysis by UnionPlan.checkBranchCount.
+        if (UnionPlan.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
                     + children.size()
                     + " branches, exceeding the current limit of "
-                    + Fork.MAX_BRANCHES
+                    + UnionPlan.MAX_BRANCHES
                     + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }

@@ -427,7 +427,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
-    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveFork.
+    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveUnionPlan.
     public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
         partialMappingTest().statementError(setUnmappedLoad("""
             FROM partial_mapping_sample_data

@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -67,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -334,7 +334,7 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof MvExpand == false)
-                    && (lp instanceof Fork == false)
+                    && (lp instanceof UnionPlan == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)
@@ -581,20 +581,20 @@ public abstract class FullTextFunction extends Function
                 }
             }
 
-            // Fork's own output exposes ReferenceAttributes, so to reach the underlying
+            // UnionPlan's own output exposes ReferenceAttributes, so to reach the underlying
             // FieldAttribute we look inside each branch's output and match by name.
-            if (p instanceof Fork fork) {
+            if (p instanceof UnionPlan unionPlan) {
                 String currentName = current.get().name();
-                // resolve when current field is part of the Fork output
-                boolean inForkOutput = fork.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
-                if (inForkOutput == false) {
+                // resolve when current field is part of the union output
+                boolean inUnionOutput = unionPlan.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inUnionOutput == false) {
                     breakEarly.set(true);
                     return;
                 }
 
                 // Every branch must contain this field, not just one
                 FieldAttribute candidate = null;
-                for (LogicalPlan branch : fork.children()) {
+                for (LogicalPlan branch : unionPlan.children()) {
                     FieldAttribute match = branch.output()
                         .stream()
                         .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)

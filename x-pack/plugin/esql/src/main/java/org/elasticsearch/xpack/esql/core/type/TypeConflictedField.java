@@ -84,7 +84,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     /**
      * The single mapped type widened to its ES|QL surface type (e.g. {@code SHORT -> INTEGER}), so the implicit load matches an
-     * explicit cast and agrees with the Fork/UnionAll output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
+     * explicit cast and agrees with the {@code UnionPlan} output. Only valid when {@link #isSingleTypePotentiallyUnmapped()}.
      */
     public DataType singleMappedTypeWidened() {
         return singleMappedType().widenSmallNumeric();

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
@@ -52,8 +52,8 @@ public class PlanConsistencyChecker {
                 binaryExec.right().outputSet(),
                 failures
             );
-        } else if (p instanceof Fork || p instanceof MergeExec) {
-            checkMissingFork(p, failures);
+        } else if (p instanceof UnionPlan || p instanceof MergeExec) {
+            checkMissingUnion(p, failures);
         } else {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
@@ -69,15 +69,15 @@ public class PlanConsistencyChecker {
         }
     }
 
-    private static void checkMissingFork(QueryPlan<?> plan, Failures failures) {
+    private static void checkMissingUnion(QueryPlan<?> plan, Failures failures) {
         for (QueryPlan<?> child : plan.children()) {
             // TODO: this checks the set-semantics, but not the ordering
-            checkMissingForkBranch(child, plan.outputSet(), failures);
+            checkMissingUnionBranch(child, plan.outputSet(), failures);
         }
     }
 
-    private static void checkMissingForkBranch(QueryPlan<?> plan, AttributeSet forkOutputSet, Failures failures) {
-        Map<String, DataType> attributeTypes = forkOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+    private static void checkMissingUnionBranch(QueryPlan<?> plan, AttributeSet unionOutputSet, Failures failures) {
+        Map<String, DataType> attributeTypes = unionOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
         Set<Attribute> missing = new HashSet<>();
 
         Set<String> commonAttrs = new HashSet<>();
@@ -91,8 +91,8 @@ public class PlanConsistencyChecker {
             commonAttrs.add(attribute.name());
         });
 
-        // get the missing attributes from the fork output
-        forkOutputSet.forEach(attribute -> {
+        // get the missing attributes from the union output
+        unionOutputSet.forEach(attribute -> {
             if (commonAttrs.contains(attribute.name()) == false) {
                 missing.add(attribute);
             }

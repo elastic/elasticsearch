@@ -270,7 +270,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
     }
 
     /**
-     * The UnionAll/Fork outputs have the same names as it children's outputs, however they have different ids.
+     * The UnionPlan outputs have the same names as their children's outputs, however they have different ids.
      * Convert the pushable predicates to use the child's attributes, so that they can be pushed down further.
      */
     private static Expression resolveUnionAllOutputByName(Expression expr, List<? extends NamedExpression> namedExpressions) {
@@ -404,7 +404,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
     private static LogicalPlan pushLimitPastSubquery(Limit limit) {
         LogicalPlan child = limit.child();
         if (child instanceof Subquery subquery) {
-            // push limit - added by AddImplicitForkLimit, below subquery
+            // push limit below subquery
             Limit newLimit = limit.replaceChild(subquery.child());
             return subquery.replaceChild(newLimit);
         }

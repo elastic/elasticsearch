@@ -196,7 +196,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * {@link PushDownLimitAndOrderByIntoFork} must push a SORT + LIMIT (TopN) into both branches
+     * {@link PushDownLimitAndOrderByIntoUnionPlan} must push a SORT + LIMIT (TopN) into both branches
      * of a direct-leaf UnionAll, enabling partial sorting at each data source.
      *
      * <pre>{@code
@@ -234,7 +234,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         OrderBy orderBy = new OrderBy(EMPTY, unionAll, List.of(order));
         Limit limit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), orderBy);
 
-        LogicalPlan result = new PushDownLimitAndOrderByIntoFork().apply(limit, unboundLogicalOptimizerContext());
+        LogicalPlan result = new PushDownLimitAndOrderByIntoUnionPlan().apply(limit, unboundLogicalOptimizerContext());
 
         // Outer structure: Limit → OrderBy → UnionAll remains intact
         Limit resultLimit = as(result, Limit.class);
@@ -1276,7 +1276,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
 
     /**
      * Full-pipeline: {@code FROM employees, ext_emps | SORT emp_no ASC | LIMIT 5} exercises
-     * TopN pushdown ({@link PushDownLimitAndOrderByIntoFork} /
+     * TopN pushdown ({@link PushDownLimitAndOrderByIntoUnionPlan} /
      * {@link PushDownAndCombineLimits}) into the leaf {@link UnionAll}. Verifies the plan is
      * valid and that a {@link TopN} appears inside each branch (pushdown happened —
      * {@code ReplaceLimitAndSortAsTopN} converts the pushed-in {@code Limit→OrderBy} pairs to
@@ -1359,7 +1359,7 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
             }
         }, FileList.UNRESOLVED, Map.of());
         // Use a minimal employees schema (only emp_no and salary) that matches ext_emps exactly.
-        // This prevents resolveFork from adding Eval nodes for missing columns, keeping each
+        // This prevents resolveUnionPlan from adding Eval nodes for missing columns, keeping each
         // UnionAll branch as Project > EsRelation / Project > ExternalRelation (no Eval wrapper).
         var employeesIndex = new EsIndex(
             "employees",

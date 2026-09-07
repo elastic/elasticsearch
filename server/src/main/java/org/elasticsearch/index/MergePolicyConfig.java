@@ -436,14 +436,7 @@ public final class MergePolicyConfig {
         }
 
         void configure(MergePolicy mergePolicy) {
-            if (noCFSRatio != null) {
-                assert noCFSSize == null;
-                mergePolicy.setNoCFSRatio(noCFSRatio);
-                mergePolicy.setMaxCFSSegmentSizeMB(Double.POSITIVE_INFINITY);
-            } else {
-                mergePolicy.setNoCFSRatio(1.0);
-                mergePolicy.setMaxCFSSegmentSizeMB(noCFSSize.getMbFrac());
-            }
+            // TODO: LUCENE11 CFS thresholds moved to CompoundFormat
         }
 
         @Override

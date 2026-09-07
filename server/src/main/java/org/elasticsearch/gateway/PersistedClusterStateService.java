@@ -805,8 +805,7 @@ public class PersistedClusterStateService {
         // more/smaller segments means there's a better chance they just get deleted before needing a merge
         mergePolicy.setSegmentsPerTier(100);
         // TODO: LUCENE11 TieredMergePolicy.setMaxMergeAtOnce was removed; we used to merge up to 100 at once
-        // always use compound segments to avoid fsync overhead
-        mergePolicy.setNoCFSRatio(1.0);
+        // TODO: LUCENE11 always-CFS moved to CompoundFormat; do not mutate Codec.getDefault()
         // segments are mostly tiny, so don't pretend they are bigger
         mergePolicy.setFloorSegmentMB(0.001);
 

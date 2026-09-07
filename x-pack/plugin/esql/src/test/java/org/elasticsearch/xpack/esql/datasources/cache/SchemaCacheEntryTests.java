@@ -57,6 +57,11 @@ public class SchemaCacheEntryTests extends ESTestCase {
             }
 
             @Override
+            public OptionalLong readableUnitCount() {
+                return OptionalLong.of(1L);
+            }
+
+            @Override
             public Optional<Map<String, ColumnStatistics>> columnStatistics() {
                 return Optional.empty();
             }
@@ -68,6 +73,7 @@ public class SchemaCacheEntryTests extends ESTestCase {
         // Stats live as flat keys inside safeMetadata — same shape every existing reader expects.
         assertEquals(42_000L, entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertEquals(99_000L, entry.safeMetadata().get(SourceStatisticsSerializer.STATS_SIZE_BYTES));
+        assertEquals(1L, entry.safeMetadata().get(SourceStatisticsSerializer.STATS_READABLE_UNIT_COUNT));
         // Original metadata entries survive alongside.
         assertEquals(true, entry.safeMetadata().get("orig"));
     }

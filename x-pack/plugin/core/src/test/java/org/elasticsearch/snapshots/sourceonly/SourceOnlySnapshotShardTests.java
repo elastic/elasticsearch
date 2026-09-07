@@ -30,8 +30,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -120,7 +118,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .primaryTerm(0, primaryTerm)
             .putMapping("{\"_source\":{\"enabled\": false}}")
             .build();
-        IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+        IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
         for (int i = 0; i < 1; i++) {
@@ -179,7 +177,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
             .build();
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
-        IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+        IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
@@ -237,7 +235,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 .settings(settings)
                 .primaryTerm(0, primaryTerm)
                 .build();
-            IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+            IndexShard shard = newShard(shardRouting, null, metadata, null, new InternalEngineFactory());
             recoverShardFromStore(shard);
             SnapshotId snapshotId = new SnapshotId("test", "test");
             IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
@@ -508,14 +506,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         );
         IndexShard restoredShard = newShard(
             shardRouting,
+            null,
             metadata,
             null,
             SourceOnlySnapshotRepository.getEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY
         );
-        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("node_g");
-        restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
+        restoredShard.markAsRecovering("test from snap");
         runAsSnapshot(shard.getThreadPool(), () -> {
             final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             restoredShard.restoreFromRepository(repository, future);
@@ -596,7 +594,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, primaryTerm);
         metadata.putMapping(mapping);
-        IndexShard targetShard = newShard(targetShardRouting, metadata.build(), null, new InternalEngineFactory());
+        IndexShard targetShard = newShard(targetShardRouting, null, metadata.build(), null, new InternalEngineFactory());
         boolean success = false;
         try {
             recoverShardFromStore(targetShard);

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
@@ -398,6 +399,134 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc("d1", 1L, "{\"f\":[\"a\"]}"),
                 doc("d2", 2L, "{\"f\":[]}"),
                 doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    // =========================================================================
+    // ColumNAR codec: the doc-values blob is a payload rather than the bare value
+    //
+    // Under the codec a field's doc values are a ColumnarBinaryDocValuesField payload, carrying their
+    // slot count in the blob, whatever the field's cardinality. That is the one output the batch path
+    // cannot take straight from the source column, so these pin it against the row path — the check
+    // that catches a bare value written where a payload is read.
+    // =========================================================================
+
+    private static Settings columnarCodecSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+    }
+
+    private void assumeColumnarCodecEnabled() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    }
+
+    public void testColumnarCodecSingleValueMultiValueFalse() throws IOException {
+        assumeColumnarCodecEnabled();
+        // A lone value still travels with its count, so the blob is never the bare term.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec single value multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"hello\"}"),
+                doc("d2", 2L, "{}"),
+                doc("d3", 3L, "{\"f\":\"\"}"),
+                doc("d4", 4L, "{\"f\":null}")
+            )
+        );
+    }
+
+    public void testColumnarCodecNoIndexDocValuesOnlyMultiValueFalse() throws IOException {
+        assumeColumnarCodecEnabled();
+        // index:false — the payload column is the only output, so it cannot ride along with a terms column.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch("columnar codec no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}"))
+        );
+    }
+
+    public void testColumnarCodecIgnoreAboveMultiValueFalse() throws IOException {
+        assumeColumnarCodecEnabled();
+        // A value that trips ignore_above writes no payload, and deoptimizes the shared terms column it would have ridden on.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec ignore_above multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":\"toolongvalue\"}"),
+                doc("d2", 2L, "{\"f\":\"short\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testColumnarCodecNullValueSubstitutionMultiValueFalse() throws IOException {
+        assumeColumnarCodecEnabled();
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec null_value substitution multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":\"a\"}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testColumnarCodecScalarCoercionsMultiValueFalse() throws IOException {
+        assumeColumnarCodecEnabled();
+        // A non-STRING source column is built through the shared builder; the payload column is built beside it either way.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword");
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec scalar coercions multi_value=false",
+                1L,
+                doc("d1", 1L, "{\"f\":42}"),
+                doc("d2", 2L, "{\"f\":3.14}"),
+                doc("d3", 3L, "{\"f\":true}")
+            )
+        );
+    }
+
+    public void testColumnarCodecArrayOrder() throws IOException {
+        assumeColumnarCodecEnabled();
+        // The multi-valued arm, where the payload replaces both the inline-null blob and its .counts companion.
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec array order",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"a\",null,\"b\"]}"),
+                doc("d2", 2L, "{\"f\":\"solo\"}"),
+                doc("d3", 3L, "{\"f\":[null]}"),
+                doc("d4", 4L, "{\"f\":[]}"),
+                doc("d5", 5L, "{}")
             )
         );
     }

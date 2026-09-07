@@ -336,6 +336,8 @@ public abstract class FieldMapper extends Mapper {
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
         }
+        // Multi-fields run even when redirectedToFailureColumn is true: each sub-field applies its own
+        // doc_values configuration, the same way it does for ignore_above and ignore_malformed.
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
         if (builderParams.multiFields.mappers.length != 0) {

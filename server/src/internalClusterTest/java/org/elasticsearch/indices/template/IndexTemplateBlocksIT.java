@@ -12,6 +12,7 @@ package org.elasticsearch.indices.template;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;

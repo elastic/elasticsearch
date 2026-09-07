@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;

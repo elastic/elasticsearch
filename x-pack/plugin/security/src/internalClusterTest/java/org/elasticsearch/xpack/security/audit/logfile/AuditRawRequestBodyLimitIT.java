@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;

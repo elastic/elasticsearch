@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;

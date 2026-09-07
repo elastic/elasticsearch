@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.After;
 import org.junit.Before;
 

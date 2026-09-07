@@ -20,6 +20,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.lang.management.ManagementFactory;
 import java.util.Locale;

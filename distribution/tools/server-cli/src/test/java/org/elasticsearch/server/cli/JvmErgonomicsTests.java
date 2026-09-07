@@ -9,6 +9,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;

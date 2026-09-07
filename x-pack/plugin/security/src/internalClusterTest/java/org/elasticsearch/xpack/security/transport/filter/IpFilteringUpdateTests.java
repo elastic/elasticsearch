@@ -10,6 +10,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.BeforeClass;
 

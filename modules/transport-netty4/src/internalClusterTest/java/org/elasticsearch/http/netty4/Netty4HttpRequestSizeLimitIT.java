@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.ArrayList;

@@ -30,6 +30,11 @@ import org.apache.http.message.BasicStatusLine;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+
 public class FailureTrackingResponseListenerTests extends RestClientTestCase {
 
     public void testOnSuccess() {

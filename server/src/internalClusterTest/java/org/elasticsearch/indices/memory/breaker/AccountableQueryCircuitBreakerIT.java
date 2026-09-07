@@ -29,6 +29,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.After;
 import org.junit.Before;
 

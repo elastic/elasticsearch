@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.ArrayList;

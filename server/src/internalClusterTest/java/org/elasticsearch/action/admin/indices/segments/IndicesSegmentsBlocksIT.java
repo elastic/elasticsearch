@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 

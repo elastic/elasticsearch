@@ -35,6 +35,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockFSIndexStore;

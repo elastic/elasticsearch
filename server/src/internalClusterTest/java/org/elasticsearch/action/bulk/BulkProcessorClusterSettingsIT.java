@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.hamcrest.Matchers.equalTo;

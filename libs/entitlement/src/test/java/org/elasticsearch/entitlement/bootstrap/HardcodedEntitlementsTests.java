@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.bootstrap;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
 import java.io.ByteArrayInputStream;
 

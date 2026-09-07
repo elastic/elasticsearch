@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;

@@ -33,6 +33,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.xcontent.XContentFactory;
 

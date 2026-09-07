@@ -18,6 +18,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;

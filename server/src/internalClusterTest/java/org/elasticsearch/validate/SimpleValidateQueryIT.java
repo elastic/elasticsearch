@@ -26,6 +26,8 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matcher;
 

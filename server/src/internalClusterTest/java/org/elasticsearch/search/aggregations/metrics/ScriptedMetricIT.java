@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
 
 import java.io.IOException;

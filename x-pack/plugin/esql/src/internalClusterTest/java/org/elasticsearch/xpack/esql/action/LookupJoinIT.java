@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportService;

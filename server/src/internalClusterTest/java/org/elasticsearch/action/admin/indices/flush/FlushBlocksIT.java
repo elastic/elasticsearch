@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Arrays;
 

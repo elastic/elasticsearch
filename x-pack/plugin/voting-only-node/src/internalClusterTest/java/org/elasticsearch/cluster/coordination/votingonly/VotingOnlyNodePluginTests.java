@@ -31,6 +31,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 

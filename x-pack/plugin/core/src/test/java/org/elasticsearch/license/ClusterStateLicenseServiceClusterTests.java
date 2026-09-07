@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Set;
 

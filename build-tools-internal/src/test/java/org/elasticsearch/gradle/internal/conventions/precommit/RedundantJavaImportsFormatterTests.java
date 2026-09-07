@@ -252,7 +252,7 @@ public class RedundantJavaImportsFormatterTests {
     }
 
     @Test
-    public void testRemovesJunitStaticImportsWhenExtendingRandomizedTest() {
+    public void testKeepsJunitStaticImportsWhenExtendingRandomizedTest() {
         String input = """
             package org.elasticsearch.client;
 
@@ -266,12 +266,46 @@ public class RedundantJavaImportsFormatterTests {
                 }
             }
             """;
-        String expected = """
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsJunitStaticImportsWhenExtendingRestClientTestCase() {
+        String input = """
             package org.elasticsearch.client;
 
-            import com.carrotsearch.randomizedtesting.RandomizedTest;
+            import static org.junit.Assert.assertEquals;
 
-            public abstract class RestClientTestCase extends RandomizedTest {
+            public class RestClientTests extends RestClientTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesJunitStaticImportsWhenExtendingAssert() {
+        String input = """
+            package org.elasticsearch.packaging.test;
+
+            import org.junit.Assert;
+
+            import static org.junit.Assert.assertEquals;
+
+            public abstract class PackagingTestCase extends Assert {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.packaging.test;
+
+            import org.junit.Assert;
+
+            public abstract class PackagingTestCase extends Assert {
                 public void testThing() {
                     assertEquals(1, 1);
                 }
@@ -376,7 +410,7 @@ public class RedundantJavaImportsFormatterTests {
     }
 
     @Test
-    public void testRemovesNestedTypeImportUsedOnlyAsAnnotationWhenSubclassExtendsEnclosingType() {
+    public void testKeepsNestedTypeImportUsedAsClassAnnotationWhenSubclassExtendsEnclosingType() {
         String input = """
             package org.elasticsearch.example;
 
@@ -387,16 +421,53 @@ public class RedundantJavaImportsFormatterTests {
             public class ExampleTests extends ESIntegTestCase {
             }
             """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesNestedTypeImportUsedAsMethodAnnotationWhenSubclassExtendsEnclosingType() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESIntegTestCase;
+            import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+
+            public class ExampleTests extends ESIntegTestCase {
+                @ClusterScope(supportsDedicatedMasters = false)
+                public void testThing() {}
+            }
+            """;
         String expected = """
             package org.elasticsearch.example;
 
             import org.elasticsearch.test.ESIntegTestCase;
 
-            @ClusterScope(supportsDedicatedMasters = false)
             public class ExampleTests extends ESIntegTestCase {
+                @ClusterScope(supportsDedicatedMasters = false)
+                public void testThing() {}
             }
             """;
         assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsNestedTypeImportUsedInExtendsTypeArgument() {
+        String input = """
+            package org.elasticsearch.ingest.geoip;
+
+            import org.elasticsearch.ingest.geoip.InternalIpDataLookup.Result;
+
+            final class MaxmindIpDataLookups {
+                private abstract static class AbstractBase<RECORD> implements InternalIpDataLookup {}
+
+                static class City extends AbstractBase<Result<String>> {
+                    Result<String> make() {
+                        return null;
+                    }
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
     }
 
     @Test

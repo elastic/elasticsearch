@@ -16,6 +16,7 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.body.BodyDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
@@ -23,6 +24,7 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.Expression;
@@ -72,7 +74,7 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 5;
+    private final int revision = 6;
 
     private static final List<String> REDUNDANT_TEST_STATIC_PREFIXES = List.of(
         "org.junit.Assert.",
@@ -150,7 +152,7 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
             return false;
         }
         for (Node usage : usages) {
-            if (inherits(usage, enclosingSimpleName, directSupers) == false) {
+            if (inheritsInBody(usage, enclosingSimpleName, directSupers) == false) {
                 return false;
             }
         }
@@ -171,19 +173,25 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
 
     /**
      * True when every usage of this test-framework static import sits in a type that already
-     * inherits the method (a {@code *TestCase} / {@code RandomizedTest} / {@code LuceneTestCase}
-     * subclass, including nested classes of those types). Usages in a sibling helper type keep
-     * the import. An asterisk import is redundant only when every unscoped method call in the
-     * file is inside such a type.
+     * inherits the method (including nested classes of those types). Usages in a sibling helper
+     * type keep the import. An asterisk import is redundant only when every unscoped method call
+     * in the file is inside such a type.
+     * <p>
+     * JUnit {@code Assert}/{@code Assume} and Hamcrest {@code MatcherAssert} methods are inherited
+     * from {@code LuceneTestCase}, {@code org.junit.Assert}, and typical {@code *TestCase} types.
+     * {@code RandomizedTest} and {@code RestClientTestCase} do not declare those methods, so their
+     * subclasses keep the static imports. {@code RandomizedTest} helpers such as {@code rarely()}
+     * are inherited from {@code RandomizedTest} itself as well as {@code *TestCase} types.
      */
     private static boolean isInheritedByEveryUsage(
         ImportDeclaration imp,
         CompilationUnit cu,
         Map<String, Set<String>> directSupers
     ) {
+        boolean assertStyle = isAssertStyleImport(imp.getNameAsString());
         if (imp.isAsterisk()) {
             for (MethodCallExpr call : cu.findAll(MethodCallExpr.class)) {
-                if (call.getScope().isEmpty() && inheritsTestBase(call, directSupers) == false) {
+                if (call.getScope().isEmpty() && inheritsTestMethods(call, directSupers, assertStyle) == false) {
                     return false;
                 }
             }
@@ -194,23 +202,44 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
             return false;
         }
         for (Node usage : usages) {
-            if (inheritsTestBase(usage, directSupers) == false) {
+            if (inheritsTestMethods(usage, directSupers, assertStyle) == false) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean inheritsTestBase(Node usage, Map<String, Set<String>> directSupers) {
+    private static boolean isAssertStyleImport(String name) {
+        return name.equals("org.junit.Assert")
+            || name.equals("org.junit.Assume")
+            || name.equals("org.hamcrest.MatcherAssert")
+            || name.startsWith("org.junit.Assert.")
+            || name.startsWith("org.junit.Assume.")
+            || name.startsWith("org.hamcrest.MatcherAssert.");
+    }
+
+    private static boolean inheritsTestMethods(Node usage, Map<String, Set<String>> directSupers, boolean assertStyle) {
         for (String inherited : inheritedNames(usage, directSupers)) {
-            if (isTestBaseName(inherited)) {
+            if (assertStyle ? inheritsAssertMethods(inherited) : inheritsRandomizedTestMethods(inherited)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean isTestBaseName(String simpleName) {
+    /**
+     * {@code RestClientTestCase} extends {@code RandomizedTest} and is named like a test base, but
+     * it does not inherit JUnit {@code Assert} methods. Without a classpath we cannot prove that
+     * every {@code *TestCase} does; this is the known exception in this repository.
+     */
+    private static boolean inheritsAssertMethods(String simpleName) {
+        if (simpleName.equals("RandomizedTest") || simpleName.equals("RestClientTestCase")) {
+            return false;
+        }
+        return simpleName.equals("LuceneTestCase") || simpleName.equals("Assert") || simpleName.endsWith("TestCase");
+    }
+
+    private static boolean inheritsRandomizedTestMethods(String simpleName) {
         return simpleName.equals("RandomizedTest") || simpleName.equals("LuceneTestCase") || simpleName.endsWith("TestCase");
     }
 
@@ -407,9 +436,62 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         }
     }
 
-    private static boolean inherits(Node usage, String enclosingSimpleName, Map<String, Set<String>> directSupers) {
-        Set<String> inherited = inheritedNames(usage, directSupers);
-        return inherited.contains(enclosingSimpleName);
+    /**
+     * Inherited member types are in scope in the body of the inheriting type (and, for records,
+     * the component list), not in that type's own modifiers, type parameters, or
+     * {@code extends}/{@code implements} clause. Nested type declarations are members of the
+     * enclosing type, so a usage in a nested type's header can still be in scope via the outer
+     * type if the outer type inherits the enclosing name.
+     */
+    private static boolean inheritsInBody(Node usage, String enclosingSimpleName, Map<String, Set<String>> directSupers) {
+        Node current = usage.getParentNode().orElse(null);
+        while (current != null) {
+            if (current instanceof ClassOrInterfaceDeclaration clazz) {
+                if (typeInherits(clazz.getNameAsString(), enclosingSimpleName, directSupers) && isInTypeBody(clazz, usage)) {
+                    return true;
+                }
+            } else if (current instanceof RecordDeclaration recordDecl) {
+                if (typeInherits(recordDecl.getNameAsString(), enclosingSimpleName, directSupers)
+                    && (isInTypeBody(recordDecl, usage) || isInRecordComponents(recordDecl, usage))) {
+                    return true;
+                }
+            } else if (current instanceof EnumDeclaration enumDecl) {
+                if (typeInherits(enumDecl.getNameAsString(), enclosingSimpleName, directSupers) && isInTypeBody(enumDecl, usage)) {
+                    return true;
+                }
+            } else if (current instanceof ObjectCreationExpr creation && creation.getAnonymousClassBody().isPresent()) {
+                if (creation.getAnonymousClassBody().get().stream().anyMatch(bodyDecl -> isAncestor(bodyDecl, usage))) {
+                    String superName = creation.getType().getNameAsString();
+                    if (superName.equals(enclosingSimpleName) || typeInherits(superName, enclosingSimpleName, directSupers)) {
+                        return true;
+                    }
+                }
+            }
+            current = current.getParentNode().orElse(null);
+        }
+        return false;
+    }
+
+    private static boolean typeInherits(String typeName, String enclosingSimpleName, Map<String, Set<String>> directSupers) {
+        return transitiveSupers(typeName, directSupers).contains(enclosingSimpleName);
+    }
+
+    private static boolean isInTypeBody(TypeDeclaration<?> type, Node usage) {
+        for (BodyDeclaration<?> member : type.getMembers()) {
+            if (isAncestor(member, usage)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isInRecordComponents(RecordDeclaration recordDecl, Node usage) {
+        for (Parameter parameter : recordDecl.getParameters()) {
+            if (isAncestor(parameter, usage)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Set<String> inheritedNames(Node usage, Map<String, Set<String>> directSupers) {

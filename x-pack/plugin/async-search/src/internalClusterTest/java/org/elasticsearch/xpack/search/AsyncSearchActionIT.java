@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackPlugin;

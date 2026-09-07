@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.concurrent.ExecutionException;
 

@@ -50,6 +50,10 @@ import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStat
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;

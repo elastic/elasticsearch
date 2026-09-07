@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

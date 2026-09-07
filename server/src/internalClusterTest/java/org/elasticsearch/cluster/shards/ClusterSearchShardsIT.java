@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Arrays;
 import java.util.HashSet;

@@ -11,6 +11,8 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
 
 import java.io.IOException;

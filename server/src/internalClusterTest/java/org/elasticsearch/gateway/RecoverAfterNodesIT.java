@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Set;
 

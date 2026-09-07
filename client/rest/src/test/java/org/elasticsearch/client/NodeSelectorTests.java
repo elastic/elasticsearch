@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.junit.Assert.assertEquals;
+
 public class NodeSelectorTests extends RestClientTestCase {
     public void testAny() {
         List<Node> nodes = new ArrayList<>();

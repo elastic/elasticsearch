@@ -31,15 +31,20 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Exhaustive acceptance harness for the datasource/dataset CRUD API.
@@ -52,9 +57,9 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>Dimensions include boundary and garbage values alongside valid ones. Some garbage values
  * (e.g. {@code ss_neg}, {@code em_garbage}) are already rejected at PUT by coordinator-level
  * validation and serve as canaries for that path. Others (e.g. {@code del_empty}, {@code del_multi})
- * slip through PUT today (esql-planning#1550) and are exercised optimistically: if PUT accepts them
- * and the query then fails, CI catches the regression. Dimension values that are entirely
- * unreachable at query time are commented out with a reference to esql-planning#1550.
+ * slip through PUT — the reader treats them as the format default — and are exercised optimistically:
+ * if PUT accepts them and the query then fails, CI catches the regression. Dimension values that are
+ * entirely unreachable at query time are commented out with a reference to esql-planning#1550.
  *
  * <p>If a case fails (PUT returns 200 but the query fails due to a mis-wired or mis-validated
  * setting), mute it individually in {@code muted-tests.yml} by its case name with a reference to
@@ -120,11 +125,55 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    // This suite creates no indices, so the between-test index wipe, template listing, task wait,
+    // and feature-reset that ESRestTestCase.cleanUpCluster() issues after each test are pure overhead.
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
+    }
+
+    @AfterClass
+    public static void cleanupFixtureDir() {
+        try {
+            Files.walkFileTree(FIXTURE_DIR, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            logger.warn("Failed to delete fixture directory [{}]", FIXTURE_DIR, e);
+        }
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
     // Case definition
     // -----------------------------------------------------------------------------------------------------------------
 
-    record ComboCase(String resourceFile, Map<String, Object> datasetSettings) {}
+    record ComboCase(String resourceFile, Map<String, Object> datasetSettings, boolean expectAccepted) {}
+
+    /**
+     * Returns true when a dimension value is known to be rejected at PUT by the current coordinator
+     * validation. Cases whose settings include at least one such value have {@code expectAccepted=false}
+     * and treat a 400 response as an expected outcome (soft-pass). All other cases have
+     * {@code expectAccepted=true} and treat a 400 as a harness failure — a possible validator
+     * regression.
+     */
+    private static boolean isKnownCanary(String dimensionName) {
+        return switch (dimensionName) {
+            case "ss_neg",    // schema_sample_size=-1: coordinator rejects negative values
+                "em_garbage"  // error_mode=garbage_mode: coordinator rejects unknown error modes
+                -> true;
+            default -> false;
+        };
+    }
 
     /**
      * Full Cartesian product over all dimension values — valid and garbage alike.
@@ -176,7 +225,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                     if (explicitFormat != null) settings.put("format", explicitFormat);
                     if (segmentSize[1] != null) settings.put("segment_size", segmentSize[1]);
                     if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
-                    cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings)) });
+                    boolean expectAccepted = isKnownCanary(sampleSize[0]) == false;
+                    cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
                 }
             }
         }
@@ -219,7 +269,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                 Map<String, Object> settings = new LinkedHashMap<>();
                 if (explicitFormat != null) settings.put("format", explicitFormat);
                 if (errorMode[1] != null) settings.put("error_mode", errorMode[1]);
-                cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings)) });
+                boolean expectAccepted = isKnownCanary(errorMode[0]) == false;
+                cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
             }
         }
     }
@@ -251,7 +302,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                     { "del_pipe", "|" },
                     { "del_semi", ";" },
                     { "del_tab", "\t" },
-                    { "del_empty", "" },      // empty string — should be rejected at PUT
+                    { "del_empty", "" },      // empty string — accepted at PUT; reader treats as format default
                     { "del_multi", "||" },    // multi-char: silently truncated to '|' today (esql-planning#1550)
                 }) {
                     for (String[] headerRow : new String[][] {
@@ -281,7 +332,8 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                             if (delimiter[1] != null) settings.put("delimiter", delimiter[1]);
                             if (headerRow[1] != null) settings.put("header_row", Booleans.parseBoolean(headerRow[1]));
                             if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
-                            cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings)) });
+                            boolean expectAccepted = isKnownCanary(delimiter[0]) == false && isKnownCanary(sampleSize[0]) == false;
+                            cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
                         }
                     }
                 }
@@ -308,21 +360,25 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
         boolean datasetCreated = false;
         try {
             try {
-                putDataset(dtName, SHARED_DS_NAME, resourceUri, combo.datasetSettings());
+                DatasetRegistry.putDataset(client(), dtName, SHARED_DS_NAME, resourceUri, combo.datasetSettings());
                 datasetCreated = true;
             } catch (ResponseException e) {
                 int status = e.getResponse().getStatusLine().getStatusCode();
                 if (status != 400) {
                     throw e; // only validation rejections (400) are soft-passed; 404/409 are infra failures
                 }
-                // PUT rejected by coordinator validation (400) — expected for garbage inputs; skip the query
+                if (combo.expectAccepted()) {
+                    // 400 on a case expected to be accepted → possible validator regression
+                    throw new AssertionError("PUT returned 400 for [" + caseName + "] which is expected to be accepted", e);
+                }
+                // Canary case: PUT correctly rejected the known-garbage value; skip the query
                 return;
             }
             runQuery("FROM " + dtName + " | LIMIT 1");
         } finally {
             if (datasetCreated) {
                 try {
-                    deleteDataset(dtName);
+                    DatasetRegistry.deleteIgnoringMissing(client(), "/_query/dataset/" + dtName);
                 } catch (Exception e) {
                     logger.warn("Failed to delete dataset [{}] during teardown", dtName, e);
                 }
@@ -370,30 +426,18 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------------------------------
 
-    private static void putDataset(String name, String dataSource, String resource, Map<String, Object> settings) throws IOException {
-        Request req = new Request("PUT", "/_query/dataset/" + name);
-        try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", dataSource).field("resource", resource);
-            if (settings.isEmpty() == false) {
-                b.field("settings", settings);
-            }
-            b.endObject();
-            req.setJsonEntity(Strings.toString(b));
-        }
-        Response r = client().performRequest(req);
-        assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
-    }
-
-    private static void deleteDataset(String name) throws IOException {
-        client().performRequest(new Request("DELETE", "/_query/dataset/" + name));
-    }
-
     private void runQuery(String query) throws IOException {
         Request req = new Request("POST", "/_query");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("query", query).endObject();
             req.setJsonEntity(Strings.toString(b));
         }
-        client().performRequest(req);
+        Response response = client().performRequest(req);
+        // A 200 with empty values[] means a setting silently dropped all rows (e.g. error_mode mis-wired).
+        // Assert at least one row so such regressions are not hidden behind HTTP 200.
+        @SuppressWarnings("unchecked")
+        List<?> values = (List<?>) entityAsMap(response).get("values");
+        assertThat("response missing values field", values, notNullValue());
+        assertThat("Query returned no rows — a dataset setting may have silently dropped all rows", values, not(empty()));
     }
 }

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
-import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption.WrappedKey;
 
 /** Shared no-op {@link PekEncryption} for use in unit tests. */
 class TestPekEncryption {

@@ -15,7 +15,6 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static org.hamcrest.Matchers.equalTo;
 
 // tests for how the linux distro interacts with the OS

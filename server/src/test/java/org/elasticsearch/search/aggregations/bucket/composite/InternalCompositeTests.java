@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;

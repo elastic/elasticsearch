@@ -42,8 +42,6 @@ import java.util.TreeSet;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 /**
  * Test parsing the response from the {@code /_nodes/http} API from fixed

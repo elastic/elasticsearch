@@ -27,7 +27,6 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 

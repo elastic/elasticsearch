@@ -22,7 +22,6 @@ import java.util.List;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
 
 public class EnrollNodeToClusterTests extends PackagingTestCase {
 

@@ -27,8 +27,6 @@ import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class TemporaryDirectoryConfigTests extends PackagingTestCase {
 

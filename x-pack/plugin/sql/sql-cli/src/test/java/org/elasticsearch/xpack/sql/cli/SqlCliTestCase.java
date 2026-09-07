@@ -19,8 +19,6 @@ import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
-
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })

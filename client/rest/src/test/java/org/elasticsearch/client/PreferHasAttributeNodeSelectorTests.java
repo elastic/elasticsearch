@@ -32,7 +32,6 @@ import java.util.TreeSet;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.junit.Assert.assertEquals;
 
 public class PreferHasAttributeNodeSelectorTests extends RestClientTestCase {
     public void testFoundPreferHasAttribute() {

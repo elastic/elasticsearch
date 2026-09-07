@@ -31,12 +31,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
-
 public class RequestTests extends RestClientTestCase {
     public void testConstructor() {
         final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });

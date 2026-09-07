@@ -34,7 +34,6 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeNotNull;
 
 public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunctionTestCase {
 

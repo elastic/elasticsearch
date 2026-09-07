@@ -21,7 +21,6 @@ import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.junit.Assume.assumeFalse;
 
 public class ConfigurationTests extends PackagingTestCase {
 

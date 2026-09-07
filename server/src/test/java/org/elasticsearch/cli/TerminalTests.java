@@ -11,7 +11,6 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.StringReader;
 

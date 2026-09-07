@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.core.PathUtils;

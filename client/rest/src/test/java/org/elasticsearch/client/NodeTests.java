@@ -33,9 +33,6 @@ import java.util.TreeSet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class NodeTests extends RestClientTestCase {
     public void testToString() {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -35,10 +34,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @SuppressFileSystems("*")
 public class JvmErgonomicsTests extends ESTestCase {

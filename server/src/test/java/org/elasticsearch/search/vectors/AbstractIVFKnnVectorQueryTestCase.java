@@ -87,9 +87,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAccumulator;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /** Test cases for AbstractIVFKnnVectorQuery objects. */

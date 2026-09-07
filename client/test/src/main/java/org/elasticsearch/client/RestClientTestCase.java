@@ -41,10 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 @TestMethodProviders({ JUnit3MethodProvider.class })
 @SeedDecorators({ MixWithSuiteName.class }) // See LUCENE-3995 for rationale.
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)

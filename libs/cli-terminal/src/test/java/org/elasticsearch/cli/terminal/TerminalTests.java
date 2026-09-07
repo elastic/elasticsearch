@@ -10,7 +10,6 @@
 package org.elasticsearch.cli.terminal;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.IOException;
 import java.io.OutputStream;

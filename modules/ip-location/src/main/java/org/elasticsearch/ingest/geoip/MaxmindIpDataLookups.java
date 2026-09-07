@@ -32,7 +32,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.ingest.geoip.InternalIpDataLookup.Result;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpLocationInfoCollector;
 

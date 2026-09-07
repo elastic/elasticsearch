@@ -24,9 +24,6 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 public class SniffOnFailureListenerTests extends RestClientTestCase {
 
     public void testSetSniffer() throws Exception {

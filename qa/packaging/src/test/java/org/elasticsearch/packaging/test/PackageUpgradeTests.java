@@ -28,7 +28,6 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assume.assumeTrue;
 
 public class PackageUpgradeTests extends PackagingTestCase {
 

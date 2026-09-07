@@ -348,6 +348,54 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * Dedicated schema file first, then a recursive glob. FFW omitted knobs keep declaration order so
+     * {@code my_schema.csv} is the donor; the glob files still contribute rows.
+     */
+    public void testSchemaFileThenGlobFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("schema_then_glob_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/my_schema.csv," + StoragePath.fileUri(root) + "/events/**/*.csv";
+        String dataset = registerDataset("schema_then_glob_csv", uri, Map.of("schema_resolution", "first_file_wins"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
+        }
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: the last named file is the FFW
+     * donor and the glob files still contribute rows.
+     */
+    public void testGlobThenSchemaFileListDescFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("glob_then_schema_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/events/**/*.csv," + StoragePath.fileUri(root) + "/my_schema.csv";
+        String dataset = registerDataset(
+            "glob_then_schema_csv",
+            uri,
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "list", "file_order", "desc")
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
+        }
+    }
+
     private static void writeCsv(Path file, String content) throws Exception {
         Files.createDirectories(file.getParent());
         Files.writeString(file, content, StandardCharsets.UTF_8);

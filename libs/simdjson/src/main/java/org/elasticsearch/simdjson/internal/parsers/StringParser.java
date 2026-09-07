@@ -43,8 +43,6 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       {@code "} or {@code \}; quote and escape paths copy only the literal prefix via
  *       {@code System.arraycopy}, and {@code intoArray} runs only on the no-special-characters
  *       fast path.</li>
- *   <li>{@link #storeCodePointInStringBuffer} emits U+FFFD for invalid {@code \\u} sequences
- *       instead of throwing.</li>
  *   <li>Uses {@link SimdJsonVectorSupport} for vector width selection instead of upstream
  *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
@@ -87,7 +85,7 @@ public final class StringParser {
                 if (escapeChar == 'u') {
                     src += backslashDist;
                     dst += backslashDist;
-                    int codePoint = hexToInt(buffer, src + 2);
+                    int codePoint = parseUnicodeCodePoint(buffer, src);
                     src += 6;
                     if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
                         codePoint = parseLowSurrogate(buffer, src, codePoint);
@@ -121,7 +119,7 @@ public final class StringParser {
             if (b == BACKSLASH) {
                 byte escapeChar = buffer[src + 1];
                 if (escapeChar == 'u') {
-                    int codePoint = hexToInt(buffer, src + 2);
+                    int codePoint = parseUnicodeCodePoint(buffer, src);
                     src += 6;
                     if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
                         codePoint = parseLowSurrogate(buffer, src, codePoint);
@@ -144,10 +142,13 @@ public final class StringParser {
     }
 
     private int parseLowSurrogate(byte[] buffer, int src, int codePoint) {
+        if (src + 6 > buffer.length) {
+            throw new JsonParsingException("Low surrogate should start with '\\u'");
+        }
         if ((buffer[src] << 8 | buffer[src + 1]) != ('\\' << 8 | 'u')) {
             throw new JsonParsingException("Low surrogate should start with '\\u'");
         } else {
-            int codePoint2 = hexToInt(buffer, src + 2);
+            int codePoint2 = parseUnicodeCodePoint(buffer, src);
             int lowBit = codePoint2 - MIN_LOW_SURROGATE;
             if (lowBit >> 10 == 0) {
                 return (((codePoint - MIN_HIGH_SURROGATE) << 10) | lowBit) + 0x10000;
@@ -157,17 +158,16 @@ public final class StringParser {
         }
     }
 
+    private static int parseUnicodeCodePoint(byte[] buffer, int backslashIndex) {
+        if (backslashIndex + 6 > buffer.length) {
+            throw new JsonParsingException("Invalid unicode escape sequence: expected four hex digits after \\u");
+        }
+        return hexToInt(buffer, backslashIndex + 2);
+    }
+
     private int storeCodePointInStringBuffer(int codePoint, int dst, byte[] stringBuffer) {
         if (codePoint < 0) {
-            // TODO: Look into this. Clickbench was failing with this.
-            // hexToInt returned -1: the four bytes after \\u were not all valid hex digits.
-            // Output U+FFFD (replacement character) so the parser can continue rather than
-            // aborting the document — the caller's fallback path (Jackson) would produce the
-            // same replacement behavior for truly malformed escapes.
-            stringBuffer[dst] = (byte) 0xEF;
-            stringBuffer[dst + 1] = (byte) 0xBF;
-            stringBuffer[dst + 2] = (byte) 0xBD;
-            return 3;
+            throw new JsonParsingException("Invalid unicode escape sequence: expected four hex digits after \\u");
         }
         if (codePoint <= 0x7F) {
             stringBuffer[dst] = (byte) codePoint;

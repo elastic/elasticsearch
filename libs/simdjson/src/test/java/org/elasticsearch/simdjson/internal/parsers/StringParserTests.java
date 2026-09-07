@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdjson.internal.parsers;
 
+import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -139,6 +140,17 @@ public class StringParserTests extends ESTestCase {
         assertEquals((byte) 0x9F, result[1]);
         assertEquals((byte) 0x98, result[2]);
         assertEquals((byte) 0x80, result[3]);
+    }
+
+    // Invalid \\u hex digits are rejected (same as Jackson and upstream simdjson-java).
+    public void testInvalidUnicodeEscapeThrows() {
+        expectThrows(JsonParsingException.class, () -> parseToBytes("\\u00G0"));
+        expectThrows(JsonParsingException.class, () -> parseToBytes("\\u000 "));
+        expectThrows(JsonParsingException.class, () -> parse("prefix\\u00ZZsuffix"));
+        // Too few hex digits before closing quote
+        expectThrows(JsonParsingException.class, () -> parseToBytes("\\u00"));
+        expectThrows(JsonParsingException.class, () -> parseToBytes("\\u0"));
+        expectThrows(JsonParsingException.class, () -> parseToBytes("\\u"));
     }
 
     // ---- SIMD lane width boundaries (plain content, no escapes) ----

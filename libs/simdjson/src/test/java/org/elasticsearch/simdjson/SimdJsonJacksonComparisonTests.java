@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdjson;
 
+import org.elasticsearch.simdjson.JsonParsingException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -276,6 +278,24 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
 
     public void testUnicodeEscape() throws IOException {
         assertParsersAgree("{\"char\":\"\\u0041\"}");
+    }
+
+    // Invalid \\u hex: both parsers reject the document.
+    public void testInvalidUnicodeEscape() {
+        List<String> invalidDocuments = List.of(
+            """
+                {"x":"\\u00G0"}""",
+            """
+                {"x":"\\u00"}""",
+            """
+                {"x":"\\u0"}""",
+            """
+                {"x":"\\u"}"""
+        );
+        for (String json : invalidDocuments) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json, false));
+            expectThrows(JsonParsingException.class, () -> walkJson(json, true));
+        }
     }
 
     // ---- Simple numeric sign and zero ----

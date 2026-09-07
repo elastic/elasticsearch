@@ -130,7 +130,7 @@ public class CharacterUtilsTests extends ESTestCase {
         assertEquals(0xFFFF, CharacterUtils.hexToInt(lowerFs, 0));
     }
 
-    // Invalid hex digits OR to 0xFFFFFFFF; StringParser treats that as malformed \\u.
+    // Invalid hex digits return -1; StringParser rejects malformed \\u escapes.
     public void testHexToIntInvalidDigitsReturnsNegativeOne() {
         assertEquals(-1, CharacterUtils.hexToInt(new byte[] { '0', '0', 'G', '0' }, 0));
         assertEquals(-1, CharacterUtils.hexToInt(new byte[] { '0', '0', '0', ' ' }, 0));

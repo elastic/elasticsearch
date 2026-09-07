@@ -53,7 +53,7 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
             .filter(s -> s.getKey().equals("thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME + ".max"))
             .findFirst()
             .orElseThrow(() -> new AssertionError("esql_external_io max setting not registered"));
-        // The pool max tracks the single external-concurrency knob (defaults to the CPU-scaled value).
+        // The pool max tracks the single external-concurrency knob (defaults to the heap- and CPU-scaled value).
         assertEquals(ExternalSourceSettings.externalIoThreads(settings), maxSetting.getDefault(Settings.EMPTY));
     }
 

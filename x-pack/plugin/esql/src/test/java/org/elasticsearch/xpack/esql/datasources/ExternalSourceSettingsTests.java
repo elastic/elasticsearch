@@ -11,6 +11,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -22,7 +26,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
-        // The in-flight-read permit bound defaults to the CPU-bound formula, not a fixed literal.
+        // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
             (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
@@ -30,25 +34,74 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
     }
 
-    public void testMaxConcurrentRequestsDefaultTracksCpuFormula() {
+    public void testMaxConcurrentRequestsDefaultTracksFormula() {
         int processors = randomIntBetween(1, Math.max(1, Runtime.getRuntime().availableProcessors()));
         Settings settings = Settings.builder().put("node.processors", processors).build();
-        // processors * 3 clamped to [16, 100]: the floor keeps small nodes from collapsing the I/O pool.
-        int expected = Math.min(Math.max(processors * 3, 16), 100);
+        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long requestLimit = HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes();
+        int expected = ExternalSourceSettings.defaultBlobStoreConcurrency(processors, heapBytes, requestLimit);
         assertEquals(expected, ExternalSourceSettings.defaultBlobStoreConcurrency(settings));
         assertEquals(expected, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
     }
 
-    public void testDefaultBlobStoreConcurrencyClampedToFloorAndCeiling() {
-        // Below the floor: a one- or two-processor node (processors * 3 = 3 or 6) still resolves to the 16 floor,
-        // so the concurrency bound — and the esql_external_io pool it sizes — never collapses too small to run the
-        // parallel-parse pipeline (the multi-file glob stall).
-        assertEquals(16, ExternalSourceSettings.defaultBlobStoreConcurrency(1));
-        assertEquals(16, ExternalSourceSettings.defaultBlobStoreConcurrency(5)); // 15 -> floored to 16
-        // On the floor boundary: processors * 3 == 18 sits above the floor and is returned as-is.
-        assertEquals(18, ExternalSourceSettings.defaultBlobStoreConcurrency(6));
-        // Above the ceiling: processors * 3 = 300 is capped at 100.
-        assertEquals(100, ExternalSourceSettings.defaultBlobStoreConcurrency(100));
+    public void testDefaultBlobStoreConcurrencyMatrix() {
+        // B = 10 MiB, M = min(heap/4, REQUEST/2), C = min(cpuClamp, max(4, M/B)).
+        // Default REQUEST is 60% of heap, so REQUEST/2 is 30% and heap/4 binds.
+        assertEquals(4, concurrency(1, ByteSizeValue.ofMb(256)));
+        assertEquals(6, concurrency(2, ByteSizeValue.ofMb(256)));
+        assertEquals(6, concurrency(8, ByteSizeValue.ofMb(256)));
+        assertEquals(6, concurrency(16, ByteSizeValue.ofMb(256)));
+
+        assertEquals(4, concurrency(1, ByteSizeValue.ofMb(512)));
+        assertEquals(6, concurrency(2, ByteSizeValue.ofMb(512)));
+        assertEquals(12, concurrency(8, ByteSizeValue.ofMb(512)));
+        assertEquals(12, concurrency(16, ByteSizeValue.ofMb(512)));
+
+        assertEquals(4, concurrency(1, ByteSizeValue.ofGb(4)));
+        assertEquals(6, concurrency(2, ByteSizeValue.ofGb(4)));
+        assertEquals(24, concurrency(8, ByteSizeValue.ofGb(4)));
+        assertEquals(48, concurrency(16, ByteSizeValue.ofGb(4)));
+    }
+
+    public void testDefaultBlobStoreConcurrencyCpuClampOnRichHeap() {
+        // Memory does not bind: C follows processors * 3 in [4, 100].
+        ByteSizeValue richHeap = ByteSizeValue.ofGb(32);
+        assertEquals(4, concurrency(1, richHeap));
+        assertEquals(15, concurrency(5, richHeap));
+        assertEquals(18, concurrency(6, richHeap));
+        assertEquals(100, concurrency(100, richHeap));
+    }
+
+    public void testDefaultBlobStoreConcurrencyParseFloorBeatsTinyMemory() {
+        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, but gzip parse needs C >= 4.
+        assertEquals(4, concurrency(1, ByteSizeValue.ofMb(80)));
+    }
+
+    public void testDefaultBlobStoreConcurrencyRequestBreakerBindsFirst() {
+        long heapBytes = ByteSizeValue.ofGb(4).getBytes();
+        long tightRequest = ByteSizeValue.ofMb(80).getBytes();
+        // M = min(1024 MiB, 40 MiB) = 40 MiB so C = 4, even though 16 CPUs would otherwise allow 48.
+        assertEquals(4, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
+    }
+
+    public void testDefaultBlobStoreConcurrencySettingsHonorsRequestLimit() {
+        // Wiring: a tightened request breaker must reach the Settings overload. Do not set
+        // node.processors above the host's allocatedProcessors (the setting rejects that).
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80mb")
+            .build();
+        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        int processors = EsExecutors.allocatedProcessors(settings);
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(processors, heapBytes, ByteSizeValue.ofMb(80).getBytes()),
+            ExternalSourceSettings.defaultBlobStoreConcurrency(settings)
+        );
+    }
+
+    private static int concurrency(int processors, ByteSizeValue heap) {
+        long heapBytes = heap.getBytes();
+        long requestLimit = heapBytes * 6 / 10;
+        return ExternalSourceSettings.defaultBlobStoreConcurrency(processors, heapBytes, requestLimit);
     }
 
     public void testMaxConcurrentRequestsOverrideIsTheEffectiveKnob() {
@@ -69,15 +122,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(override, ExternalSourceSettings.externalIoThreads(settings));
     }
 
-    public void testExternalIoThreadsFallsBackToCpuDefaultWhenLimiterDisabled() {
+    public void testExternalIoThreadsFallsBackToDefaultWhenLimiterDisabled() {
         // 0 disables the permit limiter but the I/O pool still needs threads: it must not resolve to a zero-thread
-        // pool, so externalIoThreads falls back to the CPU-scaled default.
+        // pool, so externalIoThreads falls back to the heap- and CPU-scaled default.
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.externalIoThreads(settings));
         assertTrue("external I/O pool must always have at least one thread", ExternalSourceSettings.externalIoThreads(settings) >= 1);
     }
 
-    public void testExternalIoThreadsDefaultsToCpuFormula() {
+    public void testExternalIoThreadsDefaultsToFormula() {
         Settings settings = Settings.EMPTY;
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.externalIoThreads(settings));
     }

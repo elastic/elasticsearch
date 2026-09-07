@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -69,8 +70,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
 
-    /** Maximum window size (16MB). Caps adaptive window hints to prevent unbounded memory allocation. */
-    static final int MAX_WINDOW_SIZE = 16 * 1024 * 1024;
+    /**
+     * Maximum window size (10MB). Caps adaptive window hints so large {@code forRange} splits do not allocate
+     * 16 MiB arrays; matches {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES}.
+     */
+    static final int MAX_WINDOW_SIZE = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
     /**
      * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.

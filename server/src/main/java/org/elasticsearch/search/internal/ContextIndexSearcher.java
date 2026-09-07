@@ -196,6 +196,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * once the accumulating buffers push heap over the limit - turning a node OOM into a recoverable
      * {@link org.elasticsearch.common.breaker.CircuitBreakingException}.
      */
+    /**
+     * As {@link #checkBinaryDvDecodeBreaker(CircuitBreaker)}, resolving the breaker from {@code searcher}. Shaped to be
+     * passed as a method reference where a caller can only be handed a searcher - see {@code ScanBudget} in the columnar
+     * library, which has no notion of a circuit breaker of its own.
+     */
+    public static void checkBinaryDvDecodeBreaker(IndexSearcher searcher) {
+        checkBinaryDvDecodeBreaker(circuitBreakerOrNull(searcher));
+    }
+
     public static void checkBinaryDvDecodeBreaker(@Nullable CircuitBreaker breaker) {
         if (breaker != null) {
             // Passing 0 bytes means the child breaker never accumulates and hence there is no need to explicitly release anything.

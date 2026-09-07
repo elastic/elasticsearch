@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.backward_codecs.lucene101.Lucene101PostingsFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
@@ -342,12 +340,6 @@ final class IndexDiskUsageAnalyzer {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
-                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
-            }
-            if (termState instanceof final Lucene84PostingsFormat.IntBlockTermState blockTermState) {
-                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
-            }
-            if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
             assert false : "unsupported postings format: " + termState;

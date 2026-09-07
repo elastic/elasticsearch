@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.SimdJsonNativeSupport;
 import org.elasticsearch.simdjson.internal.parsers.SimdJsonVectorSupport;
 
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -29,15 +30,23 @@ public final class SimdJsonSupport {
      */
     public static final int DEFAULT_MAX_DOC_BYTES = 16 * 1024;
 
+    /** Whether native library loading succeeded during class initialization. */
+    private static final boolean nativeLoadAttempted;
+
     static {
-        Optional.ofNullable(SimdJsonSupport.class.getModule().getLayer())
-            .orElse(ModuleLayer.boot())
-            .findModule("jdk.incubator.vector")
-            .ifPresent(vec -> {
-                SimdJsonSupport.class.getModule().addReads(vec);
-                SimdJsonVectorSupport.init();
-            });
-        SimdJsonNativeSupport.isLoaded();
+        initVectorSupport();
+        nativeLoadAttempted = SimdJsonNativeSupport.isLoaded();
+    }
+
+    private static void initVectorSupport() {
+        ModuleLayer layer = SimdJsonSupport.class.getModule().getLayer();
+        if (layer == null) {
+            layer = ModuleLayer.boot();
+        }
+        layer.findModule("jdk.incubator.vector").ifPresent(vec -> {
+            SimdJsonSupport.class.getModule().addReads(vec);
+            SimdJsonVectorSupport.init();
+        });
     }
 
     private SimdJsonSupport() {}
@@ -48,7 +57,7 @@ public final class SimdJsonSupport {
      * check that callers should use before constructing a {@link SimdJsonParser}.
      */
     public static boolean isSupported() {
-        return SimdJsonNativeSupport.isLoaded() && SimdJsonVectorSupport.isAvailable();
+        return nativeLoadAttempted && SimdJsonVectorSupport.isAvailable();
     }
 
     /**

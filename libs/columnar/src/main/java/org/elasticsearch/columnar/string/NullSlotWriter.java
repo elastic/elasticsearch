@@ -52,9 +52,15 @@ final class NullSlotWriter implements Closeable {
         nulls++;
     }
 
-    /** Closes the table into {@code data}, or {@link MonotonicWriter.Table#NONE} when nothing was null. */
+    /**
+     * Closes the table into {@code data}, or {@link MonotonicWriter.Table#NONE} when nothing was null.
+     * Checked rather than asserted, for the same reason the addressing table checks its own totals: a cursor
+     * that miscounts its nulls would otherwise write a table the reader trusts.
+     */
     MonotonicWriter.Table finish(IndexOutput data) throws IOException {
-        assert nulls == numNullSlots : "wrote " + nulls + " null slots, counted " + numNullSlots;
+        if (nulls != numNullSlots) {
+            throw new IllegalStateException("wrote " + nulls + " null slots, counted " + numNullSlots);
+        }
         return nullSlots == null ? MonotonicWriter.Table.NONE : nullSlots.finish(data);
     }
 

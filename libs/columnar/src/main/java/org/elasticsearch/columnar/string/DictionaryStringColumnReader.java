@@ -98,6 +98,15 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return dictionarySize;
     }
 
+    /**
+     * The ordinal marking a value no term names, one past the last term. Nothing between
+     * {@link StringColumnMetadata.Dictionary#FIRST_TERM_ORDINAL} and this names anything but a term, so a
+     * caller sizing a table over the terms can pin it against this rather than rebuild the arithmetic.
+     */
+    public int escapeOrdinal() {
+        return escapeOrdinal;
+    }
+
     @Override
     public long escapeCount() {
         return escapeCount;

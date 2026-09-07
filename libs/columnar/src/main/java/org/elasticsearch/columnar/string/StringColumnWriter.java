@@ -199,9 +199,8 @@ public final class StringColumnWriter {
                     valueAddress++;
                 }
             }
-            assert valueAddress == numValues : "wrote " + valueAddress + " slots, counted " + numValues;
             written = stream.finish();
-            valueAddresses = slots.finish(numValues, data);
+            valueAddresses = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
@@ -331,6 +330,8 @@ public final class StringColumnWriter {
         final List<IndexInput> replays = new ArrayList<>();
         try {
             long escapes = 0;
+            // The slots actually written, handed to the addressing table so it can check the total it was given.
+            long index = 0;
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
             final MonotonicWriter.Table valueAddresses;
@@ -351,7 +352,6 @@ public final class StringColumnWriter {
                         final BytesRefBuilder previous = new BytesRefBuilder();
                         int previousOrdinal = Vocabulary.DROPPED;
                         boolean hasPrevious = false;
-                        long index = 0;
                         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                             slots.startDocument(index);
                             for (int i = 0, count = values.valueCount(); i < count; i++) {
@@ -421,10 +421,9 @@ public final class StringColumnWriter {
                         }
                         // One past the end, so the escapes in the last block can be counted like any other.
                         ranks.add(escapes);
-                        assert index == numValues : "wrote " + index + " slots, counted " + numValues;
                     }
                 }
-                valueAddresses = slots.finish(numValues, data);
+                valueAddresses = slots.finish(index, data);
                 escapeStream = replayEscapes(
                     directory,
                     context,

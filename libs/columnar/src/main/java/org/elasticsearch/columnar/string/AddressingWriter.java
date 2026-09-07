@@ -32,6 +32,7 @@ final class AddressingWriter implements Closeable {
     /** Null when every document holds exactly one slot, in which case a document's value address is its rank. */
     private final MonotonicWriter valueAddresses;
     private final int numDocsWithField;
+    private final long numValues;
 
     private int docs;
 
@@ -47,12 +48,13 @@ final class AddressingWriter implements Closeable {
         final MonotonicWriter valueAddresses = numValues != numDocsWithField
             ? new MonotonicWriter(directory, context, name, numDocsWithField + 1L)
             : null;
-        return new AddressingWriter(valueAddresses, numDocsWithField);
+        return new AddressingWriter(valueAddresses, numDocsWithField, numValues);
     }
 
-    private AddressingWriter(MonotonicWriter valueAddresses, int numDocsWithField) {
+    private AddressingWriter(MonotonicWriter valueAddresses, int numDocsWithField, long numValues) {
         this.valueAddresses = valueAddresses;
         this.numDocsWithField = numDocsWithField;
+        this.numValues = numValues;
     }
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
@@ -63,13 +65,27 @@ final class AddressingWriter implements Closeable {
         }
     }
 
-    /** Closes the table into {@code data}, {@code numValues} being the address one past the column's last slot. */
-    MonotonicWriter.Table finish(long numValues, IndexOutput data) throws IOException {
-        assert docs == numDocsWithField : "wrote " + docs + " documents, counted " + numDocsWithField;
+    /**
+     * Closes the table into {@code data}, {@code writtenSlots} being the number of slots the caller actually
+     * wrote: the address one past the column's last slot, and the sentinel this table ends with.
+     *
+     * <p>Checked rather than asserted, because nothing else would catch it. The table holds one entry a
+     * document, so a wrong document count makes {@link MonotonicWriter} fail on its own declared length. The
+     * slot count sizes nothing and is only ever written here, as that sentinel, so a cursor that reported a
+     * total it then contradicted would leave the last document reading back the wrong {@code valueCount} in a
+     * release build, with nothing to say so.
+     */
+    MonotonicWriter.Table finish(long writtenSlots, IndexOutput data) throws IOException {
+        if (docs != numDocsWithField) {
+            throw new IllegalStateException("wrote " + docs + " documents, counted " + numDocsWithField);
+        }
+        if (writtenSlots != numValues) {
+            throw new IllegalStateException("wrote " + writtenSlots + " slots, counted " + numValues);
+        }
         if (valueAddresses == null) {
             return MonotonicWriter.Table.NONE;
         }
-        valueAddresses.add(numValues);
+        valueAddresses.add(writtenSlots);
         return valueAddresses.finish(data);
     }
 

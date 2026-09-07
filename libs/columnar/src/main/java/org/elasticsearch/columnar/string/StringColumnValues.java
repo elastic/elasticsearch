@@ -20,8 +20,9 @@ import java.io.IOException;
  * current document, yields its slots in written order. Nothing is materialized: on ingest it decodes one
  * payload at a time, and on merge it reads one block at a time off the mapped data input.
  *
- * <p>A slot is either a value or a null. Only a document holding at least one non-null slot is written at
- * all, so a cursor never yields a document whose slots are all null.
+ * <p>A slot is either a value or a null, and a document may hold nothing but nulls: the mapper writes a
+ * payload for an all-null array, which is what keeps it distinct from a field that is absent, so a cursor
+ * does yield such a document. What it never yields is a document with no slot at all.
  *
  * <p>Sibling of {@code NumericColumnValues}; the returned {@link BytesRef} is only valid until the next
  * call to {@link #nextValue()}, so a caller that needs to retain it must copy.

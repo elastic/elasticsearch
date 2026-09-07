@@ -482,6 +482,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // Long enough for the term ordinals and no longer, so the escape marker indexes off the end and is
         // turned away without a test of its own. The reserved null's entry is never read.
         final int[] map = new int[dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL];
+        // That "off the end" is the escape marker's own ordinal, and the two are only equal by construction.
+        // Pinned here so a reserved-ordinal space that ever grew would fail rather than let an escape index a
+        // real term's entry and be remapped as though the dictionary named it.
+        assert map.length == dictionary.escapeOrdinal()
+            : "ordinal map of " + map.length + " does not end at the escape marker " + dictionary.escapeOrdinal();
         final BytesRef term = new BytesRef();
         for (int i = 0; i < dictionary.dictionarySize(); i++) {
             final int ordinal = StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL + i;

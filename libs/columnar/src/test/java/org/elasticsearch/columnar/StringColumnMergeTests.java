@@ -14,16 +14,20 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.SlowCodecReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -188,6 +192,153 @@ public class StringColumnMergeTests extends ESTestCase {
             }
             return values;
         });
+    }
+
+    /**
+     * What the merged column recorded, against a count of the documents that survived. A merge of our own
+     * columns takes these from what each input recorded instead of walking every cursor to re-derive them,
+     * and a merge that cannot — a deleted document means a segment's totals over-state what the merge takes
+     * from it — falls back to counting. Both have to arrive at the same three numbers, and the round-trip
+     * assertions elsewhere would not notice if they did not: a column can hold the right slots and still
+     * describe itself wrongly.
+     */
+    public void testMergedTotalsMatchTheDocumentsThatSurvived() throws IOException {
+        for (boolean deleting : new boolean[] { false, true }) {
+            // Deterministic, so the expected totals are arithmetic rather than a second implementation:
+            // 300 documents, every third holding two slots, every fifth of those slots null.
+            final int numDocs = 300;
+            final String[][] values = new String[numDocs][];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = d % 3 == 0
+                    ? new String[] { d % 5 == 0 ? null : "term-" + (d % 7), "second-" + (d % 4) }
+                    : new String[] { d % 5 == 0 ? null : "term-" + (d % 7) };
+            }
+            // Every seventh document, so both a single- and a multi-slot document are removed.
+            final boolean[] deleted = new boolean[numDocs];
+            if (deleting) {
+                for (int d = 0; d < numDocs; d += 7) {
+                    deleted[d] = true;
+                }
+            }
+
+            int expectedDocs = 0;
+            long expectedValues = 0;
+            long expectedNulls = 0;
+            for (int d = 0; d < numDocs; d++) {
+                if (deleted[d]) {
+                    continue;
+                }
+                expectedDocs++;
+                expectedValues += values[d].length;
+                for (String slot : values[d]) {
+                    if (slot == null) {
+                        expectedNulls++;
+                    }
+                }
+            }
+
+            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            try (Directory dir = newDirectory()) {
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    for (int d = 0; d < numDocs; d++) {
+                        final Document doc = new Document();
+                        doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                        doc.add(new Field(FIELD, encode(values[d]), type));
+                        writer.addDocument(doc);
+                        if ((d + 1) % 60 == 0) {
+                            writer.commit(); // five segments, so the merge has several inputs to sum
+                        }
+                    }
+                    for (int d = 0; d < numDocs; d++) {
+                        if (deleted[d]) {
+                            writer.deleteDocuments(new Term(ID, Integer.toString(d)));
+                        }
+                    }
+                    writer.forceMerge(1);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                    final StringColumnReader column = columnOf(reader.leaves().get(0).reader());
+                    final String what = deleting ? "with deletions (counted)" : "no deletions (recorded)";
+                    assertEquals(what + ": numDocsWithField", expectedDocs, column.numDocsWithField());
+                    assertEquals(what + ": numValues", expectedValues, column.numValues());
+                    assertEquals(what + ": numNullSlots", expectedNulls, column.numNullSlots());
+                }
+            }
+        }
+    }
+
+    /**
+     * A merge whose inputs are not all our own columns. Reading a foreign segment means decoding its payloads
+     * rather than its slots, and it also puts the merge on the counting pass, since there is nothing recorded
+     * to sum. Both halves are otherwise unexercised: every other merge here writes all of its inputs with the
+     * columnar codec.
+     */
+    public void testMergeWithAForeignSegment() throws IOException {
+        final int numDocs = 200;
+        final String[][] values = new String[numDocs][];
+        for (int d = 0; d < numDocs; d++) {
+            values[d] = switch (d % 4) {
+                case 0 -> new String[] { "nginx", null, "kafka" };
+                case 1 -> new String[] { null };
+                case 2 -> new String[] { "" };
+                default -> new String[] { "term-" + (d % 9) };
+            };
+        }
+        final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+        try (Directory foreign = newDirectory(); Directory dir = newDirectory()) {
+            // Written with the columnar codec, then handed over with the column hidden, so the merge meets it
+            // as a plain BinaryDocValues carrying payloads and has to decode them.
+            try (IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (int d = 0; d < numDocs / 2; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    doc.add(new Field(FIELD, encode(values[d]), type));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = numDocs / 2; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    doc.add(new Field(FIELD, encode(values[d]), type));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+                try (DirectoryReader source = ColumnarTestUtils.hideTheColumn(DirectoryReader.open(foreign))) {
+                    final List<CodecReader> readers = new ArrayList<>();
+                    for (var leaf : source.leaves()) {
+                        readers.add(SlowCodecReaderWrapper.wrap(leaf.reader()));
+                    }
+                    writer.addIndexes(readers.toArray(new CodecReader[0]));
+                }
+                writer.forceMerge(1);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                // addIndexes appends, so the foreign half lands after the half written here.
+                final List<List<String>> expected = new ArrayList<>();
+                for (int d = numDocs / 2; d < numDocs; d++) {
+                    expected.add(Arrays.asList(values[d]));
+                }
+                for (int d = 0; d < numDocs / 2; d++) {
+                    expected.add(Arrays.asList(values[d]));
+                }
+                assertSlots(expected, readBlobs(reader.leaves().get(0).reader()));
+            }
+        }
+    }
+
+    /** The merged leaf's column, so a test can read what it recorded rather than what it holds. */
+    private static StringColumnReader columnOf(LeafReader leaf) throws IOException {
+        final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+        assertTrue("expected a columnar column, got " + values, values instanceof ColumnarStringBinaryDocValues);
+        return ((ColumnarStringBinaryDocValues) values).reader();
     }
 
     private interface ValueGenerator {

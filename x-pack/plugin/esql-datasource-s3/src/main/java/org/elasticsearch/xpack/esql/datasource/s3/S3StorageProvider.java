@@ -281,7 +281,7 @@ public class S3StorageProvider implements StorageProvider {
             builder.region(Region.US_EAST_1);
         }
 
-        if (config != null && config.endpoint() != null) {
+        if (config != null && Strings.hasText(config.endpoint())) {
             builder.endpointOverride(URI.create(config.endpoint()));
             builder.forcePathStyle(true);
         }

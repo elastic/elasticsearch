@@ -861,7 +861,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceRejectsSchemeOnlyEndpoint() {
-        // "http:" is a syntactically valid URI but has no host — must be rejected.
+        // "http:" has an empty scheme-specific part; URI.create throws, landing in the catch branch.
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("endpoint", "http:")));
         assertThat(e.getMessage(), containsString("endpoint [http:]"));
         assertThat(e.getMessage(), containsString("http"));

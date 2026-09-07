@@ -97,9 +97,8 @@ public class SkipWarnings {
 
     private final String summary;
     /**
-     * Where emitted messages go. {@code null} (the default) preserves the original direct-to-
-     * {@link HeaderWarning} behavior, which is only safe on a thread whose response headers are
-     * actually collected into the client response.
+     * Where emitted messages go. {@code null} preserves the direct-to-{@link HeaderWarning} write, which only reaches
+     * the client from the request thread; read paths never are, so they always supply a sink.
      */
     @Nullable
     private final Consumer<String> sink;
@@ -117,8 +116,10 @@ public class SkipWarnings {
 
     /**
      * @param sink when non-{@code null}, every emitted message is handed to this consumer instead of
-     *             {@link HeaderWarning#addWarning(String, Object...)}. Use this on any code path whose
-     *             {@link #add(String)} calls may run off the request/driver thread.
+     *             {@link HeaderWarning#addWarning(String, Object...)}. Every read path must supply one that ends in
+     *             {@code DriverContext#addWarning}: reader and driver threads alike have response headers that never
+     *             reach the client (see {@code FormatReadContext#informationalWarningSink}). {@code null} is for
+     *             plan-time callers on the request thread, and for tests.
      */
     public SkipWarnings(String summary, @Nullable Consumer<String> sink) {
         this.summary = summary;

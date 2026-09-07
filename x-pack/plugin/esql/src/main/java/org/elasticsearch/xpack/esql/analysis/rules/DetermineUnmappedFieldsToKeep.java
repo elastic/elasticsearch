@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -64,16 +63,18 @@ import java.util.stream.Collectors;
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return context.unmappedResolution().loadsAllUnmappedFields()
+        if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
+            return plan;
+        }
+        boolean hasFork = plan.anyMatch(p -> p instanceof Fork fork && isForkCommand(fork));
+        LogicalPlan annotated = hasFork ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
+        LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+        return hasFork
             // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
-            ? annotate(plan, computeUnmappedFieldsToKeep(plan)).transformUp(
-                Project.class,
-                DetermineUnmappedFieldsToKeep::passThroughUnmappedFields
-            )
-                .transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
+            ? withUnmappedOnProjects.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
-            : plan;
+            : withUnmappedOnProjects;
     }
 
     /**
@@ -114,12 +115,21 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     /**
+     * No {@link Fork} in the plan: one pattern for the whole query, stamped onto every non-LOOKUP
+     * {@link EsRelation} in a single {@code transformUp}.
+     */
+    private static LogicalPlan stampAll(LogicalPlan plan) {
+        UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
+        return pattern.isNone() ? plan : plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
+    }
+
+    /**
      * Stamps {@link UnmappedFieldsAttribute} onto non-LOOKUP {@link EsRelation}s. {@link Fork} is the
      * other special case: each branch is annotated with its own pattern. Every other node is only
-     * walked to reach those two.
+     * walked to reach those two; recursion stops at a Fork so a parent pattern cannot stamp through it.
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
-        if (plan instanceof Fork fork && (plan instanceof UnionAll) == false) {
+        if (plan instanceof Fork fork && isForkCommand(fork)) {
             return fork.replaceChildren(
                 fork.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
             );
@@ -130,10 +140,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof Fork && (p instanceof UnionAll) == false)) {
-            return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
-        }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
+    }
+
+    /** Checks the plan is an actual {@code FORK} command, and not one of its subtypes (which aren't {@code FORK} commands). */
+    private static boolean isForkCommand(Fork fork) {
+        return fork.getClass() == Fork.class;
     }
 
     private static EsRelation stamp(EsRelation esr, UnmappedFieldsPattern pattern) {
@@ -165,7 +177,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
     private static LogicalPlan finishForkUnmappedFields(Fork fork) {
-        if (fork instanceof UnionAll) {
+        if (isForkCommand(fork) == false) {
             return fork;
         }
         List<LogicalPlan> children = fork.children();

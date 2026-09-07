@@ -47,7 +47,7 @@ final class BinaryDocValuesLengthQuery extends Query {
     BinaryDocValuesLengthQuery(String fieldName, int length, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.length = length;
-        this.binaryFormat = Objects.requireNonNull(binaryFormat);
+        this.binaryFormat = AbstractBinaryDocValuesQuery.rejectColumnar(binaryFormat, fieldName);
     }
 
     @Override
@@ -83,11 +83,10 @@ final class BinaryDocValuesLengthQuery extends Query {
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
-                            // The payload carries its own count; its blob is never a bare value, so no fast path applies.
-                            case COLUMNAR_PAYLOAD -> AbstractBinaryDocValuesQuery.columnarPayloadIterator(
-                                values,
-                                lengthPredicate,
-                                matchCost
+                            // Reached only by rewriting a term query for the empty term, and a columnar field's term
+                            // query is the column's own, which answers the empty term by bisecting like any other.
+                            case COLUMNAR_PAYLOAD -> throw new IllegalStateException(
+                                "a columnar field is answered by its column, not by scanning [" + fieldName + "]"
                             );
                             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);

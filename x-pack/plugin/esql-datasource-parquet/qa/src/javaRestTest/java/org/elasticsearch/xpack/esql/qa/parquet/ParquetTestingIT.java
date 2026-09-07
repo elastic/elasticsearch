@@ -385,8 +385,8 @@ public class ParquetTestingIT extends ESRestTestCase {
             return;
         }
 
-        // Not using expectThrows here: a network timeout must skip before the 4xx assert; any other
-        // IOException (including a 503) must fail the test.
+        // Not using expectThrows here: a network timeout or a 503 (cluster exhausted retries against
+        // GitHub) must skip before the 4xx assert; any other IOException must fail the test.
         ResponseException ex;
         try {
             runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
@@ -468,18 +468,33 @@ public class ParquetTestingIT extends ESRestTestCase {
     }
 
     /**
+     * Whether {@code failure} is a 503 from the cluster after the {@code http} data source exhausted
+     * its retry budget against {@code raw.githubusercontent.com} (see
+     * {@code ExternalUnavailableException#status()}). Truncated GitHub bodies and similar transport
+     * faults surface this way; they are environmental, not a reader defect.
+     */
+    private static boolean isExternalUnavailable(IOException failure) {
+        return failure instanceof ResponseException responseException
+            && responseException.getResponse().getStatusLine().getStatusCode() == 503;
+    }
+
+    /**
      * Skips the test via {@code assumeNoException} if {@code failure} is a
-     * {@linkplain #isNetworkTimeout network timeout} encountered while {@code action}
-     * (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this method never
-     * returns normally in that case. Otherwise returns {@code failure} unchanged, so callers can
-     * either {@code throw} it to propagate as-is, or assign it (the declared type is the caller's
-     * exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling it
-     * below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
-     * {@code runEsqlSync} call site in this class.
+     * {@linkplain #isNetworkTimeout network timeout} or an {@linkplain #isExternalUnavailable
+     * external-host 503} encountered while {@code action} (e.g. {@code "querying"});
+     * {@code assumeNoException} always throws, so this method never returns normally in that case.
+     * Otherwise returns {@code failure} unchanged, so callers can either {@code throw} it to
+     * propagate as-is, or assign it (the declared type is the caller's exception type, e.g.
+     * {@link ResponseException}, so no cast is needed) to keep handling it below -- centralizing
+     * the classify-and-skip logic that would otherwise be repeated at every {@code runEsqlSync}
+     * call site in this class.
      */
     private <T extends IOException> T skipIfTransientFailure(T failure, String action) {
         if (isNetworkTimeout(failure)) {
             assumeNoException("Network timeout while " + action + " [" + parquetFile + "]", failure);
+        }
+        if (isExternalUnavailable(failure)) {
+            assumeNoException("External host unavailable while " + action + " [" + parquetFile + "]", failure);
         }
         return failure;
     }

@@ -261,33 +261,21 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals("field", name2);
     }
 
-    // ---- Exact buffer sizes (SIMD lane boundaries) ----
+    // ---- Exact buffer length and padding invariance ----
 
-    public void testTinyDocument2Bytes() {
-        List<String> events = walkJson("{}");
-        assertEquals(List.of(), events);
+    public void testWalksDocumentsWithExactBufferLength() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> expected = walkJson(json);
+            assertEquals("exact buffer length walk for: " + json, expected, walkAndRecord(json, 0).events);
+        }
     }
 
-    // Exact 16/32/64-byte UTF-8 document lengths (SIMD lane alignment).
-    public void testDocumentExactly16Bytes() {
-        String json = "{\"a\":\"b\"       }";
-        assertEquals(16, json.getBytes(UTF_8).length);
-        List<String> events = walkJson(json);
-        assertEquals(List.of("string(a=b)"), events);
-    }
-
-    public void testDocumentExactly32Bytes() {
-        String json = "{\"abcd\":\"efghijklmnopqr\"       }";
-        assertEquals(32, json.getBytes(UTF_8).length);
-        List<String> events = walkJson(json);
-        assertEquals(List.of("string(abcd=efghijklmnopqr)"), events);
-    }
-
-    public void testDocumentExactly64Bytes() {
-        String json = "{\"abcdefghijk\":\"lmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN\"       }";
-        assertEquals(64, json.getBytes(UTF_8).length);
-        List<String> events = walkJson(json);
-        assertEquals(List.of("string(abcdefghijk=lmnopqrstuvwxyz0123456789ABCDEFGHIJKLMN)"), events);
+    public void testTrailingBufferPaddingDoesNotChangeEvents() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> tight = walkAndRecord(json, 0).events;
+            List<String> padded = walkAndRecord(json, 64).events;
+            assertEquals("padding must not change events for: " + json, tight, padded);
+        }
     }
 
     public void testEmptyArray() {
@@ -322,74 +310,6 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         );
     }
 
-    // ---- Zero-padding tests ----
-    // All code paths have scalar tail fallbacks, so no trailing padding is needed.
-
-    // Diverse value types with zero trailing padding — scalar tail must handle all paths.
-    public void testZeroPaddingForAllValueTypes() {
-        String[] docs = {
-            "{}",
-            "{\"a\":1}",
-            "{\"s\":\"hello\"}",
-            "{\"b\":true}",
-            "{\"b\":false}",
-            "{\"n\":null}",
-            "{\"d\":3.14}",
-            "{\"sci\":1.5e10}",
-            "{\"neg\":-42}",
-            "{\"arr\":[1,\"s\",true,null,3.14]}",
-            "{\"o\":{\"inner\":\"val\"}}",
-            "{\"esc\":\"line1\\nline2\"}",
-            "{\"q\":\"say \\\"hi\\\"\"}",
-            "{\"u\":\"\\u0041\"}",
-            "{\"long\":9999999999}",
-            "{\"last_esc\":\"a\\nb\"}" };
-
-        for (String json : docs) {
-            walkWithExactPadding(json, 0);
-        }
-    }
-
-    public void testFieldNameLengthSweepZeroPadding() {
-        // Exercises resolveFieldName with field names of varying lengths (1..20) in an
-        // exact-length buffer (zero padding). Short names near the buffer end force the
-        // resolveFieldNameScalar tail path. Longer names may go through the 8-byte SIMD loop.
-        for (int nameLen = 1; nameLen <= 20; nameLen++) {
-            String name = "x".repeat(nameLen);
-            String json = "{\"" + name + "\":1}";
-            walkWithExactPadding(json, 0);
-        }
-    }
-
-    public void testFieldNameScalarTailWithEscape() {
-        // Field name with backslash near the buffer end — exercises resolveFieldNameScalar's
-        // backslash detection which delegates to resolveEscapedFieldName.
-        walkWithExactPadding("{\"a\\nb\":1}", 0);
-        walkWithExactPadding("{\"x\\\"y\":1}", 0);
-        walkWithExactPadding("{\"\\u0041\":1}", 0);
-    }
-
-    public void testFieldNameResolutionConsistencyAcrossBufferSizes() {
-        // The same field name must resolve to the same String regardless of whether
-        // resolveFieldName took the SIMD path or the scalar tail path.
-        String name = "test_field";
-        String json = "{\"" + name + "\":42}";
-
-        RecordingHandler h1 = walkAndRecord(json, 0);
-        RecordingHandler h2 = walkAndRecord(json, 64);
-
-        assertEquals(h1.events, h2.events);
-    }
-
-    public void testMultipleFieldsLastNearBufferEnd() {
-        // The last field's name is near the end of the buffer, exercising the scalar tail.
-        walkWithExactPadding("{\"first\":1,\"x\":2}", 0);
-        walkWithExactPadding("{\"first\":1,\"ab\":2}", 0);
-        walkWithExactPadding("{\"first\":1,\"abcdefg\":2}", 0);
-        walkWithExactPadding("{\"first\":1,\"abcdefgh\":2}", 0);
-        walkWithExactPadding("{\"first\":1,\"abcdefghi\":2}", 0);
-    }
-
     // Truncated JSON must not complete a successful walk.
     public void testTruncatedJsonMustNotWalkSuccessfully() {
         byte[] buffer = "{\"a\":1".getBytes(UTF_8);
@@ -403,11 +323,6 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         } catch (JsonParsingException e) {
             // stage 1 rejection is acceptable
         }
-    }
-
-    // Walk with buffer length = JSON length + padding (no trailing slack required).
-    private void walkWithExactPadding(String json, int paddingBytes) {
-        walkAndRecord(json, paddingBytes);
     }
 
     private RecordingHandler walkAndRecord(String json, int paddingBytes) {

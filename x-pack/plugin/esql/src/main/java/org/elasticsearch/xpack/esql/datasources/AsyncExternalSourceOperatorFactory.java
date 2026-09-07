@@ -2027,10 +2027,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
-                String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                StorageObject fullObj = fileLengthStr != null
-                    ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
-                    : storageProvider.newObject(fileSplit.path());
+                StorageObject fullObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
                 attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
@@ -2081,7 +2078,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Cache per file path to avoid redundant metadata fetches across splits of the same file.
                     List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
                     if (cachedSchema == null) {
-                        SourceMetadata meta = fileReader.metadata(storageProvider.newObject(fileSplit.path()));
+                        SourceMetadata meta = fileReader.metadata(FileSplitProvider.newObjectForFile(storageProvider, fileSplit));
                         if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                             cachedSchema = meta.schema();
                         }
@@ -2226,10 +2223,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
-                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                    StorageObject obj = fileLengthStr != null
-                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
-                        : storageProvider.newObject(fs.path());
+                    StorageObject obj = FileSplitProvider.newObjectForFile(storageProvider, fs);
                     // Batch path reads several objects together — attach each before readAll() opens them.
                     attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
@@ -2294,14 +2288,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         CloseableIterator<Page> pages = null;
         try {
-            StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            StoragePath filePath = files.path(fileIndex);
+            long size = files.size(fileIndex);
+            long mtime = files.lastModifiedMillis(fileIndex);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
             List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
+                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(filePath);
                 if (info != null) {
                     mapping = info.mapping();
                     perFileReadSchema = info.fileSchema().attributes();
@@ -2362,7 +2359,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, filePath);
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;

@@ -31,7 +31,6 @@ import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -487,7 +486,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         // When a view is defined, ViewResolver can do signifcant work with a large stack.
         Request r = new Request("PUT", "/_query/view/my_view");
         r.setJsonEntity("""
-                { "query": "FROM manylongs" }""");
+            { "query": "FROM manylongs" }""");
         client().performRequest(r);
 
         initManyLongs(10);

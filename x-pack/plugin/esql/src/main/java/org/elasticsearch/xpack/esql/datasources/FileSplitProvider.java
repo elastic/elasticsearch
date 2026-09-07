@@ -1257,21 +1257,26 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Full-file {@link StorageObject} for {@code fileSplit}, seeded with listing length (and mtime
-     * when known) so {@code length()} does not probe the object store. Size {@code 0} is a real
-     * empty object; missing length falls back to the path-only constructor.
+     * when known) so {@code length()} / {@code lastModified()} do not probe the object store. Size
+     * {@code 0} is a real empty object; missing length falls back to the path-only constructor.
      * <p>
-     * Used by {@link #storageObjectForSplit} (which then range-wraps the view span) and by COUNT(*)
-     * schema bind, which must see file-leading bytes rather than the split window.
+     * Used by {@link #storageObjectForSplit} (which then range-wraps the view span), COUNT(*) schema
+     * bind (file-leading bytes, not the split window), and range-leaf / batch reads.
      */
     static StorageObject newObjectForFile(StorageProvider storageProvider, FileSplit fileSplit) {
-        StoragePath path = fileSplit.path();
-        Long length = fileLengthHint(fileSplit);
+        return newObject(storageProvider, fileSplit.path(), fileLengthHint(fileSplit), fileMtimeHint(fileSplit));
+    }
+
+    /**
+     * Picks the {@link StorageProvider#newObject} overload. Missing {@code length} is path-only;
+     * size {@code 0} is a known empty object; mtime {@code 0} is unknown.
+     */
+    static StorageObject newObject(StorageProvider storageProvider, StoragePath path, @Nullable Long length, long mtimeMillis) {
         if (length == null) {
             return storageProvider.newObject(path);
         }
-        Long mtime = fileMtimeHint(fileSplit);
-        return mtime != null
-            ? storageProvider.newObject(path, length, Instant.ofEpochMilli(mtime))
+        return mtimeMillis > 0
+            ? storageProvider.newObject(path, length, Instant.ofEpochMilli(mtimeMillis))
             : storageProvider.newObject(path, length);
     }
 
@@ -1296,16 +1301,9 @@ public class FileSplitProvider implements SplitProvider {
         return listed instanceof Number n ? n.longValue() : null;
     }
 
-    @Nullable
-    private static Long fileMtimeHint(FileSplit fileSplit) {
+    private static long fileMtimeHint(FileSplit fileSplit) {
         Object modified = fileSplit.partitionValues().get(FileMetadataColumns.MODIFIED);
-        if (modified instanceof Number n) {
-            long millis = n.longValue();
-            if (millis > 0) {
-                return millis;
-            }
-        }
-        return null;
+        return modified instanceof Number n ? n.longValue() : 0L;
     }
 
     /**

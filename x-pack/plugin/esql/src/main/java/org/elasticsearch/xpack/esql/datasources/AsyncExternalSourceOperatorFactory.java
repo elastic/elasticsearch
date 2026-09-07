@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -2028,10 +2027,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
-                String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                StorageObject fullObj = fileLengthStr != null
-                    ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
-                    : storageProvider.newObject(fileSplit.path());
+                StorageObject fullObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
                 attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
@@ -2227,10 +2223,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
-                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                    StorageObject obj = fileLengthStr != null
-                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
-                        : storageProvider.newObject(fs.path());
+                    StorageObject obj = FileSplitProvider.newObjectForFile(storageProvider, fs);
                     // Batch path reads several objects together — attach each before readAll() opens them.
                     attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
@@ -2298,9 +2291,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StoragePath filePath = files.path(fileIndex);
             long size = files.size(fileIndex);
             long mtime = files.lastModifiedMillis(fileIndex);
-            StorageObject obj = mtime > 0
-                ? storageProvider.newObject(filePath, size, Instant.ofEpochMilli(mtime))
-                : storageProvider.newObject(filePath, size);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.

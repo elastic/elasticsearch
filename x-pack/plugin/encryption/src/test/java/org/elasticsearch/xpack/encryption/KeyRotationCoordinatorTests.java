@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.mockito.ArgumentCaptor;
@@ -533,7 +534,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, java.util.function.UnaryOperator<EncryptedData> rewrapper) {
                 calls.incrementAndGet();
                 return current;
             }
@@ -573,7 +574,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, java.util.function.UnaryOperator<EncryptedData> rewrapper) {
                 calls.incrementAndGet();
                 return null;
             }
@@ -762,9 +763,9 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             }
 
             @Override
-            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+            public TestCustom reEncrypt(TestCustom current, java.util.function.UnaryOperator<EncryptedData> rewrapper) {
                 calls.incrementAndGet();
-                return TestCustom.encryptedUnder(activeKeyId);
+                return TestCustom.encryptedUnder(expectedKeyId);
             }
         };
     }

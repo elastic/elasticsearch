@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * Re-encrypts every stored data-source secret under the active project encryption key on rotation —
@@ -60,7 +59,7 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
     }
 
     @Override
-    public DataSourceMetadata reEncrypt(DataSourceMetadata current, EncryptionService encryptionService, String activeKeyId) {
+    public DataSourceMetadata reEncrypt(DataSourceMetadata current, UnaryOperator<EncryptedData> rewrapper) {
         if (current == null || current.dataSources().isEmpty()) {
             return current;
         }
@@ -68,20 +67,20 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
         boolean changed = false;
         for (Map.Entry<String, DataSource> entry : current.dataSources().entrySet()) {
             DataSource dataSource = entry.getValue();
-            DataSource reEncrypted = reEncrypt(dataSource, encryptionService, activeKeyId);
+            DataSource reEncrypted = reEncrypt(dataSource, rewrapper);
             rebuilt.put(entry.getKey(), reEncrypted);
             changed |= reEncrypted != dataSource;
         }
         return changed ? new DataSourceMetadata(rebuilt) : current;
     }
 
-    private static DataSource reEncrypt(DataSource dataSource, EncryptionService encryptionService, String activeKeyId) {
+    private static DataSource reEncrypt(DataSource dataSource, UnaryOperator<EncryptedData> rewrapper) {
         DataSourceSettings settings = dataSource.settings();
         Map<String, DataSourceSetting> rebuilt = new HashMap<>(settings.size());
         boolean changed = false;
         for (Map.Entry<String, DataSourceSetting> entry : settings) {
             DataSourceSetting setting = entry.getValue();
-            DataSourceSetting reEncrypted = reEncrypt(setting, encryptionService, activeKeyId);
+            DataSourceSetting reEncrypted = reEncrypt(setting, rewrapper);
             rebuilt.put(entry.getKey(), reEncrypted);
             changed |= reEncrypted != setting;
         }
@@ -91,19 +90,16 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
         return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt);
     }
 
-    private static DataSourceSetting reEncrypt(DataSourceSetting setting, EncryptionService encryptionService, String activeKeyId) {
+    private static DataSourceSetting reEncrypt(DataSourceSetting setting, UnaryOperator<EncryptedData> rewrapper) {
         if (setting.isEncrypted() == false) {
             return setting;
         }
         EncryptedData existing = (EncryptedData) setting.rawValue();
-        if (existing.keyId().equals(activeKeyId)) {
+        EncryptedData rewrapped = rewrapper.apply(existing);
+        if (rewrapped == existing) {
             return setting;
         }
-        byte[] plaintext = encryptionService.decrypt(existing);
-        try {
-            return new DataSourceSetting(encryptionService.encrypt(plaintext), true);
-        } finally {
-            Arrays.fill(plaintext, (byte) 0);
-        }
+        return new DataSourceSetting(rewrapped, true);
     }
+
 }

@@ -66,7 +66,7 @@ public final class TestEncryptedBlob extends AbstractNamedDiffable<Metadata.Proj
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
     }
 
     @Override

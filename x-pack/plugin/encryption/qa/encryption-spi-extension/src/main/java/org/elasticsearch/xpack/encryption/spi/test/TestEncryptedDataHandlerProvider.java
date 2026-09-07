@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.encryption.spi.test;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandlerProvider;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.UnaryOperator;
 
 /**
  * Discovered via {@code ExtensiblePlugin.loadExtensions} by the encryption plugin. Registers a {@link TestSpiHandler} that owns a
@@ -38,17 +38,16 @@ public class TestEncryptedDataHandlerProvider implements EncryptedDataHandlerPro
         }
 
         @Override
-        public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, EncryptionService encryptionService, String activeKeyId) {
+        public TestEncryptedBlob reEncrypt(TestEncryptedBlob current, UnaryOperator<EncryptedData> rewrapper) {
             INVOCATIONS.incrementAndGet();
             if (current == null) {
                 return null;
             }
-            EncryptedData existing = current.blob();
-            if (existing.keyId().equals(activeKeyId)) {
-                return current;
+            EncryptedData rewrapped = rewrapper.apply(current.blob());
+            if (rewrapped == null) {
+                return null;
             }
-            byte[] plaintext = encryptionService.decrypt(existing);
-            return new TestEncryptedBlob(encryptionService.encrypt(plaintext));
+            return rewrapped == current.blob() ? current : new TestEncryptedBlob(rewrapped);
         }
     }
 }

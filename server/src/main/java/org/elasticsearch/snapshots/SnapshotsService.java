@@ -209,8 +209,26 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * When {@code true}, any create-snapshot request that omits {@code encrypted_data} is rejected if the cluster
+     * contains encrypted project data. Protects against accidentally leaking plaintext data in snapshots.
+     */
+    public static final Setting<Boolean> ENCRYPTED_DATA_REQUIRED_SETTING = Setting.boolSetting(
+        "snapshot.encrypted_data.required",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
     private volatile boolean monotonicEndTime;
+
+    private volatile boolean encryptedDataRequired;
+
+    private List<SnapshotGlobalStateTransformer> snapshotGlobalStateTransformers = List.of();
+
+    /** Master-local map of pending encrypted-data parameters, keyed by snapshot. Never published to cluster state. */
+    private final Map<SnapshotId, SnapshotEncryptedData> pendingEncryptedData = new ConcurrentHashMap<>();
 
     public SnapshotsService(
         Settings settings,
@@ -238,6 +256,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
             monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
+            if (SnapshotEncryptedData.FEATURE_FLAG.isEnabled()) {
+                encryptedDataRequired = ENCRYPTED_DATA_REQUIRED_SETTING.get(settings);
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(ENCRYPTED_DATA_REQUIRED_SETTING, b -> encryptedDataRequired = b);
+            }
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -259,6 +282,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
+    }
+
+    /**
+     * Registers the global-state transformers contributed by x-pack plugins. Called from {@code NodeConstruction} after the plugin
+     * service providers have been loaded.
+     */
+    public void setSnapshotGlobalStateTransformers(List<? extends SnapshotGlobalStateTransformer> transformers) {
+        this.snapshotGlobalStateTransformers = List.copyOf(transformers);
+    }
+
+    /** Returns the registered transformers, for wiring into related action handlers. */
+    public List<SnapshotGlobalStateTransformer> getSnapshotGlobalStateTransformers() {
+        return snapshotGlobalStateTransformers;
+    }
+
+    /** Returns the setting value for pre-flight checks in {@code TransportCreateSnapshotAction}. */
+    public boolean isEncryptedDataRequired() {
+        return encryptedDataRequired;
     }
 
     /**
@@ -299,13 +340,28 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             return;
         }
-        submitCreateSnapshotRequest(
-            request,
-            listener,
-            repository,
-            new Snapshot(projectId, repositoryName, snapshotId),
-            repository.getMetadata()
-        );
+        if (request.encryptedData() != null) {
+            pendingEncryptedData.put(snapshotId, request.encryptedData());
+        }
+        submitCreateSnapshotRequest(request, listener.delegateResponse((l, e) -> {
+            // Remove pending encrypted data on synchronous failure before the snapshot is registered in cluster state.
+            removePendingEncryptedData(snapshotId);
+            l.onFailure(e);
+        }), repository, new Snapshot(projectId, repositoryName, snapshotId), repository.getMetadata());
+    }
+
+    private void removePendingEncryptedData(SnapshotId snapshotId) {
+        SnapshotEncryptedData removed = pendingEncryptedData.remove(snapshotId);
+        if (removed != null && removed.password() != null) {
+            removed.password().close();
+        }
+    }
+
+    @Nullable
+    private SnapshotEncryptedData removePendingEncryptedDataAndReturn(SnapshotId snapshotId) {
+        return pendingEncryptedData.remove(snapshotId);
+        // Password is intentionally NOT closed here — the caller needs it for the transformer.
+        // The transformer must close/zero the password after use.
     }
 
     /**
@@ -1030,7 +1086,38 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             metadataListener.addListener(ActionListener.wrap(meta -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+                Metadata metaForSnapshot = metadataForSnapshot(entry, meta, projectId);
+
+                // Retrieve and remove the pending encrypted-data entry so the password is zeroed after use.
+                final SnapshotEncryptedData requestEncryptedData = removePendingEncryptedDataAndReturn(snapshot.getSnapshotId());
+
+                // On master failover the new master has no pending entry. If transformers report that the cluster has
+                // encrypted data, warn that it is being excluded from the snapshot.
+                if (requestEncryptedData == null && entry.includeGlobalState()) {
+                    for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
+                        if (transformer.containsEncryptedData(projectId, meta)) {
+                            logger.warn(
+                                "Snapshot [{}]: encrypted project data excluded — the master node changed after the snapshot "
+                                    + "was initiated and the snapshot password was lost.",
+                                snapshot.getSnapshotId().getName()
+                            );
+                            break;
+                        }
+                    }
+                }
+
+                // Apply global-state transformers (e.g. re-wrap encrypted data under the snapshot password).
+                boolean transformed = false;
+                if (entry.includeGlobalState()) {
+                    for (SnapshotGlobalStateTransformer transformer : snapshotGlobalStateTransformers) {
+                        Metadata result = transformer.transformForSnapshot(projectId, metaForSnapshot, requestEncryptedData);
+                        if (result != metaForSnapshot) {
+                            metaForSnapshot = result;
+                            transformed = true;
+                        }
+                    }
+                }
+                final boolean encryptedDataIncluded = transformed && requestEncryptedData != null;
 
                 final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
                     finalIndices.size()
@@ -1067,7 +1154,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
 
-                final SnapshotInfo snapshotInfo = new SnapshotInfo(
+                final SnapshotInfo rawSnapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
                     entry.dataStreams().stream().filter(metaForSnapshot.getProject(projectId).dataStreams()::containsKey).toList(),
@@ -1081,6 +1168,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.startTime(),
                     indexSnapshotDetails
                 );
+                final SnapshotInfo snapshotInfo = encryptedDataIncluded
+                    ? rawSnapshotInfo.withEncryptedData(requestEncryptedData.type(), requestEncryptedData.passwordId())
+                    : rawSnapshotInfo;
                 assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
@@ -1207,6 +1297,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
         final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
+        // Clean up any pending encrypted-data entry that wasn't consumed by a transformer (e.g. finalization failed).
+        removePendingEncryptedData(snapshot.getSnapshotId());
         return listenersToComplete;
     }
 
@@ -1706,6 +1798,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         readyToResolveListeners::add
                     );
                 }
+                // Zero out any pending snapshot passwords — this node is no longer master.
+                pendingEncryptedData.values().forEach(sed -> { if (sed.password() != null) sed.password().close(); });
+                pendingEncryptedData.clear();
                 final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
                 for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
                     final List<ActionListener<Void>> listeners = it.next();

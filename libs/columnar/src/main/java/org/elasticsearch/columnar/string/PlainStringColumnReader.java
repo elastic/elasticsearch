@@ -226,7 +226,51 @@ public final class PlainStringColumnReader extends StringColumnReader {
      * entry a run rather than one a document, without comparing any bytes.
      */
     @Override
-    protected boolean appendPage(int count, StringBlockSink sink) throws IOException {
+    protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
+        if (pageable()) {
+            // One value a document and every one of them present: the page is the documents, and a run tells itself
+            // from the address its value was read at without any of the accounting below.
+            return appendSingleValuedPage(docCount, sink);
+        }
+        final int values = countPageValues(docCount);
+        growPageValues(Math.max(values, 1));
+        pageBytesLength = 0;
+        startPageSlots(values);
+        int slots = 0;
+        int at = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            final long first = firstValueAddress(rank);
+            final long held = valueCount(rank);
+            for (long s = 0; s < held; s++) {
+                final long address = first + s;
+                if (isNullSlot(address)) {
+                    continue;
+                }
+                this.values.get(address, scratch);
+                final int slot = pageSlotFor(scratch, slots);
+                if (slot == slots) {
+                    slots++;
+                }
+                pageOrdinals[at++] = slot;
+            }
+        }
+        assert at == values : "wrote " + at + " values, counted " + values;
+        point(pageDictionary, slots);
+        if ((long) slots * MIN_PAGE_REPEAT > values) {
+            for (int i = 0; i < values; i++) {
+                pageValues[i] = pageDictionary[pageOrdinals[i]];
+            }
+            sink.appendValues(pageValues, values, pageValueCounts, docCount);
+            return true;
+        }
+        sink.appendOrdinals(pageOrdinals, values, pageValueCounts, docCount, pageDictionary, slots);
+        return true;
+    }
+
+    /** A page of a column holding one value a document, which is the shape a run-encoded column pays off on. */
+    private boolean appendSingleValuedPage(int count, StringBlockSink sink) throws IOException {
+        growPageValues(count);
         pageBytesLength = 0;
         startPageSlots(count);
         int slots = 0;
@@ -259,10 +303,10 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count);
+            sink.appendValues(pageValues, count, null, count);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, pageDictionary, slots);
+        sink.appendOrdinals(pageOrdinals, count, null, count, pageDictionary, slots);
         return true;
     }
 }

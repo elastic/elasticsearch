@@ -143,7 +143,14 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             final boolean[] sawOrdinals = { false };
             assertTrue(label + " page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
                 @Override
-                public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+                public void appendOrdinals(
+                    int[] ordinals,
+                    int count,
+                    int[] valueCounts,
+                    int docCount,
+                    BytesRef[] dictionary,
+                    int dictionarySize
+                ) {
                     sawOrdinals[0] = true;
                     final Map<String, Integer> slotOf = new HashMap<>();
                     for (int i = 0; i < dictionarySize; i++) {
@@ -158,7 +165,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                 }
 
                 @Override
-                public void appendValues(BytesRef[] values, int count) {
+                public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
                     for (int i = 0; i < count; i++) {
                         assertEquals(label + " doc " + docs[i], docValues[docs[i]].utf8ToString(), values[i].utf8ToString());
                     }
@@ -276,10 +283,17 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     "a page covering documents with no value cannot be served",
                     reader.readBlock(all, 0, all.length, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {}
+                        public void appendOrdinals(
+                            int[] ords,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {}
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {}
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {}
                     })
                 );
                 if (reader.hasDictionary()) {
@@ -298,14 +312,21 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     "a page of documents that all have a value is served",
                     reader.readBlock(dense, 0, dense.length, new StringBlockSink() {
                         @Override
-                        public void appendOrdinals(int[] ords, int n, BytesRef[] dictionary, int dictionarySize) {
+                        public void appendOrdinals(
+                            int[] ords,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {
                             for (int i = 0; i < n; i++) {
                                 seen.add(dictionary[ords[i]].utf8ToString());
                             }
                         }
 
                         @Override
-                        public void appendValues(BytesRef[] values, int n) {
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
                             for (int i = 0; i < n; i++) {
                                 seen.add(values[i].utf8ToString());
                             }
@@ -387,7 +408,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         private boolean wasOrdinals;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             wasOrdinals = true;
             for (int i = 0; i < count; i++) {
                 assertTrue("ordinal in range", ordinals[i] >= 0 && ordinals[i] < dictionarySize);
@@ -396,7 +417,7 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         }
 
         @Override
-        public void appendValues(BytesRef[] pageValues, int count) {
+        public void appendValues(BytesRef[] pageValues, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 values.add(BytesRef.deepCopyOf(pageValues[i]));
             }

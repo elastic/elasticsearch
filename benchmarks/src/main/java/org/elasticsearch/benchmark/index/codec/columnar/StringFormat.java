@@ -809,7 +809,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             // One hash a distinct value rather than one a document, which is the whole point of the page
             // coming back as ordinals.
             for (int i = 0; i < dictionarySize; i++) {
@@ -821,7 +821,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += StringFormat.group(groups, values[i]);
             }
@@ -832,14 +832,14 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             for (int i = 0; i < count; i++) {
                 checksum += dictionary[ordinals[i]].length;
             }
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += values[i].length;
             }
@@ -853,7 +853,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             if (groupOf.length < dictionarySize) {
                 groupOf = new int[dictionarySize];
             }
@@ -866,7 +866,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += group(groups, values[i]);
             }

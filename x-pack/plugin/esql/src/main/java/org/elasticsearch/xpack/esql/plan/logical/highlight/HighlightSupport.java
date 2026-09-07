@@ -105,6 +105,9 @@ public final class HighlightSupport {
      * literal, {@code KQL}, a {@code QSTR}, or a negative clause), since those fall back to every highlightable column
      * and name nothing specific to reject. Callers surface the result through the unresolved-attribute channel so
      * verification points at the offending field rather than reporting a generic "no fields to highlight".
+     * <p>
+     * This is for queries the user wrote on the command. A query derived from an upstream {@code WHERE} may name
+     * non-text fields legitimately, so callers skip this check there and let {@link #deriveFields} drop those names.
      */
     public static @Nullable String unhighlightableQueryField(Expression query, List<Attribute> childrenOutput) {
         Set<String> names = new LinkedHashSet<>();

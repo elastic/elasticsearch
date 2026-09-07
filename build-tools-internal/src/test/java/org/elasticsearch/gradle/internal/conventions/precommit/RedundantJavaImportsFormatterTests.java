@@ -358,4 +358,64 @@ public class RedundantJavaImportsFormatterTests {
             """;
         assertEquals(input, RedundantJavaImportsFormatter.format(input));
     }
+
+    @Test
+    public void testKeepsNestedTypeImportUsedOnlyAsAnnotationWhenNotInheriting() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.SkipUnavailableRule;
+            import org.elasticsearch.test.SkipUnavailableRule.NotSkipped;
+
+            public class Example {
+                @NotSkipped(aliases = { "remote" })
+                public void testThing() {}
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesNestedTypeImportUsedOnlyAsAnnotationWhenSubclassExtendsEnclosingType() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESIntegTestCase;
+            import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+
+            @ClusterScope(supportsDedicatedMasters = false)
+            public class ExampleTests extends ESIntegTestCase {
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESIntegTestCase;
+
+            @ClusterScope(supportsDedicatedMasters = false)
+            public class ExampleTests extends ESIntegTestCase {
+            }
+            """;
+        assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsJupiterStaticImportsWhenExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.jupiter.api.Assertions.assertThrows;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertThrows(IllegalStateException.class, () -> {
+                        throw new IllegalStateException();
+                    });
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
 }

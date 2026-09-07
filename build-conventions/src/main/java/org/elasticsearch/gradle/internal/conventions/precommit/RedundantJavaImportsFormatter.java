@@ -25,7 +25,7 @@ import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.comments.Comment;
+import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.LambdaExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
@@ -73,13 +73,11 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 3;
+    private final int revision = 4;
 
     private static final List<String> REDUNDANT_TEST_STATIC_PREFIXES = List.of(
         "org.junit.Assert.",
         "org.junit.Assume.",
-        "org.junit.jupiter.api.Assertions.",
-        "org.junit.jupiter.api.Assumptions.",
         "org.hamcrest.MatcherAssert.",
         "com.carrotsearch.randomizedtesting.RandomizedTest."
     );
@@ -87,8 +85,6 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     private static final Set<String> REDUNDANT_TEST_STATIC_TYPES = Set.of(
         "org.junit.Assert",
         "org.junit.Assume",
-        "org.junit.jupiter.api.Assertions",
-        "org.junit.jupiter.api.Assumptions",
         "org.hamcrest.MatcherAssert",
         "com.carrotsearch.randomizedtesting.RandomizedTest"
     );
@@ -152,8 +148,10 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         String enclosingSimpleName = enclosingTypeSimpleName(name);
         List<Node> usages = typeUsages(cu, nestedSimpleName);
         if (usages.isEmpty()) {
-            // Javadoc {@link NestedType} still needs the import even when there is no code usage.
-            return appearsInJavadoc(cu, nestedSimpleName) == false;
+            // google-java-format already drops imports whose simple name is absent as a token.
+            // If we find no AST usage, keep the import. It may be an annotation, method
+            // reference, javadoc {@link}, or another node type this scan does not cover.
+            return false;
         }
         for (Node usage : usages) {
             if (inherits(usage, enclosingSimpleName, directSupers) == false) {
@@ -317,24 +315,6 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return false;
     }
 
-    private static boolean appearsInJavadoc(CompilationUnit cu, String simpleName) {
-        Pattern identifier = Pattern.compile("\\b" + Pattern.quote(simpleName) + "\\b");
-        for (Node node : cu.findAll(Node.class)) {
-            if (node.getComment().isPresent()) {
-                Comment comment = node.getComment().get();
-                if (comment.isJavadocComment() && identifier.matcher(comment.getContent()).find()) {
-                    return true;
-                }
-            }
-        }
-        for (Comment comment : cu.getAllContainedComments()) {
-            if (comment.isJavadocComment() && identifier.matcher(comment.getContent()).find()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean isNestedTypeImport(String name) {
         int typeSegments = 0;
         for (String segment : name.split("\\.")) {
@@ -366,6 +346,11 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         for (NameExpr nameExpr : cu.findAll(NameExpr.class)) {
             if (simpleName.equals(nameExpr.getNameAsString())) {
                 usages.add(nameExpr);
+            }
+        }
+        for (AnnotationExpr annotation : cu.findAll(AnnotationExpr.class)) {
+            if (simpleName.equals(annotation.getName().getIdentifier())) {
+                usages.add(annotation);
             }
         }
         return usages;

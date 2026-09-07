@@ -41,6 +41,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SkipUnavailableRule;
+import org.elasticsearch.test.SkipUnavailableRule.NotSkipped;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
 import org.junit.Rule;

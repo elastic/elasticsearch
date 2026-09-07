@@ -10,18 +10,19 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Pushes down any SORT + LIMIT (TopN) that appear immediately after a FORK, into the FORK branches that have no pipeline breaker.
+ * Pushes down any SORT + LIMIT (TopN) that appear immediately after a {@link UnionPlan}
+ * (a {@code FORK} or a leaf {@link UnionAll}), into the branches that have no pipeline breaker.
  * In the following example, assuming no FORK implicit limit is added, both FORK branches are missing a pipeline breaker:
  * {@snippet lang="esql" :
  * FROM my-index
@@ -31,8 +32,8 @@ import java.util.Map;
  * }
  * By pushing down (TopN) in both branches, we reduce the number of rows that are returned to the coordinator.
  */
-public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
-    public PushDownLimitAndOrderByIntoFork() {
+public class PushDownLimitAndOrderByIntoUnionPlan extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+    public PushDownLimitAndOrderByIntoUnionPlan() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -43,35 +44,35 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         }
 
         OrderBy orderBy = (OrderBy) limit.child();
-        if (orderBy.child() instanceof Fork == false) {
+        if (orderBy.child() instanceof UnionPlan == false) {
             return limit;
         }
-        Fork fork = (Fork) orderBy.child();
+        UnionPlan unionPlan = (UnionPlan) orderBy.child();
         // Allow TopN pushdown into a direct-leaf UnionAll (heterogeneous FROM shape).
-        // Subquery-shape UnionAll branches are left alone: shouldPushDownPipelineBreakerIntoForkBranch
+        // Subquery-shape UnionAll branches are left alone: shouldPushDownPipelineBreakerIntoUnionBranch
         // returns false for them so the loop below would be a no-op anyway.
-        if (fork instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
+        if (unionPlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll) == false) {
             return limit;
         }
 
-        List<LogicalPlan> newForkChildren = new ArrayList<>();
+        List<LogicalPlan> newChildren = new ArrayList<>();
         boolean changed = false;
 
-        for (LogicalPlan forkChild : fork.children()) {
-            LogicalPlan newForkChild = maybePushDownLimitAndOrderByToForkBranch(limit, fork, orderBy, forkChild);
-            changed = changed || newForkChild != forkChild;
-            newForkChildren.add(newForkChild);
+        for (LogicalPlan child : unionPlan.children()) {
+            LogicalPlan newChild = maybePushDownLimitAndOrderByToUnionBranch(limit, unionPlan, orderBy, child);
+            changed = changed || newChild != child;
+            newChildren.add(newChild);
         }
 
-        return changed ? limit.replaceChild(orderBy.replaceChild(fork.replaceChildren(newForkChildren))) : limit;
+        return changed ? limit.replaceChild(orderBy.replaceChild(unionPlan.replaceChildren(newChildren))) : limit;
     }
 
-    private LogicalPlan maybePushDownLimitAndOrderByToForkBranch(Limit limit, Fork fork, OrderBy orderBy, LogicalPlan forkChild) {
-        if (PushDownUtils.shouldPushDownPipelineBreakerIntoForkBranch(forkChild) == false) {
-            return forkChild;
+    private LogicalPlan maybePushDownLimitAndOrderByToUnionBranch(Limit limit, UnionPlan unionPlan, OrderBy orderBy, LogicalPlan child) {
+        if (PushDownUtils.shouldPushDownPipelineBreakerIntoUnionBranch(child) == false) {
+            return child;
         }
 
-        Map<Expression, Expression> outputMap = PushDownUtils.outputMap(fork, forkChild);
+        Map<Expression, Expression> outputMap = PushDownUtils.outputMap(unionPlan, child);
         List<Order> orders = new ArrayList<>();
         for (Order order : orderBy.order()) {
             Expression orderExp = order.child().transformDown(exp -> {
@@ -87,6 +88,6 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
         assert orderBy.order().size() == orders.size()
             : "Expected the same size for OrderBy but got " + orderBy.order().size() + "!=" + orders.size();
 
-        return limit.replaceChild(new OrderBy(orderBy.source(), forkChild, orders));
+        return limit.replaceChild(new OrderBy(orderBy.source(), child, orders));
     }
 }

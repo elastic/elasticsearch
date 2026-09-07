@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
  * <ul>
  *     <li>{@link Aggregate}: reducing node: maps input to different output. (Preceding SORTs should be dropped by the
  *          {@link PruneRedundantOrderBy} rule.)</li>
- *     <li>{@link Fork}: generative node: produces new data which might or might not be aligned with the existing sort.</li>
+ *     <li>{@link UnionPlan}: generative node: produces new data which might or might not be aligned with the existing sort.</li>
  *     <li>{@link Fuse}: reducing node: merges rows.</li>
  *     <li>{@link Join}: some types are generative; {@link LookupJoin} is surrogate'd with a "plain" Join node.</li>
  *     <li>{@link MvExpand}: generative node, can destabilize the order.</li>

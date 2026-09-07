@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -118,7 +119,7 @@ public final class ForkApproximation implements ApproximationDriver {
         if (countBranches.isEmpty()) {
             return null;
         }
-        Fork forkPlan = new Fork(Source.EMPTY, countBranches, Fork.outputUnion(countBranches));
+        Fork forkPlan = new Fork(Source.EMPTY, countBranches, UnionPlan.outputUnion(countBranches));
         forkPlan.setOptimized();
         return forkPlan;
     }

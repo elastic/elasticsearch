@@ -178,7 +178,7 @@ public final class ReshardSearchFilters implements Closeable {
             // The source shard should not receive any query involving unowned documents until the target has reached the SPLIT state, so
             // we avoid prewarming the source whilst the target is in CLONE, which can last 10s of minutes. This of course presumes
             // perfect global knowledge of the cluster state, so it trades off more optimal prewarming in the happy path with additional
-            // cache misses if a coordinator has more recent knowledge of the cluster state than this node. We hedge our bets  slightly by
+            // cache misses if a coordinator has more recent knowledge of the cluster state than this node. We hedge our bets slightly by
             // waiting for the target to be in HANDOFF instead, since HANDOFF --> SPLIT should happen fairly quickly.
             // Note that correctness isn't compromised in any case: even if we fail to prewarm, the cache read-through mechanism guarantees
             // that unowned docs will be filtered. Even if new documents get written that ultimately belong to the target, the cache is

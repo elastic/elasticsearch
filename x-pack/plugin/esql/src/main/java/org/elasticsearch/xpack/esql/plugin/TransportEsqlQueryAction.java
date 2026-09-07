@@ -320,8 +320,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
      * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
      * value — the same heap- and CPU-scaled default the data-read path uses ({@code NodeScope};
-     * {@code esql.external.max_concurrent_requests} wins when set) — so discovery throttles its footer fan-out
-     * with that formula instead of the raw {@code esql_worker.getMax()} pool size.
+     * {@code esql.external.max_concurrent_requests} wins when set, still memory-capped) — so discovery
+     * throttles its footer fan-out with that formula instead of the raw {@code esql_worker.getMax()} pool size.
      */
     protected int externalSourceConcurrency() {
         return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());

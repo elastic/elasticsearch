@@ -58,7 +58,9 @@ public final class ExternalSourceSettings {
     /**
      * Frozen range-GET / Parquet window size used as the {@code B} term in {@code M = C × B}. Large-object reads
      * cap here; smaller files still clamp to file length. Parquet window and coalesced-merge caps must match this
-     * value so the concurrency formula and the arrays it budgets stay in lockstep.
+     * value so in-flight GET size and the concurrency formula stay in lockstep. This is not a bound on bytes
+     * retained after a GET completes (unread prefetch, current row group) and is not the NDJSON whole-object
+     * byte-array fast-path cap.
      */
     public static final int BLOB_STORE_GET_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -89,22 +91,45 @@ public final class ExternalSourceSettings {
     static int defaultBlobStoreConcurrency(int allocatedProcessors, long heapBytes, long requestBreakerLimitBytes) {
         int scaled = allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR;
         int cpuClamp = Math.min(Math.max(scaled, BLOB_STORE_CONCURRENCY_FLOOR), BLOB_STORE_CONCURRENCY_CEILING);
+        return Math.min(cpuClamp, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+    }
+
+    // visible for testing
+    /**
+     * Upper bound on in-flight 10 MiB GET slots from {@code M = min(heap/4, REQUEST/2)}. Never below the parse
+     * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
+     */
+    static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
         long memoryBudget = Math.min(heapBytes / BLOB_STORE_MEMORY_HEAP_DIVISOR, requestBreakerLimitBytes / 2);
         long memorySlots = Math.max(0L, memoryBudget / BLOB_STORE_GET_SIZE_BYTES);
-        int fromMemory = (int) Math.min(cpuClamp, memorySlots);
-        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, fromMemory);
+        int slots = (int) Math.min(Integer.MAX_VALUE, memorySlots);
+        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
     }
 
     /**
      * The effective per-node blob-store access concurrency that every external access path reads, so one knob
      * governs metadata discovery and data reads alike: the operator's {@link #MAX_CONCURRENT_REQUESTS} value when
-     * set, otherwise the heap- and CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default. The data-read path bounds
-     * in-flight reads with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and
-     * the metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
+     * set, otherwise the heap- and CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default. A positive
+     * override is still capped by {@link #memoryBoundConcurrency} so a leftover {@code 16} (the old floor) cannot
+     * skip the byte budget; {@code 0} still disables permit limiting. The data-read path bounds in-flight reads
+     * with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and the
+     * metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
      * value — so an operator override reaches both paths.
      */
     public static int blobStoreConcurrency(Settings settings) {
-        return MAX_CONCURRENT_REQUESTS.get(settings);
+        return blobStoreConcurrency(
+            MAX_CONCURRENT_REQUESTS.get(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static int blobStoreConcurrency(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        if (configured == 0) {
+            return 0;
+        }
+        return Math.min(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
     }
 
     /**
@@ -135,9 +160,11 @@ public final class ExternalSourceSettings {
      * {@code allocatedProcessors * 3} clamped to
      * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]},
      * then further limited so concurrent 10 MiB reads stay within a quarter of heap (or half the request breaker
-     * when that is tighter). Operators can raise it (up to 500) for high-throughput clusters or lower it when a
-     * store throttles. The request breaker itself is Dynamic; this default is sampled when the NodeScope knob
-     * is resolved at startup, so a live REQUEST update does not change concurrency until restart.
+     * when that is tighter). A positive operator override is capped by that same memory term, so a leftover
+     * {@code 16} (the old floor) cannot skip the budget; {@code 0} still disables permit limiting. Operators can
+     * raise it up to the memory cap (setting range 0–500) for high-throughput clusters or lower it when a store
+     * throttles. The request breaker itself is Dynamic; this default is sampled when the NodeScope knob is
+     * resolved at startup, so a live REQUEST update does not change concurrency until restart.
      * <p>
      * Static ({@link Setting.Property#NodeScope}): the value sizes the per-scheme semaphores and SDK pools when they
      * are built and there is no settings-update consumer to resize a live {@link java.util.concurrent.Semaphore} or

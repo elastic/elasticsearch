@@ -45,7 +45,9 @@ final class CoalescedRangeReader {
      * group does not become one very large contiguous array and request. This is a coalescing
      * bound, not an allocation bound: a single constituent larger than this keeps its own
      * oversized range. Matches {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE} so merge GETs
-     * and window GETs share the same 10 MiB ceiling. Using the adapter's 4 MiB
+     * and window GETs share the same 10 MiB in-flight ceiling. Permits drop when the GET completes;
+     * coalesced buffers stay until that row group is decoded. {@code C × B} budgets concurrent GET
+     * size, not retained prefetch. Using the adapter's 4 MiB
      * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a representative
      * 152 MiB row group from roughly 16 requests into roughly 38.
      */

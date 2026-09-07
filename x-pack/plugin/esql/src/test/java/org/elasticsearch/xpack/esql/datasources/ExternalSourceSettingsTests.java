@@ -84,6 +84,30 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(4, ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest));
     }
 
+    public void testPositiveOverrideIsClampedByMemoryTerm() {
+        // Leftover 16 (the old floor) must not skip M. Default REQUEST is 60% of heap, so heap/4 binds.
+        assertEquals(12, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(512).getBytes(), requestLimit(512)));
+        assertEquals(6, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+    }
+
+    public void testPositiveOverrideCanLowerBelowMemoryCap() {
+        assertEquals(2, ExternalSourceSettings.blobStoreConcurrency(2, ByteSizeValue.ofMb(512).getBytes(), requestLimit(512)));
+    }
+
+    public void testZeroOverrideSkipsMemoryCap() {
+        assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(0, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
+    }
+
+    public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {
+        // 80 MiB heap: M = 20 MiB, floor(M / 10 MiB) = 2, leftover 16 still gets the gzip parse floor of 4.
+        assertEquals(4, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(80).getBytes(), requestLimit(80)));
+    }
+
+    public void testPositiveOverrideCanRaiseAboveCpuWhenMemoryAllows() {
+        // 1 CPU would default to 4; leftover 16 on 4 GiB is memory-legal (102 slots) so it stays 16.
+        assertEquals(16, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofGb(4).getBytes(), requestLimitGb(4)));
+    }
+
     public void testDefaultBlobStoreConcurrencySettingsHonorsRequestLimit() {
         // Wiring: a tightened request breaker must reach the Settings overload. Do not set
         // node.processors above the host's allocatedProcessors (the setting rejects that).
@@ -104,22 +128,39 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         return ExternalSourceSettings.defaultBlobStoreConcurrency(processors, heapBytes, requestLimit);
     }
 
+    private static long requestLimit(int heapMb) {
+        return ByteSizeValue.ofMb(heapMb).getBytes() * 6 / 10;
+    }
+
+    private static long requestLimitGb(int heapGb) {
+        return ByteSizeValue.ofGb(heapGb).getBytes() * 6 / 10;
+    }
+
+    private static int effectiveConcurrency(int override, Settings settings) {
+        return ExternalSourceSettings.blobStoreConcurrency(
+            override,
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
     public void testMaxConcurrentRequestsOverrideIsTheEffectiveKnob() {
         int override = randomIntBetween(0, 500);
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", override).build();
         assertEquals(override, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
-        assertEquals(override, ExternalSourceSettings.blobStoreConcurrency(settings));
+        assertEquals(effectiveConcurrency(override, settings), ExternalSourceSettings.blobStoreConcurrency(settings));
     }
 
     public void testMaxConcurrentRequestsLowerBoundAllowsZero() {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
         assertEquals(0, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
+        assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(settings));
     }
 
     public void testExternalIoThreadsTracksPositiveConcurrency() {
         int override = randomIntBetween(1, 500);
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", override).build();
-        assertEquals(override, ExternalSourceSettings.externalIoThreads(settings));
+        assertEquals(effectiveConcurrency(override, settings), ExternalSourceSettings.externalIoThreads(settings));
     }
 
     public void testExternalIoThreadsFallsBackToDefaultWhenLimiterDisabled() {
@@ -197,9 +238,11 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         // A pool large enough that the explicit value is not clamped.
         Settings settings = Settings.builder()
             .put("esql.external.max_concurrent_requests", 64)
-            .put("esql.external.max_concurrent_segmenters", 24)
+            .put("esql.external.max_concurrent_segmenters", 8)
             .build();
-        assertEquals(24, ExternalSourceSettings.maxConcurrentSegmentators(settings));
+        int poolSize = ExternalSourceSettings.externalIoThreads(settings);
+        assumeTrue("test heap must allow a pool larger than the explicit segmentator cap", poolSize > 8);
+        assertEquals(8, ExternalSourceSettings.maxConcurrentSegmentators(settings));
     }
 
     public void testMaxConcurrentSegmentatorsClampedBelowPoolSize() {

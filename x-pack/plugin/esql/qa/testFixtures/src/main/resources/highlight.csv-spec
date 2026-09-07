@@ -1973,6 +1973,45 @@ Return of the Shadow                                             | [Christopher 
 ;
 
 
+# A derived query borrows every full-text conjunct of the WHERE, including MATCH on a numeric field. That conjunct
+# still selects rows - only the 2012 edition survives - but it contributes no spans, so the derived ON list is just
+# the text field the WHERE named.
+implicitQueryIgnoresNonTextConjunct
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return") AND MATCH(year, 2012)
+| HIGHLIGHT
+| KEEP title, year, highlight_title
+| SORT title
+;
+
+title:text | year:integer | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2012 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+;
+
+
+# The same leniency over runtime columns, where the numeric conjunct is matched row by row rather than in Lucene.
+implicitQueryOnRuntimeColumnsIgnoresNonTextConjunct
+required_capability: highlight_implicit_query_and_fields
+required_capability: match_function
+required_capability: fn_match_runtime_filter
+required_capability: fn_to_text
+
+ROW id = 1
+| EVAL msg = "On-call found it after a search ranking", year = 1989
+| EVAL note = TO_TEXT(msg)
+| WHERE MATCH(note, "On") AND MATCH(year, 1989)
+| HIGHLIGHT
+| KEEP note, highlight_note
+;
+
+note:text | highlight_note:keyword
+On-call found it after a search ranking | <em>On</em>-call found it after a search ranking
+;
+
+
 # ON * includes multi-fields (author.keyword).
 highlightOnStar
 required_capability: highlight_implicit_query_and_fields

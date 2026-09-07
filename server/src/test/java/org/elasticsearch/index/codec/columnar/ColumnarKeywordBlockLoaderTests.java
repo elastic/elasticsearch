@@ -32,13 +32,17 @@ import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -174,18 +178,59 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
                 final LeafReaderContext leaf = reader.leaves().get(0);
                 assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
                 final var loader = loaders.apply(FIELD);
-                final BlockLoader.RowStrideReader rows = (BlockLoader.RowStrideReader) loader.reader(NOOP, leaf);
-                try (BlockLoader.Builder builder = loader.builder(TestBlock.factory(), docs.length)) {
-                    for (int d = 0; d < docs.length; d++) {
-                        rows.read(d, null, builder);
-                    }
-                    final TestBlock block = (TestBlock) builder.build();
-                    assertEquals("positions", docs.length, block.size());
-                    for (int d = 0; d < docs.length; d++) {
-                        assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
-                    }
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                assertEquals("positions", docs.length, block.size());
+                for (int d = 0; d < docs.length; d++) {
+                    assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
                 }
             }
+        }
+    }
+
+    /**
+     * BYTE_LENGTH and LENGTH, which answer only for a document holding exactly one value and warn for one holding
+     * more. The arity comes from the column - how many slots a document has and which of them are null - so a payload
+     * is never decoded to count. Every arity is here: none, one, and several, by both nulls and real values.
+     */
+    public void testLengthFunctions() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 8) {
+                case 0 -> new String[] { "abc" };                     // one value
+                case 1 -> new String[] { "\u00e9\u00e8" };                    // two code points, four bytes
+                case 2 -> new String[] { null, "one-left" };          // one value after the nulls go
+                case 3 -> new String[] { "a", "b" };                  // several: no answer, and a warning
+                case 4 -> new String[] { null };                      // none
+                case 5 -> new String[0];                              // none
+                case 6 -> new String[] { "" };                        // one value, of no bytes
+                default -> new String[] { "term-" + (d % 5) };
+            };
+        }
+        for (boolean bytes : new boolean[] { true, false }) {
+            final List<Object> expected = new ArrayList<>();
+            for (String[] slots : docs) {
+                String only = null;
+                int nonNull = 0;
+                for (String slot : slots) {
+                    if (slot != null) {
+                        nonNull++;
+                        only = slot;
+                    }
+                }
+                expected.add(nonNull != 1 ? null : bytes ? new BytesRef(only).length : only.codePointCount(0, only.length()));
+            }
+            assertLoaderMatches(
+                docs,
+                fieldName -> bytes
+                    ? new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), fieldName, BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+                    : new Utf8CodePointsFromOrdsBlockLoader(
+                        new MockWarnings(),
+                        fieldName,
+                        ByteSizeValue.ofKb(1),
+                        BinaryDocValuesFormat.COLUMNAR_PAYLOAD
+                    ),
+                expected
+            );
         }
     }
 

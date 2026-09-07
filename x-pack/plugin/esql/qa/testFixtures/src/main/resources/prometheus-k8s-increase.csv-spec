@@ -178,12 +178,12 @@ increase_bytes_in:double | step:datetime
 774.6877930046035        | 2024-05-10T00:12:00.000Z
 ;
 
-// Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
-increase_of_ratio_promql-Ignore
+increase_of_ratio_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: rate_with_interpolation_v3
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v1
 
 PROMQL index=prometheus-k8s step=10m increase_of_ratio=(sum by (cluster) (increase(network.total_cost[10m]) / increase(network.total_bytes_in[10m])))
 | SORT step, cluster | LIMIT 10;

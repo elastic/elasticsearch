@@ -202,6 +202,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
         long parseRowsBefore = clusterTotal(DataSourceUsageAccumulator::parseRows);
+        long parseRowsCsvBefore = clusterTotal(a -> a.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV));
         long storageRequestsBefore = clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE));
         long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE));
         long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
@@ -219,22 +220,23 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertThat("the scan must return every fixture row", returnedRows, equalTo(10));
 
         collectAllMeters();
+        assertNoSchemeAttribute();
 
         // --- discovery (coordinator), multi-file listing path ---
-        Measurement filesScanned = singleForScheme(histograms(ExternalSourceMetrics.DISCOVERY_FILES_SCANNED), "file");
+        Measurement filesScanned = singleForType(histograms(ExternalSourceMetrics.DISCOVERY_FILES_SCANNED), "local");
         assertThat("discovery.files_scanned must record the two-file listing", filesScanned.getLong(), equalTo(2L));
-        Measurement bytesScanned = singleForScheme(histograms(ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED), "file");
+        Measurement bytesScanned = singleForType(histograms(ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED), "local");
         assertThat("discovery.bytes_scanned must be positive", bytesScanned.getLong(), greaterThan(0L));
         assertThat(
             "discovery.duration must be recorded (value may be sub-ms)",
-            forScheme(histograms(ExternalSourceMetrics.DISCOVERY_DURATION), "file"),
+            forType(histograms(ExternalSourceMetrics.DISCOVERY_DURATION), "local"),
             not(hasSize(0))
         );
 
-        // --- parse (data node): exactly the rows the scan produced ---
+        // --- parse (data node): exactly the rows the scan produced, tagged type=local (file folded) and format=csv ---
         assertThat(
-            "parse.rows.total must equal the number of rows scanned",
-            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "file"),
+            "parse.rows.total must equal the number of rows scanned with {type=local, format=csv}",
+            counterTotalForTypeAndFormat(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local", "csv"),
             equalTo(10L)
         );
 
@@ -259,13 +261,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         // storage read layer (data node), tagged with the canonical file scheme
         assertThat(
-            "storage.requests.total must fire for the file scheme",
-            counterTotalForScheme(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "file"),
+            "storage.requests.total must fire for type=local (file folded)",
+            counterTotalForType(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "local"),
             greaterThan(0L)
         );
         assertThat(
-            "storage.bytes_read.total must fire for the file scheme",
-            counterTotalForScheme(ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL, "file"),
+            "storage.bytes_read.total must fire for type=local (file folded)",
+            counterTotalForType(ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL, "local"),
             greaterThan(0L)
         );
 
@@ -275,6 +277,11 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertThat(
             "phone-home: parse.rows must increase by 10",
             clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore,
+            equalTo(10L)
+        );
+        assertThat(
+            "phone-home: parse.rows.by_format.csv must increase by 10",
+            clusterTotal(a -> a.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV)) - parseRowsCsvBefore,
             equalTo(10L)
         );
         assertThat(
@@ -431,9 +438,19 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         return counters(name).stream().mapToLong(Measurement::getLong).sum();
     }
 
-    private long counterTotalForScheme(String name, String scheme) {
+    private long counterTotalForType(String name, String type) {
         return counters(name).stream()
-            .filter(m -> scheme.equals(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE)))
+            .filter(m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
+    private long counterTotalForTypeAndFormat(String name, String type, String format) {
+        return counters(name).stream()
+            .filter(
+                m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                    && format.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE))
+            )
             .mapToLong(Measurement::getLong)
             .sum();
     }
@@ -445,17 +462,17 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             .sum();
     }
 
-    private static List<Measurement> forScheme(List<Measurement> measurements, String scheme) {
-        return measurements.stream().filter(m -> scheme.equals(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE))).toList();
+    private static List<Measurement> forType(List<Measurement> measurements, String type) {
+        return measurements.stream().filter(m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))).toList();
     }
 
     private static List<Measurement> forOutcome(List<Measurement> measurements, String outcome) {
         return measurements.stream().filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE))).toList();
     }
 
-    private static Measurement singleForScheme(List<Measurement> measurements, String scheme) {
-        List<Measurement> found = forScheme(measurements, scheme);
-        assertThat("expected exactly one measurement for scheme [" + scheme + "]", found, hasSize(1));
+    private static Measurement singleForType(List<Measurement> measurements, String type) {
+        List<Measurement> found = forType(measurements, type);
+        assertThat("expected exactly one measurement for type [" + type + "]", found, hasSize(1));
         return found.get(0);
     }
 
@@ -481,5 +498,38 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         }
         assertTrue("No node has a DataSourceModule with a non-null usageAccumulator", found);
         return total;
+    }
+
+    /**
+     * Done-when pin: no instrument still carries the retired {@code es_datasource_scheme} attribute.
+     */
+    private void assertNoSchemeAttribute() {
+        for (String name : List.of(
+            ExternalSourceMetrics.DISCOVERY_FILES_SCANNED,
+            ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED,
+            ExternalSourceMetrics.DISCOVERY_DURATION,
+            ExternalSourceMetrics.PARSE_ROWS_TOTAL,
+            ExternalSourceMetrics.PARSE_DURATION,
+            ExternalSourceMetrics.PARSE_SPLITS_SCANNED,
+            ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW,
+            ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL,
+            ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL,
+            ExternalSourceMetrics.QUERIES_TOTAL
+        )) {
+            for (Measurement m : counters(name)) {
+                assertThat(
+                    "instrument [" + name + "] must not carry es_datasource_scheme",
+                    m.attributes().containsKey("es_datasource_scheme"),
+                    equalTo(false)
+                );
+            }
+            for (Measurement m : histograms(name)) {
+                assertThat(
+                    "instrument [" + name + "] must not carry es_datasource_scheme",
+                    m.attributes().containsKey("es_datasource_scheme"),
+                    equalTo(false)
+                );
+            }
+        }
     }
 }

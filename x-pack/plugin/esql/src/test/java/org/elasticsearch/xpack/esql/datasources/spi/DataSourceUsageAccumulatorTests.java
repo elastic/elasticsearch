@@ -97,15 +97,28 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordParse() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordParse(1000L, 50L);
+        acc.recordParse(1000L, 50L, "csv");
         assertThat(acc.parseRows(), equalTo(1000L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(1000L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_PARQUET), equalTo(0L));
         assertThat(acc.parseDuration(1), equalTo(1L)); // 50ms → lt_100ms bucket (index 1)
     }
 
     public void testRecordParseZeroRowsSkipsCounter() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordParse(0L, 10L);
+        acc.recordParse(0L, 10L, "csv");
         assertThat(acc.parseRows(), equalTo(0L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(0L));
+    }
+
+    public void testRecordParseByFormatAddsRowsNotScans() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordParse(6L, 10L, "csv");
+        acc.recordParse(4L, 10L, "csv");
+        acc.recordParse(3L, 10L, "parquet");
+        assertThat(acc.parseRows(), equalTo(13L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(10L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_PARQUET), equalTo(3L));
     }
 
     public void testRecordSplitsScanned() {
@@ -142,6 +155,11 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("weird_outcome", 10L, false));
     }
 
+    public void testUnexpectedFormatThrows() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.recordParse(10L, 5L, "gz"));
+    }
+
     public void testSchemeIndexOutOfRangeThrowsOnAccessor() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         // OUTCOME_CANCELLED = 2 is in-range for scheme (0..5) but is semantically wrong;
@@ -157,6 +175,12 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         // SCHEME_FILE = 4 is out of range for the queries[] array (size OUTCOME_COUNT = 3).
         expectThrows(IllegalArgumentException.class, () -> acc.queries(DataSourceUsageAccumulator.SCHEME_FILE));
         expectThrows(IllegalArgumentException.class, () -> acc.queries(-1));
+    }
+
+    public void testFormatIndexOutOfRangeThrowsOnAccessor() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        expectThrows(IllegalArgumentException.class, () -> acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_COUNT));
+        expectThrows(IllegalArgumentException.class, () -> acc.parseRowsByFormat(-1));
     }
 
     public void testUnrecognizedOutcomeIsSwallowedByRecordQuery() {
@@ -176,7 +200,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         acc.recordRequest("s3", 5L, 1024L);
         acc.recordQuery("success", 100L, false);
         acc.recordDiscovery(30L, 5L, 512L);
-        acc.recordParse(500L, 50L);
+        acc.recordParse(500L, 50L, "csv");
         acc.recordSplitsScanned(3L);
         acc.recordDiscoveryFailure();
         acc.recordBreakerTripped();
@@ -191,6 +215,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.discovery.failures.total"), equalTo(1L));
         assertThat(counters.get("datasources.breaker.tripped.total"), equalTo(1L));
         assertThat(counters.get("datasources.parse.rows.total"), equalTo(500L));
+        assertThat(counters.get("datasources.parse.rows.by_format.csv"), equalTo(500L));
+        assertThat(counters.get("datasources.parse.rows.by_format.parquet"), equalTo(0L));
+        assertThat(counters.get("datasources.parse.rows.by_format.unresolved"), equalTo(0L));
 
         // verify one populated bucket per histogram family (exact bucket derived from input values above)
         assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(1L)); // 5ms < 10ms → index 0
@@ -212,11 +239,11 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 200L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
-        metrics.recordTimeToFirstRow(30L, "s3");
+        metrics.recordTimeToFirstRow(30L, "s3", "parquet");
         metrics.recordDiscovery(20L, 3L, 4096L, "s3");
         metrics.recordDiscoveryFailure();
-        metrics.recordParse(100L, 40L, "gcs");
-        metrics.recordSplitsScanned(2L, "s3");
+        metrics.recordParse(100L, 40L, "gcs", "csv");
+        metrics.recordSplitsScanned(2L, "s3", "parquet");
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();
 
@@ -231,6 +258,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.queriesPartial(), equalTo(1L));
         assertThat(acc.discoveryFailures(), equalTo(1L));
         assertThat(acc.parseRows(), equalTo(100L));
+        assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(100L));
         assertThat(acc.readerPoolRejected(), equalTo(1L));
         assertThat(acc.breakerTripped(), equalTo(1L));
     }

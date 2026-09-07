@@ -17,7 +17,7 @@ import java.util.List;
  * {@link Counters} keys under the {@code datasources.} subtree of the ES|QL XPack usage payload.
  * <p>
  * Key naming follows the instrument names in {@code ExternalSourceMetrics}, with attribute values
- * (scheme, outcome) flattened into the key path. The resulting nested map (via
+ * (scheme, outcome, format) flattened into the key path. The resulting nested map (via)
  * {@link Counters#toNestedMap()}) becomes the {@code esql.datasources} section of
  * {@code GET /_xpack/usage}.
  */
@@ -49,6 +49,9 @@ public final class DataSourceCounters {
         counters.inc("datasources.queries.partial.total", acc.queriesPartial());
         counters.inc("datasources.discovery.failures.total", acc.discoveryFailures());
         counters.inc("datasources.parse.rows.total", acc.parseRows());
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            counters.inc("datasources.parse.rows.by_format." + DataSourceUsageAccumulator.FORMAT_NAMES.get(i), acc.parseRowsByFormat(i));
+        }
         counters.inc("datasources.reader.pool.rejected.total", acc.readerPoolRejected());
         counters.inc("datasources.breaker.tripped.total", acc.breakerTripped());
 

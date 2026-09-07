@@ -237,10 +237,7 @@ public class StatelessPrimaryRelocationSourceService {
         );
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
-        if (hollowShardsService.isHollowShard(indexShard.shardId())) {
-            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
-        } else {
-            var indexEngine = (IndexEngine) preFlushEngine;
+        if (preFlushEngine instanceof IndexEngine indexEngine) {
             SubscribableListener.<Void>newForked(indexEngine::waitForCurrentCommitDurability).<Engine.FlushResult>andThen(
                 recoveryExecutor,
                 threadContext,
@@ -251,6 +248,9 @@ public class StatelessPrimaryRelocationSourceService {
                     indexEngine.flush(false, waitIfOngoing, l);
                 }
             ).addListener(preFlushStep);
+        } else {
+            // HollowIndexEngine (hollow shards) and NoOpEngine (closed indices) have nothing to flush or wait for.
+            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();

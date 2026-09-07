@@ -302,7 +302,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             return skipperMap.get(field);
         }
 

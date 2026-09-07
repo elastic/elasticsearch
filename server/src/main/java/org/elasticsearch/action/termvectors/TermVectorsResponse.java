@@ -132,7 +132,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
                 }
 
                 @Override
-                public Terms terms(String field) throws IOException {
+                public Terms terms(String field) {
                     return null;
                 }
 

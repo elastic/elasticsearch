@@ -219,11 +219,15 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
             }
             final BloomFilter bloomFilter = bloomFilters.get(field);
             if (bloomFilter != null) {
-                final RandomAccessInput data = indexIn.randomAccessSlice(
-                    bloomFilter.startFilePointer(),
-                    numBytesForBloomFilter(bloomFilter.bloomFilterSize)
-                );
-                return new BloomFilterTerms(terms, data, bloomFilter.bloomFilterSize);
+                try {
+                    final RandomAccessInput data = indexIn.randomAccessSlice(
+                        bloomFilter.startFilePointer(),
+                        numBytesForBloomFilter(bloomFilter.bloomFilterSize)
+                    );
+                    return new BloomFilterTerms(terms, data, bloomFilter.bloomFilterSize);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             } else {
                 return terms;
             }

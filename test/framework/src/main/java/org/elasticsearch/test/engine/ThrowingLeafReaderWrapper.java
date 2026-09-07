@@ -77,10 +77,9 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
     }
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         Terms terms = super.terms(field);
         if (thrower.wrapTerms(field)) {
-            thrower.maybeThrow(Flags.Terms);
             return terms == null ? null : new ThrowingTerms(terms, thrower);
         }
         return terms;
@@ -98,10 +97,9 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             Terms terms = super.terms(field);
             if (thrower.wrapTerms(field)) {
-                thrower.maybeThrow(Flags.Terms);
                 return terms == null ? null : new ThrowingTerms(terms, thrower);
             }
             return terms;

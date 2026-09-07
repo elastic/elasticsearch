@@ -368,7 +368,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         return wrapTerms(super.terms(field), field);
     }
 
@@ -720,12 +720,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             return wrapTerms(super.terms(field), field);
         }
     }
 
-    private Terms wrapTerms(Terms terms, String field) throws IOException {
+    private Terms wrapTerms(Terms terms, String field) {
         if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
@@ -787,17 +787,17 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public long getSumDocFreq() throws IOException {
+        public long getSumDocFreq() {
             return sumDocFreq;
         }
 
         @Override
-        public long getSumTotalTermFreq() throws IOException {
+        public long getSumTotalTermFreq() {
             return sumTotalFreq;
         }
 
         @Override
-        public int getDocCount() throws IOException {
+        public int getDocCount() {
             // it is costly to recompute this value so we assume that docCount == maxDoc.
             return maxDoc();
         }
@@ -871,7 +871,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public PointValues getPointValues(String fieldName) throws IOException {
+    public PointValues getPointValues(String fieldName) {
         if (hasField(fieldName)) {
             return super.getPointValues(fieldName);
         } else {

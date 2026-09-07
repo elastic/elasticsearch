@@ -380,7 +380,7 @@ final class ColumnarSourceWriter {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             return null;
         }
 
@@ -404,7 +404,7 @@ final class ColumnarSourceWriter {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             return null;
         }
 
@@ -439,12 +439,17 @@ final class ColumnarSourceWriter {
         }
 
         @Override
+        public void searchNearestVectors(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Bits getLiveDocs() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             throw new UnsupportedOperationException();
         }
 

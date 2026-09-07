@@ -36,7 +36,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -117,12 +116,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         assert fieldType != null;
         List<LeafReaderContext> leaves = indexReader.leaves();
         for (LeafReaderContext leaf : leaves) {
-            Terms terms;
-            try {
-                terms = leaf.reader().terms(fieldType.name());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            Terms terms = leaf.reader().terms(fieldType.name());
             if (terms != null) {
                 return true;
             }

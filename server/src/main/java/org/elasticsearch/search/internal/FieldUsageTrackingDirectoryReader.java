@@ -121,7 +121,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             PointValues pointValues = super.getPointValues(field);
             if (pointValues != null) {
                 notifier.onPointsUsed(field);
@@ -150,7 +150,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             Terms terms = super.terms(field);
             if (terms != null) {
                 notifier.onTermsUsed(field);
@@ -331,7 +331,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public long getSumTotalTermFreq() throws IOException {
+            public long getSumTotalTermFreq() {
                 long totalTermFreq = super.getSumTotalTermFreq();
                 notifier.onTermFrequenciesUsed(field);
                 return totalTermFreq;
@@ -408,7 +408,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public Terms terms(String field) throws IOException {
+            public Terms terms(String field) {
                 Terms terms = super.terms(field);
                 if (terms != null) {
                     notifier.onTermVectorsUsed(field);

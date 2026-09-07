@@ -48,20 +48,11 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         if (dv == null) {
             return ConstantNull.COLUMN_READER;
         }
-        try {
-            DocValuesSkipper skipper = context.reader().getDocValuesSkipper(fieldName);
-            if (dv.singleton() != null) {
-                return new RoundToSingleton(dv.singleton(), points, skipper);
-            }
-            return new RoundToSorted(dv.sorted(), points, skipper);
-        } catch (IOException e) {
-            if (dv.singleton() != null) {
-                dv.singleton().close();
-            } else {
-                dv.sorted().close();
-            }
-            throw e;
+        DocValuesSkipper skipper = context.reader().getDocValuesSkipper(fieldName);
+        if (dv.singleton() != null) {
+            return new RoundToSingleton(dv.singleton(), points, skipper);
         }
+        return new RoundToSorted(dv.sorted(), points, skipper);
     }
 
     @Override

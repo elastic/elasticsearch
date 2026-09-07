@@ -50,6 +50,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -160,8 +161,12 @@ public class TermVectorsService {
             }
 
             @Override
-            public Terms terms(String field) throws IOException {
-                return MultiTerms.getTerms(reader, field);
+            public Terms terms(String field) {
+                try {
+                    return MultiTerms.getTerms(reader, field);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             @Override

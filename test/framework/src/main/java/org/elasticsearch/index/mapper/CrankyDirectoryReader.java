@@ -77,8 +77,7 @@ public class CrankyDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
-            beCranky();
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             return super.getDocValuesSkipper(field);
         }
 
@@ -119,8 +118,7 @@ public class CrankyDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
-            beCranky();
+        public PointValues getPointValues(String field) {
             return super.getPointValues(field);
         }
 

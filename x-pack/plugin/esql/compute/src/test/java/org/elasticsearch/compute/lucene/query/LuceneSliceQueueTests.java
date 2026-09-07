@@ -652,7 +652,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             throw new UnsupportedOperationException();
         }
 
@@ -690,7 +690,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             throw new UnsupportedOperationException();
         }
 
@@ -726,7 +726,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             throw new UnsupportedOperationException();
         }
 

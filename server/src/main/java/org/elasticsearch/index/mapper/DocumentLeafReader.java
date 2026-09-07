@@ -192,7 +192,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         throw new UnsupportedOperationException();
     }
 
@@ -202,7 +202,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public DocValuesSkipper getDocValuesSkipper(String s) throws IOException {
+    public DocValuesSkipper getDocValuesSkipper(String s) {
         return null;
     }
 
@@ -227,7 +227,7 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
-    public PointValues getPointValues(String field) throws IOException {
+    public PointValues getPointValues(String field) {
         throw new UnsupportedOperationException();
     }
 

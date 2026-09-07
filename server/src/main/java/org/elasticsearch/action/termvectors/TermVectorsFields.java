@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -144,12 +145,16 @@ public final class TermVectorsFields extends Fields {
     }
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         Long readOffset = fieldMap.get(field);
         if (readOffset == null) {
             return null; // we don't have it.
         }
-        return new TermVector(termVectors, readOffset);
+        try {
+            return new TermVector(termVectors, readOffset);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -338,17 +343,17 @@ public final class TermVectorsFields extends Fields {
         }
 
         @Override
-        public long getSumTotalTermFreq() throws IOException {
+        public long getSumTotalTermFreq() {
             return sumTotalTermFreq;
         }
 
         @Override
-        public long getSumDocFreq() throws IOException {
+        public long getSumDocFreq() {
             return sumDocFreq;
         }
 
         @Override
-        public int getDocCount() throws IOException {
+        public int getDocCount() {
             return docCount;
         }
 

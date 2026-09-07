@@ -156,14 +156,7 @@ public class BitmapBKDQuery extends Query implements Accountable {
              */
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                PointValues pointValues;
-                try {
-                    pointValues = ctx.reader().getPointValues(field);
-                } catch (IOException e) {
-                    // This method cannot throw, and a segment whose points will not read is in no state to
-                    // have its results cached either.
-                    return false;
-                }
+                PointValues pointValues = ctx.reader().getPointValues(field);
                 return pointValues == null || streams(ctx.reader(), pointValues) == false || DocValues.isCacheable(ctx, field);
             }
         };

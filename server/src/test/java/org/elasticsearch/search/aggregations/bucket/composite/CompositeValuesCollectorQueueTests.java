@@ -444,7 +444,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             return null;
         }
 
@@ -479,7 +479,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             return null;
         }
 
@@ -515,7 +515,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             return null;
         }
 

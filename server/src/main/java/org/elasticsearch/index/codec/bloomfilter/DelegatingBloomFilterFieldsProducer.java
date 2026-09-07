@@ -21,6 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Set;
@@ -93,7 +94,12 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     public Terms terms(String field) {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
         final Terms terms = delegate.terms(field);
-        final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
+        final BloomFilter bloomFilter;
+        try {
+            bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return new FilterLeafReader.FilterTerms(terms) {
             @Override
             public TermsEnum iterator() throws IOException {

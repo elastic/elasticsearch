@@ -49,6 +49,7 @@ import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -378,11 +379,15 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             }
             final BloomFilter bloomFilter = bloomFilters.get(field);
             if (bloomFilter != null) {
-                final RandomAccessInput data = indexIn.randomAccessSlice(
-                    bloomFilter.startFilePointer(),
-                    numBytesForBloomFilter(bloomFilter.bloomFilterSize)
-                );
-                return new BloomFilterTerms(terms, data, bloomFilter.bloomFilterSize);
+                try {
+                    final RandomAccessInput data = indexIn.randomAccessSlice(
+                        bloomFilter.startFilePointer(),
+                        numBytesForBloomFilter(bloomFilter.bloomFilterSize)
+                    );
+                    return new BloomFilterTerms(terms, data, bloomFilter.bloomFilterSize);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             } else {
                 return terms;
             }

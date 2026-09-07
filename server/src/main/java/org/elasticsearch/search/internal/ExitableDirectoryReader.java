@@ -96,7 +96,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             final PointValues pointValues = in.getPointValues(field);
             if (pointValues == null) {
                 return null;
@@ -105,7 +105,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             Terms terms = in.terms(field);
             if (terms == null) {
                 return null;
@@ -328,31 +328,31 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public byte[] getMinPackedValue() throws IOException {
+        public byte[] getMinPackedValue() {
             queryCancellation.checkCancelled();
             return in.getMinPackedValue();
         }
 
         @Override
-        public byte[] getMaxPackedValue() throws IOException {
+        public byte[] getMaxPackedValue() {
             queryCancellation.checkCancelled();
             return in.getMaxPackedValue();
         }
 
         @Override
-        public int getNumDimensions() throws IOException {
+        public int getNumDimensions() {
             queryCancellation.checkCancelled();
             return in.getNumDimensions();
         }
 
         @Override
-        public int getNumIndexDimensions() throws IOException {
+        public int getNumIndexDimensions() {
             queryCancellation.checkCancelled();
             return in.getNumIndexDimensions();
         }
 
         @Override
-        public int getBytesPerDimension() throws IOException {
+        public int getBytesPerDimension() {
             queryCancellation.checkCancelled();
             return in.getBytesPerDimension();
         }

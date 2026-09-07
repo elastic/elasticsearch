@@ -177,26 +177,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
-        try {
-            FieldInfo info = r.getFieldInfos().fieldInfo(TIMESTAMP_FIELD_NAME);
-            if (info != null && info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
-                DocValuesSkipper skipper = r.getDocValuesSkipper(TIMESTAMP_FIELD_NAME);
-                return skipper.maxValue();
-            }
+        FieldInfo info = r.getFieldInfos().fieldInfo(TIMESTAMP_FIELD_NAME);
+        if (info != null && info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+            DocValuesSkipper skipper = r.getDocValuesSkipper(TIMESTAMP_FIELD_NAME);
+            return skipper.maxValue();
+        }
 
-            PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
-            if (points != null) {
-                byte[] sortValue = points.getMaxPackedValue();
-                return LongPoint.decodeDimension(sortValue, 0);
-            } else {
-                // As we apply this segment sorter to any timeseries indices,
-                // we don't have a guarantee that all docs contain @timestamp field.
-                // Some segments may have all docs without @timestamp field, in this
-                // case they will be sorted last.
-                return Long.MIN_VALUE;
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Can't access [" + TIMESTAMP_FIELD_NAME + "] field for the index!", e);
+        PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
+        if (points != null) {
+            byte[] sortValue = points.getMaxPackedValue();
+            return LongPoint.decodeDimension(sortValue, 0);
+        } else {
+            // As we apply this segment sorter to any timeseries indices,
+            // we don't have a guarantee that all docs contain @timestamp field.
+            // Some segments may have all docs without @timestamp field, in this
+            // case they will be sorted last.
+            return Long.MIN_VALUE;
         }
     }).reversed();
 

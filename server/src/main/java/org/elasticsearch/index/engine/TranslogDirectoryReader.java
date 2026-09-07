@@ -400,7 +400,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             if (delegate.get() == null) {
                 // override this for VersionsAndSeqNoResolver
                 if (field.equals(IdFieldMapper.NAME)) {
@@ -453,7 +453,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+        public DocValuesSkipper getDocValuesSkipper(String field) {
             return getDelegate().getDocValuesSkipper(field);
         }
 
@@ -498,7 +498,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public PointValues getPointValues(String field) throws IOException {
+        public PointValues getPointValues(String field) {
             return getDelegate().getPointValues(field);
         }
 
@@ -600,17 +600,17 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public long getSumTotalTermFreq() throws IOException {
+        public long getSumTotalTermFreq() {
             return 1;
         }
 
         @Override
-        public long getSumDocFreq() throws IOException {
+        public long getSumDocFreq() {
             return 1;
         }
 
         @Override
-        public int getDocCount() throws IOException {
+        public int getDocCount() {
             return 1;
         }
 

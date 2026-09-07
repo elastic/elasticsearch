@@ -61,7 +61,7 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Same type on both indices, but the nested mapping sets {@code include_in_root}.
+     * Same type on both indices, but the nested mapping copies values onto the root.
      * Pre-fix this leaked nested values into ES|QL; they must still be null.
      */
     public void testIncludeInRootSameType() {
@@ -140,9 +140,11 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         String[] nodes = pinNodes(sameNode);
         String nested = "nest_root_" + getTestName().toLowerCase(Locale.ROOT);
         String object = "obj_root_" + getTestName().toLowerCase(Locale.ROOT);
-        createPinnedIndex(nested, """
+        // Single-level nested: include_in_parent and include_in_root both copy onto the root.
+        String include = randomFrom("include_in_root", "include_in_parent");
+        createPinnedIndex(nested, Strings.format("""
             { "properties": { "id": { "type": "keyword" }, "item": {
-              "type": "nested", "include_in_root": true, "properties": { "value": { "type": "long" } } } } }""", nodes[0]);
+              "type": "nested", "%s": true, "properties": { "value": { "type": "long" } } } } }""", include), nodes[0]);
         createPinnedIndex(object, """
             { "properties": { "id": { "type": "keyword" }, "item": {
               "properties": { "value": { "type": "long" } } } } }""", nodes[1]);
@@ -157,7 +159,7 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         String from = "FROM " + nested + ", " + object;
         // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
         assertThat(esql(from + " | STATS s = SUM(item.value), c = COUNT(item.value)"), equalTo(List.of(List.of(210L, 20L))));
-        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). include_in_root copies
+        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). The include flag copies
         // nested values onto the parent doc, so skipping the nested shard is required.
         assertThat(esql(from + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
         assertThat(esql(from + " | KEEP id, item.value | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
@@ -190,7 +192,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         client().prepareIndex(index).setId(id).setSource(json, XContentType.JSON).get();
     }
 
-    /** {@code List.of} rejects nulls; nested rows must be Java {@code null}. */
     private static List<List<Object>> firstFiveNullValueRows() {
         return List.of(
             Arrays.asList("n00", null),

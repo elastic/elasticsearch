@@ -51,6 +51,10 @@ public record SchemaCacheKey(
     // null-filled, so captured row and column null counts must not be shared across policies.
     // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
     // which per-file stats are aggregated for aggregate pushdown.
+    // - file_sort_by / file_order: FFW donor is listing.path(0). The dataset-aggregate COUNT key
+    // uses the file-set fingerprint (order-blind) plus formatConfig, so two FFW queries over the
+    // same files with different donors must not share one memoized COUNT. file_exclusions stays
+    // out: it changes the fingerprint.
     // - mode: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
     // values on the same bytes, so neither schemas nor captured stats may cross modes.
     // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
@@ -83,7 +87,9 @@ public record SchemaCacheKey(
         "error_mode",
         "max_errors",
         "max_error_ratio",
-        "schema_resolution"
+        "schema_resolution",
+        "file_sort_by",
+        "file_order"
     );
 
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(

@@ -1974,9 +1974,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
-            if (routingNodes.node(startedShard.currentNodeId()).numberOfActiveShardsForIndex(startedShard.index()) == 1) {
-                verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
 
@@ -1992,33 +1989,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             // Simulation should be called for the two new shards
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
-            // Internal public methods should also be called, to handle the stats changes due to new or removed indices on nodes.
-            if (startedShard.currentNodeId() == startedRelocatingShard.currentNodeId()) {
-                // The shards were moved to the same node: if the index is new to that node, then there should be a call to simulate adding
-                // the index stats for the node.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfActiveShardsForIndex(startedShard.index()) == 2) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-                }
-            } else {
-                // Check if the index is new on either node that received a new shard: if either is new, then the index stats should have
-                // been simulated, too.
-                if (routingNodes.node(startedShard.currentNodeId()).numberOfActiveShardsForIndex(startedShard.index()) == 1) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
-                }
-                if (routingNodes.node(startedRelocatingShard.currentNodeId())
-                    .numberOfActiveShardsForIndex(startedRelocatingShard.index()) == 1) {
-                    verify(clusterInfoSimulator).simulateAddIndexToNode(
-                        startedRelocatingShard.currentNodeId(),
-                        startedRelocatingShard.index()
-                    );
-                }
-            }
-            if (routingNodes.node(relocationTuple.v1().currentNodeId()).hasIndex(startedRelocatingShard.index()) == false) {
-                verify(clusterInfoSimulator).simulateRemoveIndexFromNode(
-                    relocationTuple.v1().currentNodeId(),
-                    relocationTuple.v1().index()
-                );
-            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
     }
@@ -2133,12 +2103,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard1RelocationTuple.v1(), null);
         // Shard 2: RELOCATING from node-4, but ClusterInfo has it on node-3 (stale) → sourceNodeId is node-3.
         verify(clusterInfoSimulator).simulateAlreadyStartedShard(shard2SecondRelocationTuple.v1(), "node-3");
-        // node-1 holds only shard1 RELOCATING — all index shards on node-1 are new since ClusterInfo.
-        verify(clusterInfoSimulator).simulateAddIndexToNode("node-1", indexRoutingTable.getIndex());
-        // node-4 holds only shard2 RELOCATING — all index shards on node-4 are new since ClusterInfo.
-        verify(clusterInfoSimulator).simulateAddIndexToNode("node-4", indexRoutingTable.getIndex());
-        // node-3 no longer hosts any shard of the index after shard2 relocated away.
-        verify(clusterInfoSimulator).simulateRemoveIndexFromNode("node-3", indexRoutingTable.getIndex());
         verifyNoMoreInteractions(clusterInfoSimulator);
     }
 

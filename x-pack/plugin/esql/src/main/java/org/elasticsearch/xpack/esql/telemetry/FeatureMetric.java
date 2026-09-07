@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -157,7 +158,10 @@ public enum FeatureMetric {
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
         InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
-        MarkJoin.class // MarkJoin's enclosing command(WHERE, EVAL, STATS or INLINE STATS) already records the telemetry
+        // MarkJoin's enclosing command (WHERE, EVAL, or the STATS whose per-aggregate WHERE produced it) already
+        // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
+        MarkJoin.class,
+        InnerJoin.class // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
     );
 
     private Predicate<LogicalPlan> planCheck;

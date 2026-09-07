@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -61,6 +64,13 @@ import java.util.stream.Collectors;
  * For any other {@link UnmappedResolution} the rule is a no-op.
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+    private final Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering;
+
+    public DetermineUnmappedFieldsToKeep(Consumer<UnmappedFieldsOrdering> registerUnmappedFieldsOrdering) {
+        this.registerUnmappedFieldsOrdering = registerUnmappedFieldsOrdering;
+    }
+
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
@@ -68,6 +78,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         boolean hasFork = plan.anyMatch(p -> p instanceof Fork fork && isForkCommand(fork));
         LogicalPlan annotated = hasFork ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
+        if (carriesUnmappedFieldsAttribute(annotated)) {
+            registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
+        }
         LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         return hasFork
             // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
@@ -75,6 +88,32 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             ? withUnmappedOnProjects.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
             : withUnmappedOnProjects;
+    }
+
+    /**
+     * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
+     * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
+     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top
+     */
+    private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
+        return annotated.transformUp(EsRelation.class, esr -> {
+            List<Attribute> realAttributes = new ArrayList<>(esr.output().size());
+            boolean carriesSyntheticColumn = false;
+            for (Attribute a : esr.output()) {
+                if (a instanceof UnmappedFieldsAttribute) {
+                    carriesSyntheticColumn = true;
+                } else {
+                    realAttributes.add(a);
+                }
+            }
+            return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
+        });
+    }
+
+    private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {
+        return plan.anyMatch(
+            p -> p instanceof EsRelation esr && esr.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute)
+        );
     }
 
     /**

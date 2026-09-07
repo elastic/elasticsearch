@@ -17,11 +17,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_FORK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -52,7 +52,7 @@ public class ForkTestUtils {
 
         assumeFalse(
             "LOAD_ALL fork wrapping of existing csv-specs is not covered yet",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL.capabilityName())
+            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_FORK.capabilityName())

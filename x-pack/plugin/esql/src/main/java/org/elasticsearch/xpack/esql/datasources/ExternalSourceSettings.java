@@ -187,11 +187,12 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * Maximum total time (in seconds) to spend retrying throttled cloud API requests
-     * before giving up. Bounds the cumulative retry duration regardless of the retry count,
-     * ensuring queries fail cleanly when throttling is persistent rather than blocking
-     * until the HTTP request timeout fires.
-     * Default: 30 seconds. Set to 0 to disable the duration budget (retry count only).
+     * Maximum total time (in seconds) to spend retrying throttled cloud API requests before giving up.
+     * This is the primary (and only user-configurable) bound on throttle retries: the retry loop keeps
+     * sleeping and retrying until the budget is spent, then fails the read.
+     * Setting this to 0 disables the time budget; only the internal sanity cap then applies
+     * (see {@code RetryPolicy.THROTTLE_RETRIES_SANITY_CAP}).
+     * Valid range: [0, 300]. Default: 30 seconds.
      */
     public static final Setting<Integer> THROTTLE_MAX_RETRY_DURATION = Setting.intSetting(
         "esql.external.throttle_max_retry_duration",

@@ -124,10 +124,31 @@ public final class ExternalSourceMetrics {
     public static final String BREAKER_TRIPPED_TOTAL = "es.esql.datasources.breaker.tripped.total";
 
     /**
+     * One data-source or dataset CRUD change (create / update / delete / rejected), dimensioned by
+     * kind, op, type, and (on rejected) reason.
+     */
+    public static final String CONFIG_CHANGES_TOTAL = "es.esql.datasources.config.changes.total";
+
+    /**
      * Storage scheme dimension, normalised to one canonical token per provider via
      * {@link #canonicalScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http}, {@code file}.
      */
     public static final String SCHEME_ATTRIBUTE = "es_datasource_scheme";
+
+    /**
+     * Configuration-inventory / CRUD type dimension: {@code s3}, {@code gcs}, {@code azure},
+     * {@code http}, {@code local}, {@code unknown}. Distinct from {@link #SCHEME_ATTRIBUTE}.
+     */
+    public static final String TYPE_ATTRIBUTE = "es_datasource_type";
+
+    /** CRUD object kind: {@code datasource} or {@code dataset}. */
+    public static final String KIND_ATTRIBUTE = "es_datasource_kind";
+
+    /** CRUD operation: {@code created}, {@code updated}, {@code deleted}, {@code rejected}. */
+    public static final String OP_ATTRIBUTE = "es_datasource_op";
+
+    /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
+    public static final String REASON_ATTRIBUTE = "es_datasource_reason";
 
     /**
      * Query-outcome dimension, a closed low-cardinality set: {@code success}, {@code failure}, {@code cancelled}.
@@ -198,6 +219,7 @@ public final class ExternalSourceMetrics {
     private final LongHistogram parseSplitsScanned;
     private final LongCounter readerPoolRejectedTotal;
     private final LongCounter breakerTrippedTotal;
+    private final LongCounter configChangesTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry, null);
@@ -315,6 +337,11 @@ public final class ExternalSourceMetrics {
         this.breakerTrippedTotal = meterRegistry.registerLongCounter(
             BREAKER_TRIPPED_TOTAL,
             "ES|QL external-data-source reads rejected by a circuit breaker",
+            "unit"
+        );
+        this.configChangesTotal = meterRegistry.registerLongCounter(
+            CONFIG_CHANGES_TOTAL,
+            "ES|QL data-source or dataset configuration changes (create, update, delete, rejected)",
             "unit"
         );
     }
@@ -522,6 +549,25 @@ public final class ExternalSourceMetrics {
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordPoolRejected failed", e);
+        }
+    }
+
+    /**
+     * Records one configuration CRUD event. {@code reason} is attached only when {@code op} is
+     * {@code rejected}. Kind, op, type and reason are expected to already be closed-set tokens.
+     * Best-effort (self-guarded).
+     */
+    public void recordConfigChange(String kind, String op, String type, String reason) {
+        try {
+            Map<String, Object> attributes = "rejected".equals(op)
+                ? Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type, REASON_ATTRIBUTE, reason)
+                : Map.of(KIND_ATTRIBUTE, kind, OP_ATTRIBUTE, op, TYPE_ATTRIBUTE, type);
+            configChangesTotal.incrementBy(1, attributes);
+            if (usageAccumulator != null) {
+                usageAccumulator.recordConfigChange(kind, op);
+            }
+        } catch (Exception e) {
+            logger.trace("telemetry: recordConfigChange failed", e);
         }
     }
 

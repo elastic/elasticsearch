@@ -155,13 +155,17 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 logger.warn("dataset cleanup [{}] failed", ds, e);
             }
         }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds" }))
-                .get(30, TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // never created by this method
-        } catch (Exception e) {
-            logger.warn("data source cleanup [ds] failed", e);
+        for (String name : new String[] { "ds" }) {
+            try {
+                client().execute(
+                    DeleteDataSourceAction.INSTANCE,
+                    new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name })
+                ).get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // never created by this method
+            } catch (Exception e) {
+                logger.warn("data source cleanup [{}] failed", name, e);
+            }
         }
     }
 
@@ -382,6 +386,183 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             "phone-home: queries.total (success) must not increase for a resolution failure",
             clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
+        );
+    }
+
+    /**
+     * Dedicated CRUD telemetry: created for both kinds, updated after a changed-description PUT,
+     * nothing after an identical dataset PUT, deleted after an in-body delete, and exactly one
+     * rejected for an unknown-type PUT. Uses deltas because the accumulator is never reset.
+     */
+    public void testConfigChangesRecordCreatedUpdatedDeletedRejected() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part.csv"), "emp_no:integer\n1\n");
+        String resource = dir.resolve("part.csv").toUri().toString();
+
+        long dsCreatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED)
+        );
+        long dsUpdatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED)
+        );
+        long dsDeletedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DELETED)
+        );
+        long dsRejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        long setCreatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_CREATED)
+        );
+        long setUpdatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_UPDATED)
+        );
+        long setDeletedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED)
+        );
+        long setRejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+
+        resetAllMeters();
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "first", new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "first",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "second", new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "second",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        // Identical dataset PUT is a documented no-op and must not record a change.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "second",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_crud" }))
+        );
+        assertAcked(
+            client().execute(
+                DeleteDataSourceAction.INSTANCE,
+                new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_crud" })
+            )
+        );
+        expectThrows(
+            Exception.class,
+            () -> client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "no_such_type", null, new HashMap<>())
+            ).actionGet(TIMEOUT)
+        );
+
+        collectAllMeters();
+
+        assertThat(
+            "datasource created",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED))
+                - dsCreatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "datasource updated",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED))
+                - dsUpdatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "datasource deleted",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DELETED))
+                - dsDeletedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "exactly one rejected unknown-type PUT",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED))
+                - dsRejectedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset created",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_CREATED))
+                - setCreatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset updated",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_UPDATED))
+                - setUpdatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset deleted",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED))
+                - setDeletedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset rejected must not fire",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED))
+                - setRejectedBefore,
+            equalTo(0L)
+        );
+
+        long rejected = counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+            .filter(m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertThat("APM rejected observations", rejected, equalTo(1L));
+        assertThat(
+            "unknown type clamps to unknown",
+            counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .anyMatch(
+                    m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                        && "unknown".equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                        && "unknown_type".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                ),
+            equalTo(true)
         );
     }
 

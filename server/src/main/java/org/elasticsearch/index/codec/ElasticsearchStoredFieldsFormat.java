@@ -41,18 +41,18 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
     }
 
     private final Mode mode;
-    private final Mode modeBeforeTheAttribute;
+    private final Mode legacyMode;
     private final StoredFieldsFormat luceneFormat;
 
     /**
      * @param mode                   the mode segments written through this instance use
-     * @param modeBeforeTheAttribute the mode to read a segment with when it records none, which is what the codec wrote before
+     * @param legacyMode the mode to read a segment with when it records none, which is what the codec wrote before
      *                               {@link #MODE_KEY} existed and so differs per codec
      * @param luceneFormat           the implementation backing {@link Mode#LUCENE}, which carries the Lucene compression level
      */
-    public ElasticsearchStoredFieldsFormat(Mode mode, Mode modeBeforeTheAttribute, StoredFieldsFormat luceneFormat) {
+    public ElasticsearchStoredFieldsFormat(Mode mode, Mode legacyMode, StoredFieldsFormat luceneFormat) {
         this.mode = Objects.requireNonNull(mode);
-        this.modeBeforeTheAttribute = Objects.requireNonNull(modeBeforeTheAttribute);
+        this.legacyMode = Objects.requireNonNull(legacyMode);
         this.luceneFormat = Objects.requireNonNull(luceneFormat);
     }
 
@@ -69,19 +69,19 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
 
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
-        return formatFor(modeOf(si, modeBeforeTheAttribute)).fieldsReader(directory, si, fn, context);
+        return formatFor(modeOf(si, legacyMode)).fieldsReader(directory, si, fn, context);
     }
 
     /** The mode {@code si} was written with, taking this instance's answer for a segment that records none. */
     Mode modeOf(SegmentInfo si) {
-        return modeOf(si, modeBeforeTheAttribute);
+        return modeOf(si, legacyMode);
     }
 
-    /** The mode {@code si} was written with, or {@code modeBeforeTheAttribute} when the segment records none. */
-    static Mode modeOf(SegmentInfo si, Mode modeBeforeTheAttribute) {
+    /** The mode {@code si} was written with, or {@code legacyMode} when the segment records none. */
+    static Mode modeOf(SegmentInfo si, Mode legacyMode) {
         final String value = si.getAttribute(MODE_KEY);
         if (value == null) {
-            return modeBeforeTheAttribute;
+            return legacyMode;
         }
         try {
             return Mode.valueOf(value);
@@ -104,6 +104,6 @@ public final class ElasticsearchStoredFieldsFormat extends StoredFieldsFormat {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(mode=" + mode + ", before=" + modeBeforeTheAttribute + ")";
+        return getClass().getSimpleName() + "(mode=" + mode + ", before=" + legacyMode + ")";
     }
 }

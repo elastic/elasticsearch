@@ -33,7 +33,7 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
     public PerFieldMapperCodec(
         Lucene104Codec.Mode compressionMode,
         ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
-        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute,
+        ElasticsearchStoredFieldsFormat.Mode legacyMode,
         MapperService mapperService,
         BigArrays bigArrays,
         ThreadPool threadPool
@@ -41,7 +41,7 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
         super(
             compressionMode,
             storedFieldsMode,
-            modeBeforeTheAttribute,
+            legacyMode,
             mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
         );
         this.formatSupplier = new PerFieldFormatSupplier(mapperService, bigArrays, threadPool);

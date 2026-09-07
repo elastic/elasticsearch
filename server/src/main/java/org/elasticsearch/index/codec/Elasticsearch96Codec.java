@@ -32,17 +32,17 @@ public class Elasticsearch96Codec extends ElasticsearchCodec {
     public Elasticsearch96Codec(
         Lucene104Codec.Mode luceneMode,
         ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
-        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute
+        ElasticsearchStoredFieldsFormat.Mode legacyMode
     ) {
-        this(luceneMode, storedFieldsMode, modeBeforeTheAttribute, false);
+        this(luceneMode, storedFieldsMode, legacyMode, false);
     }
 
     public Elasticsearch96Codec(
         Lucene104Codec.Mode luceneMode,
         ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
-        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute,
+        ElasticsearchStoredFieldsFormat.Mode legacyMode,
         boolean syntheticId
     ) {
-        super("Elasticsearch96", new Lucene104Codec(luceneMode), storedFieldsMode, modeBeforeTheAttribute, syntheticId);
+        super("Elasticsearch96", new Lucene104Codec(luceneMode), storedFieldsMode, legacyMode, syntheticId);
     }
 }

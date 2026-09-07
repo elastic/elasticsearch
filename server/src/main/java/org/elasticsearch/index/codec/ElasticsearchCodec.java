@@ -66,19 +66,18 @@ public abstract class ElasticsearchCodec extends FilterCodec {
     private final StoredFieldsFormat storedFieldsFormat;
 
     /**
-     * @param name                   the name recorded in segments this codec writes
-     * @param delegate               the Lucene codec supplying the formats this one does not
-     * @param storedFieldsMode       the stored fields implementation segments are written with
-     * @param modeBeforeTheAttribute what a segment recording no stored fields mode was written with, which depends on the name it
-     *                               carries
-     * @param syntheticId            whether segments written through this codec must carry a synthetic id
+     * @param name             the name recorded in segments this codec writes
+     * @param delegate         the Lucene codec supplying the formats this one does not
+     * @param storedFieldsMode the stored fields implementation segments are written with
+     * @param legacyMode       what a segment recording no stored fields mode was written with, which depends on the name it carries
+     * @param syntheticId      whether segments written through this codec must carry a synthetic id
      */
     @SuppressWarnings("this-escape")
     protected ElasticsearchCodec(
         String name,
         Codec delegate,
         ElasticsearchStoredFieldsFormat.Mode storedFieldsMode,
-        ElasticsearchStoredFieldsFormat.Mode modeBeforeTheAttribute,
+        ElasticsearchStoredFieldsFormat.Mode legacyMode,
         boolean syntheticId
     ) {
         super(name, delegate);
@@ -89,7 +88,7 @@ public abstract class ElasticsearchCodec extends FilterCodec {
         // TSDBStoredFieldsFormat adds a reader for synthetic ids, and only for segments whose _id says it has one; writes go
         // straight to the format underneath. Segments without a synthetic id are unaffected either way.
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(
-            new ElasticsearchStoredFieldsFormat(storedFieldsMode, modeBeforeTheAttribute, delegate.storedFieldsFormat())
+            new ElasticsearchStoredFieldsFormat(storedFieldsMode, legacyMode, delegate.storedFieldsFormat())
         );
     }
 

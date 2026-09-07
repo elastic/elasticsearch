@@ -314,3 +314,13 @@ setup:
         body:
           query: 'FROM nest_root, obj_root | STATS s = SUM(item.value), c = COUNT(item.value)'
   - match: { values.0: [ 3, 2 ] }
+  # COUNT-only is rewritten to EsStatsQueryExec (Lucene EXISTS). include_in_root copies
+  # nested values onto the parent Lucene doc, so the nested shard must be skipped or
+  # COUNT is 4 instead of 2. SUM+COUNT above does not take this path.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nest_root, obj_root | STATS c = COUNT(item.value)'
+  - match: { values.0: [ 2 ] }

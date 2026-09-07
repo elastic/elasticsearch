@@ -228,6 +228,14 @@ public class NestedFieldConflictsIT extends ESRestTestCase {
         assertThat(values.get(0).get(0), equalTo(210));
         assertThat(values.get(0).get(1), equalTo(20));
 
+        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). include_in_root copies
+        // nested values onto the parent doc, so skipping the nested shard is required.
+        values = esql(from + """
+             | STATS c = COUNT(item.value)
+            """);
+        assertThat(values.size(), equalTo(1));
+        assertThat(values.get(0).get(0), equalTo(20));
+
         values = esql(from + """
              | KEEP id, item.value | SORT id | LIMIT 5
             """);

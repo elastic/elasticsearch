@@ -199,6 +199,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             return false;
         }
+
+        public boolean isExtractableMappedField(String name) {
+            return isMappedField(name) && mappingLookup().nestedLookup().getNestedParent(name) == null;
+        }
     }
 
     private final IndexedByShardId<? extends ShardContext> shardContexts;
@@ -587,10 +591,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /**
      * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
-     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
-     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
-     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
-     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     * extractable. Flattened fields store terms for their sub-keys in Lucene even though those
+     * sub-keys are absent from the real mapping; nested subfields are in the mapping but field caps
+     * applies {@code -nested}, and {@code include_in_root} copies their values onto the parent
+     * document. A plain EXISTS query would therefore inflate field-level COUNT results. Wildcard
+     * ({@code "*"}) means COUNT(*) — count every document — so no per-field guard is applied in
+     * that case.
      */
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
         QueryBuilder builder,
@@ -601,7 +607,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return innerFn;
         }
         return ctx -> {
-            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
+            if (shardContexts.get(ctx.index()).isExtractableMappedField(fieldName) == false) {
                 return List.of();
             }
             return innerFn.apply(ctx);
@@ -937,7 +943,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // filtered it from field caps). Gating the extra probes on the dot keeps flat names
             // (the common case) at a single resolution.
             if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys or nested subfields
-                && (isMappedField(name) == false || ctx.nestedLookup().getNestedParent(name) != null)) {
+                && isExtractableMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(

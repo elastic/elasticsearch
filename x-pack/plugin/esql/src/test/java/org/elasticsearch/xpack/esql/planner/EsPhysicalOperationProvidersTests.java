@@ -312,6 +312,52 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
+     * COUNT-only is rewritten to {@code EsStatsQueryExec} and uses {@code querySupplierForField}.
+     * Nested subfields are mapped, so {@code isMappedField} alone would still run EXISTS; with
+     * {@code include_in_root} that matches parent docs and inflates COUNT.
+     */
+    public void testQuerySupplierForFieldSkipsNestedSubfield() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .field("include_in_root", true)
+                        .startObject("properties")
+                        .startObject("value")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        assertTrue("nested subfield is mapped; isMappedField alone would not skip the shard", shardContext.isMappedField("item.value"));
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        org.elasticsearch.compute.lucene.ShardContext luceneShard = Mockito.mock(org.elasticsearch.compute.lucene.ShardContext.class);
+        Mockito.when(luceneShard.index()).thenReturn(0);
+        assertThat(
+            "COUNT pushdown must not run EXISTS on nested subfields",
+            provider.querySupplierForField(new ExistsQueryBuilder("item.value"), "item.value").apply(luceneShard),
+            equalTo(List.of())
+        );
+    }
+
+    /**
      * {@code unmapped_fields=load} wraps the shard so {@code isMappedField} is true, but a nested
      * subfield must still be nullified — the wrap must not reopen the #154011 type-skew path.
      */

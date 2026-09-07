@@ -21,6 +21,7 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -56,13 +57,20 @@ import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat.T
  */
 abstract class AbstractTSDBSyntheticIdCodec extends FilterCodec {
     private final TSDBStoredFieldsFormat storedFieldsFormat;
-    private final ValidatingFieldInfosFormat fieldInfosFormat;
+    private final FieldInfosFormat fieldInfosFormat;
     private final DocValuesFormat docValuesFormat;
 
     AbstractTSDBSyntheticIdCodec(String name, Codec delegate, DocValuesFormatForField docValuesFormatForField) {
         super(name, delegate);
         this.storedFieldsFormat = new TSDBStoredFieldsFormat(delegate.storedFieldsFormat());
-        this.fieldInfosFormat = new ValidatingFieldInfosFormat(delegate.fieldInfosFormat());
+        // Deduplication has to be part of this format, not left to CodecService: the override below is final, so on the read path —
+        // where the codec comes from SPI rather than from CodecService — it is the only fieldInfosFormat there is. Kept outermost so
+        // that every codec we write with exposes a deduplicating format directly, which CodecTests asserts.
+        // The delegate may deduplicate already; validate over the format underneath it so the chain keeps a single such layer.
+        FieldInfosFormat delegateFieldInfosFormat = delegate instanceof CodecService.DeduplicateFieldInfosCodec deduplicating
+            ? deduplicating.delegate().fieldInfosFormat()
+            : delegate.fieldInfosFormat();
+        this.fieldInfosFormat = CodecService.deduplicating(new ValidatingFieldInfosFormat(delegateFieldInfosFormat));
         this.docValuesFormat = new XPerFieldDocValuesFormat() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {

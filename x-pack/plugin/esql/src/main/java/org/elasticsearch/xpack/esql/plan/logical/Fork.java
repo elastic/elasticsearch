@@ -172,14 +172,25 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     @Nullable
     private UnmappedFieldsAttribute unmappedFieldsAttributeFromChildren() {
+        UnmappedFieldsAttribute first = null;
+        UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
         for (LogicalPlan child : children()) {
             for (Attribute attr : child.output()) {
                 if (attr instanceof UnmappedFieldsAttribute childUfa) {
-                    return childUfa;
+                    if (first == null) {
+                        first = childUfa;
+                    }
+                    union = union.union(childUfa.pattern());
                 }
             }
         }
-        return null;
+        if (first == null) {
+            return null;
+        }
+        if (union.equals(first.pattern())) {
+            return first;
+        }
+        return new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
     }
 
     @Override

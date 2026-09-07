@@ -1018,11 +1018,11 @@ FROM partial_mapping_sample_data
 | SORT _fork, unmapped_event_duration
 ;
 
-_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped_event_duration:keyword | language_code:keyword | unmapped.nested:keyword
-fork1         | Connection error? | Disconnection error      | 5033756                         | 2                     | b
-fork1         | Connection error? | Disconnection error      | 725449                          | 1                     | d
-fork1         | Connection error? | Disconnection error      | 8268154                         | 3                     | c
-fork2         | 42                | 43                       | 1232383                         | 2                     | e
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped_event_duration:keyword | unmapped.nested:keyword | language_code:keyword
+fork1         | Connection error? | Disconnection error      | 5033756                         | b                       | 2
+fork1         | Connection error? | Disconnection error      | 725449                          | d                       | 1
+fork1         | Connection error? | Disconnection error      | 8268154                         | c                       | 3
+fork2         | 42                | 43                       | 1232383                         | e                       | 2
 ;
 
 forkAcrossBranchesWildcardKeep
@@ -1038,11 +1038,11 @@ FROM partial_mapping_sample_data
 ;
 ignoreOrder:true
 
-_fork:keyword | message:keyword   | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | Connection error? | Disconnection error      | 2                     | b                       | 5033756
-fork1         | Connection error? | Disconnection error      | 3                     | c                       | 8268154
-fork1         | Connection error? | Disconnection error      | 1                     | d                       | 725449
-fork2         | 42                | 43                       | 2                     | e                       | 1232383
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | Connection error? | Disconnection error      | b                       | 5033756                         | 2
+fork1         | Connection error? | Disconnection error      | c                       | 8268154                         | 3
+fork1         | Connection error? | Disconnection error      | d                       | 725449                          | 1
+fork2         | 42                | 43                       | e                       | 1232383                         | 2
 ;
 
 forkInsideBranchNoKeepDropsOthers
@@ -1094,9 +1094,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42                     | 43                         | 2                     | e                       | 1232383
-fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+_fork:keyword | message:keyword        | unmapped_message:keyword   | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | a                       | 1756468                         | 1
 ;
 
 forkAbsentFieldAcrossBranches
@@ -1111,9 +1111,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword        | completely_absent_field:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
-fork1         | 42                     | null                            | 2                     | e                       | 1232383                         | 43
-fork2         | Connected to 10.1.0.1! | null                            | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+_fork:keyword | message:keyword        | completely_absent_field:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword   | language_code:keyword
+fork1         | 42                     | null                            | e                       | 1232383                         | 43                         | 2
+fork2         | Connected to 10.1.0.1! | null                            | a                       | 1756468                         | Disconnected from 10.1.0.1 | 1
 ;
 
 forkEvalInOneBranchLoadsAll
@@ -1128,9 +1128,9 @@ FROM partial_mapping_sample_data
 | SORT _fork, message
 ;
 
-_fork:keyword | message:keyword        | unmapped_message:keyword   | tag:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42                     | 43                         | 43          | 2                     | e                       | 1232383
-fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null        | 1                     | a                       | 1756468
+_fork:keyword | message:keyword        | unmapped_message:keyword   | tag:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | 43          | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null        | a                       | 1756468                         | 1
 ;
 
 forkReferencedOnlyAboveThreeBranches
@@ -1147,10 +1147,10 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword        | unmapped_message:keyword   | upper:keyword                | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42                     | 43                         | 43                           | 2                     | e                       | 1232383
-fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1   | 1                     | a                       | 1756468
-fork3         | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | DISCONNECTED FROM 10.1.0.2   | 3                     | f                       | 2764890
+_fork:keyword | message:keyword        | unmapped_message:keyword   | upper:keyword                | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | 43                         | 43                           | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1   | a                       | 1756468                         | 1
+fork3         | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | DISCONNECTED FROM 10.1.0.2   | f                       | 2764890                         | 3
 ;
 
 forkOuterStatsBy
@@ -1185,10 +1185,10 @@ FROM partial_mapping_sample_data
 ;
 ignoreOrder:true
 
-_fork:keyword | message:keyword   | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork2         | Connection error? | Disconnection error      | 2                     | b                       | 5033756
-fork2         | Connection error? | Disconnection error      | 3                     | c                       | 8268154
-fork2         | Connection error? | Disconnection error      | 1                     | d                       | 725449
+_fork:keyword | message:keyword   | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork2         | Connection error? | Disconnection error      | b                       | 5033756                         | 2
+fork2         | Connection error? | Disconnection error      | c                       | 8268154                         | 3
+fork2         | Connection error? | Disconnection error      | d                       | 725449                          | 1
 ;
 
 forkDropInOneBranchWithKeep
@@ -1203,9 +1203,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42                     | null                       | 2                     | e                       | 1232383
-fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+_fork:keyword | message:keyword        | unmapped_message:keyword   | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42                     | null                       | e                       | 1232383                         | 2
+fork2         | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | a                       | 1756468                         | 1
 ;
 
 forkDropInOneBranchWithKeepFiltered
@@ -1220,9 +1220,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42              | null                     | 2                     | e                       | 1232383
-fork2         | 42              | 43                       | 2                     | e                       | 1232383
+_fork:keyword | message:keyword | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42              | null                     | e                       | 1232383                         | 2
+fork2         | 42              | 43                       | e                       | 1232383                         | 2
 ;
 
 forkDropInOneBranchWildcardKeep
@@ -1237,9 +1237,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-_fork:keyword | message:keyword | unmapped_message:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-fork1         | 42              | null                     | 2                     | e                       | 1232383
-fork2         | 42              | 43                       | 2                     | e                       | 1232383
+_fork:keyword | message:keyword | unmapped_message:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | language_code:keyword
+fork1         | 42              | null                     | e                       | 1232383                         | 2
+fork2         | 42              | 43                       | e                       | 1232383                         | 2
 ;
 
 forkWhereThenDropInOneBranch
@@ -1920,12 +1920,12 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 ;
 
 id:keyword  | unmapped:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword | unmapped.foo:keyword
-1           |null              |null                  |null                        |foo1           
-2           |null              |bar2                  |null                        |null           
-3           |null              |null                  |null                        |foo3           
-5           |null              |null                  |null                        |[arr1, arr2]   
-6           |null              |null                  |deep6                       |null           
-7           |null              |bar7                  |null                        |null           
+1           | null             | null                 | null                       | foo1
+2           | null             | bar2                 | null                       | null
+3           | null             | null                 | null                       | foo3
+5           | null             | null                 | null                       | [arr1, arr2]
+6           | null             | null                 | deep6                      | null
+7           | null             | bar7                 | null                       | null
 ;
 
 multiIndexReferencedUnmappedObjectStillExpandsLeaves
@@ -2145,14 +2145,14 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 | KEEP unmapped.*.*, unmapped, *
 ;
 
-unmapped.deep.leaf:keyword| unmapped:keyword | id:keyword | unmapped.bar:keyword | unmapped.foo:keyword  
-null                      |null              |1           |null                  |foo1           
-null                      |null              |2           |bar2                  |null           
-null                      |null              |3           |null                  |foo3           
-null                      |scalar4           |4           |null                  |null           
-null                      |null              |5           |null                  |[arr1, arr2]   
-deep6                     |null              |6           |null                  |null           
-null                      |null              |7           |bar7                  |null           
+unmapped.deep.leaf:keyword | unmapped:keyword | id:keyword | unmapped.bar:keyword | unmapped.foo:keyword
+null                       | null             | 1          | null                 | foo1
+null                       | null             | 2          | bar2                 | null
+null                       | null             | 3          | null                 | foo3
+null                       | scalar4          | 4          | null                 | null
+null                       | null             | 5          | null                 | [arr1, arr2]
+deep6                      | null             | 6          | null                 | null
+null                       | null             | 7          | bar7                 | null
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndMetadataIndex
@@ -2164,12 +2164,12 @@ FROM unmapped_multi_mapped, unmapped_multi_synthetic METADATA _index
 | SORT id
 ;
 
-  id:keyword   |       _index:keyword   | unmapped:keyword | unmapped.foo:keyword | unmapped.bar:keyword|unmapped.deep.leaf:keyword
-3              |unmapped_multi_synthetic|null              |foo3                  |null                 |null              
-6              |unmapped_multi_synthetic|null              |null                  |null                 |deep6             
-7              |unmapped_multi_synthetic|null              |null                  |bar7                 |null              
-8              |unmapped_multi_mapped   |null              |mfoo8                 |mbar8                |mleaf8            
-9              |unmapped_multi_mapped   |null              |[mfa, mfb]            |null                 |null              
+id:keyword     | _index:keyword           | unmapped:keyword | unmapped.foo:keyword | unmapped.bar:keyword | unmapped.deep.leaf:keyword
+3              | unmapped_multi_synthetic | null             | foo3                 | null                 | null
+6              | unmapped_multi_synthetic | null             | null                 | null                 | deep6
+7              | unmapped_multi_synthetic | null             | null                 | bar7                 | null
+8              | unmapped_multi_mapped    | null             | mfoo8                | mbar8                | mleaf8
+9              | unmapped_multi_mapped    | null             | [mfa, mfb]           | null                 | null
 ;
 
 multiIndexKeepOrdersRealColumnAfterExpandedLeaves_WithMultiWildcardNested_AndActualMappedFields
@@ -2181,19 +2181,19 @@ FROM unmapped_multi_* METADATA _index
 | SORT id
 ;
 
-  id:keyword   |       _index:keyword      | unmapped:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported|unmapped.deep.leaf:unsupported
-1              |unmapped_multi_stored_foo  |null              |null                      |null                     |null              
-10             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-11             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-12             |unmapped_multi_mapped_mixed|null              |null                      |null                     |null              
-2              |unmapped_multi_stored_bar  |null              |null                      |null                     |null              
-3              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-4              |unmapped_multi_stored_mixed|scalar4           |null                      |null                     |null              
-5              |unmapped_multi_stored_mixed|null              |null                      |null                     |null              
-6              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-7              |unmapped_multi_synthetic   |null              |null                      |null                     |null              
-8              |unmapped_multi_mapped      |null              |null                      |null                     |null              
-9              |unmapped_multi_mapped      |null              |null                      |null                     |null              
+id:keyword     | _index:keyword              | unmapped:keyword | unmapped.foo:unsupported | unmapped.bar:unsupported | unmapped.deep.leaf:unsupported
+1              | unmapped_multi_stored_foo   | null             | null                     | null                     | null
+10             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+11             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+12             | unmapped_multi_mapped_mixed | null             | null                     | null                     | null
+2              | unmapped_multi_stored_bar   | null             | null                     | null                     | null
+3              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+4              | unmapped_multi_stored_mixed | scalar4          | null                     | null                     | null
+5              | unmapped_multi_stored_mixed | null             | null                     | null                     | null
+6              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+7              | unmapped_multi_synthetic    | null             | null                     | null                     | null
+8              | unmapped_multi_mapped       | null             | null                     | null                     | null
+9              | unmapped_multi_mapped       | null             | null                     | null                     | null
 ;
 
 keepOrderPreservedThroughRenameAfterKeep
@@ -2271,14 +2271,14 @@ FROM unmapped_multi_stored_foo, unmapped_multi_stored_bar, unmapped_multi_synthe
 | RENAME foo as x, x as y, id as identifier, unmapped.bar as z, unmapped as u
 ;
 
-   u:keyword   |  z:keyword    |unmapped.deep.leaf:keyword|unmapped.foo:keyword|identifier:keyword |       y:integer       
-null           |null           |null                      |foo1                |1                  |123            
-null           |bar2           |null                      |null                |2                  |123            
-null           |null           |null                      |foo3                |3                  |123            
-scalar4        |null           |null                      |null                |4                  |123            
-null           |null           |null                      |[arr1, arr2]        |5                  |123            
-null           |null           |deep6                     |null                |6                  |123            
-null           |bar7           |null                      |null                |7                  |123
+u:keyword      | z:keyword     | unmapped.deep.leaf:keyword | unmapped.foo:keyword | identifier:keyword | y:integer
+null           | null          | null                       | foo1                 | 1                  | 123
+null           | bar2          | null                       | null                 | 2                  | 123
+null           | null          | null                       | foo3                 | 3                  | 123
+scalar4        | null          | null                       | null                 | 4                  | 123
+null           | null          | null                       | [arr1, arr2]         | 5                  | 123
+null           | null          | deep6                      | null                 | 6                  | 123
+null           | bar7          | null                       | null                 | 7                  | 123
 ;
 
 evalWithTwoAssignmentsOnMappedAndUnmapped
@@ -2918,11 +2918,11 @@ FROM partial_mapping_sample_data
 ;
 
 @timestamp:datetime      | combined:keyword                                                  | language_code:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! :: Disconnected from 10.1.0.3            | 4
-2024-10-23T13:33:34.937Z | 42 :: 43                                                         | 2
-2024-10-23T13:51:54.732Z | Connection error? :: Disconnection error                         | 1
-2024-10-23T13:53:55.832Z | Connection error? :: Disconnection error                         | 2
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! :: Disconnected from 10.1.0.1            | 1
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! :: Disconnected from 10.1.0.3              | 4
+2024-10-23T13:33:34.937Z | 42 :: 43                                                          | 2
+2024-10-23T13:51:54.732Z | Connection error? :: Disconnection error                          | 1
+2024-10-23T13:53:55.832Z | Connection error? :: Disconnection error                          | 2
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! :: Disconnected from 10.1.0.1              | 1
 ;
 
 keepUnmappedWildcardThenRenameBoth

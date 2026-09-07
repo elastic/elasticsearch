@@ -385,11 +385,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testForkSurfacesUnmappedFieldsAttribute() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE true) (WHERE true)"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
             assertNotKept(pattern, excl("_fork"));
         }
@@ -398,9 +396,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testForkMentionExcludesNamedFieldFromBothBranches() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE emp_no > 0)"));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertNotKept(pattern, "unmapped_extra");
             assertKept(pattern, "first_name_suffix");
         }
@@ -409,9 +405,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testForkDropInEveryBranchExcludesDroppedKeepsOthers() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (DROP unmapped_extra) (DROP unmapped_extra)"));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertNotKept(pattern, "unmapped_extra");
             assertKept(pattern, "first_name_suffix");
         }
@@ -422,9 +416,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE first_name_suffix == \"y\")")
         );
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertNotKept(pattern, "unmapped_extra", "first_name_suffix");
             assertKept(pattern, "salary_bonus");
         }
@@ -432,13 +424,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testForkKeepInOneBranchStillSurfacesUnmappedFieldsAttribute() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP emp_no, first_name) (WHERE emp_no > 0)"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
         int stamped = 0;
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
-            if (attrs.isEmpty() == false) {
+            if (unmappedFieldsAttributes(relation).isEmpty() == false) {
                 stamped++;
-                assertKept(EsqlTestUtils.singleValue(attrs).pattern(), "unmapped_extra");
+                assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
         assertThat(stamped, is(1));
@@ -446,13 +437,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testForkStatsInOneBranchStillSurfacesUnmappedFieldsAttribute() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (STATS c = COUNT(*)) (WHERE emp_no > 0)"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
         int stamped = 0;
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            List<UnmappedFieldsAttribute> attrs = CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class);
-            if (attrs.isEmpty() == false) {
+            if (unmappedFieldsAttributes(relation).isEmpty() == false) {
                 stamped++;
-                assertKept(EsqlTestUtils.singleValue(attrs).pattern(), "unmapped_extra");
+                assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
             }
         }
         assertThat(stamped, is(1));
@@ -460,13 +450,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testForkKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP first_name*) (WHERE emp_no > 0)"));
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
         int keptExtra = 0;
         int droppedExtra = 0;
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "first_name_suffix");
             if (pattern.matches("unmapped_extra")) {
                 keptExtra++;
@@ -476,19 +463,20 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
         assertThat(keptExtra, is(1));
         assertThat(droppedExtra, is(1));
+        // Coordinator expansion filters every branch's keys through Fork's pattern, so the union must still
+        // keep extras the WHERE sibling loaded even when the KEEP branch is listed first.
+        assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
 
     public void testInlineStatsThenForkStampsBothBranchesAndExcludesAggAlias() {
         LogicalPlan plan = test().statement(
             setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | FORK (WHERE emp_no > 0) (WHERE emp_no > 0)")
         );
-        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
-            UnmappedFieldsPattern pattern = EsqlTestUtils.singleValue(
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)
-            ).pattern();
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
             assertNotKept(pattern, "c");
         }
@@ -645,7 +633,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             .filter(r -> r.indexMode() != IndexMode.LOOKUP)
             .findFirst()
             .orElseThrow(() -> new AssertionError("No non-LOOKUP EsRelation found"));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(primary.output(), UnmappedFieldsAttribute.class)).pattern();
+        return unmappedFieldsPattern(primary);
     }
 
     /**
@@ -659,9 +647,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     /** Like {@link #patternFor(String)}, but accepts a pre-configured analyzer (e.g. one with extra enrich policies). */
     private static UnmappedFieldsPattern patternFor(String query, TestAnalyzer analyzer) {
-        LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
-        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();
+        return patternOf(analyzer.statement(setUnmappedLoadAll(query)));
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
@@ -673,11 +659,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     private static void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            assertThat(
-                "expected no UnmappedFieldsAttribute on " + relation,
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class),
-                empty()
-            );
+            assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }
     }
 
@@ -705,7 +687,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {
-        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();
+        return unmappedFieldsPattern(EsqlTestUtils.singleValue(plan.collect(EsRelation.class)));
+    }
+
+    private static UnmappedFieldsPattern unmappedFieldsPattern(LogicalPlan plan) {
+        return EsqlTestUtils.singleValue(unmappedFieldsAttributes(plan)).pattern();
+    }
+
+    private static List<UnmappedFieldsAttribute> unmappedFieldsAttributes(LogicalPlan plan) {
+        return CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class);
     }
 }

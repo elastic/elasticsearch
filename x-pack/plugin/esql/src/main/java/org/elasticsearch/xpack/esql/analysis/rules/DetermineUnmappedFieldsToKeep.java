@@ -78,22 +78,26 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         }
         boolean hasFork = plan.anyMatch(p -> p instanceof Fork fork && isForkCommand(fork));
         LogicalPlan annotated = hasFork ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
-        if (carriesUnmappedFieldsAttribute(annotated)) {
-            registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(annotated, leaves).output());
-        }
         LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-        return hasFork
+        LogicalPlan result = hasFork
             // Project pass before FORK finish keeps $$unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the FORK, whose child output only includes the column after refresh.
             ? withUnmappedOnProjects.transformUp(Fork.class, DetermineUnmappedFieldsToKeep::finishForkUnmappedFields)
                 .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
             : withUnmappedOnProjects;
+        if (carriesUnmappedFieldsAttribute(result)) {
+            registerUnmappedFieldsOrdering.accept(leaves -> withLeavesInPlaceOfSyntheticColumn(result, leaves).output());
+        }
+        return result;
     }
 
     /**
      * The plan with {@code leaves} standing in for the synthetic column, so asking it for its output re-runs every projection
      * against a relation shaped exactly as it would have been had those fields been mapped: {@code ResolvingProject#replaceChild}
-     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top
+     * re-invokes the real KEEP/DROP/RENAME resolvers, and EVAL and friends recompute their output on top.
+     * {@link Fork} snapshots its output, so the leaves are spliced into that list in place of {@code $$unmapped_fields}.
+     * {@link Fork#refreshOutput()} cannot do this: it mints new {@link org.elasticsearch.xpack.esql.core.expression.NameId}s,
+     * and expansion matches discovered fields by id.
      */
     private static LogicalPlan withLeavesInPlaceOfSyntheticColumn(LogicalPlan annotated, List<Attribute> leaves) {
         return annotated.transformUp(EsRelation.class, esr -> {
@@ -107,7 +111,26 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 }
             }
             return carriesSyntheticColumn ? esr.withAttributes(realAttributes).withAdditionalAttributes(leaves) : esr;
-        });
+        }).transformUp(Fork.class, fork -> replaceSyntheticColumnInForkOutput(fork, leaves));
+    }
+
+    private static Fork replaceSyntheticColumnInForkOutput(Fork fork, List<Attribute> leaves) {
+        List<Attribute> newOutput = new ArrayList<>(fork.output().size() + leaves.size());
+        boolean replaced = false;
+        for (Attribute attr : fork.output()) {
+            if (attr instanceof UnmappedFieldsAttribute || attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                if (replaced) {
+                    throw new IllegalStateException(
+                        "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + " in FORK output, got " + fork.output()
+                    );
+                }
+                newOutput.addAll(leaves);
+                replaced = true;
+            } else {
+                newOutput.add(attr);
+            }
+        }
+        return replaced ? fork.replaceSubPlansAndOutput(fork.children(), newOutput) : fork;
     }
 
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {

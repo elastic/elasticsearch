@@ -18,6 +18,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 
 /** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */

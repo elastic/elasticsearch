@@ -28,6 +28,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeTrue;
 
 public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
 

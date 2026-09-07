@@ -14,6 +14,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 
 public class IVFKnnFloatSlicedVectorQuerySliceTests extends AbstractIVFKnnSlicedVectorQueryTestCase {

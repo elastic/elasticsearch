@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assume.assumeFalse;
 
 public class PasswordToolsTests extends PackagingTestCase {
 

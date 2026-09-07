@@ -48,6 +48,24 @@ public class RedundantJavaImportsFormatterTests {
     }
 
     @Test
+    public void testKeepsJunitAssumeThatWhenExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assume.assumeThat;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assumeThat(1, org.hamcrest.Matchers.equalTo(1));
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
     public void testKeepsJunitStaticImportsWhenNotExtendingTestCase() {
         String input = """
             package org.elasticsearch.example;
@@ -408,6 +426,28 @@ public class RedundantJavaImportsFormatterTests {
              * See {@link Inner#foo()}.
              */
             public class Example {
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsNestedTypeImportUsedInJavadocWhenAlsoUsedInInheritingAnonymousClass() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.example.Outer;
+            import org.elasticsearch.example.Outer.Inner;
+
+            /**
+             * See {@link Inner}.
+             */
+            public class Example {
+                static final Outer VALUE = new Outer() {
+                    Inner inner() {
+                        return null;
+                    }
+                };
             }
             """;
         assertEquals(input, RedundantJavaImportsFormatter.format(input));

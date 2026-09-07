@@ -30,6 +30,7 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeTrue;
 
 public class RpmPreservationTests extends PackagingTestCase {
 

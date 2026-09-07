@@ -13,6 +13,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assume.assumeFalse;
 
 public class CronEvalCliTests extends PackagingTestCase {
 

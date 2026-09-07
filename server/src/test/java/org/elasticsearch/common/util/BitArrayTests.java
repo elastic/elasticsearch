@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assume.assumeThat;
 
 public class BitArrayTests extends ESTestCase {
 

@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Smoke tests that Elasticsearch functions correctly when its data directory lives on an encrypted block device.

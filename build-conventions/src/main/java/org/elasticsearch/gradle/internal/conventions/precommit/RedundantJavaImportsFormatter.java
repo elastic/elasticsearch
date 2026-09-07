@@ -26,6 +26,7 @@ import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.LambdaExpr;
@@ -74,18 +75,16 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 7;
+    private final int revision = 9;
 
     private static final List<String> REDUNDANT_TEST_STATIC_PREFIXES = List.of(
         "org.junit.Assert.",
-        "org.junit.Assume.",
         "org.hamcrest.MatcherAssert.",
         "com.carrotsearch.randomizedtesting.RandomizedTest."
     );
 
     private static final Set<String> REDUNDANT_TEST_STATIC_TYPES = Set.of(
         "org.junit.Assert",
-        "org.junit.Assume",
         "org.hamcrest.MatcherAssert",
         "com.carrotsearch.randomizedtesting.RandomizedTest"
     );
@@ -156,7 +155,20 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
                 return false;
             }
         }
-        return true;
+        // Javadoc {@link Nested} on a type that does not inherit the enclosing type still needs
+        // the import. typeUsages does not see javadoc, so keep the import whenever such a tag
+        // is present.
+        return javadocLinksSimpleName(cu, nestedSimpleName) == false;
+    }
+
+    private static boolean javadocLinksSimpleName(CompilationUnit cu, String simpleName) {
+        Pattern link = Pattern.compile("\\{@link\\s+" + Pattern.quote(simpleName) + "(?:[#\\s}]|$)");
+        for (Comment comment : cu.getAllContainedComments()) {
+            if (link.matcher(comment.getContent()).find()) {
+                return true;
+            }
+        }
+        return cu.getComment().filter(comment -> link.matcher(comment.getContent()).find()).isPresent();
     }
 
     private static boolean isRedundantTestFrameworkStaticImport(ImportDeclaration imp, String name) {
@@ -177,10 +189,13 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
      * type keep the import. An asterisk import is redundant only when every unscoped method call
      * in the file is inside such a type.
      * <p>
-     * JUnit {@code Assert}/{@code Assume} and Hamcrest {@code MatcherAssert} methods are inherited
-     * from {@code LuceneTestCase}, {@code org.junit.Assert}, and typical {@code *TestCase} types.
+     * JUnit {@code Assert} and Hamcrest {@code MatcherAssert} methods are inherited from
+     * {@code LuceneTestCase}, {@code org.junit.Assert}, and typical {@code *TestCase} types.
      * {@code RandomizedTest} and {@code RestClientTestCase} do not declare those methods, so their
-     * subclasses keep the static imports.
+     * subclasses keep the static imports. {@code org.junit.Assume} is left alone:
+     * {@code LuceneTestCase} redeclares {@code assumeTrue}/{@code assumeFalse} but not
+     * {@code assumeThat}/{@code assumeNotNull}, and some {@code *TestCase} types do not extend
+     * {@code LuceneTestCase} at all.
      * <p>
      * {@code RandomizedTest} helpers such as {@code randomAsciiAlphanumOfLengthBetween()} are
      * inherited only by types that extend {@code RandomizedTest} itself. {@code LuceneTestCase}
@@ -215,10 +230,8 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
 
     private static boolean isAssertStyleImport(String name) {
         return name.equals("org.junit.Assert")
-            || name.equals("org.junit.Assume")
             || name.equals("org.hamcrest.MatcherAssert")
             || name.startsWith("org.junit.Assert.")
-            || name.startsWith("org.junit.Assume.")
             || name.startsWith("org.hamcrest.MatcherAssert.");
     }
 

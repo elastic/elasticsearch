@@ -9,6 +9,10 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.util.BytesRef;
+
+import java.io.IOException;
+
 /**
  * Binary doc values that can hand over the string column behind them, so a search matches a term against
  * the column rather than reading a value for every document.
@@ -22,4 +26,13 @@ public interface StringColumnSource {
 
     /** The column behind these values. */
     StringColumnReader reader();
+
+    /**
+     * The largest or smallest value the document these values are positioned on holds, or null when it holds none.
+     *
+     * <p>Here rather than on the column because the column addresses documents by rank, and which rank these values
+     * stand on is what the surface knows and the column does not. The returned {@link BytesRef} is only valid until
+     * the next call.
+     */
+    BytesRef extreme(boolean max, BytesRef dst) throws IOException;
 }

@@ -118,13 +118,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     public void testIndicatorYieldsYellowInCaseThereIsNotEnoughRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
-        // Yellow if there is no room for 10 more shards, so we take 9 out of the max
+        // Yellow if there is no room for 10 more shards
         assertNotEnoughRoom(YELLOW, maxShardsPerNode, maxShardsPerNode - 9);
     }
 
     public void testIndicatorYieldsRedInCaseThereIsNotEnoughRoom() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
-        // Red if there is no room for 5 more shards, so we take 4 out of the max
+        // Red if there is no room for 5 more shards
         assertNotEnoughRoom(RED, maxShardsPerNode, maxShardsPerNode - 4);
     }
 

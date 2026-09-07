@@ -33,6 +33,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -87,6 +88,20 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         S3Client mockS3 = mock(S3Client.class);
         IOException io = new IOException("The target server failed to respond");
         SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", io);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
+    }
+
+    public void testSdkClientExceptionWrappingConnectExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        ConnectException refused = new ConnectException("Connection refused");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", refused);
         when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);

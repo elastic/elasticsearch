@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /** Pins {@link CsvFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
@@ -243,6 +244,13 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         assertNotNull("tsv FormatSpec must have a configValidator", validator);
         CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
 
+        // Good values — both must accept without throwing.
+        for (Map.Entry<String, Object> good : goodCsvValues()) {
+            Map<String, Object> config = Map.of(good.getKey(), good.getValue());
+            validator.validate(config);
+            reader.withConfigTrackingConsumedKeys(config);
+        }
+
         for (Map.Entry<String, Object> bad : badCsvValues()) {
             Map<String, Object> config = Map.of(bad.getKey(), bad.getValue());
             IllegalArgumentException fromValidator = expectThrows(IllegalArgumentException.class, () -> validator.validate(config));
@@ -284,8 +292,11 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     /** Bad CSV config values that both validator and reader must reject with the same message. */
     private static List<Map.Entry<String, Object>> badCsvValues() {
         List<Map.Entry<String, Object>> list = new ArrayList<>();
-        list.add(Map.entry("mode", "lenient"));     // unknown mode
-        list.add(Map.entry("encoding", "UTF-99")); // unknown charset
+        list.add(Map.entry("mode", "lenient"));           // unknown mode
+        list.add(Map.entry("encoding", "UTF-99"));        // unknown charset
+        list.add(Map.entry("multi_value_syntax", "bogus")); // unknown multi-value syntax
+        list.add(Map.entry("max_field_size", "abc"));     // non-integer
+        list.add(Map.entry("header_row", "banana"));      // non-boolean
         return list;
     }
 
@@ -300,6 +311,35 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         list.add(Map.entry("quote", "abc"));
         list.add(Map.entry("escape", "xx"));
         return list;
+    }
+
+    /**
+     * {@code mode: escaped} combined with an explicit quote character is rejected at PUT time
+     * (the combination turns quoting on, silently disabling C-style decoding). At query time the
+     * reader keeps it as a warning rather than an error (stored datasets that predate the gate keep
+     * reading), so validator and reader diverge intentionally here.
+     */
+    public void testEscapedModeWithExplicitQuoteRejectedByValidatorNotByReader() {
+        CsvDataSourcePlugin plugin = new CsvDataSourcePlugin();
+        FormatSpec csvSpec = plugin.formatSpecs().stream().filter(s -> s.format().equals("csv")).findFirst().orElseThrow();
+        FormatSpec.FormatConfigValidator validator = csvSpec.configValidator();
+
+        // Validator rejects at PUT time.
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(Map.of("mode", "escaped", "quote", "\""))
+        );
+        assertThat(e.getMessage(), containsString("escaped"));
+        assertThat(e.getMessage(), containsString("quote"));
+
+        // Reader accepts the combination at query time (and emits a HeaderWarning).
+        CsvFormatReader reader = new CsvFormatReader(NOOP_BLOCK_FACTORY, "csv", List.of(".csv"));
+        reader.withConfigTrackingConsumedKeys(Map.of("mode", "escaped", "quote", "\""));
+        assertWarnings(
+            "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
+                + "keep it to parse quoted fields instead."
+        );
     }
 
     /**

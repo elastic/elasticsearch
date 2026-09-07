@@ -407,10 +407,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (segmentSize != null) {
             parseSegmentSize(segmentSize, DEFAULT_SEGMENT_SIZE.getBytes());
         }
-        Object datetimeFormat = config.get(CONFIG_DATETIME_FORMAT);
-        if (datetimeFormat != null && datetimeFormat.toString().isEmpty() == false) {
-            parseDatetimeFormat(datetimeFormat, null);
-        }
+        parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), null);
     }
 
     @Override

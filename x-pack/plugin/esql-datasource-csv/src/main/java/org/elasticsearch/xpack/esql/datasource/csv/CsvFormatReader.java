@@ -762,17 +762,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "the bracket scanner honors quoted fields"
             );
         }
-        if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting && emitWarnings) {
+        if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
             // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
             // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
-            // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
-            // rewrites \N to N before the sample is built), so warn deterministically here, at config
-            // time, on the response header the query author actually reads.
-            HeaderWarning.addWarning(
-                "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
-                    + "keep it to parse quoted fields instead."
-            );
+            // longer C-style-decoded. At PUT time this is rejected so the broken config is never stored.
+            // At query time (emitWarnings=true) the combination is warned about on the response header.
+            if (emitWarnings) {
+                HeaderWarning.addWarning(
+                    "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
+                        + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
+                        + "keep it to parse quoted fields instead."
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Mode [escaped] combined with an explicit [quote] turns quoting on, which disables "
+                        + "the escaped-mode decode (\\N to null, \\t to tab); "
+                        + "remove [quote] to keep C-style decoding, or use mode [quoted] to enable quoting explicitly"
+                );
+            }
         }
 
         Object delimiterValue = config.get(CONFIG_DELIMITER);

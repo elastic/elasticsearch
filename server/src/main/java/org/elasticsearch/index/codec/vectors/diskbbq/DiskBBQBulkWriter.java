@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.search.CheckedIntConsumer;
+import org.apache.lucene.util.IOIntConsumer;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
@@ -35,7 +35,7 @@ public abstract sealed class DiskBBQBulkWriter {
      * @param docsWriter docs writer
      * @throws IOException if writing fails
      */
-    public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
+    public abstract void writeVectors(QuantizedVectorValues qvv, IOIntConsumer docsWriter) throws IOException;
 
     /**
      * Factory method to create a DiskBBQBulkWriter based on the bit size.
@@ -85,7 +85,7 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, IOIntConsumer docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -156,7 +156,7 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, IOIntConsumer docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -207,7 +207,7 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, IOIntConsumer docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -245,7 +245,7 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, IOIntConsumer docsWriter) throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {

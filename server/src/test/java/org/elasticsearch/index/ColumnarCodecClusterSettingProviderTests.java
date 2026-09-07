@@ -76,15 +76,12 @@ public class ColumnarCodecClusterSettingProviderTests extends ESTestCase {
         assertThat(inject(provider, mode, Settings.EMPTY).isEmpty(), is(true));
     }
 
-    // The kill switch gates new index creation only: an already created columnar index keeps its baked per-index
-    // opt-in and still selects the ColumNAR codec, because the eligibility decision never reads the cluster setting.
     public void testExistingColumnarIndexStillSelectsColumnarWhenSwitchOff() {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final IndexMode mode = randomStrictColumnarMode();
         assertTrue(ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings(mode, randomEligibleVersion(), true)));
     }
 
-    // A new index created while the switch is off inherits the forced per-index opt-out, so it is not eligible.
     public void testForcedOffSettingMakesNewIndexIneligible() {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         final IndexMode mode = randomStrictColumnarMode();

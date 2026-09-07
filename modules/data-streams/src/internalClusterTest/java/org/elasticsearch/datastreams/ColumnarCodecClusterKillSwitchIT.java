@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,7 +49,7 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
 
     public void testSwitchOnByDefaultKeepsColumnarOptIn() {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
-        final String index = createColumnarIndex("columnar-on-" + randomIdentifier(), true);
+        final String index = createColumnarIndex("columnar-on-" + randomIdentifier());
         assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(index)), equalTo(true));
     }
 
@@ -56,7 +57,7 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
         updateClusterSettings(Settings.builder().put(CLUSTER_KEY, false));
         try {
-            final String index = createColumnarIndex("columnar-off-" + randomIdentifier(), true);
+            final String index = createColumnarIndex("columnar-off-" + randomIdentifier());
             assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(index)), equalTo(false));
         } finally {
             updateClusterSettings(Settings.builder().putNull(CLUSTER_KEY));
@@ -65,29 +66,28 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
 
     public void testExistingColumnarIndexUnaffectedWhenSwitchFlippedOff() {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
-        final String existing = createColumnarIndex("columnar-existing-" + randomIdentifier(), true);
+        final String existing = createColumnarIndex("columnar-existing-" + randomIdentifier());
         assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(existing)), equalTo(true));
 
         updateClusterSettings(Settings.builder().put(CLUSTER_KEY, false));
         try {
-            // The already created index keeps its baked per-index opt-in: the setting is final and the provider only
-            // runs at creation, so flipping the switch off does not change it.
             assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(existing)), equalTo(true));
 
-            // A newly created index picks up the switch and does not adopt the codec.
-            final String fresh = createColumnarIndex("columnar-fresh-" + randomIdentifier(), true);
+            final String fresh = createColumnarIndex("columnar-fresh-" + randomIdentifier());
             assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(fresh)), equalTo(false));
         } finally {
             updateClusterSettings(Settings.builder().putNull(CLUSTER_KEY));
         }
     }
 
-    private String createColumnarIndex(String indexName, boolean columnarOptIn) {
+    private String createColumnarIndex(String indexName) {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(INDEX_KEY, columnarOptIn)
+            .put(INDEX_KEY, true)
             .build();
         assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(MAPPING));
+        client().prepareIndex(indexName).setSource("{\"kwd\":\"a\"}", XContentType.JSON).get();
+        indicesAdmin().prepareRefresh(indexName).get();
         return indexName;
     }
 

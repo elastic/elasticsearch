@@ -341,8 +341,7 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergesAtOnce(int maxMergeAtOnce) {
-        tieredMergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        // LogByteSizeMergePolicy ignores this parameter, it always merges merge_factor segments at once.
+        // TODO: LUCENE11 TieredMergePolicy.setMaxMergeAtOnce was removed; setting kept for BWC
     }
 
     void setFloorSegmentSetting(ByteSizeValue floorSegementSetting) {

@@ -30,6 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -89,21 +90,28 @@ public class XPerFieldDocValuesFormatDuelTests extends ESTestCase {
         }
     }
 
+    /**
+     * The files the codec wrote. The test framework picks a directory implementation at random for each call, and they do not all
+     * leave the same bookkeeping behind.
+     */
+    private static Map<String, Long> indexFiles(Directory dir) throws IOException {
+        Map<String, Long> files = new TreeMap<>();
+        for (String file : dir.listAll()) {
+            if (file.equals(IndexWriter.WRITE_LOCK_NAME) || file.startsWith("extra")) {
+                continue;
+            }
+            files.put(file, dir.fileLength(file));
+        }
+        return files;
+    }
+
     /** Same field data through either wrapper has to produce the same files, at the same sizes. */
     public void testBothWrappersProduceTheSameFiles() throws Exception {
         try (Directory lucene = newDirectory(); Directory fork = newDirectory()) {
             index(lucene, luceneCodec());
             index(fork, forkCodec());
 
-            Map<String, Long> luceneFiles = new TreeMap<>();
-            for (String f : lucene.listAll()) {
-                luceneFiles.put(f, lucene.fileLength(f));
-            }
-            Map<String, Long> forkFiles = new TreeMap<>();
-            for (String f : fork.listAll()) {
-                forkFiles.put(f, fork.fileLength(f));
-            }
-            assertEquals("the wrappers must write the same files at the same sizes", luceneFiles, forkFiles);
+            assertEquals("the wrappers must write the same files at the same sizes", indexFiles(lucene), indexFiles(fork));
         }
     }
 

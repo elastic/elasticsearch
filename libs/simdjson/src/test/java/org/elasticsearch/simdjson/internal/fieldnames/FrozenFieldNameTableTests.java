@@ -11,384 +11,359 @@ package org.elasticsearch.simdjson.internal.fieldnames;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytes;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytesAtOffset;
 
 // Unit tests for FrozenFieldNameTable insert/lookup, freeze, and parent-child merge.
+//
+// Lifecycle (see FrozenFieldNameTable):
+// - makeChild(): thread-local Child; starts learning if parent has no shared table, else inherits parent's Frozen.
+// - insert/lookup: learning phase appends names; frozen phase uses a hash table (insert no longer learns).
+// - freeze(): build hash table on this child and try parent.mergeChild (compareAndSet — first wins).
+// - release(): freeze if still learning and dirty; else adopt parent shared table if clean; no-op if already frozen.
 public class FrozenFieldNameTableTests extends ESTestCase {
 
     // ---- Basic insert and lookup ----
 
-    // lookup must return the same String instance that insert created.
+    // lookup returns the same canonical String instance that insert created.
     public void testLookupReturnsSameInstance() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf = toBytes("field_name");
-        int len = "field_name".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-
-        String inserted = child.insert(buf, 0, len, hash);
-        String looked = child.lookup(buf, 0, len, hash);
-        assertSame(inserted, looked);
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        String inserted = insertName(child, "field_name");
+        String looked = lookupName(child, "field_name");
+        assertSame("lookup must return the same String instance as insert", inserted, looked);
     }
 
-    // Unknown names return null before insert.
+    // Same-instance invariant holds across random field names and lengths.
+    public void testLookupReturnsSameInstanceForRandomNames() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        for (String name : randomDistinctFieldNames(100)) {
+            String inserted = insertName(child, name);
+            assertSame("lookup must return the same String instance for: " + name, inserted, lookupName(child, name));
+        }
+    }
+
+    // lookup returns null for a name that was never inserted.
     public void testLookupBeforeInsertReturnsNull() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf = toBytes("unknown");
-        int len = "unknown".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-
-        assertNull(child.lookup(buf, 0, len, hash));
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        assertNull("lookup before insert must return null", lookupName(child, "unknown"));
     }
 
-    // insert materializes a new String from buffer bytes.
-    public void testInsertCreatesString() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
+    // Unknown random names remain null until inserted.
+    public void testLookupBeforeInsertReturnsNullForRandomNames() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        insertName(child, "present");
+        for (int i = 0; i < 100; i++) {
+            String missing = randomFieldName();
+            if ("present".equals(missing)) {
+                continue;
+            }
+            assertNull("lookup before insert must return null for: " + missing, lookupName(child, missing));
+        }
+    }
 
-        byte[] buf = toBytes("hello");
-        int len = "hello".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-
-        String result = child.insert(buf, 0, len, hash);
-        assertEquals("hello", result);
+    // insert materializes the field name bytes into a new String.
+    public void testInsertCreatesStringFromBufferBytes() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        for (int i = 0; i < 50; i++) {
+            String name = randomFieldName();
+            byte[] buf = toBytes(name);
+            int hash = FieldNameHash.hashName(buf, 0, buf.length);
+            String result = child.insert(buf, 0, buf.length, hash);
+            assertEquals("insert must decode field name bytes into a String: " + name, name, result);
+        }
     }
 
     // ---- Freeze ----
 
-    // After freeze, all inserted names remain lookup-able.
+    // All names inserted before freeze remain lookup-able after freeze.
     public void testFreezeAndLookup() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
         String[] names = { "alpha", "beta", "gamma", "delta", "epsilon" };
         for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            child.insert(buf, 0, len, hash);
+            insertName(child, name);
         }
-
         child.freeze();
-
         for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            String result = child.lookup(buf, 0, len, hash);
-            assertEquals(name, result);
+            assertEquals("frozen table must still resolve inserted name: " + name, name, lookupName(child, name));
         }
     }
 
-    // freeze is idempotent.
+    // Random field names survive freeze and remain lookup-able.
+    public void testFreezeAndLookupRandomNames() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        List<String> names = randomDistinctFieldNames(80);
+        for (String name : names) {
+            insertName(child, name);
+        }
+        child.freeze();
+        for (String name : names) {
+            assertEquals("frozen table must resolve random name: " + name, name, lookupName(child, name));
+        }
+    }
+
+    // freeze may be called more than once without changing behavior.
     public void testFreezeIdempotent() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf = toBytes("test");
-        int len = "test".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-        child.insert(buf, 0, len, hash);
-
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        insertName(child, "test");
         child.freeze();
         child.freeze();
-        assertTrue(child.isFrozen());
+        assertTrue("child must remain frozen after repeated freeze", child.isFrozen());
     }
 
-    // isFrozen transitions false -> true only after freeze (or release).
+    // isFrozen is false while learning and true only after freeze (or release).
     public void testIsFrozenBeforeAndAfter() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        assertFalse(child.isFrozen());
-
-        byte[] buf = toBytes("x");
-        int len = 1;
-        int hash = FieldNameHash.hashName(buf, 0, len);
-        child.insert(buf, 0, len, hash);
-
-        assertFalse(child.isFrozen());
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        assertFalse("new child must not start frozen", child.isFrozen());
+        insertName(child, "x");
+        assertFalse("child with pending inserts must not be frozen yet", child.isFrozen());
         child.freeze();
-        assertTrue(child.isFrozen());
+        assertTrue("child must be frozen after freeze()", child.isFrozen());
     }
 
-    // insert/lookup with non-zero buffer offset.
+    // insert and lookup honor a non-zero buffer offset.
     public void testLookupWithOffset() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        int offset = 10;
-        String name = "offset_field";
-        byte[] buf = toBytesAtOffset(name, offset);
-        int len = name.length();
-        int hash = FieldNameHash.hashName(buf, offset, len);
-
-        String inserted = child.insert(buf, offset, len, hash);
-        assertEquals(name, inserted);
-
-        String looked = child.lookup(buf, offset, len, hash);
-        assertSame(inserted, looked);
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        for (String name : randomDistinctFieldNames(50)) {
+            int offset = between(1, 32);
+            byte[] buf = toBytesAtOffset(name, offset);
+            int hash = FieldNameHash.hashName(buf, offset, name.length());
+            String inserted = child.insert(buf, offset, name.length(), hash);
+            assertEquals("insert with offset must materialize the field name: " + name, name, inserted);
+            assertSame(
+                "lookup with offset must return the inserted instance: " + name,
+                inserted,
+                child.lookup(buf, offset, name.length(), hash)
+            );
+        }
     }
 
-    // 200 fields triggers hash-table backing store after freeze.
+    // Many distinct fields still resolve correctly after freeze.
     public void testManyFieldsScaleToHashTable() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        String[] names = new String[200];
-        for (int i = 0; i < 200; i++) {
-            names[i] = "field_" + i;
-            byte[] buf = toBytes(names[i]);
-            int len = names[i].length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            child.insert(buf, 0, len, hash);
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        List<String> names = randomDistinctFieldNames(200);
+        for (String name : names) {
+            insertName(child, name);
         }
-
         child.freeze();
-
-        for (int i = 0; i < 200; i++) {
-            byte[] buf = toBytes(names[i]);
-            int len = names[i].length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            String result = child.lookup(buf, 0, len, hash);
-            assertEquals(names[i], result);
+        for (String name : names) {
+            assertEquals("large frozen table must resolve: " + name, name, lookupName(child, name));
         }
     }
 
     // ---- Parent-child merge ----
 
-    // Fields inserted in child1 are visible to child2 after release merges into parent.
+    // Names learned by child1 are visible to child2 after release merges into the parent.
     public void testParentChildMerge() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
-
         FrozenFieldNameTable.Child child1 = table.makeChild();
         String[] names = { "one", "two", "three" };
         for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            child1.insert(buf, 0, len, hash);
+            insertName(child1, name);
         }
         child1.release();
 
         FrozenFieldNameTable.Child child2 = table.makeChild();
         for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            String result = child2.lookup(buf, 0, len, hash);
-            assertEquals(name, result);
+            assertEquals("merged parent cache must resolve name from prior child: " + name, name, lookupName(child2, name));
         }
     }
 
-    // Two sequential children both contribute names to a third child.
-    public void testTwoChildrenMerge() {
+    // Parent merge works for a batch of random field names from the first child.
+    public void testParentChildMergeWithRandomNames() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
-
         FrozenFieldNameTable.Child child1 = table.makeChild();
-        byte[] bufAlpha = toBytes("alpha");
-        int lenAlpha = "alpha".length();
-        int hashAlpha = FieldNameHash.hashName(bufAlpha, 0, lenAlpha);
-        child1.insert(bufAlpha, 0, lenAlpha, hashAlpha);
+        List<String> names = randomDistinctFieldNames(60);
+        for (String name : names) {
+            insertName(child1, name);
+        }
         child1.release();
 
         FrozenFieldNameTable.Child child2 = table.makeChild();
-        byte[] bufBeta = toBytes("beta");
-        int lenBeta = "beta".length();
-        int hashBeta = FieldNameHash.hashName(bufBeta, 0, lenBeta);
-        child2.insert(bufBeta, 0, lenBeta, hashBeta);
+        for (String name : names) {
+            assertEquals("merged parent cache must resolve random name: " + name, name, lookupName(child2, name));
+        }
+    }
+
+    // Only the first released child publishes its frozen table to the parent (compareAndSet).
+    // A later child inherits that table; insert on an inherited-frozen child does not learn new names.
+    public void testTwoChildrenMerge() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child child1 = table.makeChild();
+        insertName(child1, "alpha");
+        child1.release();
+
+        FrozenFieldNameTable.Child child2 = table.makeChild();
+        insertName(child2, "beta");
+        assertNull("insert on inherited-frozen child must not cache new names", lookupName(child2, "beta"));
         child2.release();
 
         FrozenFieldNameTable.Child child3 = table.makeChild();
-        String resultAlpha = child3.lookup(bufAlpha, 0, lenAlpha, hashAlpha);
-        assertEquals("alpha", resultAlpha);
+        assertEquals("successor child must see the first released child's field via parent", "alpha", lookupName(child3, "alpha"));
+        assertNull("second child's field must not be merged after first child wins parent publish", lookupName(child3, "beta"));
     }
 
     // ---- Release lifecycle ----
 
-    // release() on a dirty child auto-freezes before merging.
+    // release() on a dirty child auto-freezes before merging into the parent.
     public void testReleaseFreezesIfDirty() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf = toBytes("dirty_field");
-        int len = "dirty_field".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-        child.insert(buf, 0, len, hash);
-
-        assertFalse(child.isFrozen());
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        insertName(child, "dirty_field");
+        assertFalse("dirty child must not be frozen before release", child.isFrozen());
         child.release();
-        assertTrue(child.isFrozen());
+        assertTrue("release on dirty child must freeze before merge", child.isFrozen());
     }
 
-    // A clean child refreshes from parent on release without inserting locally.
+    // A clean child refreshes from the parent on release without local inserts.
     public void testReleaseRefreshesIfNotDirty() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
-
         FrozenFieldNameTable.Child child2 = table.makeChild();
-        assertFalse(child2.isFrozen());
+        assertFalse("fresh child must not start frozen", child2.isFrozen());
 
         FrozenFieldNameTable.Child child1 = table.makeChild();
-        byte[] buf = toBytes("shared");
-        int len = "shared".length();
-        int hash = FieldNameHash.hashName(buf, 0, len);
-        child1.insert(buf, 0, len, hash);
+        insertName(child1, "shared");
         child1.release();
 
-        assertFalse(child2.isFrozen());
+        assertFalse("child2 must stay unfrozen until release", child2.isFrozen());
         child2.release();
-        assertTrue(child2.isFrozen());
-
-        String result = child2.lookup(buf, 0, len, hash);
-        assertEquals("shared", result);
+        assertTrue("child2 must be frozen after release", child2.isFrozen());
+        assertEquals("child2 must refresh parent's field on release", "shared", lookupName(child2, "shared"));
     }
 
-    // ---- Field name length edge cases ----
+    // ---- Field name shapes ----
 
-    // Names of length 1..8 (prefix8 fast path).
-    public void testShortFieldNames() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        for (int nameLen = 1; nameLen <= 8; nameLen++) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < nameLen; i++) {
-                sb.append((char) ('a' + (i % 26)));
-            }
-            String name = sb.toString();
-            byte[] buf = toBytes(name);
-            int hash = FieldNameHash.hashName(buf, 0, nameLen);
-            child.insert(buf, 0, nameLen, hash);
+    // Insert and lookup succeed for empty, short, and long field names.
+    public void testInsertAndLookupFieldNamesOfVariousLengths() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        List<String> names = new ArrayList<>();
+        names.add("");
+        for (int len = 1; len <= 40; len++) {
+            names.add(randomAlphaOfLength(len));
         }
+        addRandomPrefix8Pair(names);
 
-        child.freeze();
-
-        for (int nameLen = 1; nameLen <= 8; nameLen++) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < nameLen; i++) {
-                sb.append((char) ('a' + (i % 26)));
-            }
-            String name = sb.toString();
-            byte[] buf = toBytes(name);
-            int hash = FieldNameHash.hashName(buf, 0, nameLen);
-            String result = child.lookup(buf, 0, nameLen, hash);
-            assertEquals(name, result);
-        }
-    }
-
-    // Names longer than 8 bytes (full hashName path).
-    public void testLongFieldNames() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        String[] names = { "this_is_a_long_name", "another_long_field_name_here", "field_name_exceeding_8_bytes" };
         for (String name : names) {
-            assertTrue(name.length() > 8);
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            child.insert(buf, 0, len, hash);
+            insertName(child, name);
         }
-
         child.freeze();
 
         for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            String result = child.lookup(buf, 0, len, hash);
-            assertEquals(name, result);
+            assertEquals("frozen table must resolve name of length " + name.length() + ": " + name, name, lookupName(child, name));
         }
     }
 
-    // Zero-length field name is valid.
-    public void testEmptyFieldName() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf = toBytes("");
-        int hash = FieldNameHash.hashName(buf, 0, 0);
-        String inserted = child.insert(buf, 0, 0, hash);
-        assertEquals("", inserted);
-
-        String looked = child.lookup(buf, 0, 0, hash);
-        assertSame(inserted, looked);
-    }
-
-    // insert after freeze still works (lazy growth of frozen table).
-    public void testInsertAfterFreezeStillWorks() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
-
-        byte[] buf1 = toBytes("before");
-        int len1 = "before".length();
-        int hash1 = FieldNameHash.hashName(buf1, 0, len1);
-        child.insert(buf1, 0, len1, hash1);
-
-        child.freeze();
-
-        byte[] buf2 = toBytes("after");
-        int len2 = "after".length();
-        int hash2 = FieldNameHash.hashName(buf2, 0, len2);
-        String result = child.insert(buf2, 0, len2, hash2);
-        assertEquals("after", result);
-    }
-
-    // Same 8-byte prefix but different suffixes must map to distinct Strings.
+    // Same 8-byte prefix with different suffixes must map to distinct Strings.
     public void testFieldNamesWithSamePrefix8() {
-        FrozenFieldNameTable table = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = table.makeChild();
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        for (int i = 0; i < 20; i++) {
+            String prefix = randomAlphaOfLength(8);
+            String name1 = prefix + randomAlphaOfLengthBetween(4, 16);
+            String name2 = prefix + randomAlphaOfLengthBetween(4, 16);
+            if (name1.equals(name2)) {
+                name2 = name2 + "x";
+            }
+            assertEquals("test names must share the same 8-byte prefix", prefix, name1.substring(0, 8));
+            assertEquals("test names must share the same 8-byte prefix", prefix, name2.substring(0, 8));
 
-        String name1 = "abcdefgh_suffix1";
-        String name2 = "abcdefgh_suffix2";
-        assertEquals(name1.substring(0, 8), name2.substring(0, 8));
+            insertName(child, name1);
+            insertName(child, name2);
+            child.freeze();
 
-        byte[] buf1 = toBytes(name1);
-        int len1 = name1.length();
-        int hash1 = FieldNameHash.hashName(buf1, 0, len1);
-        child.insert(buf1, 0, len1, hash1);
+            String result1 = lookupName(child, name1);
+            String result2 = lookupName(child, name2);
+            assertEquals("lookup must return first full name", name1, result1);
+            assertEquals("lookup must return second full name", name2, result2);
+            assertNotSame("names with same prefix8 must still be distinct instances", result1, result2);
 
-        byte[] buf2 = toBytes(name2);
-        int len2 = name2.length();
-        int hash2 = FieldNameHash.hashName(buf2, 0, len2);
-        child.insert(buf2, 0, len2, hash2);
-
-        child.freeze();
-
-        String result1 = child.lookup(buf1, 0, len1, hash1);
-        String result2 = child.lookup(buf2, 0, len2, hash2);
-        assertEquals(name1, result1);
-        assertEquals(name2, result2);
-        assertNotSame(result1, result2);
+            child = new FrozenFieldNameTable().makeChild();
+        }
     }
 
-    // Simulates multi-doc indexing: child1 learns fields, child2 starts frozen with parent cache.
+    // insert after freeze still works (lazy growth of the frozen table).
+    public void testInsertAfterFreezeStillWorks() {
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        insertName(child, "before");
+        child.freeze();
+        for (String name : randomDistinctFieldNames(20)) {
+            assertEquals("insert after freeze must accept new names: " + name, name, insertName(child, name));
+        }
+    }
+
+    // Multi-doc pattern: child1 learns and releases; child2 starts frozen with parent cache.
     public void testFieldNameCachingAcrossDocs() {
         FrozenFieldNameTable table = new FrozenFieldNameTable();
-
         FrozenFieldNameTable.Child child1 = table.makeChild();
-        String[] docFields = { "timestamp", "message", "level", "source" };
+        List<String> docFields = randomDistinctFieldNames(20);
         for (String name : docFields) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            child1.insert(buf, 0, len, hash);
+            insertName(child1, name);
         }
         child1.freeze();
         child1.release();
 
         FrozenFieldNameTable.Child child2 = table.makeChild();
-        assertTrue(child2.isFrozen());
+        assertTrue("next doc child must start frozen from parent cache", child2.isFrozen());
         for (String name : docFields) {
-            byte[] buf = toBytes(name);
-            int len = name.length();
-            int hash = FieldNameHash.hashName(buf, 0, len);
-            String result = child2.lookup(buf, 0, len, hash);
-            assertEquals(name, result);
+            assertEquals("cached field must resolve on next doc: " + name, name, lookupName(child2, name));
         }
+    }
+
+    // End-to-end: learn random names, freeze, lookup, release, and resolve from a sibling child.
+    public void testRandomNamesRoundTripThroughFreezeAndRelease() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child learner = table.makeChild();
+        List<String> names = randomDistinctFieldNames(100);
+        for (String name : names) {
+            String inserted = insertName(learner, name);
+            assertSame("pre-freeze lookup must return inserted instance: " + name, inserted, lookupName(learner, name));
+        }
+        learner.freeze();
+        for (String name : names) {
+            assertEquals("post-freeze lookup must resolve: " + name, name, lookupName(learner, name));
+        }
+        learner.release();
+
+        FrozenFieldNameTable.Child successor = table.makeChild();
+        for (String name : names) {
+            assertEquals("successor child must resolve released name: " + name, name, lookupName(successor, name));
+        }
+    }
+
+    private static String randomFieldName() {
+        return randomAlphaOfLengthBetween(0, 32);
+    }
+
+    private static List<String> randomDistinctFieldNames(int count) {
+        Set<String> unique = new HashSet<>();
+        while (unique.size() < count) {
+            unique.add(randomAlphaOfLengthBetween(0, 24) + "_" + unique.size());
+        }
+        return List.copyOf(unique);
+    }
+
+    private static void addRandomPrefix8Pair(List<String> names) {
+        String prefix = randomAlphaOfLength(8);
+        String name1 = prefix + randomAlphaOfLengthBetween(4, 16);
+        String name2 = prefix + randomAlphaOfLengthBetween(4, 16);
+        if (name1.equals(name2)) {
+            name2 = name2 + "z";
+        }
+        names.add(name1);
+        names.add(name2);
+    }
+
+    private static String insertName(FrozenFieldNameTable.Child child, String name) {
+        byte[] buf = toBytes(name);
+        int hash = FieldNameHash.hashName(buf, 0, buf.length);
+        return child.insert(buf, 0, buf.length, hash);
+    }
+
+    private static String lookupName(FrozenFieldNameTable.Child child, String name) {
+        byte[] buf = toBytes(name);
+        int hash = FieldNameHash.hashName(buf, 0, buf.length);
+        return child.lookup(buf, 0, buf.length, hash);
     }
 }

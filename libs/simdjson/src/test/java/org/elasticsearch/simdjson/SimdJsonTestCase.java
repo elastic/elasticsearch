@@ -16,13 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeTrue;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Base class and shared helpers for simdjson tests.
@@ -80,7 +77,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
     }
 
     protected List<String> walkJson(String json, boolean normalizeEmptyObject) {
-        byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
+        byte[] buffer = json.getBytes(UTF_8);
         int len = buffer.length;
 
         try (SimdJsonParser parser = new SimdJsonParser(len)) {
@@ -140,7 +137,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
 
         @Override
         public void stringField(String fieldName, byte[] buf, int off, int len) {
-            events.add("string(" + fieldName + "=" + new String(buf, off, len, StandardCharsets.UTF_8) + ")");
+            events.add("string(" + fieldName + "=" + new String(buf, off, len, UTF_8) + ")");
         }
 
         @Override
@@ -180,7 +177,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
 
         @Override
         public void arrayElemString(byte[] buf, int off, int len) {
-            events.add("arrayElemString(" + new String(buf, off, len, StandardCharsets.UTF_8) + ")");
+            events.add("arrayElemString(" + new String(buf, off, len, UTF_8) + ")");
         }
 
         @Override
@@ -233,12 +230,12 @@ public abstract class SimdJsonTestCase extends ESTestCase {
 
     /** Converts a string to a UTF-8 byte array. */
     public static byte[] toBytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
+        return s.getBytes(UTF_8);
     }
 
     /** Creates a byte array with the content placed at {@code offset}. */
     public static byte[] toBytesAtOffset(String content, int offset) {
-        byte[] raw = content.getBytes(StandardCharsets.UTF_8);
+        byte[] raw = content.getBytes(UTF_8);
         byte[] buf = new byte[offset + raw.length];
         System.arraycopy(raw, 0, buf, offset, raw.length);
         return buf;
@@ -246,7 +243,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
 
     /** Wraps a string in JSON quotes: {@code "content"}. */
     public static byte[] makeJsonString(String content) {
-        return ("\"" + content + "\"").getBytes(StandardCharsets.UTF_8);
+        return ("\"" + content + "\"").getBytes(UTF_8);
     }
 
     // ---- Batch buffer helpers (multi-document NDJSON batches) ----
@@ -256,7 +253,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         List<byte[]> docBytes = new ArrayList<>();
         int total = 0;
         for (String doc : jsonDocs) {
-            byte[] b = doc.getBytes(StandardCharsets.UTF_8);
+            byte[] b = doc.getBytes(UTF_8);
             docBytes.add(b);
             total += b.length;
         }
@@ -275,7 +272,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         int pos = 0;
         for (int i = 0; i < jsonDocs.length; i++) {
             offsets[i] = pos;
-            pos += jsonDocs[i].getBytes(StandardCharsets.UTF_8).length;
+            pos += jsonDocs[i].getBytes(UTF_8).length;
         }
         return offsets;
     }
@@ -284,7 +281,7 @@ public abstract class SimdJsonTestCase extends ESTestCase {
     protected static int[] computeLengths(String... jsonDocs) {
         int[] lengths = new int[jsonDocs.length];
         for (int i = 0; i < jsonDocs.length; i++) {
-            lengths[i] = jsonDocs[i].getBytes(StandardCharsets.UTF_8).length;
+            lengths[i] = jsonDocs[i].getBytes(UTF_8).length;
         }
         return lengths;
     }

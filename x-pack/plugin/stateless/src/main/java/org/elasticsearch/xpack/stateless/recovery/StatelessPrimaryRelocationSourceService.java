@@ -221,7 +221,6 @@ public class StatelessPrimaryRelocationSourceService {
         indexShard.recoveryStats().sourceRecoveryStarted();
         schedulingListeners.onPeerRecoveryStartedOnSource();
 
-
         // Wait for the current commit to be durably uploaded before acquiring permits so the upload queue drains first.
         // If this takes longer than preFlushSlowUploadQueueThreshold set waitIfOnGoing=true so the accumulated BCC uploads
         // in the queue are uploaded before we acquire the permits. NB the flush has force=false so may do nothing.
@@ -242,11 +241,16 @@ public class StatelessPrimaryRelocationSourceService {
             preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
             var indexEngine = (IndexEngine) preFlushEngine;
-            SubscribableListener.<Void>newForked(indexEngine::waitForCurrentCommitDurability).<Engine.FlushResult>andThen((l, unused) -> {
-                long elapsed = threadPool.relativeTimeInMillis() - beforeInitialFlush;
-                boolean waitIfOngoing = elapsed >= preFlushSlowUploadQueueThreshold.millis();
-                indexEngine.flush(false, waitIfOngoing, l);
-            }).addListener(preFlushStep);
+            SubscribableListener.<Void>newForked(indexEngine::waitForCurrentCommitDurability).<Engine.FlushResult>andThen(
+                recoveryExecutor,
+                threadContext,
+                (l, unused) -> {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                    long elapsed = threadPool.relativeTimeInMillis() - beforeInitialFlush;
+                    boolean waitIfOngoing = elapsed >= preFlushSlowUploadQueueThreshold.millis();
+                    indexEngine.flush(false, waitIfOngoing, l);
+                }
+            ).addListener(preFlushStep);
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();

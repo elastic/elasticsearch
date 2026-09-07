@@ -14,8 +14,10 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,6 +57,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    private volatile String pinnedEtag;
+    private volatile String lastObservedEtag;
 
     /**
      * Creates an HttpStorageObject without pre-known metadata.
@@ -108,6 +112,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent()) {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
+                observeHeaders(response.headers(), 0L, false);
                 return new HttpTransientTypingInputStream(response.body(), path);
             });
         } finally {
@@ -139,6 +144,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 statusCode,
                 suffix
             );
+        }
+        if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+            return new ExternalObjectChangedException("Object changed during read of [{}] (HTTP {}){}", path, statusCode, suffix);
         }
         return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
     }
@@ -199,6 +207,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
+                    observeHeaders(response.headers(), position, toEnd == false);
                     return new HttpTransientTypingInputStream(response.body(), path);
                 } else if (statusCode == HttpStatus.SC_OK) {
                     // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
@@ -210,6 +219,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
+                    observeHeaders(response.headers(), 0L, false);
                     InputStream typed = new HttpTransientTypingInputStream(stream, path);
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
                     return toEnd ? typed : new BoundedInputStream(typed, length);
@@ -262,6 +272,16 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     @Override
     public StoragePath path() {
         return path;
+    }
+
+    @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return lastObservedEtag;
     }
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
@@ -317,6 +337,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // slicing internally for both 206 (server-side range) and 200 (full body) responses,
                 // returning a DirectReadBuffer scoped to the requested window.
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                    if (response.headers() != null) {
+                        observeHeaders(response.headers(), position, true);
+                    }
                     deliverRead(listener, response.body(), startNanos);
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -351,6 +374,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private HttpRequest buildGetRequest() {
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -367,6 +391,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             .GET()
             .timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -389,6 +414,35 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         Map<String, String> headers = config.customHeaders();
         for (Map.Entry<String, String> entry : headers.entrySet()) {
             builder.header(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private void addIfMatch(HttpRequest.Builder builder) {
+        if (pinnedEtag != null) {
+            builder.header(HttpHeaders.IF_MATCH, pinnedEtag);
+        }
+    }
+
+    private void observeHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange) {
+        if (headers == null) {
+            return;
+        }
+        headers.firstValue(HttpHeaders.ETAG).ifPresent(this::observeEtag);
+        Long total = headers.firstValue(HttpHeaders.CONTENT_RANGE).map(ContentRangeParser::parseTotalLength).orElse(null);
+        if (total != null) {
+            cachedLength = total;
+        } else if (closedRange == false && position == 0) {
+            headers.firstValueAsLong(HttpHeaders.CONTENT_LENGTH).ifPresent(len -> cachedLength = len);
+        }
+    }
+
+    private void observeEtag(String etag) {
+        if (etag == null || etag.isBlank()) {
+            return;
+        }
+        lastObservedEtag = etag;
+        if (pinnedEtag == null && etag.regionMatches(true, 0, "W/", 0, 2) == false) {
+            pinnedEtag = etag;
         }
     }
 
@@ -493,6 +547,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // Extract Last-Modified (optional)
                 java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);
                 cachedLastModified = lastModified.isPresent() ? parseHttpDate(lastModified.get()) : null;
+                response.headers().firstValue(HttpHeaders.ETAG).ifPresent(this::observeEtag);
             } else if (statusCode == HttpStatus.SC_NOT_FOUND) {
                 cachedExists = false;
                 cachedLength = 0L;

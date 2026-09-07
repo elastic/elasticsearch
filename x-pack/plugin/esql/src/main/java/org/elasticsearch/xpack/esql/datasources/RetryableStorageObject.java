@@ -15,6 +15,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -172,6 +173,16 @@ class RetryableStorageObject implements StorageObject {
             storageTelemetry
         );
         return new ResumingInputStream(initial, position, length);
+    }
+
+    @Override
+    public long knownLength() {
+        return delegate.knownLength();
+    }
+
+    @Override
+    public String contentGeneration() {
+        return delegate.contentGeneration();
     }
 
     @Override
@@ -435,7 +446,10 @@ class RetryableStorageObject implements StorageObject {
      * Wraps a range read so a transient transport fault <em>during</em> the read re-opens the remaining byte
      * range and resumes, instead of failing the whole read. Resume is byte-exact: {@code delivered} tracks
      * bytes already handed to the caller, so a re-open requests {@code [position + delivered, end]} and no
-     * byte is delivered twice or skipped (object content is immutable for the life of a query). Whether a
+     * byte is delivered twice or skipped. A clean {@code -1} short of the expected byte count is treated
+     * as a truncated body and resumed like a thrown transport fault; a re-open that observes a different
+     * generation or object size fails with {@link ExternalObjectChangedException} rather than splicing
+     * bytes. Whether a
      * fault is retryable, the backoff, and the total-time budget all come from the same {@link RetryPolicy}
      * used for opens; a non-retryable fault or an exhausted budget propagates unchanged. Reading raw object
      * bytes, a failure here is almost always transport (parsing happens above this stream); a rare
@@ -451,11 +465,21 @@ class RetryableStorageObject implements StorageObject {
         // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
         private volatile InputStream current;
         private long delivered = 0;
+        /**
+         * Generation of the first successful open of this stream. Compared against
+         * {@link StorageObject#contentGeneration()} after every re-open so a no-If-Match rewrite
+         * cannot splice. Separate from the provider's If-Match pin.
+         */
+        private String pinnedGeneration;
+        /** {@link StorageObject#knownLength()} at the first open; {@link #READ_TO_END} if unknown. */
+        private long pinnedKnownLength;
 
         ResumingInputStream(InputStream initial, long position, long length) {
             this.current = initial;
             this.position = position;
             this.length = length;
+            this.pinnedGeneration = delegate.contentGeneration();
+            this.pinnedKnownLength = delegate.knownLength();
         }
 
         // Consecutive re-opens since the last byte of progress, and when that "stuck" episode began.
@@ -488,6 +512,19 @@ class RetryableStorageObject implements StorageObject {
                         delivered += n;
                         failuresSinceProgress = 0;
                         episodeStartNanos = 0;
+                        return n;
+                    }
+                    if (n < 0 && isPrematureEof()) {
+                        reopenOrThrow(
+                            new ExternalUnavailableException(
+                                false,
+                                "Premature end of object body for [{}] after [{}] of [{}] bytes",
+                                delegate.path(),
+                                delivered,
+                                expectedCount()
+                            )
+                        );
+                        continue;
                     }
                     return n;
                 } catch (IOException | ExternalUnavailableException e) {
@@ -556,6 +593,55 @@ class RetryableStorageObject implements StorageObject {
                         storageTelemetry
                     )
                     : InputStream.nullInputStream();
+            }
+            ensureGenerationConsistent();
+        }
+
+        /**
+         * Bytes this stream still owes the caller. {@link StorageObject#READ_TO_END} when the expected
+         * count is unknown (open-ended read with no cached object size) — a clean {@code -1} is then
+         * trusted as EOF. A non-positive remaining count is real EOF (open-ended resume at/after the
+         * end of the object).
+         */
+        private long expectedCount() {
+            if (length != READ_TO_END) {
+                return length;
+            }
+            long known = pinnedKnownLength != READ_TO_END ? pinnedKnownLength : delegate.knownLength();
+            if (known == READ_TO_END) {
+                return READ_TO_END;
+            }
+            long remaining = known - position;
+            return remaining < 0 ? 0 : remaining;
+        }
+
+        private boolean isPrematureEof() {
+            long expected = expectedCount();
+            return expected != READ_TO_END && delivered < expected;
+        }
+
+        /**
+         * After a re-open, fail if the provider observed a different generation or a different object
+         * size than the first open. Uses the generation of <em>this</em> open ({@link
+         * StorageObject#contentGeneration()}), not a sticky first-GET cache on the provider.
+         */
+        private void ensureGenerationConsistent() {
+            String observed = delegate.contentGeneration();
+            if (pinnedGeneration == null) {
+                // A generation that appears only after bytes were delivered is a different object,
+                // not a delayed observation of the same open. Adopting it would splice.
+                if (observed != null && delivered > 0) {
+                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                }
+                pinnedGeneration = observed;
+            } else if (observed != null && pinnedGeneration.equals(observed) == false) {
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+            }
+            long observedLength = delegate.knownLength();
+            if (pinnedKnownLength == READ_TO_END) {
+                pinnedKnownLength = observedLength;
+            } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
+                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
             }
         }
 

@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.models.BlobDownloadAsyncResponse;
+import com.azure.storage.blob.models.BlobDownloadHeaders;
+import com.azure.storage.blob.models.BlobProperties;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.specialized.BlobInputStream;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -43,6 +48,8 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
+    private volatile String pinnedEtag;
+    private volatile String lastObservedEtag;
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         this(blobClient, null, container, blobName, path);
@@ -113,11 +120,12 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try {
-            InputStream stream = new AzureTransientTypingInputStream(blobClient.openInputStream(), path);
+            BlobInputStream blobStream = blobClient.openInputStream(null, requestConditions());
+            observeOpenedBlob(blobStream);
             if (cachedLength != null) {
                 bytes = cachedLength;
             }
-            return stream;
+            return new AzureTransientTypingInputStream(blobStream, path);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -148,6 +156,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 bse.getStatusCode()
             );
         }
+        if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
+            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+        }
         return new IOException(context + " " + path, cause);
     }
 
@@ -177,7 +188,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         try {
             // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
-            return new AzureTransientTypingInputStream(blobClient.openInputStream(range, new BlobRequestConditions()), path);
+            BlobInputStream blobStream = blobClient.openInputStream(range, requestConditions());
+            observeOpenedBlob(blobStream);
+            return new AzureTransientTypingInputStream(blobStream, path);
         } catch (Exception e) {
             if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
@@ -222,11 +235,69 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         return path;
     }
 
+    @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return lastObservedEtag;
+    }
+
+    private BlobRequestConditions requestConditions() {
+        BlobRequestConditions conditions = new BlobRequestConditions();
+        if (pinnedEtag != null) {
+            conditions.setIfMatch(pinnedEtag);
+        }
+        return conditions;
+    }
+
+    private void observeEtag(String etag) {
+        if (etag == null || etag.isBlank()) {
+            return;
+        }
+        lastObservedEtag = etag;
+        if (pinnedEtag == null && etag.regionMatches(true, 0, "W/", 0, 2) == false) {
+            pinnedEtag = etag;
+        }
+    }
+
+    private void observeOpenedBlob(BlobInputStream blobStream) {
+        BlobProperties properties = blobStream.getProperties();
+        if (properties == null) {
+            return;
+        }
+        observeEtag(properties.getETag());
+        cachedLength = properties.getBlobSize();
+    }
+
+    private void observeDownloadResponse(BlobDownloadAsyncResponse response) {
+        if (response == null) {
+            return;
+        }
+        observeDownloadHeaders(response.getDeserializedHeaders());
+    }
+
+    private void observeDownloadHeaders(BlobDownloadHeaders headers) {
+        if (headers == null) {
+            return;
+        }
+        observeEtag(headers.getETag());
+        Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
+        if (total != null) {
+            cachedLength = total;
+        }
+    }
+
     private void fetchMetadata() throws IOException {
         try {
             var properties = blobClient.getProperties();
             cachedExists = true;
-            cachedLength = properties.getBlobSize();
+            observeEtag(properties.getETag());
+            if (pinnedEtag == null || pinnedEtag.equals(lastObservedEtag)) {
+                cachedLength = properties.getBlobSize();
+            }
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
         } catch (Exception e) {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
@@ -245,13 +316,16 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             var response = blobClient.downloadStreamWithResponse(output, new BlobRange(0, 1L), null, null, false, null, null);
             var headers = response.getDeserializedHeaders();
             cachedExists = true;
+            observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
                 throw new IOException(
                     "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
                 );
             }
-            cachedLength = total;
+            if (pinnedEtag == null || pinnedEtag.equals(lastObservedEtag)) {
+                cachedLength = total;
+            }
             cachedLastModified = headers.getLastModified() != null ? headers.getLastModified().toInstant() : null;
         } catch (IOException e) {
             throw e;
@@ -309,7 +383,8 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         final CompletableFuture<Void> future;
         try {
-            future = blobAsyncClient.downloadWithResponse(range, null, null, false)
+            future = blobAsyncClient.downloadWithResponse(range, null, requestConditions(), false)
+                .doOnNext(this::observeDownloadResponse)
                 .flatMapMany(response -> response.getValue())
                 .reduce(drb.buffer(), (acc, chunk) -> {
                     if (chunk.remaining() > acc.remaining()) {

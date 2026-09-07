@@ -14,7 +14,10 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,5 +77,58 @@ public class S3OpenEndedReadTests extends ESTestCase {
         try (InputStream in = obj.newStream(100, StorageObject.READ_TO_END)) {
             assertEquals("open-ended read at/after the end is an empty stream", -1, in.read());
         }
+    }
+
+    public void testSecondGetSendsIfMatchOfFirstEtag() throws IOException {
+        byte[] body = "hello open-ended world".getBytes(StandardCharsets.UTF_8);
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength((long) body.length).eTag("\"gen-1\"").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(body)))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        try (InputStream in = obj.newStream(1, StorageObject.READ_TO_END)) {
+            in.readAllBytes();
+        }
+
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(mockS3, times(2)).getObject(captor.capture());
+        assertNull("first GET is unpinned", captor.getAllValues().get(0).ifMatch());
+        assertEquals("resume/later GET pins the first ETag", "\"gen-1\"", captor.getAllValues().get(1).ifMatch());
+        assertEquals("\"gen-1\"", obj.contentGeneration());
+    }
+
+    public void testGetRefreshesKnownLengthFromResponseNotListing() throws IOException {
+        byte[] body = "shorter".getBytes(StandardCharsets.UTF_8);
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength((long) body.length).eTag("\"live\"").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(body)))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH, 1_000_000L);
+        assertEquals("listing size is known before the GET", 1_000_000L, obj.knownLength());
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        assertEquals("GET Content-Length replaces the stale listing size", body.length, obj.knownLength());
+    }
+
+    public void testPreconditionFailedIsObjectChanged() throws IOException {
+        byte[] body = "hello".getBytes(StandardCharsets.UTF_8);
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength((long) body.length).eTag("\"gen-1\"").build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(body)))
+        ).thenThrow((S3Exception) S3Exception.builder().statusCode(412).message("Precondition Failed").build());
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(PATH.toString()));
     }
 }

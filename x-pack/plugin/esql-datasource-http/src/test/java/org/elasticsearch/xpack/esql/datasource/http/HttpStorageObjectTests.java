@@ -8,19 +8,25 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +44,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -284,6 +292,83 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(0L, metrics.retryCount());
     }
 
+    public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"abc\"")), (a, b) -> true)
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(second.headers()).thenReturn(
+            HttpHeaders.of(
+                java.util.Map.of(
+                    "Content-Length",
+                    java.util.List.of("2"),
+                    "ETag",
+                    java.util.List.of("\"abc\""),
+                    "Content-Range",
+                    java.util.List.of("bytes 1-2/5")
+                ),
+                (a, b) -> true
+            )
+        );
+        when(second.body()).thenReturn(new ByteArrayInputStream("el".getBytes(StandardCharsets.UTF_8)));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        try (InputStream in = obj.newStream(1, 2)) {
+            in.readAllBytes();
+        }
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(mockClient, times(2)).send(captor.capture(), any());
+        assertTrue("first GET is unpinned", captor.getAllValues().get(0).headers().firstValue("If-Match").isEmpty());
+        assertEquals("\"abc\"", captor.getAllValues().get(1).headers().firstValue("If-Match").orElse(null));
+        assertEquals("\"abc\"", obj.contentGeneration());
+        assertEquals(5L, obj.knownLength());
+    }
+
+    public void testPreconditionFailedIsObjectChanged() throws Exception {
+        HttpResponse<InputStream> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(first.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of("5"), "ETag", java.util.List.of("\"abc\"")), (a, b) -> true)
+        );
+        when(first.body()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+
+        HttpResponse<InputStream> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(HttpStatus.SC_PRECONDITION_FAILED);
+        when(second.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
+        when(second.body()).thenReturn(new ByteArrayInputStream(new byte[0]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(first).doReturn(second).when(mockClient).send(any(), any());
+        HttpStorageObject obj = new HttpStorageObject(
+            mockClient,
+            StoragePath.of("https://example.com/file.txt"),
+            HttpConfiguration.defaults()
+        );
+
+        try (InputStream in = obj.newStream()) {
+            in.readAllBytes();
+        }
+        ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("HTTP 412"));
+    }
+
     /**
      * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
      * metrics() — they're not data reads.
@@ -429,6 +514,7 @@ public class HttpStorageObjectTests extends ESTestCase {
 
             HttpResponse<DirectReadBuffer> response = mock(HttpResponse.class);
             when(response.statusCode()).thenReturn(statusCode);
+            when(response.headers()).thenReturn(HttpHeaders.of(java.util.Map.of(), (a, b) -> true));
             when(response.body()).thenReturn(body);
             return CompletableFuture.completedFuture(response);
         }).when(mockClient).sendAsync(any(), any());

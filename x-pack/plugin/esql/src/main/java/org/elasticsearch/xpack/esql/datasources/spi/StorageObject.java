@@ -76,6 +76,29 @@ public interface StorageObject {
     long length() throws IOException;
 
     /**
+     * Object size in bytes if already known without performing I/O (a listing hint, a prior GET's
+     * {@code Content-Length} / {@code Content-Range} total, or a constructor-supplied size).
+     * Returns {@link #READ_TO_END} when the size is not known. Implementations must not issue a
+     * HEAD or GET to serve this; use {@link #length()} when a definitive size is required.
+     * <p>
+     * A successful GET should refresh this to the size of the generation that was actually opened,
+     * so a listing size that has gone stale after a rewrite is not treated as the expected byte count.
+     */
+    default long knownLength() {
+        return READ_TO_END;
+    }
+
+    /**
+     * Opaque identifier of the object generation last observed by a successful open of this instance
+     * (S3/HTTP/Azure ETag, GCS generation number, ...). {@code null} if no generation has been
+     * observed yet. A later open of the same instance that observes a different value has read a
+     * different generation.
+     */
+    default String contentGeneration() {
+        return null;
+    }
+
+    /**
      * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
      * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
      * ({@code offset}/{@code length} splits) must return the underlying object's full size, not

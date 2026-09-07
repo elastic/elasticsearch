@@ -20,6 +20,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -58,6 +59,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    private volatile Long cachedGeneration;
+    private volatile String lastObservedGeneration;
 
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
@@ -96,8 +99,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try {
-            BlobId blobId = BlobId.of(bucket, objectName);
-            ReadChannel reader = storage.reader(blobId);
+            ReadChannel reader = openReader();
             // GCS ReadChannel does not expose content length on open; fall back to cached size if known.
             if (cachedLength != null) {
                 bytes = cachedLength;
@@ -122,8 +124,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         try {
-            BlobId blobId = BlobId.of(bucket, objectName);
-            ReadChannel reader = storage.reader(blobId);
+            ReadChannel reader = openReader();
             reader.seek(position);
             // READ_TO_END: seek to position and read to the end of the object (no limit) — no length() lookup.
             if (toEnd == false) {
@@ -177,8 +178,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         int totalRead = 0;
         try {
-            BlobId blobId = BlobId.of(bucket, objectName);
-            try (ReadChannel reader = storage.reader(blobId)) {
+            try (ReadChannel reader = openReader()) {
                 reader.seek(position);
                 reader.limit(position + target.remaining());
                 while (target.hasRemaining()) {
@@ -235,8 +235,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 long startNanos = System.nanoTime();
                 int payloadBytes = 0;
                 try {
-                    BlobId blobId = BlobId.of(bucket, objectName);
-                    try (ReadChannel reader = storage.reader(blobId)) {
+                    try (ReadChannel reader = openReader()) {
                         reader.seek(position);
                         reader.limit(position + length);
                         while (buffer.hasRemaining()) {
@@ -341,6 +340,9 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                     se.getCode()
                 );
             }
+            if (se.getCode() == 412) {
+                return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+            }
             if (se.getCode() == 404) {
                 return new IOException("Object not found: " + path, cause);
             }
@@ -360,12 +362,62 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         throw (IOException) mapped;
     }
 
+    @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return lastObservedGeneration;
+    }
+
+    private ReadChannel openReader() {
+        pinGenerationIfNeeded();
+        BlobId id = BlobId.of(bucket, objectName);
+        if (cachedGeneration != null) {
+            return storage.reader(id, Storage.BlobSourceOption.generationMatch(cachedGeneration));
+        }
+        return storage.reader(id);
+    }
+
+    /**
+     * Captures generation from a metadata GET when the live read APIs do not return one. Mockito
+     * tests that do not stub {@code storage.get} keep the unpinned reader path ({@code get} returns
+     * {@code null}). A thrown {@link StorageException} is not swallowed: opening unpinned after a
+     * failed pin lets a later successful metadata GET adopt a different generation and splice.
+     */
+    private void pinGenerationIfNeeded() {
+        if (cachedGeneration != null) {
+            return;
+        }
+        observeBlobGeneration(storage.get(BlobId.of(bucket, objectName)));
+    }
+
+    private void observeBlobGeneration(Blob blob) {
+        if (blob == null || blob.getGeneration() == null) {
+            return;
+        }
+        lastObservedGeneration = Long.toString(blob.getGeneration());
+        if (cachedGeneration == null) {
+            cachedGeneration = blob.getGeneration();
+            if (blob.getSize() != null) {
+                cachedLength = blob.getSize();
+            }
+        } else if (cachedGeneration.equals(blob.getGeneration()) && blob.getSize() != null) {
+            cachedLength = blob.getSize();
+        }
+    }
+
     private void fetchMetadata() throws IOException {
         try {
             Blob blob = storage.get(BlobId.of(bucket, objectName));
             if (blob != null) {
                 cachedExists = true;
-                cachedLength = blob.getSize();
+                observeBlobGeneration(blob);
+                if (cachedLength == null && blob.getSize() != null) {
+                    cachedLength = blob.getSize();
+                }
                 if (blob.getUpdateTimeOffsetDateTime() != null) {
                     cachedLastModified = blob.getUpdateTimeOffsetDateTime().toInstant();
                 }
@@ -385,6 +437,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
     private void fetchMetadataViaRangeRead() throws IOException {
         boolean objectExists;
+        // Unpinned: this path is already the 403-metadata fallback and must not issue another
+        // storage.get() via {@link #openReader()} that would fail the same 403.
         try (ReadChannel reader = storage.reader(BlobId.of(bucket, objectName))) {
             reader.limit(1);
             try (InputStream is = Channels.newInputStream(reader)) {

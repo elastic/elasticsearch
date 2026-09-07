@@ -15,11 +15,14 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -37,8 +40,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -180,15 +185,77 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
-        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException
+        // A non-retryable, non-404/412 status (here 400) is a client-class failure: wrapped as IOException
         // (which the external source operator maps to 400).
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(400, "Bad Request"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testGenerationMatch412IsObjectChanged() throws IOException {
+        Blob mockBlob = mock(Blob.class);
+        when(mockBlob.getGeneration()).thenReturn(7L);
+        when(mockBlob.getSize()).thenReturn(3L);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(mockBlob);
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class), any())).thenReturn(mockReader)
+            .thenThrow(new StorageException(412, "Precondition Failed"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        try (InputStream stream = obj.newStream()) {
+            assertNotNull(stream);
+        }
+        ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 1));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertEquals("7", obj.contentGeneration());
+    }
+
+    public void testFailedGenerationPinDoesNotOpenUnpinnedReader() {
+        when(mockStorage.get(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        expectThrows(ExternalUnavailableException.class, obj::newStream);
+        verify(mockStorage, never()).reader(any(BlobId.class));
+    }
+
+    public void testGenerationPinStaysOnLaterMetadataGet() throws IOException {
+        Blob first = mock(Blob.class);
+        when(first.getGeneration()).thenReturn(1L);
+        when(first.getSize()).thenReturn(100L);
+        Blob rewritten = mock(Blob.class);
+        when(rewritten.getGeneration()).thenReturn(2L);
+        when(rewritten.getSize()).thenReturn(50L);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(first).thenReturn(rewritten);
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class), any())).thenReturn(mockReader);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        try (InputStream stream = obj.newStream()) {
+            assertNotNull(stream);
+        }
+        assertEquals("1", obj.contentGeneration());
+        assertEquals(100L, obj.knownLength());
+
+        assertTrue(obj.exists());
+        assertEquals("last-open generation follows the metadata GET", "2", obj.contentGeneration());
+        assertEquals("knownLength stays the pinned generation's size", 100L, obj.knownLength());
+
+        try (InputStream stream = obj.newStream()) {
+            assertNotNull(stream);
+        }
+        verify(mockStorage, times(2)).reader(any(BlobId.class), eq(Storage.BlobSourceOption.generationMatch(1L)));
     }
 
     public void testNewStreamClassifies503AsThrottling() {
@@ -459,8 +526,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
-        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException.
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
+        // A non-retryable, non-404/412 status (here 400) is a client-class failure: wrapped as IOException.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(400, "Bad Request"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);

@@ -290,7 +290,13 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
         for (int i = 0; i < buckets.size(); i++) {
             BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
-            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.breaker());
+            futures[i] = ColumnChunkPrefetcher.prefetchAsync(
+                storageObject,
+                block,
+                projection,
+                blockFactory.breaker(),
+                reader.ioWatermark()
+            );
         }
 
         // result[c][b] = block for column c in bucket b (bucket-visit order). We populate this

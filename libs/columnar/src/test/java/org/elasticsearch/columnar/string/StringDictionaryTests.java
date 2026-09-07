@@ -82,6 +82,31 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * A column mostly made of nulls whose values are all one of a handful of terms. A null is named by a
+     * reserved ordinal rather than by a dictionary entry, so it is no part of what a dictionary could
+     * cover — and a column whose every actual value the dictionary names should take one however many of
+     * its slots hold nothing.
+     */
+    public void testNullSlotsDoNotCostTheDictionary() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final BytesRef[][] docSlots = new BytesRef[between(500, 3000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Four slots in five hold nothing, which is well past the coverage the policy asks for if the
+            // nulls are counted against it.
+            docSlots[d] = new BytesRef[] { d % 5 == 0 ? new BytesRef(terms[(d / 5) % terms.length]) : null };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected null slots", metadata.hasNullSlots());
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
+            assertFalse("nothing should have escaped", dictionaryOf(metadata).hasEscapes());
+            for (int d = 0; d < docSlots.length; d++) {
+                assertEquals("doc [" + d + "]", docSlots[d][0], reader.valueAt(reader.firstValueAddress(d)));
+            }
+        });
+    }
+
     /** Nothing repeats, so there is no vocabulary and the values are stored as they are. */
     public void testAllDistinctValuesStayPlain() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 1500)];

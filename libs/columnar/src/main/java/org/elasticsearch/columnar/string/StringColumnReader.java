@@ -126,15 +126,18 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
-     * Whether a page can carry this column's slots. A page has one entry a document and no shape for either
-     * a document holding several or a slot holding nothing, so a column with more than one slot per document
-     * — or with a null among them — is read a document at a time instead.
+     * Whether a page can carry this column's slots. A page holds one entry a document, addressed by the
+     * document's rank, and has no shape for a slot that holds nothing. So it needs both that a rank is its
+     * own value address — which a document holding several slots breaks, and one holding none breaks just as
+     * much — and that every slot it addresses has a value.
      *
-     * <p>The two are separate questions: a document whose only slot is null leaves the slots and the
-     * documents in step, so a column of them is not multi-valued and still has nothing a page can say.
+     * <p>The two are separate questions, and neither implies the other. A document whose only slot is null
+     * leaves the slots and the documents in step, so such a column is addressed by rank and still has a slot
+     * a page cannot describe; a column of empty arrays has no null in it and has still stopped being
+     * addressed by rank.
      */
     protected boolean pageable() {
-        return meta.multiValued() == false && meta.hasNullSlots() == false;
+        return meta.hasValueAddresses() == false && meta.hasNullSlots() == false;
     }
 
     /** The value address of a document's first slot, given its rank. */
@@ -296,7 +299,12 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (meta.numDocsWithField() == 0) {
             return DocIdSetIterator.empty();
         }
-        if (meta.valuesSorted() && meta.multiValued() == false) {
+        // Bisected by rank, which is a value address only where the slots and the documents are in step.
+        // That is a stricter question than being single-valued: a document holding no slot at all — an empty
+        // array — leaves fewer slots than documents, so a rank runs past the end of the addresses while
+        // multiValued() is still false. A column holding a null is never sorted, so the bisection also never
+        // meets a slot with no value to compare.
+        if (meta.valuesSorted() && meta.hasValueAddresses() == false) {
             return documents(sortedRange(prefix, exact));
         }
         return unorderedMatches(prefix, exact);

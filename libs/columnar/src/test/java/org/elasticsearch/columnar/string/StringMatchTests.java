@@ -785,6 +785,55 @@ public class StringMatchTests extends ColumnarStringTestCase {
         }
     }
 
+    /**
+     * A document holding no slot at all — an empty array — on a column whose values are in term order. Fewer
+     * slots than documents leaves the column not multi-valued while a rank has still stopped being its own
+     * value address, so a bisection over ranks would answer with ranks rather than with documents. This is
+     * the shape that tells the two questions apart.
+     */
+    public void testEmptyArrayOnASortedColumn() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(200, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = d % 5 == 0 ? new BytesRef[0] : new BytesRef[] { new BytesRef(TERMS[(d * (TERMS.length - 1)) / docSlots.length]) };
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertFalse("fewer slots than documents is not multi-valued", metadata.multiValued());
+                assertTrue("but a rank is no longer its own address", metadata.hasValueAddresses());
+                assertTrue("expected the values to be in term order", reader.valuesSorted());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+                // A page is addressed by rank too, so it has to decline this column for the same reason.
+                final int[] docs = new int[Math.min(256, docSlots.length)];
+                for (int i = 0; i < docs.length; i++) {
+                    docs[i] = i;
+                }
+                assertFalse("a column with empty arrays serves no page", reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+                    @Override
+                    public void appendOrdinals(int[] ordinals, int n, BytesRef[] dictionary, int dictionarySize) {
+                        fail("no page expected");
+                    }
+
+                    @Override
+                    public void appendValues(BytesRef[] values, int n) {
+                        fail("no page expected");
+                    }
+                }));
+                assertFalse("nor column-wide ordinals", reader.readOrdinals(docs, 0, docs.length, new int[docs.length]));
+            });
+        }
+    }
+
     /** The documents a scan over the slots themselves would find, a null being no value to compare. */
     private static List<Integer> expectedOfSlots(BytesRef[][] docSlots, String probe, boolean exact) {
         final List<Integer> docs = new ArrayList<>();

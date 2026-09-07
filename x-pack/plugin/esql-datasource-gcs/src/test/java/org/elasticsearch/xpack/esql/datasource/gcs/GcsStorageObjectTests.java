@@ -618,6 +618,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
         assertTrue(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
     }
 
     /**

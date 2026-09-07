@@ -405,6 +405,36 @@ public final class FixtureDimensions {
         return true;
     }
 
+    /**
+     * The config keys that are FORMAT-SPECIFIC: those belonging to a dimension scoped by {@code applies_to}.
+     *
+     * <p>Asked rather than listed, because the product asks the same question and a second list drifts. A
+     * dimension that applies to every format travels under a key every format understands; one that
+     * declares {@code applies_to} does not, which is exactly what makes its key format-specific to the
+     * CRUD validator.
+     *
+     * <p>{@code trim_spaces} is added by hand because it is injected by the harness rather than declared
+     * as a dimension -- the one key here with no row of its own. It is a genuine format-specific key to
+     * the validator all the same, so leaving it out would make this set quietly wrong.
+     */
+    public Set<String> formatSpecificKeys() {
+        Set<String> keys = new LinkedHashSet<>();
+        keys.add("trim_spaces");
+        for (String name : names) {
+            if (appliesToByName.containsKey(name) == false) {
+                continue;
+            }
+            String key = directiveKeyByName.get(name);
+            if (key == null) {
+                key = readKeyByName.get(name);
+            }
+            if (key != null) {
+                keys.add(key);
+            }
+        }
+        return keys;
+    }
+
     /** What a dimension's value is derived from when no constant can express it, or null when one can. */
     public String derivedFrom(String dimension) {
         return derivedByName.get(dimension);

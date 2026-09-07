@@ -398,6 +398,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     pinned++;
                     continue;
                 }
+                if (globCannotCarryAFormatKey(dimensions, baseTest, vector, vectorInjectedSettings(dimensions, vector))) {
+                    unrepresentable++;
+                    continue;
+                }
                 if (bytesCannotCarry(dimensions, baseTest, vector)) {
                     unrepresentable++;
                     continue;
@@ -663,6 +667,58 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * unguarded. No routed spec carries a {@code pragma:} line today, so it is latent rather than live --
      * which is exactly how the directive-seam instance sat undetected until a vector happened to reach it.
      */
+    /**
+     * Whether a glob vector would ask for a dataset the CRUD validator will refuse to register.
+     *
+     * <p>elastic/esql-planning#1841: {@code FileDataSourceValidator.extractObjectName} truncates an object
+     * key at the first {@code ?}, applying URL query-string semantics to a storage key, which deletes the
+     * extension before format inference runs. The refusal only fires when a FORMAT-SPECIFIC setting is
+     * present -- with none, no format has to be resolved and the same glob registers fine.
+     *
+     * <p>So this asks per case, rather than blocking the cell per format. A dataset picks up a
+     * format-specific key three ways: its own directive declares one, the vector injects one, or the
+     * harness adds one because the authored rows are padded ({@code trim_spaces}) or carry bracket
+     * multi-values ({@code multi_value_syntax}). Ask all three.
+     *
+     * <p>This replaced a blanket {@code bug:} absence on csv and tsv, which was true only because the
+     * harness used to inject {@code trim_spaces} into every text dataset. Once that became data-driven,
+     * five of the ten routed datasets carry no format-specific key at all and their glob cell is real
+     * coverage; blocking the whole cell would now discard it. Deleting this filter is the verification
+     * when #1841 is fixed.
+     */
+    static boolean globCannotCarryAFormatKey(
+        FixtureDimensions dimensions,
+        Object[] baseTest,
+        Map<String, String> vector,
+        Map<String, String> injected
+    ) {
+        if ("glob".equals(vector.get("path_shape")) == false) {
+            return false;
+        }
+        Set<String> formatKeys = dimensions.formatSpecificKeys();
+        for (String key : injected.keySet()) {
+            if (formatKeys.contains(key)) {
+                return true;
+            }
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            for (String key : formatKeys) {
+                if (DatasetRegistry.declaresSetting(source.withJson(), key)) {
+                    return true;
+                }
+            }
+            String template = templateNameIn(source.resource());
+            if (template == null) {
+                continue;
+            }
+            if (MATRIX.paddedForTemplate(template) || "brackets".equals(MATRIX.writeDialectForTemplate(template))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static boolean pragmaPins(Object[] baseTest, Map<String, String> vectorPragmas) {
         if (vectorPragmas.isEmpty()) {
             return false;

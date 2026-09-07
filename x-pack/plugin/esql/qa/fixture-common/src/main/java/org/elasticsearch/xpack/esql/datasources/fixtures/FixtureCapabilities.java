@@ -111,15 +111,22 @@ public final class FixtureCapabilities {
      * comma_list} is not, and its rule says why: one element is indistinguishable from exact.
      */
     private static final Set<String> RESOLVER_SERVED = Set.of(
-        // Format-qualified for the same reason the fixture rows are: a resolver shape can be reachable on
-        // one format and blocked on another. A `?` glob is blocked on csv and tsv by elastic/esql-planning#1841
-        // -- the CRUD validator truncates the object key at the `?`, so registering the dataset fails
-        // whenever a format-specific setting is present, which is nearly always on the text formats.
-        // ndjson and parquet register fine: ndjson's config keys are rarely set by these datasets, and
-        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868. ORC is in
-        // parquet's position for the same structural reason -- OrcDataSourcePlugin declares
-        // FormatSpec.of("orc", ".orc"), whose config-key set is empty -- so #1841 has nothing to truncate
-        // and the shape registers.
+        // Every format is served. elastic/esql-planning#1841 still blocks the individual PAIRS where a
+        // format-specific setting is present -- the CRUD validator truncates the object key at the `?`, so
+        // format inference finds no extension -- but that is a per-case question now, answered at the
+        // crossing by globCannotCarryAFormatKey, not a property of the format.
+        //
+        // csv and tsv were listed as blocked here, and that was true only because the harness injected
+        // trim_spaces into every text dataset, so a format-specific key was always present. Injection is
+        // data-driven now: of the ten routed datasets only two pad and three write brackets, so five carry
+        // no format-specific key at all and register under a glob perfectly well. Keeping them out of this
+        // set would have discarded that coverage on the strength of a defect that no longer reaches them.
+        //
+        // parquet registers no format-specific keys at all since elastic/elasticsearch#157868, and ORC is
+        // in the same position structurally -- OrcDataSourcePlugin declares FormatSpec.of("orc", ".orc"),
+        // whose config-key set is empty -- so #1841 has nothing to truncate on either.
+        "path_shape=glob@csv",
+        "path_shape=glob@tsv",
         "path_shape=glob@ndjson",
         "path_shape=glob@parquet",
         "path_shape=glob@orc"

@@ -658,8 +658,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * spans more than one interval, alongside two narrower ones.
      */
     private static List<BytesRef> indexWideTsIdSegment(IndexWriter writer, TestDocParser parser) throws IOException {
+        // Keep everything in one segment: merging must not materialize synthetic ids. Flushing by document count is already
+        // disabled, and Lucene rejects disabling both triggers, so the RAM buffer is raised out of the way instead.
         writer.getConfig().setRAMBufferSizeMB(64);
         final int routing = randomNonNegativeInt();
+        // Added in ascending timestamp order; the index sort stores them descending per _tsid.
         final long baseTimestamp = Instant.now().toEpochMilli();
         final var hosts = List.of("vm-wide-a", "vm-wide-b", "vm-wide-c");
         // The second time series spans a little over two skipper intervals; the others stay well inside one.

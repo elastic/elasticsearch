@@ -39,6 +39,10 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  * <ul>
  *   <li>Vector loop bounded by {@code buffer.length - BYTES_PROCESSED} with a scalar
  *       {@link #doParseStringScalar} tail for remaining bytes.</li>
+ *   <li>Upstream speculatively {@code intoArray}s every vector chunk before checking for
+ *       {@code "} or {@code \}; quote and escape paths copy only the literal prefix via
+ *       {@code System.arraycopy}, and {@code intoArray} runs only on the no-special-characters
+ *       fast path.</li>
  *   <li>{@link #storeCodePointInStringBuffer} emits U+FFFD for invalid {@code \\u} sequences
  *       instead of throwing.</li>
  *   <li>Uses {@link SimdJsonVectorSupport} for vector width selection instead of upstream
@@ -68,16 +72,17 @@ public final class StringParser {
         int loopBound = buffer.length - BYTES_PROCESSED;
         while (src <= loopBound) {
             ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
-            srcVec.intoArray(stringBuffer, dst);
             long backslashBits = srcVec.eq(BACKSLASH).toLong();
             long quoteBits = srcVec.eq(QUOTE).toLong();
 
             if (hasQuoteFirst(backslashBits, quoteBits)) {
-                dst += Long.numberOfTrailingZeros(quoteBits);
-                return dst;
+                int quoteDist = Long.numberOfTrailingZeros(quoteBits);
+                System.arraycopy(buffer, src, stringBuffer, dst, quoteDist);
+                return dst + quoteDist;
             }
             if (hasBackslash(backslashBits, quoteBits)) {
                 int backslashDist = Long.numberOfTrailingZeros(backslashBits);
+                System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
                 byte escapeChar = buffer[src + backslashDist + 1];
                 if (escapeChar == 'u') {
                     src += backslashDist;
@@ -97,6 +102,8 @@ public final class StringParser {
                     dst += backslashDist + 1;
                 }
             } else {
+                // Full vector chunk has no quote or escape — bulk-copy literal UTF-8 bytes.
+                srcVec.intoArray(stringBuffer, dst);
                 src += BYTES_PROCESSED;
                 dst += BYTES_PROCESSED;
             }

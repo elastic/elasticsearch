@@ -986,7 +986,7 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
                 try {
                     int offset = Math.toIntExact(position);
                     int bytes = Math.toIntExact(Math.min(length, data.length - position));
-                    allocated = factory.allocate(bytes);
+                    allocated = factory.allocateWritableWindow(bytes);
                     ByteBuffer buffer = allocated.buffer();
                     buffer.put(data, offset, bytes);
                     buffer.flip();

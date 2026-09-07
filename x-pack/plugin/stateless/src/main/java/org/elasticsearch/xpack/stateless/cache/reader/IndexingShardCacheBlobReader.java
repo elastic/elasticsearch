@@ -88,22 +88,16 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
             // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
             ReleasableBytesReference reference = rbr.retain();
             final var streamInput = new FilterStreamInput(reference.streamInput()) {
-
-                private volatile boolean closed;
-
                 @Override
                 public void close() throws IOException {
                     try {
                         super.close();
                     } finally {
                         reference.decRef();
-                        closed = true;
                     }
                 }
             };
-            fillVBCCExecutor.execute(
-                ActionRunnable.supply(ActionListener.runAfter(listener, () -> { assert streamInput.closed; }), () -> streamInput)
-            );
+            fillVBCCExecutor.execute(ActionRunnable.supply(listener, () -> streamInput));
         }, originalException -> {
             // It is possible that the executor for the failure path is the same as the one waiting for the future. This can happen
             // when the action fails locally without the request being sent out.

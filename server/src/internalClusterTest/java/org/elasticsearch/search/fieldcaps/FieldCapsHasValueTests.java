@@ -194,9 +194,6 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
     public void testUnmappedFieldsWithValueAfterRestart() throws Exception {
         prepareIndex(INDEX1).setSource("unmapped", "unmapped-text").get();
         internalCluster().fullRestart();
-        // This request spans all three indices, so we must wait for all of them to recover after the restart. Waiting for only INDEX1
-        // leaves the others racing to become active: an index whose shards are not yet active is answered with a
-        // NoShardAvailableActionException and is therefore dropped from the response indices, failing the assertion below.
         ensureGreen(INDEX1, INDEX2, INDEX3);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps()

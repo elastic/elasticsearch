@@ -15,6 +15,7 @@ import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
@@ -345,6 +346,55 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertEquals("one escape per position", escapeAt.length, (int) dictionaryOf(metadata).escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * Escaped values resolved out of the order they are stored in. Where an escaped value's bytes are is
+     * counted forward from the value answered before it when that one is nearer, and from the start of its
+     * block otherwise, so asking for an address below the last one is the only thing that takes the second
+     * path. A miscount there returns another value's bytes rather than failing, which is the kind of wrong
+     * nothing downstream would notice.
+     */
+    public void testEscapesResolvedOutOfOrder() throws IOException {
+        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int size = block * 4;
+        final int[] escapeAt = { 3, block - 2, block + 5, 2 * block + 1, 3 * block, size - 2 };
+        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+        withDictionary(docValues, (metadata, reader) -> {
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+            final BytesRef scratch = new BytesRef();
+            // Every document has a value here, so a document's rank is its value's address.
+            final List<Integer> descending = new ArrayList<>();
+            for (int at : escapeAt) {
+                descending.add(at);
+            }
+            Collections.reverse(descending);
+            for (int at : descending) {
+                assertEquals(
+                    "escape at " + at + " resolved descending",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
+            // And interleaved, so the cursor sits behind the address as often as ahead of it.
+            for (int i = 0; i < escapeAt.length; i++) {
+                final int at = escapeAt[i % 2 == 0 ? escapeAt.length - 1 - i / 2 : i / 2];
+                assertEquals(
+                    "escape at " + at + " resolved out of order",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
+            // Asking twice for the same address must not move the answer either.
+            for (int at : escapeAt) {
+                dictionary.resolveEscape(reader.firstValueAddress(at), scratch);
+                assertEquals(
+                    "escape at " + at + " resolved twice",
+                    docValues[at].utf8ToString(),
+                    dictionary.resolveEscape(reader.firstValueAddress(at), scratch).utf8ToString()
+                );
+            }
         });
     }
 

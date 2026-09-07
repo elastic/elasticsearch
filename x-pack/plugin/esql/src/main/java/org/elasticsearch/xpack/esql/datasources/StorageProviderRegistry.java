@@ -355,6 +355,15 @@ public class StorageProviderRegistry implements Closeable {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
+        } else {
+            // No time budget: cap throttle retries to a small count so a stalled read does not
+            // block for hours. With budget=0 the sanity cap is the only bound; 10 retries matches
+            // pre-cap behaviour and limits worst-case delay to ~5 min.
+            policy = policy.withThrottleConfig(
+                10,
+                RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS,
+                RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS
+            );
         }
         return policy;
     }

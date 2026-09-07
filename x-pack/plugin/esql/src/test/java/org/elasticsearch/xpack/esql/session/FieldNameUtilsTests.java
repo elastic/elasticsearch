@@ -3338,6 +3338,19 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testHighlightNoOnAfterKeepDoesNotForceAllFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames("FROM idx | KEEP title | HIGHLIGHT \"foo\"", Set.of("_index", "title", "title.*"));
+    }
+
+    public void testHighlightMatchNoOnCollectsQueryField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assertFieldNames(
+            "FROM idx | HIGHLIGHT MATCH(title, \"foo\") | KEEP highlight_title",
+            Set.of("_index", "title", "title.*", "highlight_title", "highlight_title.*")
+        );
+    }
+
     // IN subquery tests
 
     public void testInSubquery() {

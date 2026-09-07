@@ -85,13 +85,25 @@ public class HighlightSupportTests extends ESTestCase {
         assertTrue(HighlightSupport.deriveFields(new Not(EMPTY, match("body", "bar", null)), List.of(title, body)).isEmpty());
     }
 
-    public void testDeriveFieldsUsesConcreteQueryStringDefaultField() {
+    public void testDeriveFieldsDoesNotNarrowQueryStringWithFieldQualifier() {
         Attribute title = getFieldAttribute("title", TEXT);
-        Attribute body = getFieldAttribute("body", KEYWORD);
+        Attribute body = getFieldAttribute("body", TEXT);
+
+        // A QSTR string can name arbitrary fields with `field:term`, so default_field alone cannot bound the target set.
+        assertThat(
+            HighlightSupport.deriveFields(queryString("description:Tolkien", options("default_field", "title")), List.of(title, body)),
+            equalTo(List.of(title, body))
+        );
+    }
+
+    public void testDeriveFieldsNotKqlFallsBackToAllHighlightableFields() {
+        Attribute title = getFieldAttribute("title", TEXT);
+        Attribute body = getFieldAttribute("body", TEXT);
+        List<Attribute> output = List.of(title, body);
 
         assertThat(
-            HighlightSupport.deriveFields(queryString("fox", options("default_field", "title")), List.of(title, body)),
-            equalTo(List.of(title))
+            HighlightSupport.deriveFields(new Not(EMPTY, new Kql(EMPTY, of("foo"), null, TEST_CFG)), output),
+            equalTo(List.of(title, body))
         );
     }
 

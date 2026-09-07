@@ -313,8 +313,9 @@ public final class FixtureMatrix {
      * the most-used template in the corpus -- discarding the exact coverage opening the cell was meant to
      * add, and silently, because a filtered pair logs a count and not a name.
      *
-     * <p>Declared rather than sniffed, and verified against the bytes by
-     * {@code FixturePaddingTests.testEveryDatasetsPaddingDeclarationMatchesItsBytes}.
+     * <p>Declared rather than sniffed, and verified against the bytes by the {@code checkFixturePadding}
+     * gradle task, which reads every canonical CSV on precommit and fails when a declaration disagrees
+     * with the leading or trailing space a field actually carries.
      */
     public boolean paddedForTemplate(String templateName, String format) {
         if (baseFormat(format).equals("csv") == false) {

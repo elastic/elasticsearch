@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureDimensions;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -314,6 +315,60 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
             "and nothing is filtered away from a vector that is not a glob at all",
             AbstractExternalSourceSpecTestCase.globCannotCarryAFormatKey(dimensions, templateless, exact, Map.of())
         );
+    }
+
+    /**
+     * A {@code path_shape} the case's sources cannot express must not register under a name that claims it.
+     *
+     * <p>{@code resolveTemplatePath} applies {@code pathShaped} on the standalone branch only; a multifile
+     * or hive template resolves through the layout's own glob and never reads the dimension. Without this
+     * filter the pair runs the exact-path bytes and reports {@code path_shape=glob} -- a silent pass whose
+     * announcement is the false half, rather than the configuration.
+     *
+     * <p>The mixed case is the one that matters: a case reading one standalone source and one multifile
+     * source DOES differ from its exact twin, because the standalone half reaches the listing path. A
+     * filter keyed on "any non-standalone source" would discard it and call that a fix.
+     */
+    public void testAShapeNoSourceCanExpressDoesNotRegister() {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        Map<String, String> glob = new LinkedHashMap<>();
+        glob.put("format", "csv");
+        glob.put("path_shape", "glob");
+
+        assertTrue(
+            "a multifile source resolves through its layout glob and never reads path_shape",
+            AbstractExternalSourceSpecTestCase.pathShapeCannotCarry(dimensions, baseTestReading("{{employees_multifile}}.csv"), glob)
+        );
+        assertFalse(
+            "a standalone source is genuinely reshaped, so the pair is a real test",
+            AbstractExternalSourceSpecTestCase.pathShapeCannotCarry(dimensions, baseTestReading("{{employees}}.csv"), glob)
+        );
+        assertFalse(
+            "one standalone source among several is enough -- that half reaches the listing path",
+            AbstractExternalSourceSpecTestCase.pathShapeCannotCarry(
+                dimensions,
+                baseTestReading("{{employees_multifile}}.csv", "{{employees}}.csv"),
+                glob
+            )
+        );
+
+        Map<String, String> exact = new LinkedHashMap<>();
+        exact.put("format", "csv");
+        exact.put("path_shape", "exact");
+        assertFalse(
+            "the default shape filters nothing -- it is what every unvaried case already runs",
+            AbstractExternalSourceSpecTestCase.pathShapeCannotCarry(dimensions, baseTestReading("{{employees_multifile}}.csv"), exact)
+        );
+    }
+
+    private static Object[] baseTestReading(String... resources) {
+        CsvSpecReader.CsvTestCase testCase = new CsvSpecReader.CsvTestCase();
+        List<CsvSpecReader.DatasetSource> sources = new ArrayList<>();
+        for (int i = 0; i < resources.length; i++) {
+            sources.add(new CsvSpecReader.DatasetSource("ds" + i, resources[i], "{}"));
+        }
+        testCase.datasetSources = sources;
+        return new Object[] { "spec", "name", null, null, testCase };
     }
 
     /** Padding is a csv fact: every other format is re-rendered from trimmed values, so nothing pads. */

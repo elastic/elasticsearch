@@ -67,8 +67,8 @@ tasks.register('vectorSpecTests', StandaloneRestIntegTestTask) {
   // The battery is far past it. Measured by running each suite against a deliberately impossible bound
   // and reading the count back: csv-vector 133,787, tsv-vector 105,593, ndjson-vector 122,167,
   // parquet-vector 112,759, orc-vector 49,851 -- 524,157 cases. The csv module hosts two suites, so an
-  // unsharded run there is 239,380 cases and, at the 128ms per case a full sharded run measured, about
-  // eight and a half hours in one JVM. The widths in the pipeline are set from that rate and the three
+  // unsharded run there is 239,380 cases and, at the 139ms per case a full sharded run measured, about
+  // nine and a quarter hours in one JVM. The widths in the pipeline are set from that rate and the three
   // others it measured, and every shard registers well under this bound -- the widest is parquet's at
   // 28,190, which is why parquet is sharded four ways rather than the three its rate alone argues for.
   //

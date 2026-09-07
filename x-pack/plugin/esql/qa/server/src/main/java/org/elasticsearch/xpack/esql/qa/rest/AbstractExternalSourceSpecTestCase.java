@@ -402,6 +402,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     unrepresentable++;
                     continue;
                 }
+                if (pathShapeCannotCarry(dimensions, baseTest, vector)) {
+                    unrepresentable++;
+                    continue;
+                }
                 if (bytesCannotCarry(dimensions, baseTest, vector)) {
                     unrepresentable++;
                     continue;
@@ -671,6 +675,41 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * coverage; blocking the whole cell would now discard it. Deleting this filter is the verification
      * when #1841 is fixed.
      */
+    /**
+     * Whether the vector's {@code path_shape} would change nothing about how this case's sources resolve.
+     *
+     * <p>{@code pathShaped} rewrites a name into a {@code ?} wildcard, and {@code resolveTemplatePath}
+     * reaches it only on the STANDALONE branch. Every other layout resolves through
+     * {@code dir + "/" + layout.glob() + "." + format}, which never consults the dimension. So a
+     * multifile or hive case crossed with a {@code glob} vector reads the byte-identical resource the
+     * {@code exact} vector reads, passes, and reports a name saying {@code path_shape=glob}. That is the
+     * silent pass this contract exists to prevent, arrived at from the other direction: not a
+     * configuration the engine ran and the name misreported, but a configuration the name claims and
+     * nothing ever applied.
+     *
+     * <p>The declaration already makes this argument for the sibling value -- {@code
+     * dimension.path_shape.rule.comma_list} says a one-element comma list is indistinguishable from
+     * exact -- so this is that rule extended from a value to a value-and-case pair, which no per-value
+     * grammar can express.
+     *
+     * <p>One standalone source is enough to keep the pair: the shape then genuinely reaches the
+     * resolver's listing path for that source, and the case is a different test from its exact twin.
+     */
+    static boolean pathShapeCannotCarry(FixtureDimensions dimensions, Object[] baseTest, Map<String, String> vector) {
+        String shape = vector.get("path_shape");
+        if (shape == null || shape.equals(dimensions.defaultValue("path_shape", vector.get("format")))) {
+            return false;
+        }
+        CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        for (DatasetSource source : testCase.datasetSources) {
+            String template = templateNameIn(source.resource());
+            if (template != null && MATRIX.layoutFor(template).isStandalone()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static boolean globCannotCarryAFormatKey(
         FixtureDimensions dimensions,
         Object[] baseTest,

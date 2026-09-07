@@ -95,7 +95,7 @@ steps:
 
       # 49,851 cases. This was sharded as heavily as csv on a belief that ORC's per-case cost is several
       # times the text formats', taken from a run that also hit three 60s socket timeouts. Measured over
-      # eight sharded runs of 6,231 cases each: 14-17 minutes, so 154ms a case -- 1.2x the text formats,
+      # eight sharded runs of 6,231 cases each: 14-17 minutes, so 154ms a case -- 1.1x the text formats,
       # not several times. Eight shards ran 16 minutes apiece; three run about 43.
       - label: "esql-datasource-orc / vector crossing {{matrix.shard}}/3"
         command: .ci/scripts/run-gradle.sh -Dtests.vector.shard={{matrix.shard}}/3 :x-pack:plugin:esql-datasource-orc:qa:vectorSpecTests

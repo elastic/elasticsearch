@@ -30,6 +30,7 @@ class NativeLibrariesPluginFuncTest extends AbstractGradleInternalPluginFuncTest
         plugins.apply(${NativeLibraryBuildPlugin.class.name})
         nativeLibraryBuild {
           modeEnvironmentVariable = 'TEST_NATIVE_BUILD'
+          supportedPlatforms = ['${PLATFORM}']
           sourceDir = layout.projectDirectory.dir('native')
           sources = ['Makefile']
           toolchainImage = 'example/toolchain:1'

@@ -21,6 +21,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -38,7 +39,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 
@@ -91,6 +94,14 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     /** Command run on the host in {@code host} mode, relative to {@link #getNativeDir()}. */
     @Input
     public abstract ListProperty<String> getHostCommand();
+
+    /**
+     * The {@code <os>-<arch>} platforms this library is built for. A {@code docker} build must produce
+     * all of them; {@code host} mode is only available on one of them, since the other platforms are
+     * ones the library is never loaded on.
+     */
+    @Input
+    public abstract SetProperty<String> getSupportedPlatforms();
 
     /**
      * Artifacts to gather after a {@code docker} build: paths relative to {@link #getNativeDir()},
@@ -153,10 +164,30 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         });
 
         collectOutput(nativeDir, outputDir);
-        verifyOutput(outputDir);
+        // A container build cross-compiles everything, so it is expected to produce every platform
+        // regardless of which host it ran on.
+        verifyOutput(outputDir, getSupportedPlatforms().get());
     }
 
     private void buildHost(File nativeDir, File outputDir) {
+        String host = hostPlatform();
+        Set<String> supported = getSupportedPlatforms().get();
+        if (supported.contains(host) == false) {
+            throw new GradleException(
+                "'"
+                    + HOST_MODE
+                    + "' mode is not available on "
+                    + host
+                    + ": this library is built for "
+                    + supported.stream().sorted().toList()
+                    + ", and is never loaded on "
+                    + host
+                    + ". Use '"
+                    + DOCKER_MODE
+                    + "' mode, which builds every platform inside the toolchain image."
+            );
+        }
+
         List<String> command = getHostCommand().get();
 
         LOGGER.lifecycle("Building native libs in {} ({})", nativeDir, command);
@@ -168,19 +199,25 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
             spec.environment(getEnvironment().get());
         });
 
-        verifyOutput(outputDir);
+        verifyOutput(outputDir, Set.of(host));
     }
 
     /**
-     * Fails if the build produced nothing for the current host. External build commands can report
-     * success without writing anything, which would otherwise surface much later as a missing
-     * library rather than as a build failure.
+     * Fails if the build produced nothing for a platform it was expected to. External build commands
+     * can report success without writing anything, which would otherwise surface much later as a
+     * missing library rather than as a build failure.
+     *
+     * <p>The expected platforms are passed in rather than derived from the host, so a container build
+     * verifies the same way wherever it runs.
      */
-    static void verifyOutput(File outputDir) {
-        Path platformDir = outputDir.toPath().resolve(hostPlatform());
-        if (isEmptyDirectory(platformDir)) {
+    static void verifyOutput(File outputDir, Collection<String> expectedPlatforms) {
+        List<String> missing = expectedPlatforms.stream()
+            .filter(platform -> isEmptyDirectory(outputDir.toPath().resolve(platform)))
+            .sorted()
+            .toList();
+        if (missing.isEmpty() == false) {
             throw new GradleException(
-                "Build produced nothing under " + platformDir + ". Found instead: " + describeTree(outputDir.toPath())
+                "Build produced nothing for " + missing + " under " + outputDir + ". Found instead: " + describeTree(outputDir.toPath())
             );
         }
     }

@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -126,30 +127,61 @@ public class BuildNativeLibraryTaskTests {
     public void testVerifyOutputThrowsWhenNothingProduced() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
 
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
-        assertTrue(ex.getMessage().contains(BuildNativeLibraryTask.hostPlatform()));
+        GradleException ex = assertThrows(
+            GradleException.class,
+            () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-x64"))
+        );
+        assertTrue(ex.getMessage().contains("darwin-aarch64"));
+        assertTrue(ex.getMessage().contains("linux-x64"));
         assertTrue(ex.getMessage().contains("<empty>"));
     }
 
     @Test
-    public void testVerifyOutputThrowsWhenOnlyOtherPlatformsProduced() throws IOException {
+    public void testVerifyOutputNamesOnlyTheMissingPlatforms() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
-        Path wrongPlace = outputDir.toPath().resolve("some-other-platform/libfoo.so");
-        Files.createDirectories(wrongPlace.getParent());
-        Files.writeString(wrongPlace, "binary");
-
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
-        assertTrue(ex.getMessage().contains("some-other-platform/libfoo.so"));
-    }
-
-    @Test
-    public void testVerifyOutputPassesWhenHostPlatformPopulated() throws IOException {
-        File outputDir = temporaryFolder.newFolder("output");
-        Path produced = outputDir.toPath().resolve(BuildNativeLibraryTask.hostPlatform()).resolve("libfoo.so");
+        Path produced = outputDir.toPath().resolve("linux-x64/libfoo.so");
         Files.createDirectories(produced.getParent());
         Files.writeString(produced, "binary");
 
-        BuildNativeLibraryTask.verifyOutput(outputDir);
+        GradleException ex = assertThrows(
+            GradleException.class,
+            () -> BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-x64"))
+        );
+        assertTrue(ex.getMessage().contains("darwin-aarch64"));
+        assertFalse("the platform that was produced should not be reported missing", ex.getMessage().contains("[linux-x64"));
+    }
+
+    @Test
+    public void testVerifyOutputPassesWhenEveryExpectedPlatformPopulated() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+        for (String platform : Set.of("darwin-aarch64", "linux-aarch64", "linux-x64")) {
+            Path produced = outputDir.toPath().resolve(platform).resolve("libfoo.so");
+            Files.createDirectories(produced.getParent());
+            Files.writeString(produced, "binary");
+        }
+
+        BuildNativeLibraryTask.verifyOutput(outputDir, Set.of("darwin-aarch64", "linux-aarch64", "linux-x64"));
+    }
+
+    /**
+     * The reason verification takes its expected platforms as an argument: a container build
+     * cross-compiles every platform, so it must verify identically wherever it runs, including on a
+     * host the library is never built for, such as Windows or an Intel Mac. Deliberately expects a set
+     * that excludes this machine's own platform.
+     */
+    @Test
+    public void testVerifyOutputDoesNotDependOnTheHostPlatform() throws IOException {
+        File outputDir = temporaryFolder.newFolder("output");
+        Set<String> expected = Set.of("some-other-os-x64", "another-os-aarch64");
+        assertFalse("fixture must not accidentally match the host", expected.contains(BuildNativeLibraryTask.hostPlatform()));
+
+        for (String platform : expected) {
+            Path produced = outputDir.toPath().resolve(platform).resolve("libfoo.so");
+            Files.createDirectories(produced.getParent());
+            Files.writeString(produced, "binary");
+        }
+
+        BuildNativeLibraryTask.verifyOutput(outputDir, expected);
     }
 
     @Test

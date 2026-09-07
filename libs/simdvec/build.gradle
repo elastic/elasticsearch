@@ -85,6 +85,9 @@ nativeLibraryBuild {
   sources = ['src/vec/**', 'Makefile']
   toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
   forwardedEnvironment = ['CLANG_CXX']
+  // The platforms libvec is built for. Other hosts (Windows, Intel Mac) consume the artifact and
+  // fall back to the Panama implementation when they don't have a platform-specific implementation.
+  supportedPlatforms = ['darwin-aarch64', 'linux-aarch64', 'linux-x64']
 
   dockerCommand = ['make', 'all']
   collect = [

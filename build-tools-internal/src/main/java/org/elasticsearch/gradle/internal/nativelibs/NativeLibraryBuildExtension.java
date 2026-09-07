@@ -15,6 +15,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 
 import java.util.List;
 
@@ -31,6 +32,13 @@ public abstract class NativeLibraryBuildExtension {
 
     /** Container image used to build every platform. */
     public abstract Property<String> getToolchainImage();
+
+    /**
+     * The {@code <os>-<arch>} platforms this library is built for, and therefore the platforms a
+     * complete artifact contains. Hosts outside this set never load the library: they consume the
+     * artifact like everyone else and simply find nothing for their own platform in it.
+     */
+    public abstract SetProperty<String> getSupportedPlatforms();
 
     /** Command run inside the container, building all platforms. */
     public abstract ListProperty<String> getDockerCommand();

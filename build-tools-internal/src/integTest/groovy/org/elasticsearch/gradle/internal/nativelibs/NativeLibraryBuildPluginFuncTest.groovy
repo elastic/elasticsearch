@@ -29,6 +29,7 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         buildFile << """
         nativeLibraryBuild {
           modeEnvironmentVariable = 'TEST_NATIVE_BUILD'
+          supportedPlatforms = ['${PLATFORM}']
           sourceDir = layout.projectDirectory.dir('native')
           sources = ['src/**', 'Makefile']
           toolchainImage = 'example/toolchain:1'
@@ -88,8 +89,28 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         def result = gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).buildAndFail()
 
         then:
-        result.output.contains("Build produced nothing under")
+        result.output.contains("Build produced nothing for")
         result.output.contains(PLATFORM)
+    }
+
+    /**
+     * What a developer on a platform the library is not built for — Windows, an Intel Mac — sees if
+     * they ask for a host build. The container mode is the one that works everywhere, so the message
+     * has to point at it rather than leaving them with a compiler error.
+     */
+    def "rejects host mode on a platform the library is not built for"() {
+        given:
+        buildFile << """
+        nativeLibraryBuild.supportedPlatforms = ['some-other-os-x64']
+        """
+
+        when:
+        def result = gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).buildAndFail()
+
+        then:
+        result.output.contains("'host' mode is not available on ${PLATFORM}")
+        result.output.contains("some-other-os-x64")
+        result.output.contains("'docker' mode")
     }
 
     def "exposes the built tree as a consumable variant produced by the task"() {

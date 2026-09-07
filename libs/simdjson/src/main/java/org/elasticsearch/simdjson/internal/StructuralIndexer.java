@@ -17,8 +17,6 @@ import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
-import static java.lang.foreign.MemorySegment.ofArray;
-
 /**
  * Delegates stage 1 structural indexing to the native simdjson C++ library,
  * loaded through {@link SimdJsonNativeSupport}.
@@ -72,7 +70,15 @@ public final class StructuralIndexer implements AutoCloseable {
         bitIndexes.reset();
 
         int[] rawIndexes = bitIndexes.rawIndexes();
-        int err = LIB.stage1(ctx, ofArray(buffer), offset, len, ofArray(rawIndexes), rawIndexes.length, ofArray(outCount));
+        int err = LIB.stage1(
+            ctx,
+            MemorySegment.ofArray(buffer),
+            offset,
+            len,
+            MemorySegment.ofArray(rawIndexes),
+            rawIndexes.length,
+            MemorySegment.ofArray(outCount)
+        );
         if (err != 0) {
             throw new JsonParsingException("Native simdjson stage 1 failed: " + readErrorMessage(err));
         }

@@ -35,14 +35,16 @@ import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
 import org.elasticsearch.columnar.string.ValueStream;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
-import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -72,10 +74,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
-    private final DictionaryPolicy dictionaryPolicy;
+    private final StringColumnOptionsSelector stringSelector;
 
     /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
-    private static final int TARGET_CHUNK_BYTES = 64 * 1024;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
@@ -85,12 +86,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericPipelineSelector pipelineSelector,
         ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        DictionaryPolicy dictionaryPolicy
+        StringColumnOptionsSelector stringSelector
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
-        this.dictionaryPolicy = dictionaryPolicy;
+        this.stringSelector = stringSelector;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -175,12 +176,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
-                Vocabulary.Terms known = unionOfDictionaries(field, mergeState);
-                if (known == null) {
-                    // No union to take, but the segments may have recorded what they surveyed.
-                    known = combinedSummaries(field, mergeState);
-                }
-                final Vocabulary.Terms vocabulary = known;
+                final DictionaryPolicy policy = stringSelector.select(field.name, type).dictionary();
+                final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, policy).terms();
                 writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
             }
         }
@@ -273,12 +270,44 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
      * pass — the count, the iterator, then the values.
      */
+    /** Where a merged column's terms came from, and what they were. */
+    record MergedVocabulary(Source source, Vocabulary.Terms terms) {
+        /** The ways of knowing a merged column's terms, in the order they are tried. */
+        enum Source {
+            /** Taken from the segments' own dictionaries, which name every value between them. */
+            DICTIONARY_UNION,
+            /** Summed from what the segments recorded surveying, when their dictionaries do not cover it. */
+            COMBINED_SUMMARIES,
+            /** Neither was available, so the merged values are surveyed as a flush surveys them. */
+            SURVEY
+        }
+    }
+
+    /**
+     * The terms to write the merged column against, and which of the three ways of knowing them was taken.
+     * The result is the same either way; which one runs is what a merge costs, so it is a value here rather
+     * than a shape of the control flow.
+     */
+    MergedVocabulary mergedVocabulary(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy) throws IOException {
+        final Vocabulary.Terms union = unionOfDictionaries(field, mergeState, dictionaryPolicy);
+        if (union != null) {
+            return new MergedVocabulary(MergedVocabulary.Source.DICTIONARY_UNION, union);
+        }
+        // No union to take, but the segments may have recorded what they surveyed.
+        final Vocabulary.Terms summaries = combinedSummaries(field, mergeState, dictionaryPolicy);
+        if (summaries != null) {
+            return new MergedVocabulary(MergedVocabulary.Source.COMBINED_SUMMARIES, summaries);
+        }
+        return new MergedVocabulary(MergedVocabulary.Source.SURVEY, null);
+    }
+
     /**
      * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
      * segment without a dictionary, or one that let values escape, holds values the union would not name.
      * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
      */
-    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState) throws IOException {
+    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
+        throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
@@ -305,11 +334,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // with; it must not decide the shape of the merged column.
                 continue;
             }
-            if (reader.hasDictionary() == false || reader.escapeCount() > 0) {
+            if ((reader instanceof DictionaryStringColumnReader) == false || reader.escapeCount() > 0) {
                 return null;
             }
-            for (int ordinal = 0; ordinal < reader.dictionarySize(); ordinal++) {
-                reader.termAt(ordinal, term);
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+            for (int ordinal = 0; ordinal < dictionary.dictionarySize(); ordinal++) {
+                dictionary.termAt(ordinal, term);
                 if (union.add(BytesRef.deepCopyOf(term))) {
                     unionBytes += term.length;
                     if (unionBytes > dictionaryPolicy.maxBytes()) {
@@ -333,7 +363,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * bound as a survey trims, so a term the merged column holds often enough survives; the coverage is an
      * under-estimate because each summed count was.
      */
-    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState) throws IOException {
+    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState, DictionaryPolicy dictionaryPolicy)
+        throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
@@ -440,13 +471,14 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             return null;
         }
         final StringColumnReader reader = ((ColumnarStringBinaryDocValues) values).reader();
-        if (reader.hasDictionary() == false) {
+        if ((reader instanceof DictionaryStringColumnReader) == false) {
             return null;
         }
-        final int[] map = new int[reader.dictionarySize()];
+        final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
+        final int[] map = new int[dictionary.dictionarySize()];
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < map.length; ordinal++) {
-            reader.termAt(ordinal, term);
+            dictionary.termAt(ordinal, term);
             final int id = vocabulary.terms().find(term);
             if (id < 0 || vocabulary.ordinalOfId()[id] == Vocabulary.DROPPED) {
                 // The merged vocabulary was built from these dictionaries, so every term should be in it.
@@ -585,15 +617,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numValues++;
         }
 
+        final StringColumnOptions options = stringSelector.select(field.name, type);
         StringColumnMetadata metadata = StringColumnWriter.write(
             maxDoc,
             numDocsWithField,
             numValues,
             cursors,
             ValueStream.VALUES_PER_BLOCK,
-            ChunkCodec.ZSTD,
-            TARGET_CHUNK_BYTES,
-            dictionaryPolicy,
+            options.chunkCodec(),
+            options.targetChunkBytes(),
+            options.dictionary(),
             known,
             directory,
             context,

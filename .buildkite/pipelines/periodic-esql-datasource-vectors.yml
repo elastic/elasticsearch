@@ -32,6 +32,18 @@
 #
 # The shard is a slice of the SAME crossing: vector names are unchanged by sharding, so a failure
 # reproduces locally with no shard flag at all.
+
+# ONE SHARD PER AGENT, and the agent size barely matters. Each job gets its own custom-32-98304 (32
+# vCPU, 96 GB) -- the machine type every periodic pipeline in this repo uses -- and a shard cannot use
+# it: maxParallelForks is 1, so a shard is a single test JVM against one cluster, mostly waiting on its
+# S3 fixture. Measured on a 48-vCPU box running five shards at once, load average was 4.3, about 9%
+# utilisation.
+#
+# That is the argument for this shape. A bigger box buys nothing, because the work does not parallelise
+# inside a JVM; only more boxes do. So the answer to "why 29 jobs instead of one big machine" is that
+# one big machine would run them serially at a core apiece. Per-shard wall clock is therefore the
+# single-threaded time -- 55 minutes for csv shard 1/8's 28,920 cases -- not something that improves
+# with a larger agent.
 #
 # NO -Dbuild.snapshot=false here. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
 # release build silently disables them -- the pipeline would go green having executed nothing,

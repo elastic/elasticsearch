@@ -47,7 +47,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: custom-32-98304
+          machineType: n4-custom-32-98304
           buildDirectory: /dev/shm/bk
 
       # Parquet alone: the highest per-case cost of the columnar formats, and the pushdown paths that
@@ -58,7 +58,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: custom-32-98304
+          machineType: n4-custom-32-98304
           buildDirectory: /dev/shm/bk
 
       # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
@@ -72,7 +72,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: custom-32-98304
+          machineType: n4-custom-32-98304
           buildDirectory: /dev/shm/bk
 
       - label: "orc / vector selection"
@@ -81,5 +81,5 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: custom-32-98304
+          machineType: n4-custom-32-98304
           buildDirectory: /dev/shm/bk

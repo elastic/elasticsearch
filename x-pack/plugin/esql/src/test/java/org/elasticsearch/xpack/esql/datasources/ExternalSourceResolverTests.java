@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -104,7 +105,7 @@ import static org.mockito.Mockito.mock;
  * <p>
  * Multi-file globs route through two distinct code paths inside
  * {@code resolveMultiFileSource}: a {@code FIRST_FILE_WINS} fast path that reads only the
- * lex-smallest anchor's metadata and pins it for every file, and a reconciliation path
+ * listing's first file ({@code path(0)}) and pins that schema for every file, and a reconciliation path
  * (shared by {@code UNION_BY_NAME} and {@code STRICT}) that reads every file's metadata
  * up front and merges/validates schemas. Tests that exercise behavior invariant across
  * the two paths are parameterized over {@link #MULTI_FILE_STRATEGIES} so every CI run
@@ -686,6 +687,69 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 mapping
             );
         }
+    }
+
+    /**
+     * FFW donor is {@code listing.path(0)} after the expander's order, not a second lex-min pass.
+     * A LIST that is not lexicographic must keep the first listed file as the schema.
+     */
+    public void testFirstFileWinsDonorIsListingPathZero() throws Exception {
+        List<Attribute> schemaZ = List.of(attr("wide", DataType.INTEGER));
+        List<Attribute> schemaA = List.of(attr("narrow", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/z.parquet", schemaZ);
+        schemasByPath.put("s3://bucket/data/a.parquet", schemaA);
+
+        ExternalSourceResolution resolution = resolveMultiFileWithConfig(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/z.parquet", 100), entry("s3://bucket/data/a.parquet", 200)),
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertEquals("wide", resolved.metadata().schema().get(0).name());
+    }
+
+    /**
+     * Dedicated schema file then a recursive events glob, under FFW omitted knobs: the named file
+     * is {@code listing.path(0)} and its wide schema is pinned onto every glob file.
+     */
+    public void testFfwSchemaFileThenRecursiveGlobPinsSchemaOnEveryFile() throws Exception {
+        assertFfwDedicatedSchemaFileAndRecursiveGlob(
+            "s3://bucket/my_schema.parquet,s3://bucket/events/" + "**/*.parquet",
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+    }
+
+    /**
+     * Recursive events glob then a schema file, with {@code list}+{@code desc}: reverse concat so
+     * the last named file is the FFW donor, still pinned onto every glob file.
+     */
+    public void testFfwRecursiveGlobThenSchemaFileListDescPinsSchemaOnEveryFile() throws Exception {
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "list");
+        config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+        assertFfwDedicatedSchemaFileAndRecursiveGlob("s3://bucket/events/" + "**/*.parquet,s3://bucket/my_schema.parquet", config);
+    }
+
+    public void testFileSortByOnUnionByNameIsRejectedAtResolve() {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = Map.of("s3://bucket/data/a.parquet", schema);
+        Map<String, Object> config = new HashMap<>();
+        config.put("schema_resolution", "union_by_name");
+        config.put("file_sort_by", "list");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveMultiFileWithConfig(
+                "s3://bucket/data/*.parquet",
+                schemasByPath,
+                List.of(entry("s3://bucket/data/a.parquet", 100)),
+                config
+            )
+        );
+        assertThat(e.getMessage(), containsString("file_sort_by"));
+        assertThat(e.getMessage(), containsString("file_order"));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
     }
 
     /**
@@ -1712,7 +1776,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         AtomicInteger reads = new AtomicInteger(0);
         AtomicBoolean cancelled = new AtomicBoolean(false);
-        // The lex-smallest file (f0) is the anchor; f1 is therefore only read inside the aggregate loop. Fail
+        // The first listed file (f0, after FFW list+asc on a lex LIST) is the anchor; f1 is therefore only read
+        // inside the aggregate loop. Fail
         // f1's footer read with the query already flipped to cancelled, simulating a read that aborts because the
         // client cancelled mid-flight — exercising the partial-stats fallback's cancellation re-check.
         String failOnPathSuffix = "f1.parquet";
@@ -1751,7 +1816,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Cancellation observed while reading the FIRST_FILE_WINS anchor footer (before the per-file aggregate loop is
      * even reached) must surface as {@link TaskCancelledException}, not as a generic resolution error. The anchor
      * read happens outside the aggregate loop and the cache wraps the failure in an {@code ExecutionException}, so
-     * the resolver re-checks cancellation in its failure path. Here the format reader fails the anchor (lex-smallest)
+     * the resolver re-checks cancellation in its failure path. Here the format reader fails the anchor (first listed)
      * file's footer read with the query already flipped to cancelled.
      */
     public void testCachedMultiFileResolveSurfacesCancellationDuringAnchorRead() throws Exception {
@@ -1773,7 +1838,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         AtomicInteger reads = new AtomicInteger(0);
         AtomicBoolean cancelled = new AtomicBoolean(false);
-        // f0 is the lex-smallest file, hence the FFW anchor read that runs before the aggregate loop.
+        // f0 is the first listed file, hence the FFW anchor read that runs before the aggregate loop.
         String failOnPathSuffix = "f0.parquet";
 
         Settings cacheSettings = Settings.builder()
@@ -2007,7 +2072,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
 
         // Shadowing the physical 'year' column emits a one-time client warning (summary + one detail).
-        List<String> warnings = drainWarnings();
+        List<String> warnings = resolution.warnings();
         assertEquals(2, warnings.size());
         assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
         assertThat(warnings.get(1), containsString("physical column [year] is shadowed"));
@@ -2082,8 +2147,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertNull("[" + strategy + "] " + e.getKey() + ": no cast on the kept column", mapping.cast(0));
             }
 
-            // Every strategy emits the one-time shadow warning; drain so teardown stays clean.
-            List<String> warnings = drainWarnings();
+            // Every strategy emits the one-time shadow warning on the resolution object.
+            List<String> warnings = resolution.warnings();
             assertEquals("[" + strategy + "] summary + one detail", 2, warnings.size());
             assertThat(
                 "[" + strategy + "] detail names the shadowed column",
@@ -3222,9 +3287,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * {@code ListingCacheKey} omits {@code schema_resolution}, so FIRST_FILE_WINS and UNION_BY_NAME
-     * share one listing entry. A second strategy on the same cache must add zero LIST calls.
-     * Schema-loader counts are not asserted: UNION_BY_NAME still reads non-anchor footers.
+     * Default first-file-wins is {@code list}+{@code asc}; union-by-name is {@code name}+{@code asc}.
+     * Those are different listings, so they must not share a cache entry. Pinning {@code file_sort_by: name}
+     * on FFW recovers the shared entry — same order as UBN.
      */
     public void testListingCacheSharedAcrossSchemaResolutionStrategies() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
@@ -3247,9 +3312,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PlainActionFuture<ExternalSourceResolution> ubn = new PlainActionFuture<>();
             resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), ubn);
             assertEquals(2, ubn.actionGet().resolvedSource(glob).fileList().fileCount());
+            assertTrue(
+                "default FFW (list) and UBN (name) must not share a listing-cache entry",
+                countingProvider.listCallCount.get() > listCallsAfterFfw
+            );
+            int listCallsAfterUbn = countingProvider.listCallCount.get();
+
+            Map<String, Object> ffwByName = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+            ffwByName.put("file_sort_by", "name");
+            PlainActionFuture<ExternalSourceResolution> named = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, ffwByName), named);
+            assertEquals(2, named.actionGet().resolvedSource(glob).fileList().fileCount());
             assertEquals(
-                "UNION_BY_NAME must reuse the FIRST_FILE_WINS listing; schema_resolution is not part of ListingCacheKey",
-                listCallsAfterFfw,
+                "FFW file_sort_by=name is the same listing order as UBN, so it reuses that cache entry",
+                listCallsAfterUbn,
                 countingProvider.listCallCount.get()
             );
         }
@@ -3898,6 +3974,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // always forward the per-path config — no special-casing the empty case.
         resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
+    }
+
+    /**
+     * Resolves a resource (glob or comma list) with listings keyed by each glob segment's
+     * {@link StoragePath#patternPrefix()}. Literals exist via {@code schemasByPath}.
+     */
+    private ExternalSourceResolution resolveResourceWithConfig(
+        String resource,
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Map<String, Object> config
+    ) throws Exception {
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(resource), Map.of(resource, new HashMap<>(config)), future);
+        return future.actionGet();
+    }
+
+    /**
+     * Dedicated {@code my_schema.parquet} outside {@code events/}, plus two glob files whose own
+     * inferred schema is narrower. FFW must take the schema file as {@code path(0)} and pin it.
+     */
+    private void assertFfwDedicatedSchemaFileAndRecursiveGlob(String resource, Map<String, Object> config) throws Exception {
+        List<Attribute> schemaFile = List.of(attr("id", DataType.INTEGER), attr("extra", DataType.KEYWORD));
+        List<Attribute> eventSchema = List.of(attr("id", DataType.INTEGER));
+        String schemaPath = "s3://bucket/my_schema.parquet";
+        String a = "s3://bucket/events/2024/a.parquet";
+        String z = "s3://bucket/events/2024/z.parquet";
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(schemaPath, schemaFile);
+        schemasByPath.put(a, eventSchema);
+        schemasByPath.put(z, eventSchema);
+
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            StoragePath.of("s3://bucket/events/" + "**/*.parquet").patternPrefix().toString(),
+            List.of(entry(a, 100), entry(z, 200))
+        );
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(resource, schemasByPath, listingsByPrefix, config);
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(resource);
+        assertNotNull(resolved);
+        FileList fileList = resolved.fileList();
+        assertEquals(schemaPath, fileList.path(0).toString());
+        assertEquals(3, fileList.fileCount());
+        assertEquals(List.of("id", "extra"), resolved.metadata().schema().stream().map(Attribute::name).toList());
+        assertEquals(3, resolved.schemaMap().size());
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : resolved.schemaMap().entrySet()) {
+            assertEquals(
+                "every FFW entry carries the dedicated schema file, including " + e.getKey(),
+                schemaFile,
+                e.getValue().fileSchema().attributes()
+            );
+        }
     }
 
     /**
@@ -4610,19 +4741,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Regression test for elastic/elasticsearch#153780: the Hive-partition shadow-column warning
-     * must reach the client even though the schema reconciliation that detects the collision (and
-     * calls {@code warnOnShadowedColumns}) runs on the resolver's real, forking executor rather than
-     * the calling thread. Every other collision test (e.g. {@link #testPartitionColumnConflictPartitionWins})
-     * uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, which never actually hops threads and so could
-     * not have caught a warning written to the wrong {@link ThreadContext} — exactly the bug this
-     * mirrors {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
+     * must be attached to {@link ExternalSourceResolution} even though the schema reconciliation
+     * that detects the collision (and calls {@code warnOnShadowedColumns}) runs on the resolver's
+     * real, forking executor rather than the calling thread. Every other collision test (e.g.
+     * {@link #testPartitionColumnConflictPartitionWins}) uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE},
+     * which never actually hops threads. This mirrors
+     * {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
      * {@link AsyncStubFormatReader} I/O pool distinct from both the resolver executor and this test thread.
      * <p>
-     * Like that test, the warning must be observed <em>inside</em> the {@code resolve()} completion
-     * callback rather than after {@code future.actionGet()} returns on this test thread: response
-     * headers accumulated under {@code ContextPreservingActionListener}'s restored context are merged
-     * back onto whichever physical thread is running that callback, not onto this (unrelated) test
-     * thread's own {@link ThreadContext} slot.
+     * Warnings live on the resolution object, not on {@link ThreadContext}: a resolve-time
+     * {@code HeaderWarning} flush is discarded when {@code ContextPreservingActionListener} closes.
      */
     public void testShadowWarningReachesCallerAcrossAsyncCompletion() throws Exception {
         List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
@@ -4653,14 +4781,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 threadContext
             );
 
-            AtomicReference<List<String>> observedWarnings = new AtomicReference<>();
             AtomicReference<Thread> completionThread = new AtomicReference<>();
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            // Drain inside the completion callback itself, for the same reason
-            // testResolveRestoresCallerThreadContextAcrossAsyncCompletion asserts there: the restored
-            // context (and the warnings merged into it) is only visible for the duration of this callback.
             ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
-                observedWarnings.set(drainWarnings());
                 completionThread.set(Thread.currentThread());
                 future.onResponse(resolution);
             }, future::onFailure);
@@ -4674,11 +4797,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Thread.currentThread(),
                 completionThread.get()
             );
-            List<String> warnings = observedWarnings.get();
+            List<String> warnings = resolution.warnings();
             assertEquals("summary + one detail", 2, warnings.size());
             assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
             assertThat(
-                "the shadow warning must reach the client even though reconciliation ran off the calling thread",
+                "the shadow warning must ride the resolution object even though reconciliation ran off the calling thread",
                 warnings.get(1),
                 containsString("physical column [year] is shadowed")
             );

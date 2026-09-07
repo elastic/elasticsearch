@@ -129,6 +129,6 @@ else
   echo "Local build complete. Artifact: $ZIP"
   echo "Debug info:  $DBG_ZIP"
   echo "For local Gradle builds, either:"
-  echo "  cd libs/simdjson/native && make install   # current platform only"
-  echo "  or set LOCAL_SIMDJSON_BINARY=1 and copy from the zip into libs/native/libraries/build/platform/<os>-<arch>/"
+  echo "  SIMDJSON_NATIVE_BUILD=host ./gradlew :libs:simdjson:test"
+  echo "  or SIMDJSON_NATIVE_BUILD=docker ./gradlew :libs:simdjson:buildNativeLibrary"
 fi

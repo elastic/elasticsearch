@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.native-library-build'
 
 dependencies {
   api project(':libs:foreign-library')
@@ -62,4 +63,24 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 tasks.named('dependencyLicenses').configure {
   ignoreFile 'simdjson-LICENSE.txt'
   ignoreFile 'simdjson-NOTICE.txt'
+}
+
+// --- Native library build (libsimdjson) ---
+// Set SIMDJSON_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// SIMDJSON_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'SIMDJSON_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['src/**', 'Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:6'
+  forwardedEnvironment = ['CLANG_CXX']
+
+  dockerCommand = ['make', 'all']
+  collect = [
+    'build/libs/simdjson/shared/aarch64/libsimdjson.dylib': 'darwin-aarch64/libsimdjson.dylib',
+    'build/libs/simdjson/shared/aarch64/libsimdjson.so'   : 'linux-aarch64/libsimdjson.so',
+    'build/libs/simdjson/shared/amd64/libsimdjson.so'     : 'linux-x64/libsimdjson.so',
+  ]
+
+  hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

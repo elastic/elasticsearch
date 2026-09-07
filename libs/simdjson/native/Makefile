@@ -92,7 +92,7 @@ DYLIB  = $(OUT_DIR_AARCH64)/libsimdjson.dylib
 SO_ARM = $(OUT_DIR_AARCH64)/libsimdjson.so
 SO_X64 = $(OUT_DIR_AMD64)/libsimdjson.so
 
-.PHONY: all clean local install verify-linux-abi
+.PHONY: all clean local local-install install verify-linux-abi
 
 # --- local: build for the current platform using the native compiler ---
 
@@ -120,7 +120,15 @@ else
   local: $(SO_X64)
 endif
 
-# Build and copy to the platform directory used by Gradle tests.
+# Build and copy to a specified destination directory (used by the Gradle task).
+local-install: local
+ifndef DEST
+	$(error DEST must be set, e.g. make local-install DEST=/path/to/output)
+endif
+	mkdir -p $(DEST)/$(LOCAL_PLATFORM)
+	cp $(LOCAL_OUTPUT) $(DEST)/$(LOCAL_PLATFORM)/$(notdir $(LOCAL_OUTPUT))
+
+# Convenience target for manual installs into the native-libraries extract tree.
 INSTALL_DIR = ../../native/libraries/build/platform/$(LOCAL_PLATFORM)
 install: local
 	mkdir -p $(INSTALL_DIR)

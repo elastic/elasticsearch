@@ -92,18 +92,26 @@ For local development on the current platform:
 ```bash
 cd native
 make local       # builds for the host platform
-make install     # copies the binary where Gradle tests expect it
 ```
 
-`make install` places the library in
-`libs/native/libraries/build/platform/<os>-<arch>/` so that Gradle tests can use it
-instead of fetching from Artifactory. Set `LOCAL_SIMDJSON_BINARY=1` to skip the
-Artifactory download:
+Set `SIMDJSON_NATIVE_BUILD=host` to build from source via Gradle instead of
+fetching from Artifactory:
 
 ```bash
-make install
-LOCAL_SIMDJSON_BINARY=1 ./gradlew :libs:simdjson:test
+SIMDJSON_NATIVE_BUILD=host ./gradlew :libs:simdjson:test
 ```
+
+Or cross-compile every platform inside the toolchain container:
+
+```bash
+SIMDJSON_NATIVE_BUILD=docker ./gradlew :libs:simdjson:buildNativeLibrary
+```
+
+When `SIMDJSON_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is
+resolved from Artifactory like other elasticsearch-native artifacts.
+
+`make install` (without Gradle) still copies a locally built library into
+`libs/native/libraries/build/platform/<os>-<arch>/` for ad-hoc workflows.
 
 Inside the cross-compilation container, run `make verify-linux-abi` after `make all`
 to confirm Linux `.so` files meet the RHEL 8 baseline (GLIBCXX ≤ 3.4.25, GLIBC ≤ 2.28).
@@ -138,12 +146,11 @@ for width in 128 256 512; do
 done
 ```
 
-**Local native library.** When changing `native/`, build and install before testing
+**Local native library.** When changing `native/`, build from source before testing
 (see [Building the native library](#building-the-native-library)):
 
 ```bash
-cd native && make install
-LOCAL_SIMDJSON_BINARY=1 ./gradlew :libs:simdjson:test
+SIMDJSON_NATIVE_BUILD=host ./gradlew :libs:simdjson:test
 ```
 
 Use `--rerun-tasks` to force Gradle to re-execute the test task (for example after

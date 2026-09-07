@@ -508,13 +508,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     });
                     if (binaryOperator instanceof VectorBinarySet == false
                         && binaryOperator.match() != VectorMatch.NONE
-                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled() == false) {
                         failures.add(fail(lp, "PromQL vector matching is not enabled in this build [{}]", lp.sourceText()));
                         return;
                     }
                     if (binaryOperator instanceof VectorBinarySet == false
                         && binaryOperator.hasMismatchedLabelSets()
-                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                        && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled() == false) {
                         // Default matching between different label sets translates as a join too.
                         failures.add(
                             fail(

@@ -13,7 +13,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
 import java.io.IOException;
 import java.nio.file.Path;

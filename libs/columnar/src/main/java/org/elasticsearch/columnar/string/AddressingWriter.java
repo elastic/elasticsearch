@@ -14,12 +14,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Builds the table that says where each document's slots begin. It goes through {@link MonotonicWriter},
- * which streams it to a temporary file, so nothing column-proportional is held on the heap.
+ * Builds the table that says where each document's slots begin.
  *
  * <p>Every layout writes this one, because finding a document's slots is the same question whichever layout
  * names the values: a dictionary column names its with ordinals, but its documents are addressed exactly as
@@ -27,14 +25,10 @@ import java.io.IOException;
  * question — a dictionary has a spare ordinal to name a null with, and only {@link StringColumnLayout#PLAIN}
  * needs {@link NullSlotWriter}.
  */
-final class AddressingWriter implements Closeable {
+final class AddressingWriter extends SlotTableWriter {
 
-    /** Null when every document holds exactly one slot, in which case a document's value address is its rank. */
-    private final MonotonicWriter valueAddresses;
     private final int numDocsWithField;
     private final long numValues;
-
-    private int docs;
 
     /**
      * @param numDocsWithField documents that have at least one slot
@@ -52,47 +46,34 @@ final class AddressingWriter implements Closeable {
     }
 
     private AddressingWriter(MonotonicWriter valueAddresses, int numDocsWithField, long numValues) {
-        this.valueAddresses = valueAddresses;
+        super(valueAddresses);
         this.numDocsWithField = numDocsWithField;
         this.numValues = numValues;
     }
 
     /** Records that the document about to be written begins at {@code valueAddress}. */
     void startDocument(long valueAddress) throws IOException {
-        docs++;
-        if (valueAddresses != null) {
-            valueAddresses.add(valueAddress);
-        }
+        add(valueAddress);
     }
 
     /**
      * Closes the table into {@code data}, {@code writtenSlots} being the number of slots the caller actually
-     * wrote: the address one past the column's last slot, and the sentinel this table ends with.
+     * wrote — the address one past the column's last slot, and the sentinel this table ends with.
      *
      * <p>Checked rather than asserted, because nothing else would catch it. The table holds one entry a
-     * document, so a wrong document count makes {@link MonotonicWriter} fail on its own declared length. The
-     * slot count sizes nothing and is only ever written here, as that sentinel, so a cursor that reported a
-     * total it then contradicted would leave the last document reading back the wrong {@code valueCount} in a
-     * release build, with nothing to say so.
+     * document, so a wrong document count makes {@link MonotonicWriter} fail on its own declared length; the
+     * slot count sizes nothing and is only ever written here, as that sentinel. A cursor that reported a
+     * total it then contradicted would otherwise leave the last document reading back the wrong
+     * {@code valueCount} in a release build, with nothing to say so.
      */
     MonotonicWriter.Table finish(long writtenSlots, IndexOutput data) throws IOException {
-        if (docs != numDocsWithField) {
-            throw new IllegalStateException("wrote " + docs + " documents, counted " + numDocsWithField);
+        if (written() != numDocsWithField) {
+            throw new IllegalStateException("wrote " + written() + " documents, counted " + numDocsWithField);
         }
         if (writtenSlots != numValues) {
             throw new IllegalStateException("wrote " + writtenSlots + " slots, counted " + numValues);
         }
-        if (valueAddresses == null) {
-            return MonotonicWriter.Table.NONE;
-        }
-        valueAddresses.add(writtenSlots);
-        return valueAddresses.finish(data);
-    }
-
-    @Override
-    public void close() throws IOException {
-        if (valueAddresses != null) {
-            valueAddresses.close();
-        }
+        addSentinel(writtenSlots);
+        return finishTable(data);
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
 import java.io.IOException;
 import java.nio.file.Path;

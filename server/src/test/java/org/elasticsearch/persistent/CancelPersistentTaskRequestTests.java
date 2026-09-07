@@ -11,6 +11,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
 public class CancelPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {

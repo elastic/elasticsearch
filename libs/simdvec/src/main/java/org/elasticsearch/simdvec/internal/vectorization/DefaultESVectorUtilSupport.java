@@ -785,7 +785,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     /**
      * Accumulates {@code C += A @ B}, where element (i, l) of the left operand is
-     * {@code a[i * aRowStride + l * aDepthStride]}. The strides let {@code A @ B} and
+     * {@code a[i * aRowStride + l * aInnerStride]}. The strides let {@code A @ B} and
      * {@code A^T @ B} share this method; the transposed form only swaps them.
      *
      * @param aRowStride   distance in {@code a} between consecutive rows of the left operand

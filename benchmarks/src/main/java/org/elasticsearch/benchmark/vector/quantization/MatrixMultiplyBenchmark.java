@@ -45,15 +45,12 @@ public class MatrixMultiplyBenchmark {
     @Param({ "SCALAR", "PANAMA" })
     VectorImplementation implementation;
 
-    /** Rows of A. */
     @Param({ "192", "768" })
     int m;
 
-    /** Inner dimension: columns of A, rows of B. */
     @Param({ "192", "768" })
     int k;
 
-    /** Columns of the result C. */
     @Param({ "96", "384" })
     int n;
 

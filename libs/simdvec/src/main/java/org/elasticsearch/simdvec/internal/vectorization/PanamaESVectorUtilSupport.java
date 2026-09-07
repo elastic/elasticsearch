@@ -2470,10 +2470,6 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
 
-        /*
-         * Four accumulators plus the shared right-operand vector and one broadcast
-         * all fit in the sixteen YMM registers in AVX2. Other archs have more registers.
-         */
         final int jLimit = FLOAT_SPECIES.loopBound(n);
         int j = 0;
         for (; j < jLimit; j += FLOAT_SPECIES.length()) {

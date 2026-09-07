@@ -171,19 +171,12 @@ public class MapperBuilderContext {
         return isSourceSynthetic;
     }
 
-    /**
-     * Is {@code _source} the single blob {@code columnar_stored} materializes at index time? Such a {@code _source} also
-     * reports {@link #isSourceSynthetic()}, since mappers have to prepare the same fallback storage the synthetic path reads
-     * to build that blob.
-     */
+    /** Is {@code _source} the single blob {@code columnar_stored} materializes at index time? */
     public boolean isSourceColumnarStored() {
         return isSourceColumnarStored;
     }
 
-    /**
-     * Is {@code _source} stored in the index as the document was sent, rather than rebuilt at read time from the fields
-     * themselves? {@code columnar_stored} answers {@code false} here and {@link #isSourceColumnarStored()} instead.
-     */
+    /** Is {@code _source} stored in the index rather than rebuilt from the fields at read time? */
     public boolean isSourceStored() {
         return isSourceSynthetic == false;
     }

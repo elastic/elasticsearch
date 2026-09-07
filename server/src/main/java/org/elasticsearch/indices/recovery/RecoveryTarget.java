@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -273,7 +273,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @param e               exception that encapsulating the failure
      * @param failureStrategy failure strategy decides if master should be notified
      */
-    public void fail(RecoveryFailedException e, RecoveryListener.FailureStrategy failureStrategy) {
+    public void fail(RecoveryFailedException e, FailureStrategy failureStrategy) {
         if (finished.compareAndSet(false, true)) {
             try {
                 listener.onRecoveryFailure(e, failureStrategy);

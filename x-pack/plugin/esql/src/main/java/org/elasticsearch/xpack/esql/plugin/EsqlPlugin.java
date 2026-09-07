@@ -224,10 +224,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * Name of the dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline. Sized
      * {@code 0..}{@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#externalIoThreads(Settings)}
-     * — tracking the same single CPU-scaled knob ({@code snapshot_meta} shape, capped at 100, or the
-     * {@code esql.external.max_concurrent_requests} operator override) that sizes the permit semaphore and the S3/Azure
-     * SDK connection pools, so the pool cannot diverge from the concurrency the reads are permitted. Scales from 0 so
-     * idle nodes pay nothing. See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
+     * — tracking the same heap- and CPU-scaled knob (memory-capped, ceiling 100, or a
+     * {@code esql.external.max_concurrent_requests} override still clipped by the memory term)
+     * that sizes the permit semaphore and the S3/Azure SDK connection pools, so the pool cannot
+     * diverge from the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
+     * See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
      */
     public static final String EXTERNAL_IO_THREAD_POOL_NAME = "esql_external_io";
 
@@ -843,9 +844,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that
-            // consume their output. Max is the single CPU-scaled concurrency knob (snapshot_meta shape, capped at
-            // 100, or the esql.external.max_concurrent_requests override) that also sizes the permit semaphore, so
-            // pool capacity tracks the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
+            // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
+            // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
+            // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
+            // Scales from 0 so idle nodes pay nothing.
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -18,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -147,10 +149,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * and status signal is preserved. A retryable transport status (5xx/429) becomes an
      * {@link ExternalUnavailableException} (503 — the read may
      * succeed on retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
-     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
+     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. An
+     * {@link SdkClientException} whose cause chain contains an {@link IOException} is the same 503:
+     * the SDK never got a response (connection drop / no HTTP response). Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
-     * error is not retried and is not disguised as a client 400. A missing object or any other
-     * failure becomes an {@link IOException},
+     * error is not retried and is not disguised as a client 400. A missing object, a credential
+     * failure, or any other failure becomes an {@link IOException},
      * which the external source operator classifies as a client-class 400. Returns the exception
      * (never throws) so both the synchronous and async read paths can route it.
      */
@@ -202,6 +206,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause)
             );
         }
+        if (isSdkClientTransportFailure(cause)) {
+            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", path, S3FailureDetail.of(cause));
+        }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
@@ -249,6 +256,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             current = next;
         }
         return false;
+    }
+
+    /**
+     * {@link SdkClientException} with an {@link IOException} below it is a dropped connection;
+     * credentials share the type but have no I/O cause.
+     */
+    static boolean isSdkClientTransportFailure(Throwable cause) {
+        Throwable sdk = ExceptionsHelper.unwrap(cause, SdkClientException.class);
+        return sdk != null && ExceptionsHelper.unwrap(sdk.getCause(), IOException.class) != null;
     }
 
     /**

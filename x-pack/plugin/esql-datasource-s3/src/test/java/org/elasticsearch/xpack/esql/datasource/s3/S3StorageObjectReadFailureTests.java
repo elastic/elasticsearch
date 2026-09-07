@@ -78,6 +78,31 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertNotNull(ExceptionsHelper.unwrap(eue, IllegalStateException.class));
     }
 
+    public void testSdkClientExceptionWrappingTransportIoExceptionIsUnavailable503() {
+        S3Client mockS3 = mock(S3Client.class);
+        IOException io = new IOException("The target server failed to respond");
+        SdkClientException wrapped = SdkClientException.create("Unable to execute HTTP request", io);
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(wrapped);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertSame(wrapped, eue.getCause());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertFalse(eue.throttling());
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(eue)));
+    }
+
+    public void testSdkClientExceptionWithoutIoCauseStaysClientError() {
+        S3Client mockS3 = mock(S3Client.class);
+        SdkClientException credentials = SdkClientException.create("Could not load credentials");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(credentials);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertSame(credentials, thrown.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
     public void testNoSuchKeyStaysIoException() {
         S3Client mockS3 = mock(S3Client.class);
         NoSuchKeyException missing = NoSuchKeyException.builder().statusCode(404).message("Not Found").build();

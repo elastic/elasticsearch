@@ -84,7 +84,10 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
             esql("SET unmapped_fields=\"nullify\"; FROM " + nested + " | KEEP id, item.value | SORT id"),
             equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null)))
         );
-        assertThat(esql("SET unmapped_fields=\"nullify\"; FROM " + nested + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(0L))));
+        assertThat(
+            esql("SET unmapped_fields=\"nullify\"; FROM " + nested + " | STATS c = COUNT(item.value)"),
+            equalTo(List.of(List.of(0L)))
+        );
     }
 
     /**

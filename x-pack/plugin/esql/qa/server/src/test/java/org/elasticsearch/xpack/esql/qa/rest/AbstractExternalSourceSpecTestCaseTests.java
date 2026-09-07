@@ -22,6 +22,14 @@ import static org.hamcrest.Matchers.not;
 
 public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
 
+    /**
+     * A resource naming a template whose rows ARE column-aligned. The tests below exercise where the key
+     * lands in the JSON, not whether the dataset needs it, so they name a padded template to keep the
+     * injection switched on; {@link #testTrimSpacesIsNotInjectedForADatasetThatPadsNothing} covers the
+     * per-source decision itself.
+     */
+    private static final String PADDED = "{{employees}}.csv";
+
     public void testResolveLocalUriHandlesLiteralPath() {
         Path base = Paths.get("/tmp/fixtures").toAbsolutePath();
         String uri = AbstractExternalSourceSpecTestCase.resolveLocalUri(base, "standalone/employees.csv");
@@ -58,31 +66,31 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
     }
 
     public void testInjectTrimSpacesAddsToNullWith() {
-        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces(null));
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces(null, PADDED));
     }
 
     public void testInjectTrimSpacesAddsToEmptyObject() {
-        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}"));
-        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{ }"));
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}", PADDED));
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{ }", PADDED));
     }
 
     public void testInjectTrimSpacesMergesIntoExistingOptions() {
         assertEquals(
             "{\"header_row\": false, \"trim_spaces\": true}",
-            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"header_row\": false}")
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"header_row\": false}", PADDED)
         );
     }
 
     public void testInjectTrimSpacesLeavesExplicitTrimSpacesUntouched() {
         String withJson = "{\"trim_spaces\": false}";
-        assertEquals(withJson, AbstractExternalSourceSpecTestCase.injectTrimSpaces(withJson));
+        assertEquals(withJson, AbstractExternalSourceSpecTestCase.injectTrimSpaces(withJson, PADDED));
     }
 
     public void testInjectTrimSpacesDoesNotFalseMatchAValue() {
         // "trim_spaces" appears only as a value here, so the injection must still fire.
         assertEquals(
             "{\"null_value\": \"trim_spaces\", \"trim_spaces\": true}",
-            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"null_value\": \"trim_spaces\"}")
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"null_value\": \"trim_spaces\"}", PADDED)
         );
     }
 
@@ -95,7 +103,10 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
     public void testInjectTrimSpacesLandsOutsideATrailingNestedObject() {
         assertEquals(
             "{\"mappings\": {\"properties\": {\"a\": {\"type\": \"keyword\"}}}, \"trim_spaces\": true}",
-            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{\"mappings\": {\"properties\": {\"a\": {\"type\": \"keyword\"}}}}")
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces(
+                "{\"mappings\": {\"properties\": {\"a\": {\"type\": \"keyword\"}}}}",
+                PADDED
+            )
         );
     }
 
@@ -108,7 +119,8 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         assertEquals(
             "{\"mappings\": {\"properties\": {\"trim_spaces\": {\"type\": \"keyword\"}}}, \"trim_spaces\": true}",
             AbstractExternalSourceSpecTestCase.injectTrimSpaces(
-                "{\"mappings\": {\"properties\": {\"trim_spaces\": {\"type\": \"keyword\"}}}}"
+                "{\"mappings\": {\"properties\": {\"trim_spaces\": {\"type\": \"keyword\"}}}}",
+                PADDED
             )
         );
     }
@@ -116,7 +128,7 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
     /** An explicitly-set trim_spaces SETTING is still left untouched, alongside a declared schema. */
     public void testInjectTrimSpacesLeavesAnExplicitSettingUntouchedBesideADeclaration() {
         String withJson = "{\"trim_spaces\": false, \"mappings\": {\"dynamic\": \"false\"}}";
-        assertEquals(withJson, AbstractExternalSourceSpecTestCase.injectTrimSpaces(withJson));
+        assertEquals(withJson, AbstractExternalSourceSpecTestCase.injectTrimSpaces(withJson, PADDED));
     }
 
     /**
@@ -224,5 +236,34 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
             "a case declaring no pragma carries fine",
             AbstractExternalSourceSpecTestCase.pragmaPins(new Object[] { "spec", "name", null, null, silent }, pragmas)
         );
+    }
+
+    /**
+     * A dataset whose rows pad nothing gets no {@code trim_spaces}, and that is what reopens the glob cell.
+     *
+     * <p>The key is FORMAT-SPECIFIC, and elastic/esql-planning#1841 makes any dataset carrying one
+     * unregisterable under a `?` glob -- so injecting it blanket cost csv and tsv the whole
+     * {@code path_shape=glob} cell, for eight of ten datasets that never needed it. Measured on the
+     * authored bytes: only employees and employees_no_mv are column-aligned.
+     *
+     * <p>Paired with the padded control, because "nothing is injected anywhere" would pass the first
+     * assertion alone while silently misparsing the two datasets that do pad.
+     */
+    public void testTrimSpacesIsNotInjectedForADatasetThatPadsNothing() {
+        assertEquals(
+            "an unpadded dataset must carry no format-specific key, or it cannot be registered under a glob",
+            "{}",
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}", "{{apps}}.csv")
+        );
+        assertEquals(
+            "a padded dataset still needs it, or its rows misparse",
+            "{\"trim_spaces\": true}",
+            AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}", "{{employees}}.csv")
+        );
+    }
+
+    /** A resource naming no template at all keeps the injection, since nothing declares it unpadded. */
+    public void testTrimSpacesIsInjectedWhenTheResourceNamesNoTemplate() {
+        assertEquals("{\"trim_spaces\": true}", AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}", "s3://bucket/loose/file.csv"));
     }
 }

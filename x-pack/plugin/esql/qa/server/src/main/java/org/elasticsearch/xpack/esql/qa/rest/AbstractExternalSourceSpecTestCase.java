@@ -1459,7 +1459,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // the formats whose reader accepts the delimited-text keys. Listing them meant a new text
             // format would silently stop getting trim_spaces while every test still passed.
             boolean csvOrTsv = FixtureDimensions.get().appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
-            String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource()) : s.withJson();
+            String json = csvOrTsv ? injectMultiValueSyntax(injectTrimSpaces(s.withJson(), s.resource()), s.resource()) : s.withJson();
             // Then whatever the running vector pins. A directive-bound dimension at its default injects
             // nothing -- omission IS the default -- so an unvaried suite produces byte-identical JSON to
             // before, which is what lets vectors be introduced one dimension at a time.
@@ -1618,8 +1618,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
      * structural closer, outside any nested object.
      */
-    static String injectTrimSpaces(String withJson) {
+    static String injectTrimSpaces(String withJson, String resource) {
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
+            return withJson;
+        }
+        // Per SOURCE, from the declaration -- not blanket. trim_spaces is a FORMAT-SPECIFIC key, and a
+        // dataset carrying one cannot be registered under a `?` glob (elastic/esql-planning#1841), so
+        // injecting it into datasets whose rows are not padded was buying nothing and costing the whole
+        // path_shape=glob cell on csv and tsv. Measured: eight of the ten routed datasets pad nothing.
+        // This mirrors injectMultiValueSyntax, which has always been per-source for the same reason.
+        String template = templateNameIn(resource);
+        if (template != null && MATRIX.paddedForTemplate(template) == false) {
             return withJson;
         }
         if (withJson == null) {

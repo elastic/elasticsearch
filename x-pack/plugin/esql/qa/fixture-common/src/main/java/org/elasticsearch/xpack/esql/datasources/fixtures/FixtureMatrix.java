@@ -53,7 +53,7 @@ public final class FixtureMatrix {
     private static final List<Pattern> KNOWN_KEYS = List.of(
         Pattern.compile("formats"),
         Pattern.compile("dataset\\.[a-z0-9_]+"),
-        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|unrepresentable_dialects)"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect|padded|unrepresentable_dialects)"),
         Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects(\\.[a-z_]+)?\\.reason"),
         Pattern.compile("dataset\\.[a-z0-9_]+\\.unrepresentable_dialects\\.[a-z_]+"),
         Pattern.compile("layout\\.[a-z_]+\\.(dir|glob|sources|derived_from|bucket_by|partition_column)"),
@@ -297,6 +297,35 @@ public final class FixtureMatrix {
         }
         String derived = declaration.getProperty("layout." + layout.name() + ".derived_from");
         return derived == null ? null : derived.trim();
+    }
+
+    /**
+     * Whether a template's authored rows are column-aligned, so reading them needs {@code trim_spaces}.
+     *
+     * <p>Declared rather than sniffed, and verified against the bytes by {@code checkFixturePadding} --
+     * the same shape as {@link #writeDialectForTemplate}, because it is the same kind of fact: a property
+     * of the authored data that one spec cannot answer for all the datasets it reads.
+     *
+     * <p>A template with no dataset is assembled from its own authored sources, which are written by
+     * {@code TextRowRenderer} and are unpadded by construction.
+     */
+    public boolean paddedForTemplate(String templateName) {
+        String dataset = datasetForTemplate(templateName);
+        if (dataset == null) {
+            return false;
+        }
+        String declared = declaration.getProperty("dataset." + dataset + ".padded");
+        if (declared == null) {
+            throw new IllegalStateException(
+                "dataset ["
+                    + dataset
+                    + "] declares no [dataset."
+                    + dataset
+                    + ".padded]; whether its rows are column-aligned decides whether trim_spaces is injected, "
+                    + "and guessing it wrong either misparses the data or makes the dataset unregisterable under a glob"
+            );
+        }
+        return Boolean.parseBoolean(declared);
     }
 
     public String writeDialectForTemplate(String templateName) {

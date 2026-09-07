@@ -696,7 +696,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
-        assertThat(seen[0], equalTo(33464));
+        assertThat(seen[0], equalTo(33446));
     }
 
     private static Properties realDeclaration() {

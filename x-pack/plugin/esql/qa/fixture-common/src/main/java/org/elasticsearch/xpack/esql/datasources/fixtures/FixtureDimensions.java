@@ -646,6 +646,18 @@ public final class FixtureDimensions {
                 String rest = key.substring("pair.".length());
                 // pair.<a>.<b> is the verdict; pair.<a>.<b>.why carries the mechanism for a reader.
                 if (rest.endsWith(".value_disjoint.why")) {
+                    // A disjoint pair may be a law or a defect, and the reason says which by the same
+                    // convention absences use. Optional, because most are laws and say so in prose -- but a
+                    // reason CLAIMING `bug:` owes the citation, or "delete this when it is fixed" points at
+                    // nothing and the entry outlives the defect exactly as a stale absence would.
+                    if (value.startsWith("bug:") && ISSUE_REFERENCE.matcher(value).find() == false) {
+                        throw new IllegalStateException(
+                            "value_disjoint reason for ["
+                                + rest
+                                + "] declares [bug:] but cites no issue; "
+                                + "a pair blocked on a defect needs the defect, so the entry can be deleted when it is fixed"
+                        );
+                    }
                     disjointWhys.add(rest.substring(0, rest.length() - ".value_disjoint.why".length()));
                     continue;
                 }

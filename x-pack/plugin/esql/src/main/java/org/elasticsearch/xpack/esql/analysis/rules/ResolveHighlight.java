@@ -54,7 +54,11 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         boolean star = fields.size() == 1 && fields.getFirst() instanceof UnresolvedStar;
         if (star || (fields.isEmpty() && query != null && query.resolved())) {
             List<Attribute> childOutput = highlight.child().output();
-            String unhighlightable = star ? null : HighlightSupport.unhighlightableQueryField(query, childOutput);
+            // A derived query is not held to the field types an explicit one is: it was borrowed from an upstream WHERE
+            // that may legitimately search non-text fields, and deriveFields already drops those names. Highlighting the
+            // text fields that remain beats rejecting a query the user never wrote on this command. Same explicit-strict,
+            // implicit-lenient split as the ON-membership check in Highlight#verifyQuery.
+            String unhighlightable = star || implicit ? null : HighlightSupport.unhighlightableQueryField(query, childOutput);
             if (unhighlightable != null) {
                 // The query names a concrete field that is not text/keyword (a missing one would have failed query
                 // resolution). Report it through the unresolved-attribute channel so Verifier#checkUnresolvedAttributes

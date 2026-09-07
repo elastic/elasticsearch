@@ -4855,6 +4855,44 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testDerivedOnRejectsNonHighlightableQueryField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(id, 1)",
+            allOf(
+                containsString("id"),
+                containsString("text or keyword"),
+                not(containsString("found no text or keyword fields to highlight"))
+            )
+        );
+    }
+
+    public void testNotUnsupportedQueryReportsStructuralErrorNotEmptyOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | HIGHLIGHT NOT (LENGTH(title) > 3)",
+            allOf(
+                containsString("HIGHLIGHT query must be a full-text function"),
+                not(containsString("found no text or keyword fields to highlight"))
+            )
+        );
+    }
+
+    public void testQstrQualifierWithDefaultFieldAcceptedWithoutOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT QSTR(\"body:fox\", {\"default_field\": \"title\"})");
+    }
+
+    public void testNotKqlFallsBackWithoutExplicitOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT NOT KQL(\"foo\")");
+    }
+
+    public void testMatchAndNotQstrAcceptedWithoutOn() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND NOT QSTR(\"body:bar\")");
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -24,9 +25,12 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -79,6 +83,11 @@ public class FieldNameUtils {
         Latest.NAME.toLowerCase(Locale.ROOT)
     );
 
+    // Full-text function-call names whose first argument is the field a no-ON HIGHLIGHT would target. The `:` operator
+    // parses to a Match directly, but the MATCH(...) / MATCH_PHRASE(...) call forms are still UnresolvedFunctions here.
+    private static final String HIGHLIGHT_MATCH = "match";
+    private static final String HIGHLIGHT_MATCH_PHRASE = "match_phrase";
+
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
@@ -114,20 +123,6 @@ public class FieldNameUtils {
         if (projectAll.get() == false) {
             parsed.forEachDown(Dedup.class, d -> {
                 if (d.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
-                    projectAll.set(true);
-                }
-            });
-        }
-
-        // HIGHLIGHT with an empty ON list (bare HIGHLIGHT / query with no ON, derivedFields == true)
-        // derives its targets from every text/keyword column of the child. Those names are not in
-        // Highlight.references() until analysis, so a downstream KEEP/STATS that only names
-        // highlight_* would otherwise never request the source columns from field-caps.
-        // Mappings are not available yet. Request ALL_FIELDS, same as Enrich / Dedup / UnresolvedStar.
-        // ON * is already covered by the UnresolvedStar walk above; leave that path alone.
-        if (projectAll.get() == false) {
-            parsed.forEachDown(Highlight.class, h -> {
-                if (h.fields().isEmpty()) {
                     projectAll.set(true);
                 }
             });
@@ -314,6 +309,19 @@ public class FieldNameUtils {
                 sj.left().forEachDownMayReturnEarly(forEachDownProcessor.get());
                 breakEarly.set(true);
                 return;
+            } else if (p instanceof Highlight highlight && highlight.fields().isEmpty()) {
+                // A no-ON HIGHLIGHT derives its targets from the child's text/keyword columns during analysis, so its
+                // own references() (the ON fields) are empty here. Collect the concrete fields the query names so a
+                // downstream KEEP highlight_x still requests them from field-caps. A query that names no concrete field
+                // (a literal, KQL, QSTR, a negative clause, or an unrecognised shape) may match through any column:
+                // unless its subtree already narrows the schema (e.g. an upstream KEEP), request everything - same as
+                // Enrich / Dedup / UnresolvedStar. ON * keeps a non-empty field list and is handled above.
+                boolean narrowed = highlight.query() != null && collectHighlightQueryReferences(highlight.query(), referencesBuilder.get());
+                if (narrowed == false && highlight.anyMatch(sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)) == false) {
+                    projectAll.set(true);
+                    breakEarly.set(true);
+                    return;
+                }
             } else {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
@@ -483,6 +491,44 @@ public class FieldNameUtils {
             }
         });
         return requireFieldCollection.get();
+    }
+
+    /**
+     * Mirrors {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields} at parse time,
+     * where the HIGHLIGHT query is still unresolved. Adds the references of the concrete fields the query names to
+     * {@code refs} and returns {@code true}, or returns {@code false} when the query cannot be narrowed to specific
+     * fields - a literal, {@code KQL}, {@code QSTR}, a negative clause, or any unrecognised shape - and its no-ON
+     * HIGHLIGHT therefore targets every text/keyword column. Callers treat {@code false} as "request all fields".
+     * <p>
+     * The {@code :} operator parses to a concrete {@link Match} even before analysis, whereas the {@code MATCH(...)} /
+     * {@code MATCH_PHRASE(...)} call forms are still {@link UnresolvedFunction}s here, so both are handled.
+     */
+    private static boolean collectHighlightQueryReferences(Expression query, AttributeSet.Builder refs) {
+        switch (query) {
+            case Match match -> {
+                refs.addAll(match.field().references());
+                return true;
+            }
+            case MatchPhrase matchPhrase -> {
+                refs.addAll(matchPhrase.field().references());
+                return true;
+            }
+            case BinaryLogic binary -> {
+                return collectHighlightQueryReferences(binary.left(), refs) && collectHighlightQueryReferences(binary.right(), refs);
+            }
+            case UnresolvedFunction uf -> {
+                String name = uf.name().toLowerCase(Locale.ROOT);
+                if ((name.equals(HIGHLIGHT_MATCH) || name.equals(HIGHLIGHT_MATCH_PHRASE)) && uf.children().isEmpty() == false) {
+                    refs.addAll(uf.children().getFirst().references());
+                    return true;
+                }
+                return false;
+            }
+            // A literal, KQL, QSTR, a negative clause, or any other shape may match through any column - request all.
+            default -> {
+                return false;
+            }
+        }
     }
 
     /**

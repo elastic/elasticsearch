@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -62,7 +63,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldNames;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.soleHighlight;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -3319,5 +3323,29 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
         assertThat(Expressions.names(dv.fields()), contains("keyword_copy"));
         assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_copy_dense_vector"));
+    }
+
+    public void testHighlightPrunesUnusedGeneratedColumns() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP highlight_first_name
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name")));
+    }
+
+    public void testHighlightRemovedWhenNoGeneratedColumnUsed() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x"
+            | KEEP emp_no
+            """, Highlight.ESQL_HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS);
+
+        assertFalse("HIGHLIGHT is purely additive, so an unused node should be dropped", plan.anyMatch(p -> p instanceof Highlight));
     }
 }

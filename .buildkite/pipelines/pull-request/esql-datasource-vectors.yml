@@ -7,7 +7,8 @@
 # is an argument anyone can check rather than a list someone curated.
 #
 # Why this is free. Nothing under .buildkite/pipelines/pull-request/ declares depends_on -- measured
-# across all 57 step files -- so every PR step runs concurrently and the build's wall clock is the
+# across all 58 step files, parsing each and looking for the KEY rather than grepping the string,
+# which otherwise matches this very comment -- so every PR step runs concurrently and the clock is the
 # MAX over steps, not the sum. The three latest passed builds put the critical path at 40-56 minutes
 # (part-5 55.7, bwc-snapshots Part 3 54.1, part-2 40.3). A step finishing well inside that adds
 # nothing to how long a PR takes. Four more steps against ~57 is about 7% more machine time.

@@ -16,6 +16,8 @@ import org.apache.lucene.codecs.lucene104.Lucene104Codec;
  */
 public class Elasticsearch96Codec extends ElasticsearchCodec {
 
+    public static final String NAME = "Elasticsearch96";
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch96Codec() {
         this(Lucene104Codec.Mode.BEST_SPEED);
@@ -43,6 +45,6 @@ public class Elasticsearch96Codec extends ElasticsearchCodec {
         ElasticsearchStoredFieldsFormat.Mode legacyMode,
         boolean syntheticId
     ) {
-        super("Elasticsearch96", new Lucene104Codec(luceneMode), storedFieldsMode, legacyMode, syntheticId);
+        super(NAME, new Lucene104Codec(luceneMode), storedFieldsMode, legacyMode, syntheticId);
     }
 }

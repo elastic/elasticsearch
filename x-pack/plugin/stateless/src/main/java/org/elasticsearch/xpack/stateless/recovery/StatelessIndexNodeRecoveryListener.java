@@ -191,7 +191,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             }
 
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-            if (lastCommitBlobs != null && lastCommitIsHollow == false && blobFileRanges.isEmpty()) {
+            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
                 warmingService.warmCacheForBCCHeadersRead(
                     indexShard,
                     directory,

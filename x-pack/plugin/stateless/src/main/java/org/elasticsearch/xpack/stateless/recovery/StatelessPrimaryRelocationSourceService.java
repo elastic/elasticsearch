@@ -429,7 +429,9 @@ public class StatelessPrimaryRelocationSourceService {
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
                     final var blobStoreCacheDirectory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-                    final Map<String, BlobFileRanges> blobFileRanges = blobStoreCacheDirectory.getCurrentMetadata();
+                    final var latestCommit = latestBcc.lastCompoundCommit();
+                    final Map<String, BlobFileRanges> blobFileRanges = new HashMap<>(blobStoreCacheDirectory.getCurrentMetadata());
+                    blobFileRanges.keySet().retainAll(latestCommit.commitFiles().keySet());
 
                     parentClient.execute(
                         TransportStatelessPrimaryRelocationHandoffAction.TYPE,

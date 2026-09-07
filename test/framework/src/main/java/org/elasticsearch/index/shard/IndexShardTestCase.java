@@ -121,6 +121,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -156,12 +157,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-            throw new AssertionError(e);
-        }
-
-        @Override
-        public void onRecoveryAborted() {
             // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
+            if (failureStrategy != ABORT) throw new AssertionError(e);
         }
     };
 

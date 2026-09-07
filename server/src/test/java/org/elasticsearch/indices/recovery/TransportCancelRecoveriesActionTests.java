@@ -495,12 +495,11 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-                cancelled.set(true);
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("recovery should be cancelled");
+                if (e instanceof RecoveryCancelledException) {
+                    cancelled.set(true);
+                } else {
+                    fail("unexpected failure");
+                }
             }
         },
             newRecoveryState(shardId),

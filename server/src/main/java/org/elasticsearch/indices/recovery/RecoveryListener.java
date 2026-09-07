@@ -29,9 +29,6 @@ public interface RecoveryListener {
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {}
-
-        @Override
-        public void onRecoveryAborted() {}
     };
 
     /// Called when recovery finishes successfully.
@@ -43,9 +40,6 @@ public interface RecoveryListener {
 
     /// Called when recovery fails with an exception.
     void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy);
-
-    /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
-    void onRecoveryAborted();
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
@@ -64,13 +58,6 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try (ThreadContext.StoredContext ignore = context.get()) {
                     listener.onRecoveryFailure(e, failureStrategy);
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryAborted();
                 }
             }
         };
@@ -96,15 +83,6 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     listener.onRecoveryFailure(e, failureStrategy);
-                } finally {
-                    runAfter.run();
-                }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                try {
-                    listener.onRecoveryAborted();
                 } finally {
                     runAfter.run();
                 }
@@ -136,15 +114,6 @@ public interface RecoveryListener {
                     listener.onRecoveryFailure(e, failureStrategy);
                 }
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                try {
-                    runBefore.run();
-                } finally {
-                    listener.onRecoveryAborted();
-                }
-            }
         };
     }
 
@@ -169,11 +138,6 @@ public interface RecoveryListener {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 listener.onRecoveryFailure(e, failureStrategy);
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                listener.onRecoveryAborted();
-            }
         };
     }
 
@@ -197,11 +161,6 @@ public interface RecoveryListener {
                 } finally {
                     listener.onRecoveryFailure(e, failureStrategy);
                 }
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                listener.onRecoveryAborted();
             }
         };
     }
@@ -246,17 +205,6 @@ public interface RecoveryListener {
                         }
                         assert false : ex;
                         throw ex;
-                    }
-                }
-
-                @Override
-                public void onRecoveryAborted() {
-                    assertFirstRun();
-                    try {
-                        delegate.onRecoveryAborted();
-                    } catch (Exception e) {
-                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
-                        throw e;
                     }
                 }
             };

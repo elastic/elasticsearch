@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 
 /**
@@ -257,9 +258,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
             try {
-                logger.debug("recovery canceled (reason: [{}])", reason);
+                String message = "recovery canceled (reason: [" + reason + "])";
+                logger.debug(message);
                 cancellableThreads.cancel(reason);
-                listener.onRecoveryAborted();
+                listener.onRecoveryFailure(new RecoveryFailedException(state(), message, null), ABORT);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();

@@ -6140,11 +6140,6 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assert false : "Unexpected failure";
             }
-
-            @Override
-            public void onRecoveryAborted() {
-                assert false : "Unexpected abort";
-            }
         };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override

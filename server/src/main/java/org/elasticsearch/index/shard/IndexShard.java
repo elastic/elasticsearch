@@ -210,6 +210,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
@@ -3978,7 +3979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (recoveryDone) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             } else {
-                recoveryListener.onRecoveryAborted();
+                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, "abort recovery", null), ABORT);
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND));
         ActionListener.run(actionListener, action);

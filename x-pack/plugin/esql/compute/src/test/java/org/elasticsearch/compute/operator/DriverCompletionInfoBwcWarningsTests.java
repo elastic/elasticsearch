@@ -59,6 +59,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             List.of(),
             List.of(),
             null,
+            List.of(),
             false,
             false,
             Set.of()
@@ -98,7 +99,22 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(DriverCompletionInfo.ESQL_DRIVER_WARNINGS);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        DriverCompletionInfo original = new DriverCompletionInfo(1, 2, 0, 0, 0, 0, 0, List.of(), List.of(), null, false, false, Set.of());
+        DriverCompletionInfo original = new DriverCompletionInfo(
+            1,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            List.of(),
+            List.of(),
+            null,
+            List.of(),
+            false,
+            false,
+            Set.of()
+        );
         BytesReference bytes = serialize(original, oldVersion);
 
         DriverCompletionInfo deserialized = deserialize(bytes, oldVersion, threadContext);
@@ -128,6 +144,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             List.of(),
             List.of(),
             null,
+            List.of(),
             false,
             false,
             Set.of("wire warning 1", "wire warning 2")

@@ -62,6 +62,7 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.SourceReadStats;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
@@ -352,7 +353,8 @@ public class LocalExecutionPlanner {
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
-            new Holder<>()
+            new Holder<>(),
+            new ArrayList<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -380,7 +382,7 @@ public class LocalExecutionPlanner {
             )
         );
 
-        return new LocalExecutionPlan(context.driverFactories);
+        return new LocalExecutionPlan(context.driverFactories, context.sourceReadStatsList);
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
@@ -2213,6 +2215,9 @@ public class LocalExecutionPlanner {
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        if (factory instanceof SourceReadStats sourceReadStats) {
+            context.addSourceReadStats(sourceReadStats);
+        }
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
@@ -2605,10 +2610,15 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
-        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
+        List<SourceReadStats> sourceReadStatsList
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
+        }
+
+        void addSourceReadStats(SourceReadStats stats) {
+            sourceReadStatsList.add(stats);
         }
 
         void driverParallelism(DriverParallelism parallelism) {
@@ -2711,9 +2721,15 @@ public class LocalExecutionPlanner {
      */
     public static class LocalExecutionPlan implements Describable {
         final List<DriverFactory> driverFactories;
+        final List<SourceReadStats> sourceReadStats;
 
-        LocalExecutionPlan(List<DriverFactory> driverFactories) {
+        LocalExecutionPlan(List<DriverFactory> driverFactories, List<SourceReadStats> sourceReadStats) {
             this.driverFactories = driverFactories;
+            this.sourceReadStats = sourceReadStats;
+        }
+
+        public List<SourceReadStats> sourceReadStats() {
+            return sourceReadStats;
         }
 
         public List<Driver> createDrivers(String sessionId) {

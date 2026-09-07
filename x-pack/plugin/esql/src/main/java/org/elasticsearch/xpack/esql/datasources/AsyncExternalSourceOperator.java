@@ -199,10 +199,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        // Lift format-reader read_nanos and read_cpu_nanos to the operator top level for rollup.
-        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
-        long readCpuNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readCpuNanos();
         return new Status(
             buffer.size(),
             pagesEmitted,
@@ -214,9 +210,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.splitsTotal(),
             buffer.currentSplit(),
             buffer.bytesRead(),
-            readNanos,
-            readCpuNanos,
-            formatReaderStatus,
+            buffer.formatReaderStatus(),
             buffer.capturedSourceMetadataSnapshot(),
             buffer.isPartial()
         );
@@ -249,8 +243,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final int splitsTotal;
         private final int currentSplit;
         private final long bytesRead;
-        private final long readNanos;
-        private final long readCpuNanos;
         private final FormatReaderStatus formatReader;
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
         private final boolean partial;
@@ -266,8 +258,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int splitsTotal,
             int currentSplit,
             long bytesRead,
-            long readNanos,
-            long readCpuNanos,
             FormatReaderStatus formatReader,
             Map<String, List<Map<String, Object>>> capturedSourceMetadata,
             boolean partial
@@ -282,8 +272,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.splitsTotal = splitsTotal;
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
-            this.readNanos = readNanos;
-            this.readCpuNanos = readCpuNanos;
             this.formatReader = formatReader;
             this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
             this.partial = partial;
@@ -301,7 +289,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal = in.readVInt();
                 currentSplit = in.readVInt();
                 bytesRead = in.readVLong();
-                readNanos = in.readVLong();
+                in.readVLong(); // discarded: readNanos moved to factory-level SourceReaderProfile
                 formatReader = in.readOptionalNamedWriteable(FormatReaderStatus.class);
             } else {
                 processNanos = 0L;
@@ -309,10 +297,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal = 0;
                 currentSplit = 0;
                 bytesRead = 0L;
-                readNanos = 0L;
                 formatReader = null;
             }
-            readCpuNanos = in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L;
+            if (in.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+                in.readVLong(); // discarded: readCpuNanos moved to factory-level SourceReaderProfile
+            }
             if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 int n = in.readVInt();
                 if (n == 0) {
@@ -351,11 +340,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVInt(splitsTotal);
                 out.writeVInt(currentSplit);
                 out.writeVLong(bytesRead);
-                out.writeVLong(readNanos);
+                out.writeVLong(0L); // readNanos always 0; moved to factory-level SourceReaderProfile
                 out.writeOptionalNamedWriteable(formatReader);
             }
             if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
-                out.writeVLong(readCpuNanos);
+                out.writeVLong(0L); // readCpuNanos always 0; moved to factory-level SourceReaderProfile
             }
             if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 out.writeVInt(capturedSourceMetadata.size());
@@ -461,16 +450,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return bytesRead;
         }
 
-        @Override
-        public long readNanos() {
-            return readNanos;
-        }
-
-        @Override
-        public long readCpuNanos() {
-            return readCpuNanos;
-        }
-
         public FormatReaderStatus formatReader() {
             return formatReader;
         }
@@ -498,8 +477,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("splits_total", splitsTotal);
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
-            builder.field("read_nanos", readNanos);
-            builder.field("read_cpu_nanos", readCpuNanos);
             builder.field("stripes_committed", stripesCommitted());
             builder.field("partial", partial);
             builder.startObject("format_reader");
@@ -533,8 +510,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && splitsTotal == status.splitsTotal
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
-                && readNanos == status.readNanos
-                && readCpuNanos == status.readCpuNanos
                 && partial == status.partial
                 && Objects.equals(formatReader, status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg)
@@ -554,8 +529,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal,
                 currentSplit,
                 bytesRead,
-                readNanos,
-                readCpuNanos,
                 formatReader,
                 capturedSourceMetadata,
                 partial

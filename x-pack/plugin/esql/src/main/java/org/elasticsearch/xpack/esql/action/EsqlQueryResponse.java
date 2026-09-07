@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.SourceReaderProfile;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -57,6 +58,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
+    private static final TransportVersion ESQL_SOURCE_READER_PROFILES = TransportVersion.fromName("esql_source_reader_profiles");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -499,6 +501,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
             content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
+            if (profile.sourceReaderProfiles.isEmpty() == false) {
+                content.add(ChunkedToXContentHelper.array("source_readers", profile.sourceReaderProfiles.iterator()));
+            }
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
                 TransportVersion minimumVersion = profile.minimumVersion();
                 b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
@@ -628,7 +633,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return pages.stream().mapToLong(Page::getPositionCount).sum();
     }
 
-    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
+    public record Profile(
+        List<DriverProfile> drivers,
+        List<PlanProfile> plans,
+        TransportVersion minimumVersion,
+        List<SourceReaderProfile> sourceReaderProfiles
+    ) implements Writeable {
+
+        public Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) {
+            this(drivers, plans, minimumVersion, List.of());
+        }
 
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
@@ -636,7 +650,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
                     ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
                     : List.of(),
-                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null
+                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null,
+                in.getTransportVersion().supports(ESQL_SOURCE_READER_PROFILES)
+                    ? in.readCollectionAsImmutableList(SourceReaderProfile::readFrom)
+                    : List.of()
             );
         }
 
@@ -650,6 +667,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 // When retrieving the profile from an older node, there might be no minimum version attached.
                 // When writing the profile somewhere else, we need to handle the case that the minimum version is null.
                 writeOptionalTransportVersion(minimumVersion, out);
+            }
+            if (out.getTransportVersion().supports(ESQL_SOURCE_READER_PROFILES)) {
+                out.writeCollection(sourceReaderProfiles);
             }
         }
 

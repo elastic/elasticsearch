@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.SourceReaderProfile;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
@@ -29,7 +30,12 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles(), randomPlanProfiles(), randomMinimumVersion());
+        return new EsqlQueryResponse.Profile(
+            randomDriverProfiles(),
+            randomPlanProfiles(),
+            randomMinimumVersion(),
+            randomSourceReaderProfiles()
+        );
     }
 
     @Override
@@ -37,13 +43,18 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         var drivers = instance.drivers();
         var plans = instance.plans();
         var minimumVersion = instance.minimumVersion();
+        var sourceReaderProfiles = instance.sourceReaderProfiles();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> drivers = randomValueOtherThan(drivers, EsqlQueryResponseProfileTests::randomDriverProfiles);
             case 1 -> plans = randomValueOtherThan(plans, EsqlQueryResponseProfileTests::randomPlanProfiles);
             case 2 -> minimumVersion = randomValueOtherThan(minimumVersion, EsqlQueryResponseProfileTests::randomMinimumVersion);
+            case 3 -> sourceReaderProfiles = randomValueOtherThan(
+                sourceReaderProfiles,
+                EsqlQueryResponseProfileTests::randomSourceReaderProfiles
+            );
         }
-        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion);
+        return new EsqlQueryResponse.Profile(drivers, plans, minimumVersion, sourceReaderProfiles);
     }
 
     @Override
@@ -103,5 +114,12 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     public static TransportVersion randomMinimumVersion() {
         return randomBoolean() ? null : EsqlTestUtils.randomMinimumVersion();
+    }
+
+    private static List<SourceReaderProfile> randomSourceReaderProfiles() {
+        return randomList(
+            5,
+            () -> new SourceReaderProfile(randomIdentifier(), randomIdentifier(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
     }
 }

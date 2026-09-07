@@ -106,13 +106,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     public void testNoShardsCapacityMetadata() throws IOException {
         int maxShardsPerNode = randomValidMaxShards();
-        var clusterService = createClusterService(
-            maxShardsPerNode,
-            1,
-            1,
-            new HealthMetadata(DISK_METADATA, null),
-            createIndex(100)
-        );
+        var clusterService = createClusterService(maxShardsPerNode, 1, 1, new HealthMetadata(DISK_METADATA, null), createIndex(100));
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(HealthStatus.UNKNOWN, indicatorResult.status());

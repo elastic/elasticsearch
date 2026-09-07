@@ -71,6 +71,13 @@ public record InferenceSettings(
     );
 
     /**
+     * Maximum number of input texts coalesced into a single embedding inference request. Sized as
+     * {@link #DENSE_VECTOR_ROW_LIMIT_SETTING} / {@link InferenceOperator#DEFAULT_MAX_OUTSTANDING_REQUESTS} so that a
+     * full page of rows keeps the operator's concurrency window saturated in a single wave.
+     */
+    public static final int DENSE_VECTOR_DEFAULT_BATCH_SIZE = 20;
+
+    /**
      * The default inference endpoint id used by the {@code DENSE_VECTOR} command when the query does not provide one via
      * {@code WITH { "inference_id": ... }}. An empty value means "not set": resolution falls through to the built-in default
      * ({@code DenseVector.DEFAULT_INFERENCE_ID}).

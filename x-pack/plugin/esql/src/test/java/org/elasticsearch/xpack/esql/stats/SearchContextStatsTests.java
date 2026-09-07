@@ -622,6 +622,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     /**
      * Nested subfields are in the mapping but field caps filters them ({@code -nested}).
      * Stats must treat them as absent so {@code exists}/{@code count} match extraction.
+     * If ES|QL later supports nested fields, these expectations will need updating.
      */
     public void testNestedSubfieldIsNotExtractable() throws IOException {
         final List<Closeable> toClose = new ArrayList<>();

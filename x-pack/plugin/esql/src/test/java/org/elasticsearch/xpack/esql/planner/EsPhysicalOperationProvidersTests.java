@@ -216,6 +216,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
      * never plans them. The shard must return constant nulls rather than the nested field's
      * real doc-values loader, or a cross-index type skew crashes
      * {@code ValuesSourceReaderOperator.sanityCheckBlock} (see #154011).
+     * If ES|QL later supports nested fields, these expectations will need updating.
      */
     public void testNestedSubfieldBlockLoaderReturnsNull() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(

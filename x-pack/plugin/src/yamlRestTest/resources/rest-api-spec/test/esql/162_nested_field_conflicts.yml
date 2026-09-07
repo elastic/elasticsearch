@@ -9,6 +9,7 @@ setup:
           capabilities: [ fix_nested_subfield_extraction ]
       reason: "Nested subfields must be treated as absent at extraction (#154011)"
 
+  # If ES|QL later supports nested fields, these expectations will need updating.
   # nest_int: item.value is integer under nested (hidden from field caps).
   # obj_long: item.value is long under a plain object (the planned type).
   - do:

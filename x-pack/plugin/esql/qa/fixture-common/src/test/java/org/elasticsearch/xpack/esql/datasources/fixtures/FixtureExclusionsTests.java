@@ -209,8 +209,14 @@ public class FixtureExclusionsTests extends ESTestCase {
                     int dot = trimmed.indexOf('.');
                     String dimension = trimmed.substring(0, dot);
                     String value = trimmed.substring(dot + 1);
-                    // `rerendered` is derived by the suite rather than declared, so it has no value list.
+                    // `rerendered` is derived by the suite rather than declared, so it has no value list --
+                    // but it is not therefore unconstrained. The suite computes it with String.valueOf on a
+                    // boolean, so exactly two spellings ever reach a vector, and skipping the check let
+                    // @rerendered.tru through to match nothing in silence. Checked against the two.
                     if (dimension.equals("rerendered")) {
+                        if (value.equals("true") == false && value.equals("false") == false) {
+                            bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- [rerendered] is a boolean");
+                        }
                         continue;
                     }
                     if (dimensions.names().contains(dimension) == false) {

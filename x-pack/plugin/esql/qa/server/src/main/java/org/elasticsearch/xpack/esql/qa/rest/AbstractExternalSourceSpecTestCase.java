@@ -687,27 +687,28 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
         }
         CsvTestCase testCase = (CsvTestCase) baseTest[4];
+        String format = vector.get("format");
+        // Only the text formats get anything injected per source, so only they can pick up a key that way.
+        // Asking the others is not merely pointless -- injectMultiValueSyntax reaches
+        // writeDialectForTemplate, which throws for a dataset that declares no dialect, and the columnar
+        // datasets legitimately do not: bracket multi-values are a delimited-text notion. Measured, this
+        // filter reaching clickbench on parquet failed the whole suite at initialization. Scoped with the
+        // same question withJsonForSource asks before it injects anything.
+        boolean injects = dimensions.appliesTo("text_mode").contains(FixtureMatrix.baseFormat(format));
         for (DatasetSource source : testCase.datasetSources) {
+            // Ask the injectors rather than re-deriving what they decide. They were re-derived here once --
+            // padded-or-brackets, keyed off the template name -- and the copy disagreed with the original on
+            // a resource that names no template: injectTrimSpaces falls through and injects, while the copy
+            // read the missing template as "nothing injected" and let the pair register. Every routed text
+            // resource names a template today, so that was latent rather than live, which is exactly how the
+            // directive-seam silent pass survived undetected. One rule cannot disagree with itself.
+            String effective = injects
+                ? injectMultiValueSyntax(injectTrimSpaces(source.withJson(), source.resource(), format), source.resource())
+                : source.withJson();
             for (String key : formatKeys) {
-                if (DatasetRegistry.declaresSetting(source.withJson(), key)) {
+                if (DatasetRegistry.declaresSetting(effective, key)) {
                     return true;
                 }
-            }
-            String template = templateNameIn(source.resource());
-            if (template == null) {
-                continue;
-            }
-            // Only the text formats get anything injected per source, so only they can pick up a key this
-            // way. Asking the others is not merely pointless -- writeDialectForTemplate throws for a
-            // dataset that declares no dialect, which the columnar datasets legitimately do not, bracket
-            // multi-values being a delimited-text notion. Measured: this filter reaching clickbench on
-            // parquet failed the whole suite at initialization. Scoped with the same question
-            // withJsonForSource asks before it injects anything.
-            if (dimensions.appliesTo("text_mode").contains(FixtureMatrix.baseFormat(vector.get("format"))) == false) {
-                continue;
-            }
-            if (MATRIX.paddedForTemplate(template, vector.get("format")) || "brackets".equals(MATRIX.writeDialectForTemplate(template))) {
-                return true;
             }
         }
         return false;
@@ -1692,7 +1693,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // Per SOURCE, from the declaration -- not blanket. trim_spaces is a FORMAT-SPECIFIC key, and a
         // dataset carrying one cannot be registered under a `?` glob (elastic/esql-planning#1841), so
         // injecting it into datasets whose rows are not padded was buying nothing and costing the whole
-        // path_shape=glob cell on csv and tsv. Measured: eight of the ten routed datasets pad nothing.
+        // path_shape=glob cell on csv and tsv. Measured: seven of the ten routed datasets pad nothing.
         // This mirrors injectMultiValueSyntax, which has always been per-source for the same reason.
         String template = templateNameIn(resource);
         if (template != null && MATRIX.paddedForTemplate(template, format) == false) {

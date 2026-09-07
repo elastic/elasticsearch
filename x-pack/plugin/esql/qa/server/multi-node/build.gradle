@@ -122,7 +122,7 @@ tasks.named('javaRestTest') {
 }
 
 // The multi-node external crossing. Deliberately NOT on `check`: a second cluster per case, crossed with
-// every declared distribution mode. Invoked by the esql-datasource-vectors-manual pipeline alongside the
+// every declared distribution mode. Invoked by the periodic-esql-datasource-vectors pipeline alongside the
 // single-node vector crossings, so both read the same contract and neither reaches a pull request.
 def distributedSpecTests = tasks.register('distributedSpecTests', StandaloneRestIntegTestTask) {
   dependsOn generateParquetFixtures

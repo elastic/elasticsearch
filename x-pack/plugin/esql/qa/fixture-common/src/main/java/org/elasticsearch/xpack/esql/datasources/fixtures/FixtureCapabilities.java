@@ -118,8 +118,10 @@ public final class FixtureCapabilities {
         //
         // csv and tsv were listed as blocked here, and that was true only because the harness injected
         // trim_spaces into every text dataset, so a format-specific key was always present. Injection is
-        // data-driven now: of the ten routed datasets only two pad and three write brackets, so five carry
-        // no format-specific key at all and register under a glob perfectly well. Keeping them out of this
+        // data-driven now: of the ten routed datasets three pad and four write brackets, overlapping in two,
+        // so five carry no format-specific key at all and register under a glob perfectly well. The counts
+        // are declared in fixture-matrix.properties and checkFixturePadding gates the padded half of them
+        // against the bytes. Keeping them out of this
         // set would have discarded that coverage on the strength of a defect that no longer reaches them.
         //
         // parquet registers no format-specific keys at all since elastic/elasticsearch#157868, and ORC is

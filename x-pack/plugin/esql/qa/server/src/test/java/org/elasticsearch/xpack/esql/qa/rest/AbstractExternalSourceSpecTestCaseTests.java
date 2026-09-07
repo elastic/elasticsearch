@@ -245,11 +245,13 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
      *
      * <p>The key is FORMAT-SPECIFIC, and elastic/esql-planning#1841 makes any dataset carrying one
      * unregisterable under a `?` glob -- so injecting it blanket cost csv and tsv the whole
-     * {@code path_shape=glob} cell, for eight of ten datasets that never needed it. Measured on the
-     * authored bytes: only employees and employees_no_mv are column-aligned.
+     * {@code path_shape=glob} cell, for seven of ten datasets that never needed it. Which three pad is a
+     * fact about the authored bytes, not a judgement: {@code checkFixturePadding} reads every canonical
+     * CSV and fails when a declaration disagrees with the leading or trailing space a field actually
+     * carries.
      *
      * <p>Paired with the padded control, because "nothing is injected anywhere" would pass the first
-     * assertion alone while silently misparsing the two datasets that do pad.
+     * assertion alone while silently misparsing the three datasets that do pad.
      */
     public void testTrimSpacesIsNotInjectedForADatasetThatPadsNothing() {
         assertEquals(
@@ -269,6 +271,48 @@ public class AbstractExternalSourceSpecTestCaseTests extends ESTestCase {
         assertEquals(
             "{\"trim_spaces\": true}",
             AbstractExternalSourceSpecTestCase.injectTrimSpaces("{}", "s3://bucket/loose/file.csv", "csv")
+        );
+    }
+
+    /**
+     * The glob filter and the injector must answer the same question the same way, including where the
+     * answer is awkward.
+     *
+     * <p>A resource naming no template gets {@code trim_spaces} -- nothing declares it unpadded, so the
+     * injector falls through and adds the key. The filter used to re-derive that decision from the template
+     * name and read a missing template as "nothing injected", which registered a pair the product then
+     * rejects at CRUD. Every routed text resource names a template, so nothing went red; the disagreement
+     * was invisible, which is the shape this whole gate exists to catch.
+     *
+     * <p>Asserted against the columnar arm too, because the fix must not close the cell for a format that
+     * has no per-source injection at all -- that would trade a silent pass for silently lost coverage.
+     */
+    public void testTheGlobFilterAgreesWithTheInjectorOnATemplatelessResource() {
+        FixtureDimensions dimensions = FixtureDimensions.get();
+        Object[] templateless = baseTestDeclaring("{}");
+
+        Map<String, String> text = new LinkedHashMap<>();
+        text.put("format", "csv");
+        text.put("path_shape", "glob");
+        assertTrue(
+            "the injector adds trim_spaces here, so the glob pair cannot register",
+            AbstractExternalSourceSpecTestCase.globCannotCarryAFormatKey(dimensions, templateless, text, Map.of())
+        );
+
+        Map<String, String> columnar = new LinkedHashMap<>();
+        columnar.put("format", "parquet");
+        columnar.put("path_shape", "glob");
+        assertFalse(
+            "parquet injects nothing per source, so the same case carries fine",
+            AbstractExternalSourceSpecTestCase.globCannotCarryAFormatKey(dimensions, templateless, columnar, Map.of())
+        );
+
+        Map<String, String> exact = new LinkedHashMap<>();
+        exact.put("format", "csv");
+        exact.put("path_shape", "exact");
+        assertFalse(
+            "and nothing is filtered away from a vector that is not a glob at all",
+            AbstractExternalSourceSpecTestCase.globCannotCarryAFormatKey(dimensions, templateless, exact, Map.of())
         );
     }
 

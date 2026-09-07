@@ -525,7 +525,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testTheCiTierVectorCountIsPinnedPerFormat() {
         FixtureDimensions d = FixtureDimensions.get();
-        Map<String, Integer> expected = Map.of("csv", 101, "tsv", 98, "ndjson", 55, "orc", 46, "parquet", 46); // dimension-copy-ok:
+        Map<String, Integer> expected = Map.of("csv", 125, "tsv", 121, "ndjson", 55, "orc", 46, "parquet", 46); // dimension-copy-ok:
         // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
         // this line rather than be counted silently into a battery nobody sized.
         Map<String, Integer> actual = new LinkedHashMap<>();
@@ -533,7 +533,7 @@ public class FixtureDimensionsTests extends ESTestCase {
             actual.put(format, ciVectors(d, format).size());
         }
         assertThat(actual, equalTo(expected));
-        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(346));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(393));
     }
 
     /**

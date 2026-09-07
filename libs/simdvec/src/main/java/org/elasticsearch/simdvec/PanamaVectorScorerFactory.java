@@ -23,12 +23,15 @@ import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ESNextAshBBQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentESNextAshVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaAshSphericalScalarQuantizer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaBBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
@@ -112,10 +115,10 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return MemorySegmentESNextAshVectorsScorer.createInteger(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim);
+                return new ESNextAshBBQVectorsScorer(PanamaBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
             }
         }
-        return ESNextAshVectorsScorer.createInteger(input, nDims, bitsPerDim, queryBitsPerDim);
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, bitsPerDim, queryBitsPerDim));
     }
 
     @Override

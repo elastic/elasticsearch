@@ -503,6 +503,68 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
+    public void testValidateDatasetFileSortByRequiresFirstFileWins() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "union_by_name", "file_sort_by", "list"))
+        );
+        assertThat(e.getMessage(), containsString("file_sort_by"));
+        assertThat(e.getMessage(), containsString("file_order"));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileOrderRequiresFirstFileWins() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_resolution", "strict", "file_order", "desc"))
+        );
+        assertThat(e.getMessage(), containsString("file_sort_by"));
+        assertThat(e.getMessage(), containsString("file_order"));
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
+        );
+        assertThat(e.getMessage(), containsString("first_file_wins"));
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://b/p",
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "mtime", "file_order", "desc")
+        );
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("mtime", result.get("file_sort_by"));
+        assertEquals("desc", result.get("file_order"));
+    }
+
+    public void testValidateDatasetUnknownFileSortByRejected() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://b/p",
+                Map.of("schema_resolution", "first_file_wins", "file_sort_by", "created_time")
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown file_sort_by value [created_time]"));
+        assertThat(e.getMessage(), containsString("list, name, mtime"));
+    }
+
+    public void testValidateDatasetLegacySortByAndOrderAreUnknownSettings() {
+        var sortBy = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("sort_by", "name"))
+        );
+        assertThat(sortBy.getMessage(), containsString("unknown setting [sort_by]"));
+        var order = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("order", "desc")));
+        assertThat(order.getMessage(), containsString("unknown setting [order]"));
+    }
+
     public void testValidateDatasetMaxErrors() {
         assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
     }
@@ -741,8 +803,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem("[resource] is required"));
-        // The "known settings: [...]" suffix lists an unordered set, so match only the stable prefix.
+        // The "known settings: [...]" suffix is sorted, so it is stable across JVM runs and can be matched
+        // in full. Matching only the prefix would let the list go back to Set.of iteration order unnoticed.
         assertThat(e.validationErrors(), hasItem(containsString("unknown setting [delimiter]")));
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "known settings: [error_mode, file_exclusions, file_order, file_sort_by, format, hive_partitioning, "
+                        + "max_error_ratio, max_errors, max_split_probes, partition_detection, partition_path, "
+                        + "schema_resolution, schema_sample_size, split_probe_window, target_split_size]"
+                )
+            )
+        );
     }
 
     public void testUnknownExplicitFormatRejected() {
@@ -780,6 +853,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(1));
         assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
+        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
+        assertThat(e.validationErrors().get(0), containsString("file_order"));
         assertThat(e.getMessage(), not(containsString("cannot determine format")));
     }
 
@@ -812,4 +887,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
     }
+
+    public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
+        // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
+        // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
+        // time. A three-element set does reach sorted order, which is why one is not a gate.
+        DataSourceValidator manySchemes = new FileDataSourceValidator(
+            "s3",
+            S3Configuration::fromMap,
+            Set.of("s3n", "s3a", "zs3", "ms3", "as3", "s3", "ks3", "bs3", "ys3")
+        );
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> manySchemes.validateDataset(Map.of(), "ftp://bucket/data/good.csv", Map.of())
+        );
+
+        assertThat(
+            e.validationErrors(),
+            hasItem(
+                containsString(
+                    "[resource] must use one of the supported URI schemes "
+                        + "[as3://, bs3://, ks3://, ms3://, s3://, s3a://, s3n://, ys3://, zs3://]"
+                )
+            )
+        );
+    }
+
 }

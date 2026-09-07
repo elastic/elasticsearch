@@ -44,7 +44,7 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
 
-        return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestResponseListener<>(channel) {
+        return channel -> client.execute(SqlClearCursorAction.INSTANCE, sqlRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(SqlClearCursorResponse response) throws Exception {
                 Boolean binaryRequest = sqlRequest.binaryCommunication();

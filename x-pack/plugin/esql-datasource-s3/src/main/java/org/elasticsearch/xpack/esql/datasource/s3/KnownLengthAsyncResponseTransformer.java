@@ -14,6 +14,8 @@ import software.amazon.awssdk.core.async.SdkPublisher;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -76,6 +78,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     private final int expectedLength;
     private final DirectBufferFactory factory;
+    private final StoragePath path;
 
     private final CompletableFuture<DirectReadBuffer> resultFuture = new CompletableFuture<>();
     private final AtomicBoolean prepared = new AtomicBoolean();
@@ -90,13 +93,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      * @param factory factory from which the destination {@link DirectReadBuffer} is obtained; the
      *     returned buffer is charged against the underlying allocator until {@link DirectReadBuffer#close()}
      *     is called by the caller
+     * @param path the object being read, named in the body-length failure messages. Those failures are
+     *     surfaced to the user as-is (the read path's failure mapping preserves an already-typed exception
+     *     rather than re-wrapping it), so the object has to be identified here or not at all
      */
-    KnownLengthAsyncResponseTransformer(int expectedLength, DirectBufferFactory factory) {
+    KnownLengthAsyncResponseTransformer(int expectedLength, DirectBufferFactory factory, StoragePath path) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
         }
         this.expectedLength = expectedLength;
         this.factory = factory;
+        this.path = path;
     }
 
     /**
@@ -136,7 +143,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        ChunkCopyingSubscriber chunkCopyingSubscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory);
+        ChunkCopyingSubscriber chunkCopyingSubscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory, path);
         this.subscriber = chunkCopyingSubscriber;
         publisher.subscribe(chunkCopyingSubscriber);
     }
@@ -166,11 +173,18 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      * tracking the running offset. Fails fast if the cumulative size of received chunks would
      * exceed the expected length (a mismatch between the requested range and the server's
      * response body) or falls short of it on completion.
+     * <p>
+     * Both mismatches are raised as {@link ExternalUnavailableException} (503, retryable): a body that does not
+     * match the range we asked for is a truncated or over-long response from the store, which the next attempt
+     * can well return correctly — the same typing the synchronous path gives a mid-body transport fault. The
+     * cost of that choice is that a wrong {@code expectedLength} on our side is reported as the store being
+     * unavailable, but it re-trips on every attempt and still fails once the bounded retry budget is spent.
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
         private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
         private final DirectBufferFactory factory;
+        private final StoragePath path;
         private final Object destinationLock = new Object();
         // All four fields below are guarded by destinationLock, with no unsynchronized reads. A
         // published owner may leave destinationBuf only through a claim under that lock. Failure
@@ -184,10 +198,16 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
         private volatile Subscription subscription;
 
-        ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, DirectBufferFactory factory) {
+        ChunkCopyingSubscriber(
+            CompletableFuture<DirectReadBuffer> resultFuture,
+            int expectedLength,
+            DirectBufferFactory factory,
+            StoragePath path
+        ) {
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
             this.factory = factory;
+            this.path = path;
         }
 
         @Override
@@ -255,7 +275,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         @Override
         public void onNext(ByteBuffer chunk) {
             int remaining = chunk.remaining();
-            IOException overflow = null;
+            ExternalUnavailableException overflow = null;
             synchronized (destinationLock) {
                 DirectReadBuffer drb = destinationBuf;
                 if (drb == null || failed || successClaimed) {
@@ -264,11 +284,11 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 // Overflow-safe because offset remains in [0, expectedLength].
                 if (remaining > expectedLength - offset) {
                     failed = true;
-                    overflow = new IOException(
-                        "S3 response body exceeded expected length: cumulative="
-                            + ((long) offset + remaining)
-                            + ", expected="
-                            + expectedLength
+                    overflow = new ExternalUnavailableException(
+                        "S3 response body exceeded expected length reading [{}]: cumulative={}, expected={}",
+                        path,
+                        (long) offset + remaining,
+                        expectedLength
                     );
                     destinationBuf = null;
                     drb.close();
@@ -291,7 +311,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         @Override
         public void onComplete() {
             DirectReadBuffer transferred;
-            IOException shortRead = null;
+            ExternalUnavailableException shortRead = null;
             synchronized (destinationLock) {
                 if (failed || successClaimed) {
                     return;
@@ -303,8 +323,11 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 destinationBuf = null;
                 if (offset != expectedLength) {
                     failed = true;
-                    shortRead = new IOException(
-                        "S3 response body shorter than expected: received=" + offset + ", expected=" + expectedLength
+                    shortRead = new ExternalUnavailableException(
+                        "S3 response body shorter than expected reading [{}]: received={}, expected={}",
+                        path,
+                        offset,
+                        expectedLength
                     );
                     transferred.close();
                 } else {

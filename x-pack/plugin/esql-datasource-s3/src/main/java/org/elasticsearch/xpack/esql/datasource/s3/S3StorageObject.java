@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -182,9 +183,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
-     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
-     * retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
+     * Maps a failure from the S3 client into the exception to surface to ES|QL. An already-typed
+     * {@link ExternalUnavailableException} found anywhere in the cause chain is returned unchanged so its retry
+     * and status signal is preserved. A retryable transport status (5xx/429) becomes an
+     * {@link ExternalUnavailableException} (503 — the read may
+     * succeed on retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
      * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
      * error is not retried and is not disguised as a client 400. A missing object or any other
@@ -193,6 +196,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        ExternalUnavailableException unavailable = findUnavailable(cause);
+        if (unavailable != null) {
+            return unavailable;
+        }
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
             long retryAfterMs = 0L;
@@ -208,6 +215,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 "S3 store unavailable reading [{}] (HTTP {})",
                 path,
                 s3.statusCode()
+            );
+        }
+        if (cause instanceof S3Exception denied && denied.statusCode() == 403) {
+            // Follows the listing-403 wording in S3StorageProvider: name what was refused, then what to change.
+            // The read path cannot say which credential is wrong -- S3 answers a bad key and an anonymous request
+            // against an authenticated bucket with the same 403 -- so it names both remedies.
+            return new IOException(
+                "Access denied reading ["
+                    + path
+                    + "] ("
+                    + S3FailureDetail.of(denied)
+                    + "). Verify the access_key and secret_key configured on the data source, "
+                    + "or set auth=anonymous if the bucket is public.",
+                cause
             );
         }
         if (cause instanceof NoSuchKeyException) {
@@ -226,6 +247,28 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return ise;
         }
         return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+    }
+
+    /**
+     * The first {@link ExternalUnavailableException} in {@code cause}'s chain, or {@code null} if there is none.
+     * The whole chain is walked rather than only the top type inspected because a failure our own code typed — the
+     * body length mismatches raised by {@link KnownLengthAsyncResponseTransformer} — can come back from the SDK
+     * wrapped in one or more of its own exceptions. A top-only check would miss those and let them fall through to
+     * the client-class 400 arm, which is the give-up-without-retrying this mapping exists to prevent.
+     */
+    private static ExternalUnavailableException findUnavailable(Throwable cause) {
+        Throwable current = cause;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
+            if (current instanceof ExternalUnavailableException eue) {
+                return eue;
+            }
+            Throwable next = current.getCause();
+            if (next == null || next == current) {
+                break;
+            }
+            current = next;
+        }
+        return null;
     }
 
     private static boolean isClosedClient(Throwable cause) {
@@ -580,7 +623,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(length, factory);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            length,
+            factory,
+            path
+        );
         CompletableFuture<DirectReadBuffer> readFuture;
         try {
             readFuture = s3AsyncClient.getObject(request, transformer);
@@ -637,8 +684,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Deliberate cancellation (the in-flight SDK future was aborted): terminal — do not
             // consume retry budget or schedule another attempt.
             counters.addRequest(System.nanoTime() - startNanos, 0L);
-            Throwable cancelCause = throwable.getCause() != null ? throwable.getCause() : throwable;
-            listener.onFailure(mapReadFailure("Failed to read object from", cancelCause));
+            listener.onFailure(mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable)));
             return;
         }
         RefreshRetryTokenResponse refresh;
@@ -655,8 +701,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // token bucket circuit-broke. Anything else is unexpected but equally terminal — surface
             // the read failure either way so the listener is always completed.
             counters.addRequest(System.nanoTime() - startNanos, 0L);
-            Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-            Exception mapped = mapReadFailure("Failed to read object from", cause);
+            Exception mapped = mapReadFailure("Failed to read object from", unwrapCompletionWrappers(throwable));
             if (giveUp instanceof TokenAcquisitionFailedException == false) {
                 mapped.addSuppressed(giveUp);
             }
@@ -720,8 +765,34 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return SdkClientException.create("Unable to execute HTTP request: " + throwable.getMessage(), throwable);
     }
 
+    /**
+     * Peels the {@code CompletionException} / {@code ExecutionException} wrappers a {@code CompletableFuture} adds
+     * around a failure, and only those. Peeling one level unconditionally instead would step past a failure that
+     * carries a cause of its own — an {@link ExternalUnavailableException} wrapping a transport error, say — and hand
+     * {@link #mapReadFailure} the inner exception, losing the type it was about to key on.
+     */
+    private static Throwable unwrapCompletionWrappers(Throwable throwable) {
+        Throwable current = throwable;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            if (current instanceof CompletionException == false && current instanceof ExecutionException == false) {
+                break;
+            }
+            Throwable next = current.getCause();
+            if (next == null || next == current) {
+                break;
+            }
+            current = next;
+        }
+        return current;
+    }
+
     @Override
     public boolean supportsNativeAsync() {
+        return s3AsyncClient != null;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
         return s3AsyncClient != null;
     }
 

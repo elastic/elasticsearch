@@ -1468,22 +1468,21 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
-            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
-            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN")
+            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK")
         )) {
             test().addLanguagesLookup()
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS and INLINE STATS commands; ["
+                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1524,6 +1523,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("s")));
     }
 
+    public void testLoadAllToleratesNonMatchingKeepWildcardThatLoadRejects() {
+        String query = "FROM test | KEEP emp_no, _inde*, first_name, * | SORT emp_no";
+
+        LogicalPlan loadAll = test().statement(setUnmappedLoadAll(query));
+        List<String> names = Expressions.names(loadAll.output());
+        assertThat(names.subList(0, 2), equalTo(List.of("emp_no", "first_name")));
+        assertThat(names, not(hasItem("_index")));
+
+        test().statementError(setUnmappedLoad(query), containsString("No matches found for pattern [_inde*]"));
+    }
+
     /**
      * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
      * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
@@ -1534,7 +1544,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1542,7 +1552,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS and INLINE STATS commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
                 )
             );
     }
@@ -1557,6 +1567,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("PROMQL index=test step=5m avg(network.bytes_in)"),
                 containsString("PROMQL is not supported with unmapped_fields=\"load_all\"")
             );
+    }
+
+    /**
+     * A LOAD_ALL field referenced by EVAL is demand-loaded into the relation's output; a subsequent DROP removes it from scope.
+     * Referencing the same field again in SORT (after the DROP) must fail: the field is no longer visible.
+     */
+    public void testLoadAllModeDroppedFieldReferencedInSort() {
+        partialMappingTest().statementError(setUnmappedLoadAll("""
+            FROM partial_mapping_sample_data
+            | EVAL dur_secs = event_duration / 1000, nested_up = TO_UPPER(unmapped.nested)
+            | DROP event_duration, unmapped.nested
+            | SORT @timestamp, unmapped.nested
+            """), containsString("Unknown column [unmapped.nested]"));
     }
 
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.

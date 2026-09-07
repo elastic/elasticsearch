@@ -2194,8 +2194,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (head.ordinal() == expectedOrdinal) {
                     break;
                 }
-                assert head.ordinal() <= expectedOrdinal
-                    : "prefetch queue has ordinal " + head.ordinal() + " > expected " + expectedOrdinal;
+                if (head.ordinal() > expectedOrdinal) {
+                    // Current group was not queued (zero-byte filtered ranges). Keep later work.
+                    return selection;
+                }
                 selection.stage(dequeuePending());
             }
 

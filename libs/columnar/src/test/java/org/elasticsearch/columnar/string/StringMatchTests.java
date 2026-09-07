@@ -635,16 +635,100 @@ public class StringMatchTests extends ColumnarStringTestCase {
             }
             docSlots[d] = slots;
         }
+        for (DictionaryPolicy policy : List.of(ROOMY, DictionaryPolicy.NONE)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected null slots", metadata.hasNullSlots());
+                if (policy == ROOMY) {
+                    assertTrue("expected a dictionary", reader.hasDictionary());
+                    assertEquals("expected nothing to escape", 0, reader.escapeCount());
+                }
+                for (String probe : TERMS) {
+                    assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(new BytesRef(probe)));
+                    assertWindowedAgrees("contains [" + probe + "]", docSlots.length, () -> reader.matchContains(new BytesRef(probe)));
+                }
+            });
+        }
+    }
+
+    /**
+     * A multi-valued dictionary that let values escape. An escape has no ordinal but the marker, so the
+     * window cannot be filled from the ordinals and every document is decided on its own — and finding an
+     * escaped value's bytes means counting the escapes before its address, which on a multi-valued column is
+     * not the same number as the escapes before its document.
+     */
+    public void testMultiValuedDictionaryWithEscapes() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(600, 2000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 3)];
+            for (int s = 0; s < slots.length; s++) {
+                if (random().nextDouble() < 0.1) {
+                    slots[s] = null;
+                } else if ((d + s) % 37 == 5) {
+                    // Rare enough to escape a dictionary built from the terms the column repeats.
+                    slots[s] = new BytesRef("escaped-" + d + "-" + s);
+                } else {
+                    slots[s] = new BytesRef(TERMS[randomInt(TERMS.length - 1)]);
+                }
+            }
+            docSlots[d] = slots;
+        }
         withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
             assertTrue("expected a multi-valued column", metadata.multiValued());
-            assertTrue("expected null slots", metadata.hasNullSlots());
-            assertEquals("expected nothing to escape", 0, reader.escapeCount());
-            for (String probe : TERMS) {
+            assertTrue("expected values to have escaped it", reader.escapeCount() > 0);
+            final List<String> probes = new ArrayList<>(Arrays.asList(TERMS));
+            probes.add("escaped-5-0");
+            probes.add("escaped-42-1");
+            for (String probe : probes) {
+                assertEquals(
+                    "term [" + probe + "]",
+                    expectedOfSlots(docSlots, probe, true),
+                    matched(reader.matchTerm(new BytesRef(probe)))
+                );
                 assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(new BytesRef(probe)));
                 assertWindowedAgrees("contains [" + probe + "]", docSlots.length, () -> reader.matchContains(new BytesRef(probe)));
             }
         });
+    }
+
+    /**
+     * A multi-valued column whose slots happen to arrive in term order. The writer decides sortedness over
+     * the flat run of slots, so this really can be sorted, but a rank is not a value address here and the
+     * bisection is over ranks — so the match has to fall through to comparing the slots instead. This pins
+     * that it does, and that the answer is the same either way.
+     */
+    public void testSortedMultiValuedFallsBackToScanning() throws IOException {
+        final List<BytesRef> flat = new ArrayList<>();
+        for (int i = 0; i < between(600, 2000); i++) {
+            flat.add(new BytesRef(TERMS[randomInt(TERMS.length - 1)]));
+        }
+        flat.sort(BytesRef::compareTo);
+        final List<BytesRef[]> rows = new ArrayList<>();
+        for (int at = 0; at < flat.size();) {
+            final int width = Math.min(between(1, 3), flat.size() - at);
+            rows.add(flat.subList(at, at + width).toArray(new BytesRef[0]));
+            at += width;
+        }
+        final BytesRef[][] docSlots = rows.toArray(new BytesRef[0][]);
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                assertTrue("expected a multi-valued column", metadata.multiValued());
+                assertTrue("expected the slots to be in term order", reader.valuesSorted());
+                for (String probe : TERMS) {
+                    assertEquals(
+                        "term [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, true),
+                        matched(reader.matchTerm(new BytesRef(probe)))
+                    );
+                    assertEquals(
+                        "prefix [" + probe + "]",
+                        expectedOfSlots(docSlots, probe, false),
+                        matched(reader.matchPrefix(new BytesRef(probe)))
+                    );
+                }
+            });
+        }
     }
 
     /**

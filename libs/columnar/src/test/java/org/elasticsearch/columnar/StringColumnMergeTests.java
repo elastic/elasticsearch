@@ -162,17 +162,29 @@ public class StringColumnMergeTests extends ESTestCase {
                     continue;
                 }
                 values[d] = new String[between(1, 5)];
-                int nonNull = 0;
                 for (int s = 0; s < values[d].length; s++) {
                     if (values[d].length > 1 && randomBoolean()) {
                         continue;
                     }
                     values[d][s] = randomFrom("nginx", "", "term-" + d + "-" + s);
-                    nonNull++;
                 }
-                if (nonNull == 0) {
-                    values[d][0] = "kept-" + d;
-                }
+            }
+            return values;
+        });
+    }
+
+    /**
+     * Documents whose only slot is null, mixed with documents holding one value. The mapper writes a payload
+     * for an all-null array, so this is a shape the codec really sees, and it is the one where the slots stay
+     * in step with the documents while not every slot holds a value — so the column carries no addressing
+     * table and its nulls are recorded by the layout alone. The empty string is among the values, which is
+     * the thing a null must not be merged into.
+     */
+    public void testLoneNullSlotsRoundTripAndMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            String[][] values = new String[numDocs][];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = new String[] { random().nextDouble() < 0.3 ? null : randomFrom("nginx", "", "term-" + d % 50) };
             }
             return values;
         });

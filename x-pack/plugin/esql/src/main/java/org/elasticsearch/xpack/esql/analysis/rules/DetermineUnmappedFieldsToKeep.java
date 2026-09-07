@@ -111,9 +111,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     }
 
     private static boolean carriesUnmappedFieldsAttribute(LogicalPlan plan) {
-        return plan.anyMatch(
-            p -> p instanceof EsRelation esr && esr.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute)
-        );
+        return plan.anyMatch(p -> p instanceof EsRelation esr && esr.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute));
     }
 
     /**

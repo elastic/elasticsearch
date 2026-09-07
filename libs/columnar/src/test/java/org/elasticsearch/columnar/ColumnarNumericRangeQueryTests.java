@@ -105,10 +105,66 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * The skip index lives in its own {@code .cns} file: a segment writes one of each file, and the
+     * skip file grows with the number of documents in the column.
+     */
+    public void testSkipIndexLivesInItsOwnFile() throws IOException {
+        final long[] small = new long[200];
+        final long[] large = new long[5_000];
+        for (int i = 0; i < small.length; i++) {
+            small[i] = i;
+        }
+        for (int i = 0; i < large.length; i++) {
+            large[i] = i;
+        }
+
+        try (Directory smallDir = newDirectory(); Directory largeDir = newDirectory()) {
+            indexColumnar(smallDir, small, false);
+            indexColumnar(largeDir, large, false);
+
+            assertEquals("one metadata file per segment", 1, countFiles(smallDir, ".cnm"));
+            assertEquals("one data file per segment", 1, countFiles(smallDir, ".cnd"));
+            assertEquals("one skip-index file per segment", 1, countFiles(smallDir, ".cns"));
+
+            final long smallSkip = totalSize(smallDir, ".cns");
+            final long largeSkip = totalSize(largeDir, ".cns");
+            assertTrue("the skip index must grow with the column, saw " + smallSkip + " then " + largeSkip, largeSkip > smallSkip);
+        }
+    }
+
+    private static int countFiles(Directory dir, String extension) throws IOException {
+        int count = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static long totalSize(Directory dir, String extension) throws IOException {
+        long total = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                total += dir.fileLength(file);
+            }
+        }
+        return total;
+    }
+
     private void indexColumnar(Directory dir, long[] values) throws IOException {
+        indexColumnar(dir, values, true);
+    }
+
+    private void indexColumnar(Directory dir, long[] values, boolean compoundFile) throws IOException {
         final Codec codec = columnarCodec();
         final FieldType type = columnarBinaryFieldType(ColumnarFieldType.LONG);
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec);
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(compoundFile);
+        if (compoundFile == false) {
+            // The per-file assertions need the codec's own files, not a packed .cfs.
+            iwc.getMergePolicy().setNoCFSRatio(0.0);
+        }
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (long value : values) {

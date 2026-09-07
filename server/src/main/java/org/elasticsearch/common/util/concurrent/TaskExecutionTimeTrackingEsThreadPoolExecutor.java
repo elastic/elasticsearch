@@ -111,7 +111,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
         var instruments = new ArrayList<Instrument>();
         instruments.add(
-            meterRegistry.registerLongsGauge(
+            meterRegistry.registerLongsAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
                 "milliseconds",
@@ -132,7 +132,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             )
         );
         instruments.add(
-            meterRegistry.registerDoubleGauge(
+            meterRegistry.registerDoubleAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
@@ -141,7 +141,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         );
         if (threadUtilizationRate != null) {
             instruments.add(
-                meterRegistry.registerDoubleGauge(
+                meterRegistry.registerDoubleAsyncGauge(
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR,
                     "EWMR-based fraction of maximum thread time utilized for " + threadPoolName,
                     "fraction",

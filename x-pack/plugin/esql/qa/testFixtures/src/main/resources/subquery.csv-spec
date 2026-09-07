@@ -197,6 +197,7 @@ sample_data    | null           | null              | 172.21.3.15 | 172.21.3.15
 
 subqueryMetadataIndex
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata[]
 FROM employees,
@@ -219,6 +220,7 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexInner
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_inner[]
 FROM employees,
@@ -240,6 +242,7 @@ count:long | emp_no:integer | _index:keyword | _index_mode:keyword
 
 subqueryMetadataIndexOuter
 required_capability: subquery_in_from_command
+skip_columnar: _index_mode metadata correctly reports "columnar" in columnar mode but the csv-spec oracle expects "standard"
 
 // tag::subquery_with_metadata_outer[]
 FROM employees,
@@ -900,6 +903,7 @@ required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 required_capability: routing_function_update
+skip_columnar: queries a completion field, which cannot be reconstructed from doc values in columnar mode
 
 FROM sample_data, (FROM books metadata _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"

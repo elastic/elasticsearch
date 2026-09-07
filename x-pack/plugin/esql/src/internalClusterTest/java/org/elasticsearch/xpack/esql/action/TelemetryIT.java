@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.ActionListener;
@@ -19,8 +18,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,256 +35,286 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuiteScopeTestCase
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
-    record Test(
+    private final String query;
+    private final Map<String, Integer> expectedCommands;
+    private final Map<String, Integer> expectedFunctions;
+    private final Map<String, Integer> expectedSettings;
+    private final boolean success;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(
+            testCase(
+                """
+                    FROM idx
+                    | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                    | STATS s = COUNT(*) by ip
+                    | KEEP ip
+                    | EVAL a = 10""",
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 2), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2), Map.entry("COUNT", 1)),
+                true
+            ),
+            testCase(
+                "FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host) "
+                    + "| STATS s = COUNT(*) by ip | KEEP ip | EVAL a = non_existing",
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 2), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2), Map.entry("COUNT", 1)),
+                false
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                    | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                    | STATS s = COUNT(*) by ip | KEEP ip | EVAL a = 10
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 3), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 2), Map.entry("TO_STRING", 4), Map.entry("COUNT", 1)),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                    | WHERE id is not null AND id > 100 AND host RLIKE \".*foo\"
+                    | eval a = 10
+                    | drop host
+                    | rename a as foo
+                    | DROP foo
+                    """, // lowercase on purpose
+                Map.ofEntries(
+                    Map.entry("FROM", 1),
+                    Map.entry("EVAL", 2),
+                    Map.entry("WHERE", 1),
+                    Map.entry("DROP", 2),
+                    Map.entry("RENAME", 1)
+                ),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
+                    | GROK host "%{WORD:name} %{WORD}"
+                    | DISSECT host "%{surname}"
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("GROK", 1), Map.entry("DISSECT", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                true
+            ),
+            testCase(
+                // Using the `::` cast operator and a function alias
+                """
+                    ROW host = "1.1.1.1"
+                    | EVAL ip = host::ip::string, y = to_str(host)
+                    """,
+                Map.ofEntries(Map.entry("ROW", 1), Map.entry("EVAL", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                true
+            ),
+            testCase(
+                // Using the `::` cast operator and a function alias
+                """
+                    FROM idx
+                    | EVAL ip = host::ip::string, y = to_str(host)
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1)),
+                Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | EVAL y = to_str(host)
+                    | LOOKUP JOIN lookup_idx ON host
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN", 1)),
+                Map.ofEntries(Map.entry("TO_STRING", 1)),
+                true
+            ),
+            testCase("""
+                FROM idx
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)), Map.ofEntries(), true),
+            testCase("""
+                FROM idx
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 2)), Map.ofEntries(), true),
+            testCase(
+                """
+                    FROM idx
+                    | LOOKUP JOIN lookup_idx ON host
+                    | LOOKUP JOIN _coordinator:lookup_idx ON host
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                Map.ofEntries(),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | LOOKUP JOIN _coordinator:lookup_idx ON host
+                    | LOOKUP JOIN lookup_idx ON host
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                Map.ofEntries(),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | RENAME host as host_left
+                    | LOOKUP JOIN _coordinator:lookup_idx ON host_left == host
+                    """,
+                Map.ofEntries(Map.entry("FROM", 1), Map.entry("RENAME", 1), Map.entry("COORDINATOR LOOKUP JOIN ON EXPRESSION", 1)),
+                Map.ofEntries(),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | EVAL y = to_str(host)
+                    | RENAME host as host_left
+                    | LOOKUP JOIN lookup_idx ON host_left == host
+                    """,
+                Map.ofEntries(
+                    Map.entry("RENAME", 1),
+                    Map.entry("FROM", 1),
+                    Map.entry("EVAL", 1),
+                    Map.entry("LOOKUP JOIN ON EXPRESSION", 1)
+                ),
+                Map.ofEntries(Map.entry("TO_STRING", 1)),
+                true
+            ),
+            testCase("TS time_series_idx | LIMIT 10", Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)), Map.ofEntries(), true),
+            testCase("""
+                FROM idx
+                | LIMIT 3 BY host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("LIMIT BY", 1)), Map.ofEntries(), true),
+            testCase("""
+                FROM idx
+                | SORT id
+                | LIMIT 3 BY host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("SORT", 1), Map.entry("LIMIT BY", 1)), Map.ofEntries(), true),
+            testCase(
+                "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
+                Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1)),
+                Map.ofEntries(Map.entry("MAX", 1)),
+                true
+            ),
+            testCase(
+                """
+                    FROM idx
+                    | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
+                    | INLINE STATS MAX(id)
+                    """,
+                EsqlCapabilities.Cap.INLINE_STATS.isEnabled() ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1) : Collections.emptyMap(),
+                EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                    ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+                    : Collections.emptyMap(),
+                EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+            ),
+            testCase(
+                """
+                    FROM idx, (FROM idx | WHERE host =="127.0.0.1")
+                    | WHERE id > 10
+                    """,
+                EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                    ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2, "SUBQUERY", 1)
+                    : Collections.emptyMap(),
+                Collections.emptyMap(),
+                EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+            ),
+            // Implicit cast shouldn't add extra metrics
+            testCase("""
+                FROM idx
+                | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true),
+            // Test with settings
+            testCase("""
+                SET time_zone = "UTC";
+                FROM idx
+                | EVAL ip = to_ip(host)
+                """, Map.of("FROM", 1, "EVAL", 1), Map.of("TO_IP", 1), Map.of("TIME_ZONE", 1), true),
+            // Test with multiple settings
+            testCase("""
+                SET time_zone = "UTC";
+                SET unmapped_fields = "NULLIFY";
+                FROM idx
+                | KEEP host
+                """, Map.of("FROM", 1, "KEEP", 1), Map.of(), Map.of("TIME_ZONE", 1, "UNMAPPED_FIELDS", 1), true),
+            // Test with duplicate settings (both should be counted)
+            testCase("""
+                SET time_zone = "UTC";
+                SET time_zone = "America/New_York";
+                FROM idx
+                | LIMIT 10
+                """, Map.of("FROM", 1, "LIMIT", 1), Map.of(), Map.of("TIME_ZONE", 2), true)
+        );
+    }
+
+    private static Object[] testCase(
+        String query,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        boolean success
+    ) {
+        return testCase(query, expectedCommands, expectedFunctions, Map.of(), success);
+    }
+
+    private static Object[] testCase(
         String query,
         Map<String, Integer> expectedCommands,
         Map<String, Integer> expectedFunctions,
         Map<String, Integer> expectedSettings,
         boolean success
     ) {
-        Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {
-            this(query, expectedCommands, expectedFunctions, Map.of(), success);
-        }
+        return new Object[] { query, expectedCommands, expectedFunctions, expectedSettings, success };
     }
 
-    private final Test testCase;
-
-    public TelemetryIT(@Name("TestCase") Test test) {
-        this.testCase = test;
+    public TelemetryIT(
+        String query,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings,
+        boolean success
+    ) {
+        this.query = query;
+        this.expectedCommands = expectedCommands;
+        this.expectedFunctions = expectedFunctions;
+        this.expectedSettings = expectedSettings;
+        this.success = success;
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        return List.of(
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | STATS s = COUNT(*) by ip
-                        | KEEP ip
-                        | EVAL a = 10""",
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 2), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2), Map.entry("COUNT", 1)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    "FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host) "
-                        + "| STATS s = COUNT(*) by ip | KEEP ip | EVAL a = non_existing",
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 2), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2), Map.entry("COUNT", 1)),
-                    false
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | STATS s = COUNT(*) by ip | KEEP ip | EVAL a = 10
-                        """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 3), Map.entry("STATS", 1), Map.entry("KEEP", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 2), Map.entry("TO_STRING", 4), Map.entry("COUNT", 1)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | WHERE id is not null AND id > 100 AND host RLIKE \".*foo\"
-                        | eval a = 10
-                        | drop host
-                        | rename a as foo
-                        | DROP foo
-                        """, // lowercase on purpose
-                    Map.ofEntries(
-                        Map.entry("FROM", 1),
-                        Map.entry("EVAL", 2),
-                        Map.entry("WHERE", 1),
-                        Map.entry("DROP", 2),
-                        Map.entry("RENAME", 1)
-                    ),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-                        | GROK host "%{WORD:name} %{WORD}"
-                        | DISSECT host "%{surname}"
-                        """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("GROK", 1), Map.entry("DISSECT", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    // Using the `::` cast operator and a function alias
-                    """
-                        ROW host = "1.1.1.1"
-                        | EVAL ip = host::ip::string, y = to_str(host)
-                        """,
-                    Map.ofEntries(Map.entry("ROW", 1), Map.entry("EVAL", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    // Using the `::` cast operator and a function alias
-                    """
-                        FROM idx
-                        | EVAL ip = host::ip::string, y = to_str(host)
-                        """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1)),
-                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL y = to_str(host)
-                        | LOOKUP JOIN lookup_idx ON host
-                        """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN", 1)),
-                    Map.ofEntries(Map.entry("TO_STRING", 1)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL y = to_str(host)
-                        | RENAME host as host_left
-                        | LOOKUP JOIN lookup_idx ON host_left == host
-                        """,
-                    Map.ofEntries(
-                        Map.entry("RENAME", 1),
-                        Map.entry("FROM", 1),
-                        Map.entry("EVAL", 1),
-                        Map.entry("LOOKUP JOIN ON EXPRESSION", 1)
-                    ),
-                    Map.ofEntries(Map.entry("TO_STRING", 1)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    "TS time_series_idx | LIMIT 10",
-                    Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)),
-                    Map.ofEntries(),
-                    true
-                ) },
-            new Object[] { new Test("""
-                FROM idx
-                | LIMIT 3 BY host
-                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("LIMIT BY", 1)), Map.ofEntries(), true) },
-            new Object[] { new Test("""
-                FROM idx
-                | SORT id
-                | LIMIT 3 BY host
-                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("SORT", 1), Map.entry("LIMIT BY", 1)), Map.ofEntries(), true) },
-            new Object[] {
-                new Test(
-                    "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
-                    Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1)),
-                    Map.ofEntries(Map.entry("MAX", 1)),
-                    true
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx
-                        | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
-                        | INLINE STATS MAX(id)
-                        """,
-                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
-                        ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1)
-                        : Collections.emptyMap(),
-                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
-                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
-                        : Collections.emptyMap(),
-                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
-                ) },
-            new Object[] {
-                new Test(
-                    """
-                        FROM idx, (FROM idx | WHERE host =="127.0.0.1")
-                        | WHERE id > 10
-                        """,
-                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
-                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2, "SUBQUERY", 1)
-                        : Collections.emptyMap(),
-                    Collections.emptyMap(),
-                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
-                ) },
-            // Implicit cast shouldn't add extra metrics
-            new Object[] { new Test("""
-                FROM idx
-                | EVAL x = DATE_DIFF("hours", "2021-01-02T00:00:00", "2021-01-02T00:00:00Z")
-                """, Map.of("FROM", 1, "EVAL", 1), Map.of("DATE_DIFF", 1), true) },
-            // Test with settings
-            new Object[] { new Test("""
-                SET time_zone = "UTC";
-                FROM idx
-                | EVAL ip = to_ip(host)
-                """, Map.of("FROM", 1, "EVAL", 1), Map.of("TO_IP", 1), Map.of("TIME_ZONE", 1), true) },
-            // Test with multiple settings
-            new Object[] { new Test("""
-                SET time_zone = "UTC";
-                SET unmapped_fields = "NULLIFY";
-                FROM idx
-                | KEEP host
-                """, Map.of("FROM", 1, "KEEP", 1), Map.of(), Map.of("TIME_ZONE", 1, "UNMAPPED_FIELDS", 1), true) },
-            // Test with duplicate settings (both should be counted)
-            new Object[] { new Test("""
-                SET time_zone = "UTC";
-                SET time_zone = "America/New_York";
-                FROM idx
-                | LIMIT 10
-                """, Map.of("FROM", 1, "LIMIT", 1), Map.of(), Map.of("TIME_ZONE", 2), true) }
-        );
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
     }
 
-    @Before
-    public void init() {
-        DiscoveryNode dataNode = randomDataNode();
-        final String nodeName = dataNode.getName();
-        loadData(nodeName);
+    @Override
+    protected void setupSuiteScopeCluster() {
+        loadData(randomDataNode().getName());
     }
 
     public void testMetrics() throws Exception {
-        if (testCase.query().contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
+        if (query.contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
             assumeTrue(
                 "requires LOOKUP JOIN ON boolean expression capability",
                 EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
             );
         }
+
         DiscoveryNode dataNode = randomDataNode();
-        testQuery(dataNode, testCase);
-    }
-
-    private static void testQuery(DiscoveryNode dataNode, Test test) throws InterruptedException {
-        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions, test.expectedSettings);
-    }
-
-    private static void testQuery(
-        DiscoveryNode dataNode,
-        String query,
-        Boolean success,
-        Map<String, Integer> expectedCommands,
-        Map<String, Integer> expectedFunctions,
-        Map<String, Integer> expectedSettings
-    ) throws InterruptedException {
         final var plugins = internalCluster().getInstance(PluginsService.class, dataNode.getName())
             .filterPlugins(TestTelemetryPlugin.class)
             .toList();
         assertThat(plugins, hasSize(1));
-        TestTelemetryPlugin plugin = plugins.get(0);
+        TestTelemetryPlugin plugin = plugins.getFirst();
 
         try {
             int successIterations = randomInt(10);
@@ -323,7 +352,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         latch.countDown();
                     }
                 }));
-                latch.await(30, TimeUnit.SECONDS);
+                assertTrue(latch.await(30, TimeUnit.SECONDS));
             }
         } finally {
             plugin.resetMeter();
@@ -418,10 +447,4 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     private DiscoveryNode randomDataNode() {
         return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
-    }
-
 }

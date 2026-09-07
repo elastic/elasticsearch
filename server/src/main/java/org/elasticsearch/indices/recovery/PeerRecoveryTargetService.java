@@ -70,6 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -285,7 +287,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             onGoingRecoveries.failRecovery(
                 recoveryId,
                 new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
-                true
+                FAIL_SEND
             );
         }), recoveryRef::close));
 
@@ -332,18 +334,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         @Override
                         public void onFailure(Exception e) {
                             final var cause = ExceptionsHelper.unwrapCause(e);
-                            final var sendShardFailure =
+                            final var failureStrategy =
                                 // these indicate the source shard has already failed, which will independently notify the master and fail
                                 // the target shard
-                                false == (cause instanceof ShardNotFoundException
+                                (cause instanceof ShardNotFoundException
                                     || cause instanceof IndexNotFoundException
-                                    || cause instanceof AlreadyClosedException);
+                                    || cause instanceof AlreadyClosedException) ? FAIL_SILENT : FAIL_SEND;
 
                             // TODO retries? See RecoveryResponseHandler#handleException
                             onGoingRecoveries.failRecovery(
                                 recoveryId,
                                 new RecoveryFailedException(recoveryState, null, e),
-                                sendShardFailure
+                                failureStrategy
                             );
                         }
                     }
@@ -719,7 +721,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     onGoingRecoveries.failRecovery(
                         recoveryId,
                         new RecoveryFailedException(recoveryRef.target().state(), "unexpected error", e),
-                        true // be safe
+                        FAIL_SEND // be safe
                     );
                 } else {
                     logger.debug(() -> "unexpected error during recovery, but recovery id [" + recoveryId + "] is finished", e);
@@ -802,7 +804,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
                 // the node is shutting down, we just fail the recovery to release resources
-                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, "node is shutting down", cause), false);
+                onGoingRecoveries.failRecovery(
+                    recoveryId,
+                    new RecoveryFailedException(request, "node is shutting down", cause),
+                    FAIL_SILENT
+                );
                 return;
             }
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -810,7 +816,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 onGoingRecoveries.failRecovery(
                     recoveryId,
                     new RecoveryFailedException(request, "source has canceled the recovery", cause),
-                    false
+                    FAIL_SILENT
                 );
                 return;
             }
@@ -855,11 +861,15 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, "source shard is closed", cause), false);
+                onGoingRecoveries.failRecovery(
+                    recoveryId,
+                    new RecoveryFailedException(request, "source shard is closed", cause),
+                    FAIL_SILENT
+                );
                 return;
             }
 
-            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
+            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), FAIL_SEND);
         }
 
         @Override

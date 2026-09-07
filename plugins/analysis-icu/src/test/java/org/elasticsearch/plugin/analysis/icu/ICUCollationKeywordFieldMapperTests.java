@@ -19,7 +19,10 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -346,5 +349,112 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    /**
+     * Builds a columnar-mode mapping with a {@code parent} keyword field and an
+     * {@code icu_collation_keyword} multi-field named {@code icu}. The caller provides the
+     * extra parameters to write into the {@code icu} field object.
+     */
+    private XContentBuilder icuMultiFieldMapping(CheckedConsumer<XContentBuilder, IOException> addIcuParams) throws IOException {
+        return mapping(b -> {
+            b.startObject("parent");
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("icu").field("type", FIELD_TYPE);
+            addIcuParams.accept(b);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+    }
+
+    /**
+     * With {@code multi_value: false}, a document supplying more than one value for the ICU
+     * multi-field must be rejected. This is the primary regression test for the missing
+     * {@code shouldEnforceSingleValue()} override.
+     */
+    public void testMultiValueFalseRejectsMultipleValues() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
+        );
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("parent", "a", "b"))));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * With {@code multi_value: false}, a document supplying exactly one value is accepted and
+     * the ICU multi-field's doc values are written.
+     */
+    public void testMultiValueFalseAcceptsSingleValue() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("parent", "a")));
+        assertFalse("parent.icu must have doc values", doc.rootDoc().getFields("parent.icu").isEmpty());
+        assertThat(doc.rootDoc().getFields("_ignored"), empty());
+    }
+
+    /**
+     * With {@code multi_value: false} and no {@code null_value} configured, a bare {@code null}
+     * must not consume the single-value slot: {@code [null, "a"]} behaves as {@code ["a"]} and
+     * the document is accepted. When {@code null_value} is set, the null is substituted and
+     * does occupy the slot, so a subsequent real value triggers the multi-value violation.
+     */
+    public void testMultiValueFalseNullDoesNotConsumeSlot() throws IOException {
+        DocumentMapper mapperNoNullValue = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).endObject())
+        );
+        ParsedDocument doc = mapperNoNullValue.parse(source(b -> b.array("parent", (Object) null, "a")));
+        assertThat("null must not occupy the single-value slot", doc.rootDoc().getFields("_ignored"), empty());
+
+        DocumentMapper mapperWithNullValue = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.field("null_value", "NULL").startObject("doc_values").field("multi_value", false).endObject())
+        );
+        expectThrows(DocumentParsingException.class, () -> mapperWithNullValue.parse(source(b -> b.array("parent", (Object) null, "a"))));
+    }
+
+    /**
+     * With {@code multi_value: false, on_failure: ignore}, a document supplying two values is
+     * accepted: the first value goes to the ICU multi-field's doc values and the second (the
+     * violation) is redirected to the {@code parent.icu._on_failure} sidecar column. The field
+     * is marked in {@code _ignored}.
+     */
+    public void testOnFailureIgnoreRedirectsExtraValue() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject())
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.array("parent", "a", "b")));
+        assertFalse("parent.icu must have doc values for the first value", doc.rootDoc().getFields("parent.icu").isEmpty());
+        assertFalse(
+            "parent.icu._on_failure must hold the redirected second value",
+            doc.rootDoc().getFields("parent.icu._on_failure").isEmpty()
+        );
+        assertTrue(
+            "parent.icu must appear in _ignored",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "parent.icu".equals(f.stringValue()))
+        );
+    }
+
+    /**
+     * With {@code nullability: false, on_failure: ignore} on the ICU multi-field, a document
+     * that omits the parent field entirely must be accepted (the field is marked ignored) rather
+     * than rejected. This is the direct regression test for the missing {@code onFailureBehavior()}
+     * override, which previously always returned {@code FAIL} regardless of the configured value.
+     */
+    public void testOnFailureIgnoreHonoredForNullabilityViolation() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            icuMultiFieldMapping(b -> b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject())
+        );
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        assertTrue(
+            "parent.icu must appear in _ignored when nullability is violated with on_failure=ignore",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "parent.icu".equals(f.stringValue()))
+        );
     }
 }

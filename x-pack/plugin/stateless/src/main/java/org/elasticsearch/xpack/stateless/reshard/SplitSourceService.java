@@ -58,6 +58,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -167,23 +169,30 @@ public class SplitSourceService {
      * @param sourcePrimaryTerm the primary term of the source shard seen by the target when it requested population
      * @param targetPrimaryTerm the primary term of the target shard when it requested population
      *     These are used to ensure that the copy operation hasn't become stale due to advances on either side.
-     * @param listener called when the target shard is ready for handoff, with a handle on the indexing permits that must be
-     *     released when handoff completes. This function may throw so the caller should wrap the listener to catch exceptions and inject
-     *     them into the listener's failure handler.
+     * @param listener called when the target shard is ready for handoff, with the source shard ID and a handle on the indexing permits
+     *     that must be released when handoff completes. This function may throw so the caller should wrap the listener to catch exceptions
+     *     and inject them into the listener's failure handler.
      */
     public void setupTargetShard(
         CancellableTask task,
         ShardId targetShardId,
         long sourcePrimaryTerm,
         long targetPrimaryTerm,
-        ActionListener<Releasable> listener
+        ActionListener<HandoffPreparation> listener
     ) {
         assert commitService != null : "commit service must be initialized for index nodes";
         Index index = targetShardId.getIndex();
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            // A start split request can arrive after the split has completed and the resharding metadata was removed from cluster
+            // state, for example when a target shard whose node was isolated mid-split retries the request after rejoining.
+            String message = String.format(Locale.ROOT, "Split target [%s]. No split is in progress. Failing the request.", targetShardId);
+            logger.info(message);
+
+            throw new StaleSplitRequestException(message);
+        }
         int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
         var sourceShardId = new ShardId(index, sourceShardIndex);
 
@@ -332,19 +341,23 @@ public class SplitSourceService {
                 task.ensureNotCancelled();
                 prepareForHandoff(l, sourceShard, targetShardId);
             })
-            .addListener(listener.delegateResponse((l, e) -> {
-                try {
-                    commitService.markSplitEnding(sourceShardId, targetShardId, true);
-                } catch (AlreadyClosedException ignored) {
-                    // It's okay to not clean up the splitting flag since the shard is closed anyway
-                    // and there will be no new commits.
-                    // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
-                }
-                shardsPreparingForHandoff.remove(sourceShard.shardId());
-                activeTargetRequests.remove(sourceShard);
-                l.onFailure(e);
-            }));
+            .addListener(
+                listener.<Releasable>safeMap(permits -> new HandoffPreparation(sourceShardId, permits)).delegateResponse((l, e) -> {
+                    try {
+                        commitService.markSplitEnding(sourceShardId, targetShardId, true);
+                    } catch (AlreadyClosedException ignored) {
+                        // It's okay to not clean up the splitting flag since the shard is closed anyway
+                        // and there will be no new commits.
+                        // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
+                    }
+                    shardsPreparingForHandoff.remove(sourceShard.shardId());
+                    activeTargetRequests.remove(sourceShard);
+                    l.onFailure(e);
+                })
+            );
     }
+
+    record HandoffPreparation(ShardId sourceShardId, Releasable permits) {}
 
     public void setPreHandoffHook(Runnable preHandoffHook) {
         assert this.preHandoffHook == null;
@@ -613,11 +626,13 @@ public class SplitSourceService {
     }
 
     /**
-     * This cluster state observer waits for cluster state to converge to one of 3 states
+     * This cluster state observer waits for cluster state to converge to one of 4 states
      * - target shard in HANDOFF state  (indicates a successful handoff)
      * - source primary term advanced   (indicates handoff unsuccessful)
      * - target primary term advanced   (indicates handoff unsuccessful)
+     * - index deleted                  (indicates handoff unsuccessful)
      * @param targetShardId       target shard id
+     * @param sourceShardId       source shard id
      * @param targetPrimaryTerm   target shard primary term
      * @param sourcePrimaryTerm   source shard primary term
      * @param shouldRetry         set to false once cluster state converges
@@ -627,21 +642,13 @@ public class SplitSourceService {
      */
     public void waitForHandoffSuccessOrFailure(
         ShardId targetShardId,
+        ShardId sourceShardId,
         long targetPrimaryTerm,
         long sourcePrimaryTerm,
         AtomicBoolean shouldRetry,
         Releasable permits,
         ActionListener<ActionResponse> listener
     ) {
-        Index index = targetShardId.getIndex();
-        IndexMetadata indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
-        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
-
-        int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
-        ShardId sourceShardId = new ShardId(index, sourceShardIndex);
-
         new HandoffConvergenceObserver(targetShardId, sourceShardId, targetPrimaryTerm, sourcePrimaryTerm, shouldRetry, permits, listener)
             .start();
     }
@@ -738,6 +745,15 @@ public class SplitSourceService {
         if (stateMachine != null) {
             stateMachine.cancel();
         }
+    }
+
+    // visible for testing: a split should leave this empty once it completes or is cancelled. Covers every map cancelSplits clears,
+    // not just the state machines, since a stale entry in any of them keeps the closed IndexShard from being collected.
+    Set<ShardId> getShardsWithActiveSplitState() {
+        return Stream.concat(
+            Stream.concat(activeSourceShards.keySet().stream(), activeTargetRequests.keySet().stream()).map(IndexShard::shardId),
+            shardsPreparingForHandoff.stream()
+        ).collect(Collectors.toSet());
     }
 
     private static IndexReshardingState.Split getSplit(ClusterState state, Index index) {

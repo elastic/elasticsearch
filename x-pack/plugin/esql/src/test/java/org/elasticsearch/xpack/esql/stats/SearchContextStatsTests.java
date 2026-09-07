@@ -12,17 +12,23 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -289,6 +295,397 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             assertFalse(
                 "keyword field with MVs must not be reported as single-valued",
                 stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testDocValuesOnlyKeywordIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(new SortedSetDocValuesField("kw", new BytesRef("A")), new SortedSetDocValuesField("kw", new BytesRef("B")))
+            );
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("C"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = ((DirectoryReader) reader).leaves().get(0).reader();
+            assertNull(leafReader.terms("kw"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "keyword field without terms must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies that a multi-valued numeric field without a points index or a doc-values skipper
+     * ({@code index: false} in standard mode without {@code use_doc_values_skipper}) is never
+     * reported as single-valued. Without the fix, {@code getPointValues()} returning {@code null}
+     * was misread as "field absent → single-valued", causing {@code PushStatsToSource} to rewrite
+     * {@code COUNT(n)} to a doc-count exists query — returning 2 instead of 3.
+     */
+    public void testDocValuesOnlyNumericIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        // index:false in standard mode without USE_DOC_VALUES_SKIPPER → IndexType.points(false,true)
+        // → neither hasPoints() nor hasDocValuesSkipper() → tester stays null → return false
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 1L), new SortedNumericDocValuesField("n", 2L)));
+            writer.addDocument(List.of(new SortedNumericDocValuesField("n", 3L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            assertNull("index:false long must have no points index", leafReader.getPointValues("n"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "numeric field without points or skipper index must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("n"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Same as {@link #testDocValuesOnlyNumericIsNotDetectedAsSingleValued()} but for a date field,
+     * covering the {@code DateFieldType} half of the branch.
+     */
+    public void testDocValuesOnlyDateIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedNumericDocValuesField("d", 1000L), new SortedNumericDocValuesField("d", 2000L)));
+            writer.addDocument(List.of(new SortedNumericDocValuesField("d", 3000L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            assertNull("index:false date must have no points index", leafReader.getPointValues("d"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "date field without points or skipper index must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies that a truly single-valued numeric field backed by a doc-values skipper (as in
+     * columnar or {@code use_doc_values_skipper} mode) is correctly detected as single-valued.
+     * <p>
+     * The codec records {@code globalMaxValueCount = 1} at flush time; {@code maxValueCount()}
+     * returning {@code 1} lets {@code detectSingleValue} return {@code true}, enabling
+     * {@code PushStatsToSource} to push {@code COUNT(n)} down to an exists-doc-count query for an
+     * exact result.
+     */
+    public void testSkipperNumericSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            // indexedField() sets DocValuesSkipIndexType.RANGE, causing the codec to write a real
+            // DocValuesSkipper that persists globalMaxValueCount per segment.
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("n", 1L)));
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("n", 3L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("n");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertEquals("every doc has exactly one value, so maxValueCount must be 1", 1, skipper.maxValueCount());
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued skipper numeric field must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("n"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies that a multi-valued numeric field backed by a doc-values skipper is correctly
+     * rejected: {@code maxValueCount() > 1} means at least one document has multiple values, so
+     * {@code COUNT(n)} must not be pushed down to a doc-count exists query.
+     */
+    public void testSkipperNumericMultiValuedIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(SortedNumericDocValuesField.indexedField("n", 1L), SortedNumericDocValuesField.indexedField("n", 2L))
+            );
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("n", 3L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("n");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "multi-valued skipper numeric field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("n"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Date-field counterpart of {@link #testSkipperNumericSingleValuedIsDetectedAsSingleValued}:
+     * a truly single-valued date field backed by a doc-values skipper must be reported as
+     * single-valued so that {@code COUNT(d)} can be pushed down to an exists-doc-count query.
+     */
+    public void testSkipperDateSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 1000L)));
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 2000L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("d");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertEquals("every doc has exactly one value, so maxValueCount must be 1", 1, skipper.maxValueCount());
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued skipper date field must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Date-field counterpart of {@link #testSkipperNumericMultiValuedIsNotDetectedAsSingleValued}:
+     * a multi-valued date field backed by a doc-values skipper must not be reported as single-valued,
+     * so {@code COUNT(d)} is not incorrectly pushed down to a doc-count exists query.
+     */
+    public void testSkipperDateMultiValuedIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "d": { "type": "date", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(SortedNumericDocValuesField.indexedField("d", 1000L), SortedNumericDocValuesField.indexedField("d", 2000L))
+            );
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 3000L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("d");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "multi-valued skipper date field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Reproduces the mixed-index-mapping bug reported in review: when a query spans two indices
+     * where the same field has different storage characteristics — points in one, doc-values skipper
+     * in the other — {@code isSingleValue} picks the {@code MappedFieldType} from the first mapped
+     * context (points) and applies its tester to <em>all</em> leaf readers via {@code doWithContexts}.
+     * For the skipper-backed leaves, {@code getPointValues(name)} returns {@code null}, which the
+     * points tester misreads as "field absent → single-valued". The result is a false positive even
+     * though the skipper-backed index contains multi-valued documents.
+     */
+    public void testMixedIndexMappingPointsVsSkipperIsNotFalselyDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            // Index A: standard long with a points index (hasPoints=true, hasDocValuesSkipper=false).
+            // Placed first so its MappedFieldType is picked by the contexts loop.
+            final MapperService mapperServiceA = mapperHelper.createMapperService("""
+                { "doc": { "properties": { "n": { "type": "long" } } } }""");
+            final Directory dirA = newDirectory();
+            final IndexReader readerA;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dirA)) {
+                writer.addDocument(List.of(new LongField("n", 1L, Field.Store.NO)));
+                writer.forceMerge(1);
+                readerA = writer.getReader();
+            }
+            toClose.add(readerA);
+            toClose.add(mapperServiceA);
+            toClose.add(dirA);
+            contexts.add(mapperHelper.createSearchExecutionContext(mapperServiceA, newSearcher(readerA)));
+
+            // Index B: long field backed by a doc-values skipper (index:false + USE_DOC_VALUES_SKIPPER),
+            // with at least one multi-valued document.
+            final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+            final MapperService mapperServiceB = createMapperService(settings, """
+                { "doc": { "properties": { "n": { "type": "long", "index": false } } } }""");
+            final Directory dirB = newDirectory();
+            final IndexReader readerB;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dirB)) {
+                writer.addDocument(
+                    List.of(SortedNumericDocValuesField.indexedField("n", 1L), SortedNumericDocValuesField.indexedField("n", 2L))
+                );
+                writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("n", 3L)));
+                writer.forceMerge(1);
+                readerB = writer.getReader();
+            }
+            toClose.add(readerB);
+            toClose.add(mapperServiceB);
+            toClose.add(dirB);
+            contexts.add(createSearchExecutionContext(mapperServiceB, newSearcher(readerB)));
+
+            // Confirm the structural premise: index B has a skipper but no points for "n".
+            LeafReader leafB = ((DirectoryReader) readerB).leaves().get(0).reader();
+            assertNotNull("index B must have a DocValuesSkipper for 'n'", leafB.getDocValuesSkipper("n"));
+            assertNull("index B must have no PointValues for 'n'", leafB.getPointValues("n"));
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            assertFalse(
+                "'n' is multi-valued in index B — must not be reported as single-valued across mixed-mapping indices",
+                stats.isSingleValue(new FieldAttribute.FieldName("n"))
+            );
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    /**
+     * A single-valued numeric field with a point index must be reported as single-valued via the
+     * {@code PointValues.size() == PointValues.getDocCount()} check. Covers the points branch of
+     * {@code detectSingleValue}, as opposed to the doc-values-skipper branch.
+     */
+    public void testPointIndexedSingleValuedNumericIsDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "lng": { "type": "long" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new LongField("lng", 1, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("lng", 2, Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            PointValues points = leafReader.getPointValues("lng");
+            assertNotNull(points);
+            assertEquals(2, points.size());
+            assertEquals(2, points.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(
+                "single-valued numeric field with a point index must be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("lng"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * A multi-valued numeric field with a point index must be reported as multi-valued via the
+     * {@code PointValues.size() == PointValues.getDocCount()} check.
+     */
+    public void testPointIndexedMultiValuedNumericIsDetectedAsMultiValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "lng": { "type": "long" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new LongField("lng", 1, Field.Store.NO), new LongField("lng", 2, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("lng", 3, Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            PointValues points = leafReader.getPointValues("lng");
+            assertNotNull(points);
+            assertEquals(3, points.size());
+            assertEquals(2, points.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "multi-valued numeric field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("lng"))
             );
         } finally {
             IOUtils.close(reader, mapperService, dir);

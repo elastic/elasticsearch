@@ -12,9 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfColumnData;
-import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
@@ -39,13 +39,14 @@ import java.util.List;
  * state (the assembled {@link LuceneColumn} list and the {@code _field_names} entries) that belongs
  * to the mapping phase rather than the operation record.
  */
-public final class BatchMappingContext {
+public final class BatchMappingContext implements Releasable {
 
     private final IndexOperationBatch batch;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final Recycler<BytesRef> recycler;
     private final List<LuceneColumn> columns = new ArrayList<>();
+    private final List<Releasable> resources = new ArrayList<>();
     private final FieldNamesFieldMapper fieldNamesFieldMapper;
 
     private boolean frozen;
@@ -53,7 +54,14 @@ public final class BatchMappingContext {
     private DeduplicatingStringColumnAccumulator fieldNames;
     /** Accumulates {@code (doc, name)} pairs for {@code _ignored}. */
     private DeduplicatingStringColumnAccumulator ignoredFields;
-    private EscfLongColumn timestampColumn;
+    /**
+     * The mapped {@code @timestamp} column, published by {@code DateFieldMapper.mapColumnBatch}
+     * when it maps the data-stream timestamp field. Readable via {@link #timestamps()}, and will be
+     * {@code null} before the column is mapped. Mirrors the per-document
+     * side channel that {@link DataStreamTimestampFieldMapper} uses on the row path
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
+     */
+    private EscfLongColumn timestamps;
 
     /**
      * Primary constructor. Delegates all per-doc data accessors to {@code batch} and records
@@ -76,7 +84,40 @@ public final class BatchMappingContext {
         return indexSettings;
     }
 
-    // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
+    /**
+     * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
+     * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
+     * per-document timestamp values via {@link #timestamps()} without re-scanning
+     * the Lucene column list. Mirrors the row-path side channel
+     * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}).
+     *
+     * @throws IllegalArgumentException if called more than once
+     */
+    public void setTimestamps(EscfLongColumn timestamps) {
+        if (this.timestamps != null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
+            );
+        }
+        this.timestamps = timestamps;
+    }
+
+    /**
+     * Returns the {@code @timestamp} column for direct access.
+     *
+     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
+     *     "data stream timestamp field [@timestamp] is missing" error from
+     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
+     */
+    public EscfLongColumn timestamps() {
+        if (timestamps == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
+        return timestamps;
+    }
+
     public Recycler<BytesRef> recycler() {
         return recycler;
     }
@@ -85,6 +126,31 @@ public final class BatchMappingContext {
     public void addColumn(LuceneColumn column) {
         assert frozen == false;
         columns.add(column);
+    }
+
+    /**
+     * Attaches a {@link LuceneColumn} and registers {@code owned} as a managed resource to be
+     * released when this context is {@link #close() closed}.
+     */
+    public void addColumn(LuceneColumn column, EscfColumnData owned) {
+        assert frozen == false;
+        columns.add(column);
+        resources.add(owned);
+    }
+
+    /**
+     * Registers a {@link Releasable} resource to be released when this context is
+     * {@link #close() closed}, without attaching a Lucene column.
+     */
+    public void addResource(Releasable resource) {
+        assert frozen == false;
+        resources.add(resource);
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(resources);
+        resources.clear();
     }
 
     /**
@@ -172,43 +238,6 @@ public final class BatchMappingContext {
      */
     public BytesRef[] tsids() {
         return batch.tsids();
-    }
-
-    /**
-     * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
-     * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
-     * per-document timestamp values without re-scanning the Lucene column list.
-     *
-     * @throws IllegalArgumentException if called more than once or if the column is multi-valued
-     */
-    public void recordTimestampColumn(EscfColumnData timestamps) {
-        if (timestampColumn != null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
-            );
-        }
-        if (timestamps.kind() == EscfColumnKind.ARRAY) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] encountered multiple values"
-            );
-        }
-        this.timestampColumn = (EscfLongColumn) EscfColumn.from(timestamps);
-    }
-
-    /**
-     * Returns the {@code @timestamp} column for direct access.
-     *
-     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
-     *     "data stream timestamp field [@timestamp] is missing" error from
-     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
-     */
-    public EscfLongColumn timestampColumn() {
-        if (timestampColumn == null) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
-        }
-        return timestampColumn;
     }
 
     /**

@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -237,6 +240,31 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
+     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
+     * cold-read on first access.
+     */
+    public void prewarmIdLookups() {
+        performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            for (LeafReaderContext leaf : reader.leaves()) {
+                var terms = leaf.reader().terms(IdFieldMapper.NAME);
+                if (terms == null) {
+                    continue; // no-op segment
+                }
+                BytesRef min = terms.getMin();
+                if (min != null) {
+                    terms.iterator().prepareSeekExact(min);
+                }
+                BytesRef max = terms.getMax();
+                if (max != null) {
+                    terms.iterator().prepareSeekExact(max);
+                }
+            }
+            return null;
+        });
     }
 
     /**

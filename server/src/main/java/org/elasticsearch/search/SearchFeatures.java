@@ -97,6 +97,19 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE = new NodeFeature(
         "search.fetch_fields.excludes_non_metadata_type"
     );
+    /**
+     * NestedIdentity.extractSource returns empty source when the nested path resolves to no objects
+     * (for example a scalar array) instead of throwing IllegalStateException.
+     */
+    public static final NodeFeature NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX = new NodeFeature("search.nested.extract_source_empty_list_fix");
+    /**
+     * Composite aggregation no longer silently returns zero buckets when the leading source is a field
+     * backed only by a doc values skipper (no points index for dates, no terms dictionary for
+     * non-indexed keywords). Previously, {@code checkIfSortedDocsIsApplicable} accepted any index-sort
+     * shortcut and built a {@code SortedDocsProducer} against the absent BKD tree or terms dictionary,
+     * which collected nothing and reported success.
+     */
+    public static final NodeFeature COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX = new NodeFeature("search.aggs.composite.doc_values_skipper_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -132,7 +145,9 @@ public final class SearchFeatures implements FeatureSpecification {
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
             COUNT_STATS_PARAMETER,
             FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
-            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING
+            NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
+            NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
+            COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
         );
     }
 }

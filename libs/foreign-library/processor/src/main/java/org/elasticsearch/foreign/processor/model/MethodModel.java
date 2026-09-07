@@ -48,10 +48,12 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param returnType the return type; {@code null} for struct factory methods
  * @param paramTypes the parameter types in order; empty for struct factory methods
  * @param paramStructSimpleNames parallel list to {@code paramTypes}: the simple name of the
- *        enclosed struct interface for ADDRESSABLE parameters that are struct-typed (rather than
- *        explicitly {@code Addressable}-typed), or {@code null} for all other parameters. Used by
- *        code generation to emit the correct Java method descriptor when a struct does not declare
- *        {@code extends Addressable}.
+ *        enclosed struct interface, or enclosed record/class implementing {@code Addressable},
+ *        for ADDRESSABLE parameters whose declared type is not the literal {@code Addressable}
+ *        type, or {@code null} for all other parameters. Used by code generation to emit the
+ *        correct Java method descriptor when the declared parameter type is a {@code @StructSpecification}
+ *        that does not extend {@code Addressable}, or is a concrete {@code Addressable} implementer
+ *        rather than {@code Addressable} itself.
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
@@ -124,7 +126,10 @@ public record MethodModel(
      * @param method the method element to model
      * @param env the processing environment
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
-     *        used to validate {@code @StructFactory} return types
+     *        plus any enclosed record/class that directly implements {@code Addressable} without that
+     *        annotation (e.g. an opaque pointer wrapper); used to validate
+     *        {@code @StructFactory} return types and to recognize struct- or {@code Addressable}-typed
+     *        parameters on {@code @Function} methods that are not the literal {@code Addressable} type
      * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
      *        unavailable, used to reject {@code @WideString} parameters on libraries unavailable on Windows and to
      *        derive the {@code @CaptureSystemError} capture channel ({@code errno} vs {@code GetLastError}) from the
@@ -286,7 +291,14 @@ public record MethodModel(
             for (int upcallParamIndex : upcallIndices) {
                 var param = method.getParameters().get(upcallParamIndex);
                 TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
-                UpcallModel upcallModel = UpcallModel.from(upcallParamIndex, upcallType, param, env.getTypeUtils(), messager);
+                UpcallModel upcallModel = UpcallModel.from(
+                    upcallParamIndex,
+                    upcallType,
+                    param,
+                    env.getTypeUtils(),
+                    env.getElementUtils(),
+                    messager
+                );
                 if (upcallModel == null) {
                     return null;
                 }

@@ -1449,7 +1449,8 @@ public class Security extends Plugin
                     List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
                     client.get().threadPool().getThreadContext()
                 ),
-                indexServiceAccountTokenStore
+                indexServiceAccountTokenStore,
+                null
             );
         }
         // Completely handover service account token management to the extension if provided,

@@ -64,7 +64,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -76,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVe
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
@@ -117,6 +120,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -160,6 +164,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
@@ -4538,6 +4543,189 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorResolvesTextField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.fields().get(0).name(), equalTo("title"));
+        assertThat(DataType.isString(denseVector.fields().get(0).dataType()), equalTo(true));
+
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        Attribute generated = getAttributeByName(denseVector.output(), "title_dense_vector");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorResolvesMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesQualifiedFieldNames() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("text.raw_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("text.english_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "text.raw_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "text.english_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesNestedAndMixedFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
+        // produce distinct full-path generated columns.
+        assertThat(denseVector.generatedAttributes(), hasSize(4));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("keyword_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("some.dotted.field_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(2).name(), equalTo("some.string_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(3).name(), equalTo("some.string.typical_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "keyword_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.dotted.field_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string.typical_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesKeywordField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "book_no_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorNonTextFieldFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorTextAcceptsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "text-embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorTextAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "image" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageRejectsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
+            containsString(
+                "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DENSE_VECTOR "
+                    + "command. Only inference endpoints with the task type [embedding] are supported"
+            )
+        );
+    }
+
+    /**
+     * The default {@code text} modality is the only case accepting more than one task type, so this is also where the
+     * rendered order of that list is pinned.
+     */
+    public void testDenseVectorRejectsCompletionEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
+            containsString(
+                "cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR "
+                    + "command. Only inference endpoints with the task type [text_embedding, embedding] are supported"
+            )
+        );
+    }
+
+    public void testDenseVectorUnknownColumnFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [nonexistent]")
+        );
+    }
+
+    public void testDenseVectorInvalidInferenceIdFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
+            containsString("unresolved inference [unknown-inference-id]")
+        );
+    }
+
+    public void testDenseVectorDuplicateFieldIsDeduped() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = defaultMapping().query("""
             FROM test
@@ -4699,6 +4887,17 @@ public class AnalyzerTests extends ESTestCase {
         basic().error("""
             FROM test | STATS c = COUNT(*) BY b = BUCKET(hire_date, 1 year, {"include_empty_buckets": true})
             """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
+    }
+
+    public void testBucketOptionInsertEmptyBuckets_histogramsRejected() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json").error("""
+            FROM exp_histo_sample
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [exponential_histogram] inputs"));
+        analyzer().addIndex("tdigest_standard_index", "mapping-tdigest_standard_index.json").error("""
+            FROM tdigest_standard_index
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [tdigest] inputs"));
     }
 
     public void testProjectionForUnionTypeResolution() {
@@ -5810,6 +6009,84 @@ public class AnalyzerTests extends ESTestCase {
     @Override
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return super.createDefaultIndexAnalyzers();
+    }
+
+    // ---- values-analyzer propagation: a reference to an analyzer-carrying TO_TEXT carries the declared analyzer
+    // as attribute metadata (set by Alias#toAttribute and preserved across RENAME/MV_EXPAND), so a full-text
+    // function consuming the reference discovers it the same way as with an inline TO_TEXT ----
+
+    public void testMatchOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchOnRenamedAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | rename t as u
+            | where match(u, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "u");
+    }
+
+    public void testMatchOnMvExpandedAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | mv_expand t
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchPhraseOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | where match_phrase(t, "cat dog")
+            """);
+        assertAnalyzedReferenceField(plan, MatchPhrase.class, "t");
+    }
+
+    public void testMatchOnPlainToTextReferenceHasNoValuesAnalyzer() {
+        // without a declared analyzer there is nothing to carry
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name))
+            | where match(t, "cat")
+            """);
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var reference = as(match.field(), ReferenceAttribute.class);
+        assertNull(reference.valuesAnalyzer());
+    }
+
+    public void testMatchOnInlineToTextKeepsAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | where match(to_text(concat(first_name, last_name), {"analyzer": "whitespace"}), "cat")
+            """);
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var toText = as(match.field(), ToText.class);
+        assertThat(toText.valuesAnalyzer(), equalTo("whitespace"));
+    }
+
+    private static void assertAnalyzedReferenceField(
+        LogicalPlan plan,
+        Class<? extends SingleFieldFullTextFunction> functionType,
+        String referenceName
+    ) {
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var function = as(filter.condition(), functionType);
+        var reference = as(function.field(), ReferenceAttribute.class);
+        assertThat(reference.name(), equalTo(referenceName));
+        assertThat(reference.valuesAnalyzer(), equalTo("whitespace"));
     }
 
     static Alias alias(String name, Expression value) {

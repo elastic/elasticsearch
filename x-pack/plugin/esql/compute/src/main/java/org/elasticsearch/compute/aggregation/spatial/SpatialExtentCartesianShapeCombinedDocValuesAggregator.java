@@ -38,7 +38,7 @@ class SpatialExtentCartesianShapeCombinedDocValuesAggregator extends SpatialExte
     }
 
     public static void combine(SpatialExtentState current, @Position int p, DoubleBlock values) {
-        if (values.getValueCount(p) == 0) {
+        if (values.isNull(p)) {
             return;
         }
         int start = values.getFirstValueIndex(p);

@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -137,6 +138,13 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         assertTrue(resolution.columnMappers()[0] instanceof KeywordFieldMapper);
     }
 
+    public void testNumberMapperIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
+    }
+
     public void testNumberIgnoreMalformedIsSupported() throws IOException {
         MapperService ms = mapper(mapping(b -> { b.startObject("v").field("type", "long").field("ignore_malformed", true).endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
@@ -199,6 +207,13 @@ public class ShardBatchMapperResolveTests extends MapperServiceTestCase {
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("b"), ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof BooleanFieldMapper);
+    }
+
+    public void testDateMapperIsSupported() throws IOException {
+        MapperService ms = mapper(mapping(b -> { b.startObject("ts").field("type", "date").endObject(); }));
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("ts"), ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertTrue(resolution.columnMappers()[0] instanceof DateFieldMapper);
     }
 
     public void testIpMapperIsSupported() throws IOException {

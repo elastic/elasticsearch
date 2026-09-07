@@ -32,7 +32,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
@@ -348,7 +348,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
             String prefix = THREAD_POOL_METRIC_PREFIX + name;
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_CURRENT,
                     "number of threads for " + name,
                     "count",
@@ -356,7 +356,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_QUEUE,
                     "number queue size for " + name,
                     "count",
@@ -364,7 +364,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
                     "number of active threads for " + name,
                     "count",
@@ -372,7 +372,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_LARGEST,
                     "largest pool size for " + name,
                     "count",
@@ -607,7 +607,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     } catch (Exception e) {
                         logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()), e);
                     }
-                } else if (instrument instanceof LongGauge longgauge) {
+                } else if (instrument instanceof LongAsyncGauge longgauge) {
                     try {
                         longgauge.close();
                     } catch (Exception e) {

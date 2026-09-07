@@ -82,8 +82,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
-    private final int bitsPerDim;
-    private final float projectedDimsFraction;
+    private final IvfSegmentConfig.AshConfig ashConfig;
 
     // Temporary storage for ASH projection matrix between buildAndWritePostingsLists and writePreconditioner
     private AshProjectionMatrix pendingAshMatrix;
@@ -101,8 +100,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
         IvfMergeConfigResolver mergeConfigResolver,
-        int bitsPerDim,
-        float projectedDimsFraction
+        IvfSegmentConfig.AshConfig ashConfig
     ) throws IOException {
         super(
             state,
@@ -124,8 +122,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
-        this.bitsPerDim = bitsPerDim;
-        this.projectedDimsFraction = projectedDimsFraction;
+        this.ashConfig = ashConfig;
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
             if (sort == null || sort.getSort().length == 0) {
@@ -143,21 +140,12 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
 
     @Override
     protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(), false);
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override
     protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig(), false);
-    }
-
-    private IvfSegmentConfig.AshConfig ashConfig() {
-        return new IvfSegmentConfig.AshConfig(
-            projectedDimsFraction,
-            bitsPerDim,
-            IvfSegmentConfig.AshConfig.DEFAULT_TRAINING_ITERATIONS,
-            IvfSegmentConfig.AshConfig.DEFAULT_TRAINING_FACTOR
-        );
+        return IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, ashConfig, false);
     }
 
     @Override

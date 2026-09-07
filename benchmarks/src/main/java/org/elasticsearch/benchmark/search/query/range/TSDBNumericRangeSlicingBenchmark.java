@@ -19,17 +19,17 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -66,7 +66,6 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
-@Fork(1)
 @Threads(1)
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
@@ -74,7 +73,7 @@ public class TSDBNumericRangeSlicingBenchmark {
 
     static {
         // Bootstrap ES logging so the ES95/ES819 SIMD range path can initialize native access.
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String FIELD = "value";
@@ -87,7 +86,7 @@ public class TSDBNumericRangeSlicingBenchmark {
     @Param({ "1", "64", "1024" })
     private int numSlices;
 
-    /** TSDB doc-values codec under test; both route through the shared tryRangeIterator. */
+    /** TSDB doc-values codec under test; both implement Lucene's bulk numeric range hook. */
     @Param({ "ES95", "ES819" })
     private String format;
 
@@ -119,7 +118,7 @@ public class TSDBNumericRangeSlicingBenchmark {
             }
         };
         // No index sort on FIELD: keeps data high-variance and avoids the primary-sort fast path,
-        // so the query exercises tryRangeIterator.
+        // so the query exercises NumericDocValues.rangeIntoBitSet.
         final IndexWriterConfig config = new IndexWriterConfig().setCodec(codec);
 
         final Random random = new Random(seed);
@@ -138,7 +137,7 @@ public class TSDBNumericRangeSlicingBenchmark {
         // data the per-block skipper still straddles it, forcing the over-scan path in the old iterator.
         final long lower = VALUE_BOUND / 2;
         final long upper = lower + (long) (VALUE_BOUND * selectivity);
-        final SortedNumericDocValuesRangeQuery query = new SortedNumericDocValuesRangeQuery(FIELD, lower, upper);
+        final Query query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, lower, upper);
         weight = new IndexSearcher(reader).createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
@@ -147,7 +146,18 @@ public class TSDBNumericRangeSlicingBenchmark {
      * mirroring ESQL DataPartitioning.DOC.
      */
     @Benchmark
-    public void sliceAndScore(final Blackhole bh) throws IOException {
+    @Fork(1)
+    public void sliceAndScoreScalar(final Blackhole bh) throws IOException {
+        sliceAndScore(bh);
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void sliceAndScoreSimd(final Blackhole bh) throws IOException {
+        sliceAndScore(bh);
+    }
+
+    private void sliceAndScore(final Blackhole bh) throws IOException {
         final LeafReaderContext leaf = reader.leaves().getFirst();
         final CountingCollector collector = new CountingCollector();
         final int sliceSize = Math.max(1, (maxDoc + numSlices - 1) / numSlices);

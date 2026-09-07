@@ -1119,8 +1119,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
-        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
-            // no ILM policy configured so short circuit this to *not* managed by ILM
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false
+            || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            // in case of no ILM policy configured or lookup index, we short circuit this to *not* managed by ILM
             return false;
         }
 

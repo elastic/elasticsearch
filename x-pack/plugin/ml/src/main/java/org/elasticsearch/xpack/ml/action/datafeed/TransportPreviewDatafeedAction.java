@@ -171,16 +171,14 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
-            if (previewDatafeedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                responseHeaderPreservingListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-                return;
-            }
-            // Apply cross-project search mode to IndicesOptions before creating the factory
+            // Apply cross-project search mode to IndicesOptions before creating the factory.
+            // Preview runs under the caller's live credential (not the stored config envelope).
+            final CloudCredential callerCredential = cloudCredentialManager.extractCloudManagedCredential(threadPool.getThreadContext());
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
-                crossProjectModeDecider
+                crossProjectModeDecider,
+                callerCredential != null
             );
-            final CloudCredential callerCredential = cloudCredentialManager.extractCloudManagedCredential(threadPool.getThreadContext());
             final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential

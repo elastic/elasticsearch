@@ -23,7 +23,6 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.RecordDeclaration;
-import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.Expression;
@@ -73,7 +72,7 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 4;
+    private final int revision = 5;
 
     private static final List<String> REDUNDANT_TEST_STATIC_PREFIXES = List.of(
         "org.junit.Assert.",
@@ -108,10 +107,9 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         }
 
         Map<String, Set<String>> directSupers = directSupersByType(cu);
-        boolean extendsTestBase = extendsTestBase(cu);
         List<ImportDeclaration> redundant = new ArrayList<>();
         for (ImportDeclaration imp : cu.getImports()) {
-            if (isRedundant(imp, cu, directSupers, extendsTestBase)) {
+            if (isRedundant(imp, cu, directSupers)) {
                 redundant.add(imp);
             }
         }
@@ -127,16 +125,14 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return new JavaParser(configuration);
     }
 
-    private static boolean isRedundant(
-        ImportDeclaration imp,
-        CompilationUnit cu,
-        Map<String, Set<String>> directSupers,
-        boolean extendsTestBase
-    ) {
+    private static boolean isRedundant(ImportDeclaration imp, CompilationUnit cu, Map<String, Set<String>> directSupers) {
         String name = imp.getNameAsString();
         if (imp.isStatic()) {
-            if (extendsTestBase && isRedundantTestFrameworkStaticImport(imp, name)) {
+            if (isRedundantTestFrameworkStaticImport(imp, name) && isInheritedByEveryUsage(imp, cu, directSupers)) {
                 return true;
+            }
+            if (imp.isAsterisk()) {
+                return false;
             }
             String simpleName = simpleName(name);
             return isStaticMethodName(simpleName) && isUsedAsStaticImport(cu, simpleName) == false;
@@ -173,14 +169,42 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return false;
     }
 
-    private static boolean extendsTestBase(CompilationUnit cu) {
-        for (TypeDeclaration<?> type : cu.getTypes()) {
-            if (type instanceof ClassOrInterfaceDeclaration clazz) {
-                for (ClassOrInterfaceType extended : clazz.getExtendedTypes()) {
-                    if (isTestBaseName(extended.getNameAsString())) {
-                        return true;
-                    }
+    /**
+     * True when every usage of this test-framework static import sits in a type that already
+     * inherits the method (a {@code *TestCase} / {@code RandomizedTest} / {@code LuceneTestCase}
+     * subclass, including nested classes of those types). Usages in a sibling helper type keep
+     * the import. An asterisk import is redundant only when every unscoped method call in the
+     * file is inside such a type.
+     */
+    private static boolean isInheritedByEveryUsage(
+        ImportDeclaration imp,
+        CompilationUnit cu,
+        Map<String, Set<String>> directSupers
+    ) {
+        if (imp.isAsterisk()) {
+            for (MethodCallExpr call : cu.findAll(MethodCallExpr.class)) {
+                if (call.getScope().isEmpty() && inheritsTestBase(call, directSupers) == false) {
+                    return false;
                 }
+            }
+            return true;
+        }
+        List<Node> usages = staticImportUsages(cu, simpleName(imp.getNameAsString()));
+        if (usages.isEmpty()) {
+            return false;
+        }
+        for (Node usage : usages) {
+            if (inheritsTestBase(usage, directSupers) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean inheritsTestBase(Node usage, Map<String, Set<String>> directSupers) {
+        for (String inherited : inheritedNames(usage, directSupers)) {
+            if (isTestBaseName(inherited)) {
+                return true;
             }
         }
         return false;
@@ -194,30 +218,28 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return simpleName.isEmpty() == false && Character.isLowerCase(simpleName.charAt(0));
     }
 
-    private static boolean isUsedAsUnscopedMethodCall(CompilationUnit cu, String simpleName) {
-        for (MethodCallExpr call : cu.findAll(MethodCallExpr.class)) {
-            if (simpleName.equals(call.getNameAsString()) && call.getScope().isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * A lowercase static import is in use if it is invoked as a method ({@code rarely()}) or
      * referenced as an identifier that is not shadowed by a local/parameter/field in scope
      * ({@code deprecationLogger.critical(...)}).
      */
     private static boolean isUsedAsStaticImport(CompilationUnit cu, String simpleName) {
-        if (isUsedAsUnscopedMethodCall(cu, simpleName)) {
-            return true;
+        return staticImportUsages(cu, simpleName).isEmpty() == false;
+    }
+
+    private static List<Node> staticImportUsages(CompilationUnit cu, String simpleName) {
+        List<Node> usages = new ArrayList<>();
+        for (MethodCallExpr call : cu.findAll(MethodCallExpr.class)) {
+            if (simpleName.equals(call.getNameAsString()) && call.getScope().isEmpty()) {
+                usages.add(call);
+            }
         }
         for (NameExpr nameExpr : cu.findAll(NameExpr.class)) {
             if (simpleName.equals(nameExpr.getNameAsString()) && isShadowed(nameExpr, simpleName) == false) {
-                return true;
+                usages.add(nameExpr);
             }
         }
-        return false;
+        return usages;
     }
 
     private static boolean isShadowed(NameExpr usage, String simpleName) {
@@ -443,14 +465,25 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
 
     private static String removeImportLines(String unix, List<ImportDeclaration> redundant) {
         String result = unix;
+        boolean removed = false;
         for (ImportDeclaration imp : redundant) {
             StringBuilder pattern = new StringBuilder("^import\\s+");
             if (imp.isStatic()) {
                 pattern.append("static\\s+");
             }
             pattern.append(Pattern.quote(imp.getNameAsString()));
+            if (imp.isAsterisk()) {
+                pattern.append("\\.\\*");
+            }
             pattern.append("\\s*;\\R?");
-            result = Pattern.compile(pattern.toString(), Pattern.MULTILINE).matcher(result).replaceFirst("");
+            String next = Pattern.compile(pattern.toString(), Pattern.MULTILINE).matcher(result).replaceFirst("");
+            if (next.equals(result) == false) {
+                result = next;
+                removed = true;
+            }
+        }
+        if (removed == false) {
+            return unix;
         }
         return result.replaceAll("\\n{3,}", "\n\n");
     }

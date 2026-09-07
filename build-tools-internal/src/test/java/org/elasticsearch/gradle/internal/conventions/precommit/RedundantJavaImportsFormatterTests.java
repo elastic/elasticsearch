@@ -418,4 +418,178 @@ public class RedundantJavaImportsFormatterTests {
             """;
         assertEquals(input, RedundantJavaImportsFormatter.format(input));
     }
+
+    @Test
+    public void testKeepsJunitStaticImportWhenAlsoUsedInNonTestTypeInSameFile() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assert.assertEquals;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+
+            class ExampleHelper {
+                static void check() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesJunitStaticImportWhenOnlyUsedInTestTypeInSameFile() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assert.assertEquals;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+
+            class ExampleHelper {
+                static void check() {}
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+
+            class ExampleHelper {
+                static void check() {}
+            }
+            """;
+        assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesJunitAsteriskStaticImportWhenExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assert.*;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsJunitAsteriskStaticImportWhenUsedInNonTestTypeInSameFile() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assert.*;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+
+            class ExampleHelper {
+                static void check() {
+                    assertTrue(true);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsJunitAsteriskStaticImportWhenNotExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import static org.junit.Assert.*;
+
+            public class Example {
+                public void testThing() {
+                    assertEquals(1, 1);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsNestedTypeImportUsedAsMethodReferenceWhenNotInheriting() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.example.Outer.Inner;
+
+            public class Example {
+                public Runnable run() {
+                    return Inner::new;
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testRemovesNestedTypeImportUsedAsMethodReferenceWhenSubclassExtendsEnclosingType() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.example.Outer;
+            import org.elasticsearch.example.Outer.Inner;
+
+            public class Example extends Outer {
+                public Runnable run() {
+                    return Inner::new;
+                }
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.example.Outer;
+
+            public class Example extends Outer {
+                public Runnable run() {
+                    return Inner::new;
+                }
+            }
+            """;
+        assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
 }

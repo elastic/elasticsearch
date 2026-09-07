@@ -8,11 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +28,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
@@ -102,7 +110,40 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz")).withFormatReaderRegistry(csvGzipRegistry());
+
+    /**
+     * Registry the production validator uses for compound-extension inference. Mockito stub: only
+     * {@link FormatReader#formatName()}, {@link FormatReader#fileExtensions()}, and
+     * {@link FormatReader#supportsWholeFileCompression()} are consulted.
+     */
+    private static FormatReaderRegistry csvGzipRegistry() {
+        FormatReader csv = mock(FormatReader.class);
+        when(csv.formatName()).thenReturn("csv");
+        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "gzip";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return raw;
+            }
+        });
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+        registry.registerExtension(".csv", "csv");
+        return registry;
+    }
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));

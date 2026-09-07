@@ -229,6 +229,13 @@ public class FormatNameResolverTests extends ESTestCase {
         assertEquals("csv", FormatNameResolver.extractCleanExtension("s3://bucket/logs/file.csv"));
     }
 
+    public void testExtractCleanExtensionHttpUrlStripsQuery() {
+        // For http/https, StoragePath strips the query string from the path before the last-dot scan,
+        // so a dot inside the query (e.g. ?v=1.2) does not win over the real extension.
+        assertEquals("csv", FormatNameResolver.extractCleanExtension("https://host/data.csv?v=1.2"));
+        assertEquals("csv", FormatNameResolver.extractCleanExtension("http://host/data.csv?X-Amz-Signature=a.b"));
+    }
+
     public void testExtractCleanExtensionNoDot() {
         assertNull(FormatNameResolver.extractCleanExtension("nodotfile"));
     }

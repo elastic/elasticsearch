@@ -507,14 +507,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * model. A bare authority with no path component (e.g. {@code s3://my.bucket}) returns an empty
      * object name and resolves to {@code null}, consistent with {@link StoragePath#objectName()}.
      *
-     * <p>HTTP(S): {@code ?} and {@code #} are stripped from the object name before the extension
-     * lookup. Presigned URLs carry query strings like {@code ?sig=…} or {@code ?v=1.2} that must be
-     * removed first; a dot inside the query (e.g. {@code ?sig=a.b}) would otherwise be mistaken for
-     * an extension delimiter. Extension extraction delegates to
+     * <p>Extension extraction delegates to
      * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolver#extractCleanExtension},
-     * which additionally strips {@code ?}/{@code #} from within the extracted extension substring
-     * (e.g. {@code file.csv?versionId=abc}) and is a no-op for glob patterns like {@code day?.csv}
-     * where {@code ?} precedes the dot.
+     * which is scheme-aware: for {@code http}/{@code https} it uses {@link StoragePath#objectName()}
+     * to obtain the path without any query string or fragment before the last-dot scan, so presigned
+     * URLs with dotted queries (e.g. {@code ?v=1.2}) do not mislead the extension lookup.
      */
     @Nullable
     private String formatFromExtension(String resource) {
@@ -527,20 +524,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
         String objectName = sp.objectName();
         if (objectName.isEmpty()) {
             return null;
-        }
-        // HTTP(S): strip query string and fragment from the object name before the extension lookup.
-        if (sp.scheme().equalsIgnoreCase("http") || sp.scheme().equalsIgnoreCase("https")) {
-            int q = objectName.indexOf('?');
-            if (q >= 0) {
-                objectName = objectName.substring(0, q);
-            }
-            int h = objectName.indexOf('#');
-            if (h >= 0) {
-                objectName = objectName.substring(0, h);
-            }
-            if (objectName.isEmpty()) {
-                return null;
-            }
         }
 
         String rawExt = FormatNameResolver.extractCleanExtension(objectName);

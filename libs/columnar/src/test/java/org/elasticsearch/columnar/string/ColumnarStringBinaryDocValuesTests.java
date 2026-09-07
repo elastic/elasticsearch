@@ -298,8 +298,9 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         }
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
             assertTrue("expected a dictionary", reader.hasDictionary());
+            final DictionaryStringColumnReader dictionary = (DictionaryStringColumnReader) reader;
             // A map that renames every ordinal, so a carried ordinal cannot pass by accident.
-            final int[] ordinalMap = new int[reader.dictionarySize()];
+            final int[] ordinalMap = new int[dictionary.dictionarySize()];
             for (int ordinal = 0; ordinal < ordinalMap.length; ordinal++) {
                 ordinalMap[ordinal] = ordinal + 100;
             }
@@ -317,7 +318,7 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
                         escaped++;
                         assertEquals("escaped value at doc " + doc, docValues[doc], cursor.value());
                     } else {
-                        reader.termAt(ordinal - 100, term);
+                        dictionary.termAt(ordinal - 100, term);
                         assertEquals("ordinal names the value at doc " + doc, docValues[doc], term);
                         // Reading again does not move the cursor.
                         assertEquals("ordinal is stable until the cursor moves", ordinal, cursor.ordinal());

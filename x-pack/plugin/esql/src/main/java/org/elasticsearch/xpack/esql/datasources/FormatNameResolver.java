@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.Locale;
 import java.util.Map;
@@ -194,15 +195,30 @@ public final class FormatNameResolver {
         if (objectName == null) {
             return null;
         }
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot >= objectName.length() - 1) {
+        // StoragePath.of() strips ?/# from the path for http/https (presigned URLs); for object-store
+        // schemes ? and # are literal key characters and objectName() preserves them.
+        String nameToScan;
+        try {
+            nameToScan = StoragePath.of(objectName).objectName();
+        } catch (IllegalArgumentException e) {
+            nameToScan = objectName;
+        }
+        if (nameToScan.isEmpty()) {
             return null;
         }
-        String ext = objectName.substring(lastDot + 1);
-        int q = ext.indexOf('?');
-        if (q >= 0) ext = ext.substring(0, q);
-        int h = ext.indexOf('#');
-        if (h >= 0) ext = ext.substring(0, h);
+        int lastDot = nameToScan.lastIndexOf('.');
+        if (lastDot < 0 || lastDot >= nameToScan.length() - 1) {
+            return null;
+        }
+        String ext = nameToScan.substring(lastDot + 1);
+        int queryStart = ext.indexOf('?');
+        if (queryStart >= 0) {
+            ext = ext.substring(0, queryStart);
+        }
+        int fragmentStart = ext.indexOf('#');
+        if (fragmentStart >= 0) {
+            ext = ext.substring(0, fragmentStart);
+        }
         return ext.isEmpty() ? null : ext.toLowerCase(Locale.ROOT);
     }
 

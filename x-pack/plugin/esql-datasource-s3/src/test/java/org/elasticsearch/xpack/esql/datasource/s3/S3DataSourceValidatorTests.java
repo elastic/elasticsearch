@@ -867,11 +867,34 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("http"));
     }
 
-    public void testValidateDatasourceAcceptsUnderscoreHostEndpoint() {
-        // Java's URI leaves getHost() null for non-RFC hostnames like minio_s3, but URI.create +
-        // the SDK's endpointOverride serve them fine, so the PUT gate must accept them too.
-        var result = validator.validateDatasource(Map.of("endpoint", "http://minio_s3:9000", "auth", "anonymous"));
-        assertEquals("http://minio_s3:9000", result.get("endpoint").nonSecretValue());
+    public void testValidateDatasourceRejectsUnderscoreHostEndpoint() {
+        // Java's URI leaves getHost() null for non-RFC hostnames like minio_s3, and the AWS SDK's
+        // endpointOverride throws URISyntaxException on them, so they must be rejected at PUT time.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://minio_s3:9000", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http://minio_s3:9000]"));
+        assertThat(e.getMessage(), containsString("http"));
+    }
+
+    public void testValidateDatasourceRejectsJunkPortEndpoint() {
+        // http://localhost:abc — URI.create throws (non-numeric port), caught by the validator.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://localhost:abc", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http://localhost:abc]"));
+    }
+
+    public void testValidateDatasourceRejectsNoAuthorityEndpoint() {
+        // http:/path — valid URI with a path but no authority; getHost() returns null.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http:/path", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [http:/path]"));
+        assertThat(e.getMessage(), containsString("http"));
     }
 
     public void testValidateDatasourceAcceptsUppercaseSchemeEndpoint() {

@@ -86,12 +86,12 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Rejects {@code value} unless it is an absolute http(s) URL with an authority. This also runs on
-     * query-time constructs ({@link #fromQueryConfig} and stored-settings rehydration), so it must
-     * accept everything the query path accepts — it requires only what {@code URI.create} +
-     * {@code endpointOverride} need. In particular the scheme comparison is case-insensitive, and the
-     * host check reads the authority rather than {@link URI#getHost()}, which Java leaves {@code null}
-     * for non-RFC hostnames (e.g. underscores: {@code http://minio_s3:9000}) that the SDK serves fine.
+     * Rejects {@code value} unless it is an absolute http(s) URL with a resolvable host. This also
+     * runs on query-time constructs ({@link #fromQueryConfig} and stored-settings rehydration), so it
+     * must accept everything the query path accepts. The scheme comparison is case-insensitive. The
+     * host check uses {@link URI#getHost()}, which returns {@code null} for hostnames that are invalid
+     * per RFC 2396 (e.g. underscores: {@code http://minio_s3:9000}); those cause a
+     * {@link java.net.URISyntaxException} in the AWS SDK's endpoint override and must be rejected here.
      */
     private static void validateHttpUrl(String value, String settingName, ValidationException errors) {
         if (value == null || value.isBlank()) {
@@ -100,11 +100,9 @@ public class S3Configuration extends FileDataSourceConfiguration {
         try {
             URI uri = URI.create(value);
             String scheme = uri.getScheme();
-            String authority = uri.getRawAuthority();
             if (uri.isAbsolute() == false
                 || ("http".equalsIgnoreCase(scheme) == false && "https".equalsIgnoreCase(scheme) == false)
-                || authority == null
-                || authority.isBlank()) {
+                || uri.getHost() == null) {
                 errors.addValidationError(
                     settingName + " [" + value + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
                 );

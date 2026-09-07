@@ -699,7 +699,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return;
         }
-        parseOptionsFromConfig(config, baseline, true);
+        // Strict chars (reject multi-char values) but no HeaderWarning: the validator runs on the PUT
+        // request thread, so any warning would reach the dataset author rather than the query author.
+        parseOptionsFromConfig(config, baseline, true, false);
     }
 
     /**
@@ -710,8 +712,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @param strictChars whether a multi-character {@code delimiter}/{@code quote}/{@code escape} is
      *                    rejected ({@code true}, the PUT-time gate) or truncated to its first character
      *                    ({@code false}, the query path — see {@link #parseChar} for why)
+     * @param emitWarnings whether to emit {@link org.elasticsearch.common.logging.HeaderWarning} on
+     *                     the current request thread ({@code true} at query time, {@code false} at
+     *                     PUT-validation time where the warning reaches the wrong audience)
      */
-    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline, boolean strictChars) {
+    private static CsvFormatOptions parseOptionsFromConfig(
+        Map<String, Object> config,
+        CsvFormatOptions baseline,
+        boolean strictChars,
+        boolean emitWarnings
+    ) {
         // `mode` is a named preset over the (quoting, escaping) pair; explicit quote/escape keys then
         // override whatever the preset (or the extension baseline) chose. Overrides always win — we no
         // longer reject an "incoherent" combination, so a resulting silent misread is the user's to own.
@@ -771,7 +781,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "the bracket scanner honors quoted fields"
             );
         }
-        if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
+        if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting && emitWarnings) {
             // The user named the C-style decode (mode: escaped) but a quote override turned quoting on,
             // which resolves to (true, true) and hands the escape char to Jackson — so \N/\t are no
             // longer C-style-decoded. The data-driven null-marker warning can't catch this (Jackson
@@ -1173,7 +1183,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         // Lenient char parsing (multi-char values truncate, as they always have): stored datasets
         // may carry such values from before the PUT-time gate; see parseChar.
-        CsvFormatOptions parsed = parseOptionsFromConfig(config, options, false);
+        CsvFormatOptions parsed = parseOptionsFromConfig(config, options, false, true);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);

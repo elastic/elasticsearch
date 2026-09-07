@@ -107,11 +107,7 @@ public class DatasetService {
             for (String key : request.rawSettings().keySet()) {
                 DataSourceSetting parentSetting = parent.settings().get(key);
                 if (parentSetting != null && parentSetting.secret()) {
-                    ValidationException ex = new ValidationException();
-                    ex.addValidationError(
-                        "dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings"
-                    );
-                    throw ex;
+                    throwShadowError(key);
                 }
             }
         }
@@ -125,9 +121,7 @@ public class DatasetService {
         for (String key : validatedSettings.keySet()) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {
-                ValidationException ex = new ValidationException();
-                ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
-                throw ex;
+                throwShadowError(key);
             }
         }
         // Shape-only validation of the declared mapping (no file I/O): declarable types, rename name collisions,
@@ -142,6 +136,12 @@ public class DatasetService {
             validatedSettings,
             request.mapping()
         );
+    }
+
+    private static void throwShadowError(String key) {
+        ValidationException ex = new ValidationException();
+        ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
+        throw ex;
     }
 
     /**

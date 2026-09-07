@@ -132,13 +132,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
     private final BooleanSupplier federatedIdentityEnabled;
+    @Nullable
+    private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null);
     }
 
     private FileDataSourceValidator(
@@ -148,7 +150,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
-        BooleanSupplier federatedIdentityEnabled
+        BooleanSupplier federatedIdentityEnabled,
+        @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -157,6 +160,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
+        this.fixedAuthMode = fixedAuthMode;
     }
 
     /**
@@ -177,7 +181,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             resolver,
             compressionExtensions,
             managedIdentityEnabled,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            fixedAuthMode
         );
     }
 
@@ -196,7 +201,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatConfigKeyResolver,
             compressionExtensions,
             supplier,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            fixedAuthMode
         );
     }
 
@@ -213,13 +219,82 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatConfigKeyResolver,
             compressionExtensions,
             managedIdentityEnabled,
-            supplier
+            supplier,
+            fixedAuthMode
+        );
+    }
+
+    /**
+     * Returns a new validator that reports a fixed auth mode for inventory (http/local are not
+     * {@link FileDataSourceConfiguration}s and have no credential fields to infer from).
+     */
+    public FileDataSourceValidator withFixedAuthMode(FileDataSourceConfiguration.AuthMode mode) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            mode
         );
     }
 
     @Override
     public String type() {
         return type;
+    }
+
+    @Override
+    public String authModeOrNull(Map<String, DataSourceSetting> stored) {
+        if (fixedAuthMode != null) {
+            return fixedAuthMode.name().toLowerCase(Locale.ROOT);
+        }
+        try {
+            Map<String, Object> raw = new HashMap<>();
+            Set<String> existingSecretKeys = new HashSet<>();
+            if (stored != null) {
+                for (var entry : stored.entrySet()) {
+                    DataSourceSetting setting = entry.getValue();
+                    if (setting.secret()) {
+                        if (setting.presentationValue() != null) {
+                            existingSecretKeys.add(entry.getKey());
+                        }
+                    } else {
+                        raw.put(entry.getKey(), setting.nonSecretValue());
+                    }
+                }
+            }
+            // fromMap short-circuits on an empty raw map; seed a placeholder so preexisting
+            // secret keys still construct a config. The placeholder is not a stored secret.
+            if (raw.isEmpty() && existingSecretKeys.isEmpty() == false) {
+                raw.put(existingSecretKeys.iterator().next(), "present");
+            }
+            DataSourceConfiguration config = configFactory.apply(raw, existingSecretKeys);
+            if (config == null) {
+                return existingSecretKeys.isEmpty()
+                    ? null
+                    : FileDataSourceConfiguration.AuthMode.STATIC_CREDENTIALS.name().toLowerCase(Locale.ROOT);
+            }
+            if (config instanceof FileDataSourceConfiguration file) {
+                FileDataSourceConfiguration.AuthMode mode = file.resolveAuthModeOrNull();
+                return mode == null ? null : mode.name().toLowerCase(Locale.ROOT);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public DatasetShape datasetShape(Map<String, Object> datasetSettings, String resource) {
+        Map<String, Object> settings = datasetSettings == null ? Map.of() : datasetSettings;
+        String format = explicitFormat(settings);
+        if (format == null && formatConfigKeyResolver != null && resource != null) {
+            format = formatFromExtension(resource);
+        }
+        return new DatasetShape(format, compressionNameFromResource(resource));
     }
 
     @Override
@@ -532,6 +607,38 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
         }
         return null;
+    }
+
+    /**
+     * Codec name for the resource's outer compression suffix, {@code uncompressed} when the object
+     * name has no known compression suffix, or {@code null} when the resource is not a scheme URI.
+     */
+    @Nullable
+    private String compressionNameFromResource(String resource) {
+        if (resource == null) {
+            return null;
+        }
+        String objectName = extractObjectName(resource);
+        if (objectName == null) {
+            return null;
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+            return "uncompressed";
+        }
+        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        if (compressionExtensions.contains(ext) == false) {
+            return "uncompressed";
+        }
+        return switch (ext) {
+            case ".gz", ".gzip" -> "gzip";
+            case ".snappy" -> "snappy";
+            case ".zst", ".zstd" -> "zstd";
+            case ".br" -> "brotli";
+            case ".lz4" -> "lz4";
+            case ".bz2", ".bz" -> "bzip2";
+            default -> "other";
+        };
     }
 
     /** Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query or fragment. */

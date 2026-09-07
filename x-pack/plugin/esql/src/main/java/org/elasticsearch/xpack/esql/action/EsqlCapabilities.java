@@ -1665,6 +1665,13 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES,
 
         /**
+         * Does the usage information for ESQL contain dense datasource inventory marginals
+         * ({@code datasources.config.datasources.by_auth.*}, {@code datasets.by_format.*},
+         * {@code by_schema.*}, {@code by_partitioning.*}, {@code by_compression.*})?
+         */
+        USAGE_CONTAINS_DATASOURCE_INVENTORY_MARGINALS,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,

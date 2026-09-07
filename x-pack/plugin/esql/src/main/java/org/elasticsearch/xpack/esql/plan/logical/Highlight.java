@@ -242,6 +242,17 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         return new Highlight(source(), child(), prefix, newQuery, newImplicitQuery, derivedFields, newFields, options, newGeneratedFields);
     }
 
+    /**
+     * Narrows this HIGHLIGHT to a subset of its ON fields and their aligned generated columns, keeping {@link #query},
+     * {@link #implicitQuery} and {@link #derivedFields}. Column pruning uses this to drop ON fields whose generated
+     * {@code <prefix><field>} column is never consumed downstream. This runs after verification, so ON-membership is
+     * unaffected; the query still translates against the surviving field names, so a literal query simply spans fewer
+     * fields.
+     */
+    public Highlight withPrunedFields(List<NamedExpression> prunedFields, List<Attribute> prunedGeneratedFields) {
+        return copy(child(), query, prunedFields, options, prunedGeneratedFields);
+    }
+
     @Override
     public Highlight replaceChild(LogicalPlan newChild) {
         return copy(newChild, query, fields, options, generatedFields);

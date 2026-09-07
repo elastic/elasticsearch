@@ -8,7 +8,7 @@
  */
 
 /**
- * Native-accelerated JSON parsing for ESCF: parser pool, direct document walker, and handler
+ * Native-accelerated JSON parsing: parser pool, direct document walker, and handler
  * callbacks. Entry point is {@link org.elasticsearch.simdjson.SimdJsonParserPool}.
  */
 package org.elasticsearch.simdjson;

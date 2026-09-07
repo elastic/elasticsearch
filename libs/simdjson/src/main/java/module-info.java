@@ -8,7 +8,7 @@
  */
 
 /**
- * Native-accelerated JSON parsing for Elasticsearch columnar source encoding (ESCF).
+ * Native-accelerated JSON parsing.
  *
  * <p>Stage 1 structural indexing runs in {@code libsimdjson} (SIMD-backed C++). Stage 2 is
  * fused with token walking via {@link org.elasticsearch.simdjson.SimdJsonDirectWalker} — no

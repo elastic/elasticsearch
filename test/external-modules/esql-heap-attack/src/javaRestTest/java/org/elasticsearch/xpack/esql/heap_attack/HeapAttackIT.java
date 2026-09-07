@@ -61,21 +61,6 @@ import static org.hamcrest.Matchers.matchesRegex;
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends HeapAttackTestCase {
 
-    @Before
-    public void maybeCreateView() throws IOException {
-        // Depending on whether a view exists, a slightly different code path is taken.
-        // We want to test both paths, so randomly create a view or not.
-        if (randomBoolean()) {
-            logger.info("Creating view");
-            Request r = new Request("PUT", "/_query/view/my_view");
-            r.setJsonEntity("""
-                { "query": "FROM manylongs" }""");
-            client().performRequest(r);
-        } else {
-            logger.info("Not creating view");
-        }
-    }
-
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.
      */
@@ -493,6 +478,18 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testTooManyEval() throws IOException {
+        initManyLongs(10);
+        // 490 is plenty to fail on most nodes
+        assertCircuitBreaks(attempt -> manyEval(attempt * 490));
+    }
+
+    public void testTooManyEval_withViewDefined() throws IOException {
+        // When a view is defined, ViewResolver can do signifcant work with a large stack.
+        Request r = new Request("PUT", "/_query/view/my_view");
+        r.setJsonEntity("""
+                { "query": "FROM manylongs" }""");
+        client().performRequest(r);
+
         initManyLongs(10);
         // 490 is plenty to fail on most nodes
         assertCircuitBreaks(attempt -> manyEval(attempt * 490));

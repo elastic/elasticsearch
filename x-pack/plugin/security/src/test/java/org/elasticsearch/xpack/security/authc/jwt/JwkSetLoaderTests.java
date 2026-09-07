@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.nio.AsyncPushConsumer;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.HandlerFactory;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
@@ -24,7 +29,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.mockito.ArgumentCaptor;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -36,8 +40,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -51,7 +57,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -216,7 +221,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         var uri = URI.create(url);
         RealmConfig realmConfig = makeRealmConfigWithReloadUrl(url);
         ThreadPool threadPool = mock(ThreadPool.class);
-        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+        TestHttpAsyncClient httpClient = new TestHttpAsyncClient();
 
         CountingCallback callback = new CountingCallback();
 
@@ -229,7 +234,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         }
 
         loader.stop();
-        verify(httpClient, times(1)).close();
+        assertThat(httpClient.closed, is(true));
         verifySchedulingIteration(callback, threadPool, httpClient, iterations + 1); // last schedule call, no subsequent reschedule
         verify(threadPool, never()).schedule(any(Runnable.class), any(TimeValue.class), isNull());
     }
@@ -239,7 +244,7 @@ public class JwkSetLoaderTests extends ESTestCase {
         var uri = URI.create(url);
         RealmConfig realmConfig = makeRealmConfigWithReloadUrl(url);
         ThreadPool threadPool = mock(ThreadPool.class);
-        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+        TestHttpAsyncClient httpClient = new TestHttpAsyncClient();
 
         Consumer<byte[]> callback = bytes -> { throw new RuntimeException(); };
 
@@ -259,12 +264,8 @@ public class JwkSetLoaderTests extends ESTestCase {
         return realmConfig;
     }
 
-    private void verifySchedulingIteration(
-        CountingCallback callback,
-        ThreadPool threadPool,
-        CloseableHttpAsyncClient httpClient,
-        int iteration
-    ) throws IOException {
+    private void verifySchedulingIteration(CountingCallback callback, ThreadPool threadPool, TestHttpAsyncClient httpClient, int iteration)
+        throws IOException {
         // capture scheduled task and delay
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<TimeValue> timeCaptor = ArgumentCaptor.forClass(TimeValue.class);
@@ -274,22 +275,19 @@ public class JwkSetLoaderTests extends ESTestCase {
 
         // run the scheduled task, which triggers HTTP call
         taskCaptor.getValue().run();
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
-        verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
+        FutureCallback<SimpleHttpResponse> responseFn = httpClient.nextCallback();
         byte[] bytes = "x".repeat(iteration).getBytes(StandardCharsets.UTF_8);
-        HttpResponse response = makeHttpResponse(bytes, randomBoolean());
+        SimpleHttpResponse response = makeHttpResponse(bytes, randomBoolean());
 
-        reset(threadPool, httpClient);
+        reset(threadPool);
 
         // invoke response handler
-        responseFn.getValue().completed(response);
+        responseFn.completed(response);
         assertThat(callback.content, is(equalTo(bytes)));
         assertThat(callback.count, is(iteration));
     }
 
-    private void verifySchedulingIterationWithListenerException(ThreadPool threadPool, CloseableHttpAsyncClient httpClient)
-        throws IOException {
+    private void verifySchedulingIterationWithListenerException(ThreadPool threadPool, TestHttpAsyncClient httpClient) throws IOException {
         // capture scheduled task and delay
         ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<TimeValue> timeCaptor = ArgumentCaptor.forClass(TimeValue.class);
@@ -300,15 +298,13 @@ public class JwkSetLoaderTests extends ESTestCase {
 
         // run the scheduled task, which triggers HTTP call
         taskCaptor.getValue().run();
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<FutureCallback<HttpResponse>> responseFn = ArgumentCaptor.forClass(FutureCallback.class);
-        verify(httpClient, times(1)).execute(any(HttpGet.class), responseFn.capture());
-        HttpResponse response = makeHttpResponse(new byte[0], randomBoolean());
+        FutureCallback<SimpleHttpResponse> responseFn = httpClient.nextCallback();
+        SimpleHttpResponse response = makeHttpResponse(new byte[0], randomBoolean());
 
-        reset(threadPool, httpClient);
+        reset(threadPool);
 
         // invoke response handler
-        responseFn.getValue().completed(response);
+        responseFn.completed(response);
     }
 
     private static void verifyScheduleTime(boolean firstIteration, ArgumentCaptor<TimeValue> timeCaptor) {
@@ -322,31 +318,15 @@ public class JwkSetLoaderTests extends ESTestCase {
         }
     }
 
-    private static HttpResponse makeHttpResponse(byte[] bytes, boolean expiresHeader) throws IOException {
-        HttpEntity entity = mock(HttpEntity.class);
-        StatusLine statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(200);
-        when(entity.getContent()).thenReturn(new ByteArrayInputStream(bytes));
-        HttpResponse response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-        when(response.getEntity()).thenReturn(entity);
-        Header eh = expiresHeader ? expiresHeader(10) : null;
-        Header cc = expiresHeader ? null : cacheControlHeader(10);
-        when(response.getFirstHeader(eq("Expires"))).thenReturn(eh);
-        when(response.getFirstHeader(eq("Cache-Control"))).thenReturn(cc);
+    private static SimpleHttpResponse makeHttpResponse(byte[] bytes, boolean expiresHeader) {
+        SimpleHttpResponse response = new SimpleHttpResponse(200);
+        response.setBody(bytes, ContentType.DEFAULT_BINARY);
+        if (expiresHeader) {
+            response.addHeader("Expires", expiresHeaderValue(10));
+        } else {
+            response.addHeader("Cache-Control", "max-age=" + (10 * 60));
+        }
         return response;
-    }
-
-    private static Header expiresHeader(int minutes) {
-        Header header = mock(Header.class);
-        when(header.getValue()).thenReturn(expiresHeaderValue(minutes));
-        return header;
-    }
-
-    private static Header cacheControlHeader(int minutes) {
-        Header header = mock(Header.class);
-        when(header.getValue()).thenReturn("max-age=" + (minutes * 60));
-        return header;
     }
 
     private static String expiresHeaderValue(int plusMinutes) {
@@ -370,6 +350,58 @@ public class JwkSetLoaderTests extends ESTestCase {
         public void accept(byte[] bytes) {
             content = bytes;
             count++;
+        }
+    }
+
+    /**
+     * Minimal stub for CloseableHttpAsyncClient. HC5's execute(SimpleHttpRequest, FutureCallback) methods are
+     * final and cannot be mocked; this stub captures callbacks via the abstract doExecute method.
+     */
+    private static class TestHttpAsyncClient extends CloseableHttpAsyncClient {
+        private final LinkedList<FutureCallback<SimpleHttpResponse>> callbacks = new LinkedList<>();
+        boolean closed = false;
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <T> Future<T> doExecute(
+            HttpHost target,
+            AsyncRequestProducer requestProducer,
+            AsyncResponseConsumer<T> responseConsumer,
+            HandlerFactory<AsyncPushConsumer> pushHandlerFactory,
+            HttpContext context,
+            FutureCallback<T> callback
+        ) {
+            callbacks.add((FutureCallback<SimpleHttpResponse>) callback);
+            return null;
+        }
+
+        FutureCallback<SimpleHttpResponse> nextCallback() {
+            return callbacks.removeFirst();
+        }
+
+        @Override
+        public void start() {}
+
+        @Override
+        public IOReactorStatus getStatus() {
+            return IOReactorStatus.ACTIVE;
+        }
+
+        @Override
+        public void awaitShutdown(org.apache.hc.core5.util.TimeValue waitTime) {}
+
+        @Override
+        public void initiateShutdown() {}
+
+        @Override
+        public void register(String hostname, String uriPattern, org.apache.hc.core5.function.Supplier<AsyncPushConsumer> supplier) {}
+
+        @Override
+        public void close(CloseMode closeMode) {}
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

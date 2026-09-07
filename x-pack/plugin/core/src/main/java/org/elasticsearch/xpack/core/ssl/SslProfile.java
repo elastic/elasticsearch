@@ -38,15 +38,18 @@ public interface SslProfile {
 
     HostnameVerifier hostnameVerifier();
 
+    /**
+     * @return An object that is useful for configuring Apache Http Client v4.x classic (synchronous) API
+     */
     SSLConnectionSocketFactory connectionSocketFactory();
 
     /**
-     * @return An object that is useful for configuring Apache Http Client v4.x
+     * @return An object that is useful for configuring Apache Http Client v4.x async API
      */
     SSLIOSessionStrategy ioSessionStrategy();
 
     /**
-     * @return An object that is useful for configuring Apache Http Client v5.x
+     * @return An object that is useful for configuring Apache Http Client v5.x async API
      */
     TlsStrategy clientTlsStrategy();
 

@@ -15,7 +15,6 @@ import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -354,16 +353,28 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         this.childReleasables.add(releasable);
     }
 
+    @SuppressWarnings("deprecation")
+    private static org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory buildClassicSslSocketFactory(SslProfile sslProfile) {
+        // SSLConnectionSocketFactory is deprecated in HC5 in favour of TlsStrategy (async only).
+        // OpenSAML's AbstractReloadingMetadataResolver requires a blocking HTTP client, so the
+        // async path is not available here.
+        final var config = sslProfile.configuration();
+        final var ctx = sslProfile.sslContext();
+        final var ciphers = SSLService.supportedCiphers(ctx.getSupportedSSLParameters().getCipherSuites(), config.getCipherSuites(), false);
+        return new org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory(
+            ctx,
+            config.supportedProtocols().toArray(new String[0]),
+            ciphers,
+            sslProfile.hostnameVerifier()
+        );
+    }
+
     private static SamlMetadataResolver.MetadataParseResult parseHttpMetadata(String metadataUrl, RealmConfig config, SSLService sslService)
         throws ResolverException, ComponentInitializationException {
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
-        final SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-            sslProfile.sslContext(),
-            sslProfile.hostnameVerifier()
-        );
         final var connManager = PoolingHttpClientConnectionManagerBuilder.create()
-            .setSSLSocketFactory(sslSocketFactory)
+            .setSSLSocketFactory(buildClassicSslSocketFactory(sslProfile))
             .setConnectionTimeToLive(org.apache.hc.core5.util.TimeValue.ofSeconds(DEFAULT_CONNECTION_TTL.toDuration().toSeconds()))
             .build();
 

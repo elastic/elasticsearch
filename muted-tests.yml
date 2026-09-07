@@ -765,9 +765,6 @@ tests:
 - class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
   method: testRetentionWhileSnapshotInProgress
   issue: https://github.com/elastic/elasticsearch/issues/158608
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/158613
 - class: org.elasticsearch.xpack.esql.analysis.promql.PromqlVerifierTests
   method: testVectorMatchingRequiresInstantVectors
   issue: https://github.com/elastic/elasticsearch/issues/158606

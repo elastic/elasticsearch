@@ -6495,6 +6495,29 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    /**
+     * A WHERE may search non-text fields, so a derived query is not held to the field types an explicit one is:
+     * the numeric conjunct is borrowed but highlights nothing, leaving only the text field to highlight. The same
+     * query written on the command is rejected (see VerifierTests#testDerivedOnRejectsNonHighlightableQueryField).
+     */
+    public void testHighlightImplicitQueryIgnoresNonHighlightableFields() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x") AND MATCH(salary, 3)
+            | HIGHLIGHT
+            """));
+
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
+        assertTrue(highlight.implicitQuery());
+
+        // Nothing is left to highlight when the WHERE searches only non-text fields.
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(salary, 3) | HIGHLIGHT",
+            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+        );
+    }
+
     public void testHighlightImplicitQueryStopsAtStats() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlight(basic()).error(

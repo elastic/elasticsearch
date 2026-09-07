@@ -192,6 +192,11 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
     @Override
     public boolean readOrdinals(int[] docs, int offset, int count, int[] ordinals) throws IOException {
+        if (pageable() == false) {
+            // One ordinal a document, and every ordinal a term's: neither holds on a column whose documents
+            // carry several slots, nor on one where a slot may be the reserved null, which names no term.
+            return false;
+        }
         growPage(count);
         if (ranksOfAll(docs, offset, count) == false) {
             return false;
@@ -290,17 +295,27 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /**
      * Fills a window from the ordinals alone, testing a decoded block of them at a time. Sound only where
      * nothing escaped: an escaped ordinal says the value is elsewhere, so its bytes still decide it.
+     *
+     * <p>A document matches on any one of its slots, so this walks the slots the way {@link #matchesRank}
+     * does. They are contiguous, so a document's run of them almost always falls inside the block already
+     * decoded and the pass stays one block read per block of ordinals rather than one per document.
      */
     private void collectFromOrdinals(ColumnIterator presence, OrdinalBlockMask mask, int upTo, FixedBitSet bitSet, int offset)
         throws IOException {
         int doc = presence.docID();
         while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
             final int rank = presence.rank();
-            if (mask.covers(rank) == false) {
-                mask.load(rank);
-            }
-            if (mask.matches(rank)) {
-                bitSet.set(doc - offset);
+            final long first = firstValueAddress(rank);
+            final long count = valueCount(rank);
+            for (long i = 0; i < count; i++) {
+                final long address = first + i;
+                if (mask.covers(address) == false) {
+                    mask.load(address);
+                }
+                if (mask.matches(address)) {
+                    bitSet.set(doc - offset);
+                    break;
+                }
             }
             doc = presence.nextDoc();
         }

@@ -133,6 +133,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 final long first = firstValueAddress(rank);
                 final long count = valueCount(rank);
                 if (count == 1) {
+                    if (isNullSlot(first)) {
+                        return false;
+                    }
                     // A value repeating the one before it answers as it answered.
                     final long identity = values.read(first, value);
                     if (identity == lastSeen.identity && value.length == lastSeen.length) {
@@ -191,9 +194,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         final long first = firstValueAddress(rank);
         final long count = valueCount(rank);
         // A document holding the same value as the one before it matches exactly as it did. On a column of
-        // runs that answers most documents without looking at a value at all. A document holding one slot
-        // holds a value in it: a document whose only slot is null has no value to write a field for.
+        // runs that answers most documents without looking at a value at all. A lone null is turned away
+        // first: it is stored as no bytes, so it would otherwise be compared as an empty string.
         if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
             final long identity = values.read(first, scratch);
             if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
                 return lastSeen.matched;

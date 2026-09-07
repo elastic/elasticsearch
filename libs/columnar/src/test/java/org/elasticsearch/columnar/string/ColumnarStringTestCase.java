@@ -33,9 +33,10 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
  * describes a column as an array of per-document slots and asserts against a reader over it.
  *
  * <p>A column is described as {@code BytesRef[][]}: a {@code null} row is a document with no value at all, and a
- * {@code null} element within a row is a null slot. A row must hold at least one non-null slot, matching the
- * mapper's rule that a document with no non-null value writes no binary field — the shape the codec therefore
- * never sees. A {@code BytesRef[]} column is the single-valued special case of the same thing.
+ * {@code null} element within a row is a null slot. A row may hold nothing but nulls — the mapper writes a
+ * payload for an all-null array, which is what keeps it distinct from a field that is simply absent — so the
+ * codec sees that shape and these fixtures have to be able to describe it. A {@code BytesRef[]} column is the
+ * single-valued special case of the same thing.
  *
  * <p>The files are fixtures rather than real segments — this class writes and reads them both — so they carry
  * their own codec names. Nothing here has to track the names the format itself uses.
@@ -139,8 +140,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
     /**
      * Random per-document slots. {@code sparse} leaves some documents without a value at all; {@code nulls}
-     * puts null slots among the values, always leaving a document at least one non-null slot so the result
-     * is a column the mapper could really have produced.
+     * puts null slots among the values, including documents that hold nothing else — the mapper writes a
+     * payload for those, so a column really does contain them.
      */
     protected static BytesRef[][] randomDocSlots(final int maxDoc, final int maxSlots, final boolean sparse, final boolean nulls) {
         final BytesRef[][] docSlots = new BytesRef[maxDoc][];
@@ -149,16 +150,11 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 continue;
             }
             final BytesRef[] slots = new BytesRef[between(1, maxSlots)];
-            int nonNull = 0;
             for (int slot = 0; slot < slots.length; slot++) {
                 if (nulls && randomBoolean()) {
                     continue;
                 }
                 slots[slot] = new BytesRef(randomAlphaOfLengthBetween(0, 40));
-                nonNull++;
-            }
-            if (nonNull == 0) {
-                slots[between(0, slots.length - 1)] = new BytesRef(randomAlphaOfLengthBetween(0, 40));
             }
             docSlots[doc] = slots;
         }

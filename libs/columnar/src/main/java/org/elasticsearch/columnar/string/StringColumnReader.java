@@ -89,11 +89,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int slotMask;
 
     StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
-        // A document whose only slot is null has no non-null value, which the mapper writes no field for. So
-        // the shapes below that read a slot without asking whether it is null — bisecting an ordered column,
-        // building a page — are reached only where there is no null to mistake for a value.
-        assert meta.multiValued() || meta.hasNullSlots() == false
-            : "a column of one slot per document holds " + meta.numNullSlots() + " nulls";
         this.meta = meta;
         this.data = data;
         this.blockSize = blockSize;
@@ -128,6 +123,18 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     public boolean hasValueAddresses() {
         return valueAddresses != null;
+    }
+
+    /**
+     * Whether a page can carry this column's slots. A page has one entry a document and no shape for either
+     * a document holding several or a slot holding nothing, so a column with more than one slot per document
+     * — or with a null among them — is read a document at a time instead.
+     *
+     * <p>The two are separate questions: a document whose only slot is null leaves the slots and the
+     * documents in step, so a column of them is not multi-valued and still has nothing a page can say.
+     */
+    protected boolean pageable() {
+        return meta.multiValued() == false && meta.hasNullSlots() == false;
     }
 
     /** The value address of a document's first slot, given its rank. */
@@ -462,8 +469,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      *         a time; true when {@code sink} was called exactly once
      */
     public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
-        if (meta.multiValued()) {
-            // A document with several values needs a shape the sink has none for.
+        if (pageable() == false) {
             return false;
         }
         if (count == 0) {

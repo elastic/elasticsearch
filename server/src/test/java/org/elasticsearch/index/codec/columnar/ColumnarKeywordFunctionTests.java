@@ -30,12 +30,16 @@ import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -103,6 +107,53 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
             expected.add(best == null ? null : new BytesRef(best));
         }
         return expected;
+    }
+
+    /**
+     * BYTE_LENGTH and LENGTH, which answer only for a document holding exactly one value and warn for one holding
+     * more. The arity comes from the column - how many slots a document has and which of them are null - so a payload
+     * is never decoded to count. Every arity is here: none, one, and several, by both nulls and real values.
+     */
+    public void testLengthFunctions() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (d % 8) {
+                case 0 -> new String[] { "abc" };                     // one value
+                case 1 -> new String[] { "\u00e9\u00e8" };                    // two code points, four bytes
+                case 2 -> new String[] { null, "one-left" };          // one value after the nulls go
+                case 3 -> new String[] { "a", "b" };                  // several: no answer, and a warning
+                case 4 -> new String[] { null };                      // none
+                case 5 -> new String[0];                              // none
+                case 6 -> new String[] { "" };                        // one value, of no bytes
+                default -> new String[] { "term-" + (d % 5) };
+            };
+        }
+        for (boolean bytes : new boolean[] { true, false }) {
+            final List<Object> expected = new ArrayList<>();
+            for (String[] slots : docs) {
+                String only = null;
+                int nonNull = 0;
+                for (String slot : slots) {
+                    if (slot != null) {
+                        nonNull++;
+                        only = slot;
+                    }
+                }
+                expected.add(nonNull != 1 ? null : bytes ? new BytesRef(only).length : only.codePointCount(0, only.length()));
+            }
+            assertLoaderMatches(
+                docs,
+                fieldName -> bytes
+                    ? new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), fieldName, BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+                    : new Utf8CodePointsFromOrdsBlockLoader(
+                        new MockWarnings(),
+                        fieldName,
+                        ByteSizeValue.ofKb(1),
+                        BinaryDocValuesFormat.COLUMNAR_PAYLOAD
+                    ),
+                expected
+            );
+        }
     }
 
     private void assertLoaderMatches(

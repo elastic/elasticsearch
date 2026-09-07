@@ -35,4 +35,18 @@ public interface StringColumnSource {
      * the next call.
      */
     BytesRef extreme(boolean max, BytesRef dst) throws IOException;
+
+    /**
+     * How many non-null values the document these values are positioned on holds, capped at two. Capped because the
+     * callers are the single-value functions, which want to know whether the arity is nothing, one, or more than one
+     * and nothing further.
+     *
+     * <p>{@code dst} is set to the first non-null value found, so it is the document's only value exactly when the
+     * answer is one. Scanning stops on the second, which leaves {@code dst} holding the first of several - no caller
+     * reads it then, and the payload route answers the same way.
+     *
+     * <p>Answered from what the column already records - how many slots the document has, and which of them are null
+     * - so nothing is decoded to count.
+     */
+    int nonNullValues(BytesRef dst) throws IOException;
 }

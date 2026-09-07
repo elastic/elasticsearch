@@ -158,7 +158,8 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                data,
+                new FsstBlockCodecBuilder().build()
             );
             AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
             // Bytes have no spare value to mean null with, so this layout alone tables its null slots.

@@ -182,10 +182,10 @@ public class ValueStreamTests extends ESTestCase {
 
     /** A marker no layout and no width takes is turned away rather than read as whichever shares its number. */
     public void testUnknownLayoutMarkersAreNotAccepted() {
-        for (byte marker : new byte[] { ValueStream.INLINE, 1, 2, ValueStream.RUNS, 4 }) {
+        for (byte marker : new byte[] { ValueStream.INLINE, 1, 2, ValueStream.RUNS, 4, ValueStream.FSST }) {
             assertTrue("marker " + marker + " is one this stream writes", ValueStream.knownMarker(marker));
         }
-        for (byte marker : new byte[] { 5, 6, 7, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+        for (byte marker : new byte[] { 6, 7, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
             assertFalse("marker " + marker + " names nothing this stream writes", ValueStream.knownMarker(marker));
         }
     }

@@ -61,13 +61,19 @@ public final class ValueStream {
     static final byte RUNS = 3;
 
     /**
+     * A block whose values are FSST-compressed: a per-block symbol table followed by per-value
+     * compressed lengths and the concatenated compressed bytes.
+     */
+    static final byte FSST = 5;
+
+    /**
      * Every value a block's first byte may take. A packed block marks itself with the width its lengths are
      * written at, so those widths and the layouts share one byte and a layout added later has to take a
      * value none of them use. {@link #knownMarker} is what says which those are, and the reader turns away
      * anything else rather than reading it as the layout that happens to share its number.
      */
     static boolean knownMarker(byte marker) {
-        return marker == INLINE || marker == RUNS || marker == 1 || marker == 2 || marker == 4;
+        return marker == INLINE || marker == RUNS || marker == FSST || marker == 1 || marker == 2 || marker == 4;
     }
 
     /** Mean value length below which a block keeps its lengths inline. */
@@ -151,7 +157,17 @@ public final class ValueStream {
         private int[] runReps = new int[0];
         private int pendingCount = 0;
         private int pendingLength = 0;
+        // Non-null when FSST encoding is enabled for this stream.
+        private final FsstBlockCodec fsst;
+        // Reused across FSST attempts: entropy scan result and the distinct-byte scratch buffer.
+        private final boolean[] seenBytes;
+        // Entropy gate: skip FSST when the block has too many distinct byte values to compress well.
+        private static final int FSST_MAX_DISTINCT_BYTES = 200;
 
+        /**
+         * Creates a writer with FSST block encoding disabled. Use when the stream carries dictionary
+         * terms, ordinals, or escape values where FSST is not beneficial.
+         */
         public Writer(
             ChunkCodec codec,
             int targetChunkBytes,
@@ -162,9 +178,29 @@ public final class ValueStream {
             String prefix,
             IndexOutput data
         ) throws IOException {
+            this(codec, targetChunkBytes, valuesPerBlock, numValues, dir, ctx, prefix, data, null);
+        }
+
+        /**
+         * Creates a writer. Pass a non-null {@code fsst} to enable FSST block encoding (subject to
+         * mean-length and entropy gates); pass {@code null} to disable it.
+         */
+        public Writer(
+            ChunkCodec codec,
+            int targetChunkBytes,
+            int valuesPerBlock,
+            long numValues,
+            Directory dir,
+            IOContext ctx,
+            String prefix,
+            IndexOutput data,
+            FsstBlockCodec fsst
+        ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
             this.data = data;
             this.pending = new int[valuesPerBlock];
+            this.fsst = fsst;
+            this.seenBytes = fsst != null ? new boolean[256] : null;
             // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
             // it fails, since a writer that never finished being built is one nothing else can close.
             ChunkedBytesWriter chunks = null;
@@ -235,6 +271,21 @@ public final class ValueStream {
             // the walk saves. The threshold is where the measured shapes turn over.
             if (pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
                 writeInline();
+            } else if (fsst != null && FsstSymbolTableBuilder.distinctByteCount(pendingBytes, pendingLength) < FSST_MAX_DISTINCT_BYTES) {
+                final FsstSymbolTable table = fsst.buildTable(pendingBytes, pendingLength, pending, pendingCount);
+                if (table != null) {
+                    final int packedSize = 1 + pendingCount * width + pendingLength;
+                    final int maxFsstSize = FsstBlockCodec.maxEncodedSize(table, pendingCount, pendingLength);
+                    scratch = ArrayUtil.growNoCopy(scratch, maxFsstSize);
+                    final int fsstWritten = fsst.encodeBlock(pendingBytes, pendingLength, pending, pendingCount, table, scratch, 0);
+                    if (fsstWritten < packedSize) {
+                        chunks.append(scratch, 0, fsstWritten);
+                    } else {
+                        writePacked(width);
+                    }
+                } else {
+                    writePacked(width);
+                }
             } else {
                 writePacked(width);
             }
@@ -382,6 +433,8 @@ public final class ValueStream {
         private int[] lengths;
         // Cursor for the readVInt(byte[], int[]) overload, reused across block decodes to avoid allocation.
         private final int[] cursor = new int[1];
+        // Buffer for FSST-decoded block bytes. block.bytes is pointed at this after an FSST decode.
+        private byte[] fsstDecoded = new byte[0];
 
         Reader(ChunkedBytesReader chunks, LongValues offsets, long numValues, int valuesPerBlock) {
             this.chunks = chunks;
@@ -482,6 +535,12 @@ public final class ValueStream {
                     lengths[i] = length;
                     cursor[0] += length;
                 }
+                return count;
+            }
+            if (width == FSST) {
+                fsstDecoded = FsstBlockCodec.decodeBlock(bytes, block.offset, count, fsstDecoded, starts, lengths);
+                block.bytes = fsstDecoded;
+                block.offset = 0;
                 return count;
             }
             int at = block.offset + 1;

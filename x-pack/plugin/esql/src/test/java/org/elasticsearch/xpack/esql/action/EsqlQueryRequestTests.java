@@ -1207,6 +1207,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(request.get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
     }
 
+    public void testProjectRoutingBuilder() {
+        EsqlQueryRequestBuilder builder = EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(null).projectRouting("_alias:_origin");
+        assertThat(builder.request().get(QuerySettings.PROJECT_ROUTING), is("_alias:_origin"));
+    }
+
     public void testApproximationNull() throws IOException {
         String json = """
             {

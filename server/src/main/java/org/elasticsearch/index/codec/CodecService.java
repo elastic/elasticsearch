@@ -55,6 +55,8 @@ public class CodecService implements CodecProvider {
         // We can't remove this now
         codecs.put(LEGACY_DEFAULT_CODEC, bestSpeedCodec);
 
+        // best_compression compresses stored fields with Zstd and leaves the rest of the Lucene codec on its default settings.
+        // legacy_best_compression is what the name meant before Zstd: Lucene's own high compression stored fields.
         var bestCompressionCodec = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,

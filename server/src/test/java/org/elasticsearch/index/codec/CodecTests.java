@@ -68,8 +68,7 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         var codec = codecService.codec("default");
-        // PerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
-        // it.
+        // PerFieldMapperCodec already shares field infos, so CodecService uses it as-is rather than wrapping it.
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         assertThat(codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
         assertThat(((Elasticsearch96Codec) codec).delegate(), instanceOf(Lucene104Codec.class));

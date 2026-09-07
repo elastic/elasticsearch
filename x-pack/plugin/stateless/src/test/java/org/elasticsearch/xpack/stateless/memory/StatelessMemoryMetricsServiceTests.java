@@ -349,7 +349,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                     lessThanOrEqualTo(indexAndShardOnly + miscNodeUsage + getLastMaxTotalPostingsInMemoryBytes(service))
                 )
             );
-            // The hosted-shards-only estimate excludes index-level mapping size and the node-base/merge/indexing-ops overheads,
+            // The hosted-shards-only estimate excludes the node-base/merge/indexing-ops overheads,
             // see EstimatedHeapUsageBuilder#getHeapEstimate.
             assertThat(
                 "Hosted shards heap usage for node "

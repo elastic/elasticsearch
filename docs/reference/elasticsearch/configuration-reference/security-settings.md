@@ -826,7 +826,7 @@ If `truststore.path` is set, this setting is required.
 In addition to the [settings that are valid for all realms](#ref-realm-settings), you can specify the following settings.
 
 `idp.entity_id` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a maximum length of 1024 characters. It can be a URL ([https://idp.example.com/](https://idp.example.com/)) or a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML metadata of the Identity Provider.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a maximum length of 1024 characters. It can be a URL ([https://idp.example.com/](https://idp.example.com/)) or a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML metadata of the Identity Provider. The value must match the `entityID` attribute in the IdP's metadata document exactly. The comparison is case-sensitive.
 
 `idp.metadata.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The path *(recommended)* or URL to a SAML 2.0 metadata file describing the capabilities and configuration of the Identity Provider. If a path is provided, then it is resolved relative to the {{es}} config directory. If a URL is provided, then it must be either a `file` URL or a `https` URL.
@@ -858,19 +858,19 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether to utilise the Identity Provider’s Single Logout service (if one exists in the IdP metadata file). Defaults to `true`.
 
 `sp.entity_id` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Entity ID to use for this SAML Service Provider. This should be entered as a URI. We recommend that you use the base URL of your Kibana instance. For example, `https://kibana.example.com/`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Entity ID to use for this SAML Service Provider. This should be entered as a URI. We recommend that you use the base URL of your Kibana instance. For example, `https://kibana.example.com/`. Use this value when registering the {{stack}} as a Service Provider in your IdP. The value must match exactly what you configure in the IdP. The comparison is case-sensitive.
 
 `sp.acs` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL of the Assertion Consumer Service within {{kib}}. Typically this is the "api/security/saml/callback" endpoint of your Kibana server. For example, `https://kibana.example.com/api/security/saml/callback`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL of the Assertion Consumer Service (ACS) within {{kib}}. This endpoint accepts authentication responses from the IdP and supports the SAML HTTP-POST binding only. It must be accessible from the user's web browser but does not need to be directly accessible by {{es}} or the IdP. The correct value might vary depending on how you have installed {{kib}} and whether there are any proxies involved, but it is typically `${kibana-url}/api/security/saml/callback`. For example, `https://kibana.example.com/api/security/saml/callback`.
 
 `sp.logout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL of the Single Logout service within {{kib}}. Typically this is the "logout" endpoint of your Kibana server. For example, `https://kibana.example.com/logout`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The URL of the Single Logout service within {{kib}}. Like `sp.acs`, it must be accessible from the user's web browser but does not need to be directly accessible by {{es}} or the IdP. The correct value might vary depending on how you have installed {{kib}} and whether there are any proxies involved, but it is typically `${kibana-url}/logout`. For example, `https://kibana.example.com/logout`. If not configured, {{es}} refuses all `<LogoutRequest>` messages from the IdP.
 
 `attributes.principal` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Name of the SAML attribute that contains the user’s principal (username).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The name of the SAML attribute that {{es}} uses as the user’s principal (username). The value must exactly match the attribute identifier sent by the IdP in the SAML assertion, including case. For mapping options including `NameID` and partial value extraction, refer to [Map SAML attributes](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml-attribute-mapping.md).
 
 `attributes.groups` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Name of the SAML attribute that contains the user’s groups.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The name of the SAML attribute that {{es}} uses to determine the user’s group memberships. The value must exactly match the attribute identifier sent by the IdP in the SAML assertion, including case. For more information, refer to [Map SAML attributes](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml-attribute-mapping.md).
 
 `attributes.name` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The Name of the SAML attribute that contains the user’s full name.
@@ -883,6 +883,10 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 `attribute_patterns.principal` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A Java regular expression that is matched against the SAML attribute specified by `attributes.principal` before it is applied to the user’s *principal* property. The attribute value must match the pattern and the value of the first *capturing group* is used as the principal. For example, `^([^@]+)@example\\.com$` matches email addresses from the "example.com" domain and uses the local-part as the principal.
+
+    :::{warning}
+    Mistakes in these regular expressions can have significant security consequences, including user impersonation attacks. Ensure your patterns are as precise as possible. For example, always anchor patterns with `$` to prevent partial matches. Refer to [Extract partial values from SAML attributes](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml-attribute-mapping.md#saml-attribute-patterns) for a detailed example.
+    :::
 
 `attribute_patterns.groups` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) As per `attribute_patterns.principal`, but for the *group* property.
@@ -921,9 +925,7 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum amount of skew that can be tolerated between the IdP’s clock and the {{es}} node’s clock. Defaults to `3m` (3 minutes).
 
 `req_authn_context_class_ref` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A comma separated list of Authentication Context Class Reference values to be included in the Requested Authentication Context when requesting the IdP to authenticate the current user. The Authentication Context of the corresponding authentication response should contain at least one of the requested values.
-
-    For more information, see [Requesting specific authentication methods](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml.md#req-authn-context).
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A comma separated list of Authentication Context Class Reference values to be included in the Requested Authentication Context when requesting the IdP to authenticate the current user. The Authentication Context of the corresponding authentication response should contain at least one of the requested values. Only the `exact` comparison method is supported; `minimum`, `maximum`, and `better` comparisons are not. The exact URI values depend on your IdP. For more information, refer to [Request specific authentication methods](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml.md#req-authn-context).
 
 
 

@@ -29,14 +29,25 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Unit tests for the {@link SimdJsonLibrary} FFI binding, exercising the native library
- * directly (not through {@link StructuralIndexer}). Tests cover basic stage 1
- * functionality, the generated {@code @SlicedSegment} and {@code @VectorSegment} bounds
- * checks, and guard-page verification that stage 1 does not read past the declared range.
+ * Low-level FFI tests for {@link SimdJsonLibrary} (direct native {@code stage1} calls).
  *
- * <p>Parameterized to run with both {@link Arena#ofConfined()} and
- * {@link GuardPageAllocator#ofConfined()}, so every test automatically verifies that
- * native code does not over-read allocated segments.
+ * <p>Many cases here overlap upstream simdjson's C++ stage-1 tests: structural indexing,
+ * UTF-8 validation, and whitespace handling are already exercised by simdjson itself.
+ * We keep a small smoke set at this layer to catch regressions in {@code es_simdjson}
+ * and the FFM binding, not to re-prove simdjson correctness.
+ *
+ * <p>Tests that are ES-specific and not covered upstream or at walker level:
+ * <ul>
+ *   <li>{@code create}/{@code destroy} lifecycle and null handling</li>
+ *   <li>Generated {@code @SlicedSegment}/{@code @VectorSegment} bounds checks</li>
+ *   <li>Guard-page verification via {@link GuardPageAllocator} (parameterized with
+ *       {@link Arena#ofConfined()})</li>
+ *   <li>{@link SimdJsonLibrary#errorMessage(int)} mapping for wrapper error codes</li>
+ * </ul>
+ *
+ * <p>End-to-end document parsing is covered by {@link org.elasticsearch.simdjson.SimdJsonDirectWalkerTests}
+ * and {@link org.elasticsearch.simdjson.SimdJsonJacksonComparisonTests}. The Java {@code byte[]}
+ * API layer is covered by {@link StructuralIndexerTests}.
  */
 public class SimdJsonLibraryTests extends SimdJsonTestCase {
 

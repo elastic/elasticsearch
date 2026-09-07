@@ -60,7 +60,7 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
         var contender = new PerFieldMapperCodec(
             Lucene104Codec.Mode.BEST_SPEED,
             ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
-            ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             null

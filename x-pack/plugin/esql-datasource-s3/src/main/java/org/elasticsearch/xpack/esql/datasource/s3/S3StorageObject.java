@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import io.netty.channel.ChannelException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.Abortable;
@@ -35,11 +36,15 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
+
+import javax.net.ssl.SSLException;
 
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
@@ -150,8 +155,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * {@link ExternalUnavailableException} (503 — the read may
      * succeed on retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
      * {@link IllegalStateException}) is the same 503: the client is gone, not the object. An
-     * {@link SdkClientException} whose cause chain contains an {@link IOException} is the same 503:
-     * the SDK never got a response (connection drop / no HTTP response). Other
+     * {@link SdkClientException} whose <em>direct</em> cause is an {@link IOException},
+     * {@link TimeoutException}, or Netty {@link ChannelException} is the same 503: the SDK never
+     * got a response (Apache drop / Netty read timeout). Nested {@code SdkClientException}
+     * (IMDS/STS), {@link UnknownHostException}, and {@link SSLException} stay client-class. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
      * error is not retried and is not disguised as a client 400. A missing object, a credential
      * failure, or any other failure becomes an {@link IOException},
@@ -259,12 +266,26 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * {@link SdkClientException} with an {@link IOException} below it is a dropped connection;
-     * credentials share the type but have no I/O cause.
+     * Direct cause of the first {@link SdkClientException} is an {@link IOException},
+     * {@link TimeoutException}, or Netty {@link ChannelException} (Apache no-response, Netty
+     * {@code ReadTimeoutException}). Nested {@code SdkClientException} is the IMDS/STS credential
+     * chain, not a dropped GET. {@link UnknownHostException} and {@link SSLException} stay
+     * client-class.
      */
     static boolean isSdkClientTransportFailure(Throwable cause) {
         Throwable sdk = ExceptionsHelper.unwrap(cause, SdkClientException.class);
-        return sdk != null && ExceptionsHelper.unwrap(sdk.getCause(), IOException.class) != null;
+        if (sdk == null) {
+            return false;
+        }
+        Throwable below = sdk.getCause();
+        if (below == null) {
+            return false;
+        }
+        if (ExceptionsHelper.unwrap(below, UnknownHostException.class) != null
+            || ExceptionsHelper.unwrap(below, SSLException.class) != null) {
+            return false;
+        }
+        return below instanceof IOException || below instanceof TimeoutException || below instanceof ChannelException;
     }
 
     /**

@@ -76,7 +76,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
      * Because flushLock is free at that point, both threshold values commit and wait for the
      * new BCC upload (when there is uncommitted data).
      */
-    public void testPreFlushRelocationQueueDrain() throws Exception {
+    public void testPreFlushRelocationQueueDrain() {
         // threshold=ZERO → waitIfOngoing=true; threshold=1h → waitIfOngoing=false.
         // When flushLock is free both values behave identically: the pre-flush commits and waits.
         final TimeValue threshold = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueHours(1);
@@ -121,7 +121,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         indicesAdmin().prepareFlush(indexName).execute();
         safeAwait(firstUploadStarted);
 
-        var preRecoveryFlushDone = startRelocationAndAwait(sourceNode, indexName);
+        var preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
 
         if (hasUncommittedDataDuringPreFlush) {
             indexDocs(indexName, randomIntBetween(10, 20));
@@ -194,7 +194,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         TestStatelessPlugin.commitStartedLatch = null;
         TestStatelessPlugin.unblockCommitLatch = null;
 
-        var preRecoveryFlushDone = startRelocationAndAwait(sourceNode, indexName);
+        PlainActionFuture<Void> preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
 
         // Unblock the flush: it commits, releases flushLock, and starts the BCC upload.
         unblockCommitLatch.countDown();
@@ -274,7 +274,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         TestStatelessPlugin.commitStartedLatch = null;
         TestStatelessPlugin.unblockCommitLatch = null;
 
-        var preRecoveryFlushDone = startRelocationAndAwait(sourceNode, indexName);
+        PlainActionFuture<Void> preRecoveryFlushDone = startRelocationAndAwaitUntilItStartsOnSource(sourceNode, indexName);
 
         // Unblock gen1 BCC: waitForCurrentCommitDurability(gen1) resolves.
         // Gen2 still holds flushLock, so the relocation cannot complete regardless of threshold.
@@ -302,7 +302,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         return indexName;
     }
 
-    private PlainActionFuture<Void> startRelocationAndAwait(String sourceNode, String indexName) {
+    private PlainActionFuture<Void> startRelocationAndAwaitUntilItStartsOnSource(String sourceNode, String indexName) {
         var peerRecoveryCompletedOnSource = new PlainActionFuture<Void>();
         var recoveryStarted = new CountDownLatch(1);
         internalCluster().getInstance(CompositeRecoverySchedulingListener.class, sourceNode).addListener(new RecoverySchedulingListener() {

@@ -1,0 +1,256 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_all_layouts ]
+      reason: "columnar index mode and vector exclusion from _source are required"
+  - skip:
+      features: "headers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+              vector_dv:
+                type: dense_vector
+                dims: 3
+                index: false
+              sparse:
+                type: sparse_vector
+
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    dims: 3
+                    index: true
+                    similarity: l2_norm
+                  vector_dv:
+                    type: dense_vector
+                    dims: 3
+                    index: false
+                  sparse:
+                    type: sparse_vector
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [1, 2, 3]
+          vector_dv: [4, 5, 6]
+          sparse:
+            running: 1.5
+            good: 2.5
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [1, 2, 3]
+            vector_dv: [4, 5, 6]
+            sparse:
+              running: 1.5
+          - paragraph_id: 1
+          - paragraph_id: 2
+            vector_dv: [7, 8, 9]
+
+  - do:
+      indices.refresh: {}
+
+---
+"vectors are excluded from the columnar source":
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ "name" ]
+
+  - match:      { hits.hits.0._id: "1" }
+  - match:      { hits.hits.0._source.name: "cow.jpg" }
+  - not_exists:   hits.hits.0._source.vector
+  - not_exists:   hits.hits.0._source.vector_dv
+  - not_exists:   hits.hits.0._source.sparse
+
+  - match:      { hits.hits.1._id: "2" }
+  - match:      { hits.hits.1._source.name: "moose.jpg" }
+  - length:     { hits.hits.1._source.nested: 3 }
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: "0" }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - not_exists:   hits.hits.1._source.nested.0.vector_dv
+  - not_exists:   hits.hits.1._source.nested.0.sparse
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: "1" }
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: "2" }
+  - not_exists:   hits.hits.1._source.nested.2.vector_dv
+
+---
+"vectors are restored when requested":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+          sort: [ "name" ]
+
+  - match:      { hits.hits.0._id: "1" }
+  - match:      { hits.hits.0._source.name: "cow.jpg" }
+  - match:      { hits.hits.0._source.vector: [1.0, 2.0, 3.0] }
+  - match:      { hits.hits.0._source.vector_dv: [4.0, 5.0, 6.0] }
+  - match:      { hits.hits.0._source.sparse.running: 1.5 }
+  - match:      { hits.hits.0._source.sparse.good: 2.5 }
+
+  - match:      { hits.hits.1._id: "2" }
+  - match:      { hits.hits.1._source.name: "moose.jpg" }
+  - length:     { hits.hits.1._source.nested: 3 }
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: "0" }
+  - match:      { hits.hits.1._source.nested.0.vector: [1.0, 2.0, 3.0] }
+  - match:      { hits.hits.1._source.nested.0.vector_dv: [4.0, 5.0, 6.0] }
+  - match:      { hits.hits.1._source.nested.0.sparse.running: 1.5 }
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: "1" }
+  - not_exists:   hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: "2" }
+  - match:      { hits.hits.1._source.nested.2.vector_dv: [7.0, 8.0, 9.0] }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+
+---
+"get restores vectors when requested":
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        index: test
+        id: "1"
+        _source_exclude_vectors: false
+
+  - match: { _source.name: "cow.jpg" }
+  - match: { _source.vector: [1.0, 2.0, 3.0] }
+  - match: { _source.vector_dv: [4.0, 5.0, 6.0] }
+  - match: { _source.sparse.running: 1.5 }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:      { _source.name: "cow.jpg" }
+  - not_exists:   _source.vector
+  - not_exists:   _source.vector_dv
+  - not_exists:   _source.sparse
+
+---
+"vectors added by a mapping update are excluded too":
+  - do:
+      indices.put_mapping:
+        index: test
+        body:
+          properties:
+            added_vector:
+              type: dense_vector
+              dims: 3
+              index: false
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        refresh: true
+        body:
+          name: added.jpg
+          added_vector: [1, 2, 3]
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match:      { _source.name: "added.jpg" }
+  - not_exists:   _source.added_vector
+
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        index: test
+        id: "3"
+        _source_exclude_vectors: false
+
+  - match: { _source.added_vector: [1.0, 2.0, 3.0] }
+
+---
+"dynamically mapped vectors are excluded too":
+  - do:
+      indices.create:
+        index: test_dynamic
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            dynamic_templates:
+              - vectors:
+                  match: "*_vector"
+                  mapping:
+                    type: dense_vector
+                    dims: 3
+                    index: false
+
+  - do:
+      index:
+        index: test_dynamic
+        id: "1"
+        refresh: true
+        body:
+          name: dynamic.jpg
+          my_vector: [1, 2, 3]
+
+  - do:
+      indices.get_mapping:
+        index: test_dynamic
+  - match: { test_dynamic.mappings.properties.my_vector.type: dense_vector }
+
+  - do:
+      get:
+        index: test_dynamic
+        id: "1"
+
+  - match:      { _source.name: "dynamic.jpg" }
+  - not_exists:   _source.my_vector
+
+  - do:
+      headers:
+        Content-Type: application/json
+      get:
+        index: test_dynamic
+        id: "1"
+        _source_exclude_vectors: false
+
+  - match: { _source.my_vector: [1.0, 2.0, 3.0] }

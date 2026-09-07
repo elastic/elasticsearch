@@ -120,8 +120,9 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         refresh(nested, object);
 
         String from = "FROM " + nested + ", " + object;
-        assertThat(esql(from + " | STATS s = SUM(item.value), c = COUNT(item.value)"), equalTo(List.of(List.of(210L, 20L))));
-        assertThat(esql(from + " | KEEP id, item.value | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
+        String value = itemValue();
+        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
+        assertThat(esql(from + " | KEEP id, " + value + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
     }
 
     private void testDoubleVsLong(boolean sameNode) {
@@ -140,8 +141,9 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         }
         refresh(nested, object);
 
+        String value = itemValue();
         assertThat(
-            esql("FROM " + nested + ", " + object + " | STATS s = SUM(item.value), c = COUNT(item.value)"),
+            esql("FROM " + nested + ", " + object + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"),
             equalTo(List.of(List.of(210L, 20L)))
         );
     }
@@ -186,12 +188,22 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         refresh(nested, object);
 
         String from = "FROM " + nested + ", " + object;
+        String value = itemValue();
         // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
-        assertThat(esql(from + " | STATS s = SUM(item.value), c = COUNT(item.value)"), equalTo(List.of(List.of(210L, 20L))));
-        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). The include flag copies
-        // nested values onto the parent doc, so skipping the nested shard is required.
+        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
+        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). Leave the field uncast so
+        // this still hits that path. The include flag copies nested values onto the parent
+        // doc, so skipping the nested shard is required.
         assertThat(esql(from + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
-        assertThat(esql(from + " | KEEP id, item.value | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
+        assertThat(esql(from + " | KEEP id, " + value + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
+    }
+
+    /**
+     * Nested is hidden from field caps, so {@code item.value} is the object index's {@code long},
+     * not a union type. A {@code ::long} cast must not start reading nested values.
+     */
+    private static String itemValue() {
+        return randomBoolean() ? "item.value::long" : "item.value";
     }
 
     private String[] pinNodes(boolean sameNode) {

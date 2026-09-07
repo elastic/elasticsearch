@@ -172,8 +172,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             return true;
         }
         // check if the field or any parameter needs to be extracted into an eval
-        return needsExtraction(af, af.field()) == false
-            && af.parameters().stream().noneMatch(parameter -> needsExtraction(af, parameter));
+        return needsExtraction(af, af.field()) == false && af.parameters().stream().noneMatch(parameter -> needsExtraction(af, parameter));
     }
 
     private static boolean containsAggregate(Expression e) {

@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -142,13 +143,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final BooleanSupplier federatedIdentityEnabled;
     @Nullable
     private final FormatReaderRegistry formatReaderRegistry;
+    private final BiConsumer<String, ValidationException> resourceCheck;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null, (r, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -159,7 +161,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
         BooleanSupplier federatedIdentityEnabled,
-        @Nullable FormatReaderRegistry formatReaderRegistry
+        @Nullable FormatReaderRegistry formatReaderRegistry,
+        BiConsumer<String, ValidationException> resourceCheck
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -169,6 +172,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
         this.formatReaderRegistry = formatReaderRegistry;
+        this.resourceCheck = resourceCheck;
     }
 
     /**
@@ -188,7 +192,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
-            formatReaderRegistry
+            formatReaderRegistry,
+            resourceCheck
         );
     }
 
@@ -206,7 +211,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
-            registry
+            registry,
+            resourceCheck
         );
     }
 
@@ -226,7 +232,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             supplier,
             federatedIdentityEnabled,
-            formatReaderRegistry
+            formatReaderRegistry,
+            resourceCheck
         );
     }
 
@@ -244,7 +251,28 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             supplier,
-            formatReaderRegistry
+            formatReaderRegistry,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that runs {@code check} against the resource URI after the scheme check.
+     * The check receives the raw resource string and the accumulating {@link ValidationException}; it
+     * should call {@link ValidationException#addValidationError} for each problem it finds.
+     * Precedent for the shape: {@link #withManagedIdentityEnabled(BooleanSupplier)}.
+     */
+    public FileDataSourceValidator withResourceCheck(BiConsumer<String, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            check
         );
     }
 
@@ -608,6 +636,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
+        } else {
+            resourceCheck.accept(resource, errors);
         }
     }
 

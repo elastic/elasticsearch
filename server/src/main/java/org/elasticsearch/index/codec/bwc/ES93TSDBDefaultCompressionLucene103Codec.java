@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec.bwc;
 
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.elasticsearch.index.codec.CodecService;

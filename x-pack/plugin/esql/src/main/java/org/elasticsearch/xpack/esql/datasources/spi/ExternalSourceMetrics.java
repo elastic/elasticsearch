@@ -13,8 +13,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
-import java.util.Locale;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -124,8 +125,9 @@ public final class ExternalSourceMetrics {
     public static final String BREAKER_TRIPPED_TOTAL = "es.esql.datasources.breaker.tripped.total";
 
     /**
-     * Storage scheme dimension, normalised to one canonical token per provider via
-     * {@link #canonicalScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http}, {@code file}.
+     * Storage type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
+     * {@link #canonicalScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
+     * {@code local}, {@code unknown}.
      */
     public static final String SCHEME_ATTRIBUTE = "es_datasource_scheme";
 
@@ -157,15 +159,14 @@ public final class ExternalSourceMetrics {
     private final DataSourceUsageAccumulator usageAccumulator;
 
     /**
-     * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed canonical scheme
-     * set, so the common case (every provider we know) never allocates a fresh map per record call. Mirrors
+     * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed
+     * {@link Type} set, so the common case never allocates a fresh map per record call. Mirrors
      * {@code ShardChangesObserver}'s pre-built per-value attribute maps and {@code RepositoriesMetrics}'s
-     * {@code createAttributesMap}. Looked up via {@link #schemeAttrs(String)}, which falls back to a freshly built
-     * map for the rare unknown scheme (thread-safe: immutable maps + {@code getOrDefault}, no {@code computeIfAbsent}
-     * mutating a shared map).
+     * {@code createAttributesMap}. Looked up via {@link #schemeAttrs(String)}. Thread-safe: immutable
+     * maps; every {@link Type} token is present so lookups never allocate.
      */
-    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = DataSourceUsageAccumulator.SCHEME_NAMES.stream()
-        .collect(Collectors.toUnmodifiableMap(s -> s, s -> Map.of(SCHEME_ATTRIBUTE, s)));
+    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = Arrays.stream(Type.values())
+        .collect(Collectors.toUnmodifiableMap(Type::key, t -> Map.of(SCHEME_ATTRIBUTE, t.key())));
 
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
     private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
@@ -329,15 +330,15 @@ public final class ExternalSourceMetrics {
      */
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            Map<String, Object> attributes = schemeAttrsForCanonical(canonical);
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = schemeAttrsForCanonical(type.key());
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
             }
             requestDuration.record(Math.max(0L, durationMillis), attributes);
             if (usageAccumulator != null) {
-                usageAccumulator.recordRequest(accScheme(canonical), durationMillis, bytes);
+                usageAccumulator.recordRequest(type, durationMillis, bytes);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
@@ -363,10 +364,10 @@ public final class ExternalSourceMetrics {
      */
     public void recordError(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            errorsTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
+            Type type = Type.fromScheme(scheme);
+            errorsTotal.incrementBy(1, schemeAttrsForCanonical(type.key()));
             if (usageAccumulator != null) {
-                usageAccumulator.recordError(accScheme(canonical));
+                usageAccumulator.recordError(type);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
@@ -379,10 +380,10 @@ public final class ExternalSourceMetrics {
      */
     public void recordThrottled(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            throttledTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
+            Type type = Type.fromScheme(scheme);
+            throttledTotal.incrementBy(1, schemeAttrsForCanonical(type.key()));
             if (usageAccumulator != null) {
-                usageAccumulator.recordThrottled(accScheme(canonical));
+                usageAccumulator.recordThrottled(type);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordThrottled failed", e);
@@ -547,9 +548,8 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Canonicalises {@code scheme} and returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map.
-     * The common case (a known provider) returns a shared immutable map with no allocation; an unknown
-     * scheme builds a fresh map. Thread-safe: immutable maps + {@code getOrDefault}.
+     * Canonicalises {@code scheme} and returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map
+     * for that closed {@link Type} token. Thread-safe: immutable maps, no allocation on the record path.
      */
     private static Map<String, Object> schemeAttrs(String scheme) {
         return schemeAttrsForCanonical(canonicalScheme(scheme));
@@ -557,11 +557,15 @@ public final class ExternalSourceMetrics {
 
     /**
      * Returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map for an already-canonicalised
-     * {@code canonical} scheme token. Callers that have already called {@link #canonicalScheme} use
+     * {@code canonical} type token. Callers that have already called {@link #canonicalScheme} use
      * this overload to avoid re-canonicalising, while keeping the APM attribute lookup in one place.
      */
     private static Map<String, Object> schemeAttrsForCanonical(String canonical) {
-        return SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
+        Map<String, Object> attrs = SCHEME_ATTRIBUTES.get(canonical);
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type token [" + canonical + "]");
+        }
+        return attrs;
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
@@ -570,36 +574,12 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Returns the scheme token to pass to the {@link DataSourceUsageAccumulator}. APM emits unknown
-     * schemes lower-cased (to preserve observability without high cardinality), but the accumulator's
-     * {@link DataSourceUsageAccumulator#schemeIndex(String)} only accepts the six declared canonical
-     * values. Any scheme that is not one of those is bucketed to {@code "unknown"} here.
-     */
-    private static String accScheme(String canonical) {
-        return DataSourceUsageAccumulator.SCHEME_NAMES_SET.contains(canonical) ? canonical : "unknown";
-    }
-
-    /**
-     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the single canonical token used
-     * for the {@link #SCHEME_ATTRIBUTE} dimension, so provider aliases ({@code s3a}/{@code s3n},
-     * {@code wasb}/{@code wasbs}, {@code https}) and the bucket-prefix form ({@code gs}) do not fragment a
-     * provider across multiple metric series. Unknown schemes pass through lower-cased.
+     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the closed
+     * {@link Type} token used for {@link #SCHEME_ATTRIBUTE}. Provider aliases
+     * ({@code s3a}/{@code s3n}, {@code wasb}/{@code wasbs}, {@code https}, {@code gs}) collapse onto one
+     * series; {@code file} folds to {@code local}; anything else is {@code unknown}.
      */
     public static String canonicalScheme(String scheme) {
-        if (scheme == null) {
-            return "unknown";
-        }
-        String lower = scheme.toLowerCase(Locale.ROOT);
-        return switch (lower) {
-            case "s3", "s3a", "s3n" -> "s3";
-            case "gs", "gcs" -> "gcs";
-            case "wasb", "wasbs", "azure" -> "azure";
-            case "http", "https" -> "http";
-            case "file" -> "file";
-            // Open default (pass unknown schemes through lower-cased) is acceptable here because scheme is
-            // provider-registered — a closed set in practice, not user-supplied — so the SCHEME_ATTRIBUTE dimension
-            // cardinality stays bounded even though this branch does not enumerate every value.
-            default -> lower;
-        };
+        return Type.fromScheme(scheme).key();
     }
 }

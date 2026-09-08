@@ -144,6 +144,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private final FooterByteCache footerBytes;
 
+    /**
+     * Node-wide cap on retained Parquet I/O bytes ({@code heap / 8}). Shared by every derived
+     * reader the same way as the footer caches, so concurrent queries compete for one budget.
+     */
+    private final ParquetIoWatermark ioWatermark;
+
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
@@ -358,7 +364,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.of(),
             Set.of(),
             FooterByteCache.fromSettings(settings),
-            ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes)
+            ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
+            ParquetIoWatermark.forHeap()
         );
     }
 
@@ -379,7 +386,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.of(),
             Set.of(),
             FooterByteCache.fromSettings(Settings.EMPTY),
-            ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes)
+            ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
+            ParquetIoWatermark.forHeap()
         );
     }
 
@@ -393,7 +401,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         Map<String, String> declaredDateFormats,
         Set<String> declaredTypeColumns,
         FooterByteCache footerBytes,
-        ParsedFooterCache<ParquetMetadata> parsedFooters
+        ParsedFooterCache<ParquetMetadata> parsedFooters,
+        ParquetIoWatermark ioWatermark
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -405,6 +414,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         this.declaredTypeColumns = declaredTypeColumns;
         this.footerBytes = footerBytes;
         this.parsedFooters = parsedFooters;
+        if (ioWatermark == null) {
+            throw new IllegalArgumentException("ioWatermark");
+        }
+        this.ioWatermark = ioWatermark;
     }
 
     /**
@@ -424,7 +437,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark
         );
     }
 
@@ -444,7 +458,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark
         );
     }
 
@@ -464,7 +479,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
@@ -478,7 +494,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -492,7 +509,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark
             );
         }
         return this;
@@ -510,7 +528,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark
         );
     }
 
@@ -536,7 +555,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark
         );
     }
 
@@ -563,8 +583,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark
         );
+    }
+
+    /**
+     * Test-only: share a watermark across readers so node-wide admission can be asserted with a
+     * tiny limit. Production readers keep the heap-derived instance from the root constructor.
+     */
+    ParquetFormatReader withIoWatermark(ParquetIoWatermark watermark) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            watermark
+        );
+    }
+
+    ParquetIoWatermark ioWatermark() {
+        return ioWatermark;
     }
 
     @Override
@@ -821,7 +866,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+            object,
+            footerBytes,
+            blockFactory.breaker(),
+            ioWatermark
+        );
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
@@ -1482,7 +1532,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // it emits any other column. Pushed filters, late materialization, page skipping, and
             // row-group skipping all stay on — each surviving row carries its identity, and the
             // matching extractor binds those identities back to the file's full footer.
-            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+                object,
+                footerBytes,
+                blockFactory.breaker(),
+                ioWatermark
+            );
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
@@ -1559,7 +1614,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+            object,
+            footerBytes,
+            blockFactory.breaker(),
+            ioWatermark
+        );
         // Take the parsed footer straight from the cache rather than opening a ParquetFileReader.
         // This method reads no data bytes at all (only row-group metadata and the schema), but
         // ParquetFileReader.open would allocate the adapter's sliding window and reserve it on the
@@ -1861,7 +1921,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 object,
                 rangeEnd - rangeStart,
                 footerBytes,
-                blockFactory.breaker()
+                blockFactory.breaker(),
+                ioWatermark
             );
             ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
             // Footer resolution order:
@@ -2161,7 +2222,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             indexColumnPaths.columnIndexPaths(),
             indexColumnPaths.offsetIndexPaths(),
             offsetIndexRowGroupLimit,
-            blockFactory.breaker()
+            blockFactory.breaker(),
+            ioWatermark
         );
         boolean metadataHandedOff = false;
         try {

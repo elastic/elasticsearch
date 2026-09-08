@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -199,6 +200,28 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(composed, flattened);
         assertThat(flattened, instanceOf(ViewUnionAll.class));
         assertThat(flattened.children(), hasSize(2));
+    }
+
+    public void testViewCompactionKeepsNestedFanInBesidePipelineSibling() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds1 = new Dataset("ds1", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset ds2 = new Dataset("ds2", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset ds3 = new Dataset("ds3", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("ds1", ds1, "ds2", ds2, "ds3", ds3));
+
+        LogicalPlan inner = rewrite(relationOf("ds1,ds2"), project);
+        LogicalPlan pipeline = new Filter(Source.EMPTY, rewrite(relationOf("ds3"), project), Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", inner);
+        children.put("other", pipeline);
+        LogicalPlan composed = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        LogicalPlan compacted = ViewCompaction.postIndexResolution(composed);
+        assertThat(compacted, instanceOf(ViewUnionAll.class));
+        assertThat(compacted.children(), hasSize(2));
+        List<LogicalPlan> fanIns = compacted.children().stream().filter(child -> child instanceof SourceFanInUnionAll).toList();
+        assertThat(fanIns, hasSize(1));
+        assertThat(fanIns.getFirst().children(), hasSize(2));
     }
 
     public void testMixedDatasetsAndNonDatasetsProducesUnionAll() {

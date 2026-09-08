@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -87,6 +89,29 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         overCap.postAnalysisPlanVerification().accept(overCap, overCapFailures);
         assertTrue(overCapFailures.hasFailures());
         assertThat(overCapFailures.toString(), containsString("FROM supports up to " + SourceFanInUnionAll.MAX_PRODUCERS + " sources"));
+    }
+
+    public void testViewUnionAllWithFanInAndPipelinePassesPostOptCheck() {
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(relation("ds1"), relation("ds2")), List.of());
+        Filter pipeline = new Filter(Source.EMPTY, relation("ds3"), Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("view", fanIn);
+        children.put("other", pipeline);
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        Failures failures = new Failures();
+        viewUnion.postOptimizationPlanVerification().accept(viewUnion, failures);
+        assertFalse(failures.toString(), failures.hasFailures());
+    }
+
+    public void testUserUnionAllWrappingFanInStillFailsPostOptCheck() {
+        SourceFanInUnionAll fanIn = new SourceFanInUnionAll(Source.EMPTY, List.of(relation("ds1"), relation("ds2")), List.of());
+        UnionAll userUnion = new UnionAll(Source.EMPTY, List.of(fanIn, relation("other")), List.of());
+
+        Failures failures = new Failures();
+        userUnion.postOptimizationPlanVerification().accept(userUnion, failures);
+        assertTrue(failures.hasFailures());
+        assertThat(failures.toString(), containsString("cannot be combined with subqueries"));
     }
 
     public void testEmptyFanInStillFails() {

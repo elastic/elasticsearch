@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -90,15 +91,17 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             if (currentPlanNode instanceof SourceFanInExec fanIn) {
                 keepTraversing.set(FALSE);
                 List<PhysicalPlan> newProducers = fanIn.producers().stream().map(producer -> {
+                    List<Attribute> commonOutput = fanIn.output();
+                    List<Attribute> producerOutput = producer.output();
+                    if (commonOutput.size() != producerOutput.size()) {
+                        throw new EsqlIllegalArgumentException(
+                            "source fan-in output size mismatch [" + commonOutput.size() + "] != [" + producerOutput.size() + "]"
+                        );
+                    }
                     AttributeSet.Builder producerRequired = AttributeSet.builder();
-                    for (Attribute producerAttribute : producer.output()) {
-                        for (Attribute commonAttribute : fanIn.output()) {
-                            if (requiredAttrBuilder.contains(commonAttribute)
-                                && producerAttribute.name().equals(commonAttribute.name())
-                                && producerAttribute.dataType() == commonAttribute.dataType()) {
-                                producerRequired.add(producerAttribute);
-                                break;
-                            }
+                    for (int i = 0; i < commonOutput.size(); i++) {
+                        if (requiredAttrBuilder.contains(commonOutput.get(i))) {
+                            producerRequired.add(producerOutput.get(i));
                         }
                     }
                     return apply(producer, false, producerRequired.build());

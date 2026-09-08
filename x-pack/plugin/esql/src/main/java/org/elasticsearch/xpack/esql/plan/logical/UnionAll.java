@@ -148,7 +148,8 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                 if (unionAll == nested) {
                     return;
                 }
-                if (nested instanceof SourceFanInUnionAll && unionAll instanceof SourceFanInUnionAll) {
+                if (nested instanceof SourceFanInUnionAll
+                    && (unionAll instanceof SourceFanInUnionAll || unionAll instanceof ViewUnionAll)) {
                     return;
                 }
                 failures.add(nestedUnionAllFailure(nested));
@@ -168,6 +169,8 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      * {@link #sourceText()}, truncated to {@link Node#TO_STRING_MAX_WIDTH}) so the user can locate it. A plain {@link UnionAll} is a
      * genuine user-written nested subquery, and a bare {@link Fork} is a {@code FORK} inside a subquery.
      * A {@link SourceFanInUnionAll} under a user {@link UnionAll} is dataset source expansion, not a subquery.
+     * A {@link SourceFanInUnionAll} under a {@link ViewUnionAll} is a multi-source {@code FROM} next to a view
+     * pipeline sibling, not a nested subquery.
      */
     private static Failure nestedUnionAllFailure(LogicalPlan nested) {
         if (nested instanceof ViewUnionAll || nested instanceof SourceFanInUnionAll) {

@@ -222,6 +222,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         // eliminating nesting that the runtime doesn't yet support.
         // Inner Forks/UnionAlls (from user-written subqueries inside views) are also lifted,
         // with each child becoming a separate named entry suffixed from the parent view name.
+        // A SourceFanInUnionAll is one resolved FROM, so it stays a single named entry.
         LinkedHashMap<String, LogicalPlan> flat = new LinkedHashMap<>();
 
         // Process non-fork entries first so that all outer keys are in `flat` before we attempt
@@ -233,7 +234,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof Fork) {
+            if (Fork.isQueryBranchingFork(inner)) {
                 forkEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 flat.put(makeUniqueKey(flat, key), value);

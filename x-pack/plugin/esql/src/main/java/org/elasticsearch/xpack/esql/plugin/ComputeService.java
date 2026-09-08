@@ -498,7 +498,7 @@ public class ComputeService {
      * Coordinator-local placement after a strategy returned {@code LOCAL}. A gather-boundary plan
      * with more than one split is self-assigned on the coordinator so the exchange stays in place;
      * everything else is collapsed onto local drivers. The coordinator is not added to the worker
-     * list to reach this path -- {@code LOCAL} already means "run here".
+     * list to reach this path: {@code LOCAL} already means "run here".
      */
     static ExternalDistributionResult localExternalScanResult(
         PhysicalPlan resolvedPlan,
@@ -542,7 +542,7 @@ public class ComputeService {
      * Logs at most once per top-level request when an index node reads an external scan itself. An index node
      * that coordinates and hands the scan to eligible workers is the normal split-role path and is not logged;
      * this fires whenever the selected placement keeps the read on the coordinator, including an explicit or
-     * adaptive local placement and the fallback when no worker is eligible. Such execution is allowed -- this is
+     * adaptive local placement and the fallback when no worker is eligible. Such execution is allowed: this is
      * visibility for a transition-state routing choice, not a placement violation.
      */
     static void warnIndexCoordinatorOnce(DiscoveryNode localNode, AtomicBoolean alreadyWarned) {
@@ -2174,8 +2174,13 @@ public class ComputeService {
         Runnable publishIfReady = () -> {
             DriverCompletionInfo info = computeInfo.get();
             if (info != null && sinkFinished.get() && published.compareAndSet(false, true)) {
+                // finishSinkHandler(e) completes fetchPageAsync with finished=true, so the remote
+                // sink listener's onResponse is not proof the producer produced rows. Record
+                // success only when neither side marked the producer partial.
                 if (externalPartial.get()) {
                     info = info.withPartial().withAdditionalWarnings(toleratedFailures);
+                } else {
+                    sourceOutcomes.recordExternalSuccess();
                 }
                 listener.onResponse(info);
             }
@@ -2183,7 +2188,6 @@ public class ComputeService {
         ActionListener<Void> remoteSinkListener = failFast ? ActionListener.noop() : new ActionListener<>() {
             @Override
             public void onResponse(Void ignored) {
-                sourceOutcomes.recordExternalSuccess();
                 sinkFinished.set(true);
                 publishIfReady.run();
             }

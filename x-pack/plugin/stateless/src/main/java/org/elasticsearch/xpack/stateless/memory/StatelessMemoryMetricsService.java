@@ -890,7 +890,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
          */
         NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
-            final long hostedShardsHeapEstimateInBytes = shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
+            final long hostedShardsHeapEstimateInBytes = mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
             return new NodeHeapEstimates(totalHeapEstimateInBytes, hostedShardsHeapEstimateInBytes);
         }
 

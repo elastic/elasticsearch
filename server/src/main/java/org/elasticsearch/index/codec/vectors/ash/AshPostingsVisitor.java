@@ -383,7 +383,11 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         long scoreStartNs = collectProfile ? System.nanoTime() : 0;
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
-        scorer.scoreBulk(scorerQuery, blockSize, scores);
+        if (docsToScore < blockSize) {
+            scorer.scoreBulkOffsets(scorerQuery, offsetsScratch, docsToScore, scores, blockSize);
+        } else {
+            scorer.scoreBulk(scorerQuery, blockSize, scores);
+        }
 
         // Step 2: Read corrections (IndexInput is now past the codes, at the corrections)
         indexInput.readBytes(bulkCorrectionsBuf, 0, blockSize * CORRECTION_BYTES);

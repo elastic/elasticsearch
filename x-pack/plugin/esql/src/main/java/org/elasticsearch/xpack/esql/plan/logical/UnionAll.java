@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -184,40 +185,117 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
         }
     }
 
-    /**
-     * Rejects a query whose {@link UnionAll}s add up to more branches than {@code maxBranches}, the
-     * {@link QueryPragmas#MAX_QUERY_BRANCHES} query pragma.
-     * <p>
-     * Every branch becomes either a coordinator merge segment - with its own exchange handlers and drivers, all started eagerly - or a
-     * data node query, so the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one
-     * {@code FROM} but subqueries nest, so without a query-wide limit the total grows as a power of the nesting depth.
-     * <p>
-     * Unlike the other checks here this one looks at the whole plan rather than a single node, so it is called once from
-     * {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
-     * every node. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the
-     * same at execution time as one the user wrote.
-     */
-    public static void checkTotalBranchCount(LogicalPlan optimizedPlan, int maxBranches, Failures failures) {
-        List<UnionAll> unionAlls = new ArrayList<>();
-        optimizedPlan.forEachDown(UnionAll.class, unionAlls::add);
-        if (unionAlls.isEmpty()) {
+    /** Checks both {@link UnionAll} limits independently for the main query and every {@code IN} subquery. */
+    public static void checkNestedSubqueryLimits(LogicalPlan optimizedPlan, int maxBranches, int maxLevels, Failures failures) {
+        UnionStats stats = unionStats(optimizedPlan);
+        checkTotalBranchCount(stats, maxBranches, failures);
+        checkMaxNestingLevel(stats, maxLevels, failures);
+        checkInSubqueryLimits(optimizedPlan, maxBranches, maxLevels, failures);
+    }
+
+    private static void checkInSubqueryLimits(LogicalPlan plan, int maxBranches, int maxLevels, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, failures);
+            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, failures);
             return;
         }
-        int branches = unionAlls.stream().mapToInt(unionAll -> unionAll.children().size()).sum();
-        if (branches > maxBranches) {
-            failures.add(
-                Failure.fail(
-                    unionAlls.getFirst(),
-                    "query resolved to {} branches in total, exceeding the limit of {} set by the [{}] query pragma. "
-                        + "Reduce the number of sources - subqueries, patterns expanding to several indices, or views - "
-                        + "or split this into multiple queries.",
-                    branches,
-                    maxBranches,
-                    QueryPragmas.MAX_QUERY_BRANCHES.getKey()
-                )
-            );
+        for (LogicalPlan child : plan.children()) {
+            checkInSubqueryLimits(child, maxBranches, maxLevels, failures);
         }
     }
+
+    /**
+     * Rejects a query whose leaf branches exceed {@code maxBranches}, the {@link QueryPragmas#MAX_QUERY_BRANCHES} query pragma.
+     * <p>
+     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
+     * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
+     * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
+     * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called from
+     * {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
+     * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * exactly the same at execution time as one the user wrote.
+     */
+    private static void checkTotalBranchCount(UnionStats stats, int maxBranches, Failures failures) {
+        if (stats.first() == null || stats.leaves() <= maxBranches) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.first(),
+                "query resolved to {} branches in total, exceeding the limit of {} set by the [{}] query pragma. "
+                    + "Reduce the number of sources - subqueries, patterns expanding to several indices, or views - "
+                    + "or split this into multiple queries.",
+                stats.leaves(),
+                maxBranches,
+                QueryPragmas.MAX_QUERY_BRANCHES.getKey()
+            )
+        );
+    }
+
+    /**
+     * Rejects a query whose {@link UnionAll}s nest deeper than {@code maxLevels}, the
+     * {@link QueryPragmas#MAX_QUERY_BRANCH_LEVELS} query pragma.
+     * <p>
+     * Each nested union becomes a coordinator merge segment that is wired before any leaf runs, so the depth is what a
+     * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
+     * many branches there are in total, but a skinny chain of two-way unions can stay under that cap at arbitrary depth.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called from
+     * {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered
+     * check to every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
+     * compute service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the
+     * same at execution time as one the user wrote.
+     */
+    private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, Failures failures) {
+        if (stats.depth() <= maxLevels) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.deepest(),
+                "query resolved to {} nested union levels, exceeding the limit of {} set by the [{}] query pragma. "
+                    + "Reduce the nesting of sources - subqueries, patterns expanding to several indices, or views - "
+                    + "or split this into multiple queries.",
+                stats.depth(),
+                maxLevels,
+                QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey()
+            )
+        );
+    }
+
+    /**
+     * Summarizes the unions under {@code plan}. A subtree with no union is one producer leaf. Otherwise its leaf count is the sum of
+     * its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a union. The right side of an
+     * {@link AbstractSubqueryJoin} is excluded because it is an independently executed query. The first and deepest unions provide distinct
+     * failure locations when both limits are exceeded.
+     */
+    private static UnionStats unionStats(LogicalPlan plan) {
+        UnionAll first = plan instanceof UnionAll unionAll ? unionAll : null;
+        UnionAll deepest = first;
+        int leaves = 0;
+        int depth = 0;
+        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            UnionStats childStats = unionStats(child);
+            if (first == null) {
+                first = childStats.first();
+            }
+            leaves += childStats.leaves();
+            if (childStats.depth() > depth) {
+                depth = childStats.depth();
+                deepest = childStats.deepest();
+            }
+        }
+        if (first == null) {
+            return new UnionStats(null, null, 1, 0);
+        }
+        return new UnionStats(first, deepest, leaves, depth + (plan instanceof UnionAll ? 1 : 0));
+    }
+
+    private record UnionStats(UnionAll first, UnionAll deepest, int leaves, int depth) {}
 
     /**
      * Builds the verification {@link Failure} for a {@link ViewUnionAll} or bare {@link Fork} found nested below another

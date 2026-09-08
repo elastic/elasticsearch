@@ -155,7 +155,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     ) {
         this.type = type;
         this.configFactory = configFactory;
-        this.supportedSchemes = supportedSchemes;
+        this.supportedSchemes = Set.copyOf(supportedSchemes);
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
@@ -246,6 +246,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Override
     public String type() {
         return type;
+    }
+
+    /** URI schemes this validator accepts on a dataset resource. */
+    Set<String> supportedSchemes() {
+        return supportedSchemes;
     }
 
     @Override

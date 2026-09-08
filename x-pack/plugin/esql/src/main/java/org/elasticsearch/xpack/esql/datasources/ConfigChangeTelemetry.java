@@ -13,10 +13,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
-
-import java.util.Locale;
-import java.util.Set;
 
 /**
  * Closed vocabularies and reason mapping for {@code config.changes.total}. Lives outside {@code spi}
@@ -41,25 +39,15 @@ public final class ConfigChangeTelemetry {
     public static final String REASON_HAS_DEPENDENTS = "has_dependents";
     public static final String REASON_OTHER = "other";
 
-    private static final Set<String> KNOWN_TYPES = Set.of("s3", "gcs", "azure", "http", "local");
-
     private ConfigChangeTelemetry() {}
 
     /**
-     * Clamps a validator type-id to the closed type set used by both CRUD APM
+     * Clamps a validator type-id to the closed {@link Type} set used by both CRUD APM
      * ({@code es_datasource_type}) and phone-home inventory ({@code by_type}).
-     * {@code file} folds to {@code local}; anything else (including the test-only
-     * {@code test} type) is {@code unknown}.
+     * Scheme aliases such as {@code file} are not type ids and become {@code unknown}.
      */
     public static String typeToken(String type) {
-        if (type == null) {
-            return "unknown";
-        }
-        String lower = type.toLowerCase(Locale.ROOT);
-        if ("file".equals(lower)) {
-            return "local";
-        }
-        return KNOWN_TYPES.contains(lower) ? lower : "unknown";
+        return Type.fromTypeId(type).key();
     }
 
     /**

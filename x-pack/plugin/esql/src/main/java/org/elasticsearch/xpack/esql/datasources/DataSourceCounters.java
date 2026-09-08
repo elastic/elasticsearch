@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.List;
  * {@link Counters} keys under the {@code datasources.} subtree of the ES|QL XPack usage payload.
  * <p>
  * Key naming follows the instrument names in {@code ExternalSourceMetrics}, with attribute values
- * (scheme, outcome) flattened into the key path. The resulting nested map (via
+ * (type, outcome) flattened into the key path. The resulting nested map (via
  * {@link Counters#toNestedMap()}) becomes the {@code esql.datasources} section of
  * {@code GET /_xpack/usage}.
  */
@@ -31,13 +32,13 @@ public final class DataSourceCounters {
      * {@code TransportEsqlStatsAction.nodeOperation}.
      */
     public static void populate(DataSourceUsageAccumulator acc, Counters counters) {
-        // ---- per-scheme counters ----
-        for (int i = 0; i < DataSourceUsageAccumulator.SCHEME_COUNT; i++) {
-            String s = DataSourceUsageAccumulator.SCHEME_NAMES.get(i);
-            counters.inc("datasources.storage.requests.total." + s, acc.storageRequests(i));
-            counters.inc("datasources.storage.bytes_read.total." + s, acc.storageBytesRead(i));
-            counters.inc("datasources.storage.errors.total." + s, acc.storageErrors(i));
-            counters.inc("datasources.storage.throttled.total." + s, acc.storageThrottled(i));
+        // ---- per-type counters ----
+        for (Type type : Type.values()) {
+            String s = type.key();
+            counters.inc("datasources.storage.requests.total." + s, acc.storageRequests(type));
+            counters.inc("datasources.storage.bytes_read.total." + s, acc.storageBytesRead(type));
+            counters.inc("datasources.storage.errors.total." + s, acc.storageErrors(type));
+            counters.inc("datasources.storage.throttled.total." + s, acc.storageThrottled(type));
         }
 
         // ---- unattributed counters ----

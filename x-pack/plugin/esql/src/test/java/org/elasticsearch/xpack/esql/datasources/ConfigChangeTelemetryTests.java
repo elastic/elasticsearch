@@ -31,7 +31,7 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
     public void testTypeTokenFoldsAndClamps() {
         assertThat(ConfigChangeTelemetry.typeToken("s3"), equalTo("s3"));
         assertThat(ConfigChangeTelemetry.typeToken("GCS"), equalTo("gcs"));
-        assertThat(ConfigChangeTelemetry.typeToken("file"), equalTo("local"));
+        assertThat(ConfigChangeTelemetry.typeToken("file"), equalTo("unknown"));
         assertThat(ConfigChangeTelemetry.typeToken("local"), equalTo("local"));
         assertThat(ConfigChangeTelemetry.typeToken("test"), equalTo("unknown"));
         assertThat(ConfigChangeTelemetry.typeToken(null), equalTo("unknown"));

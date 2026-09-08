@@ -31,6 +31,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetryTestSupport;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.Before;
@@ -59,8 +62,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -145,6 +151,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 4000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -188,6 +195,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -207,6 +215,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -227,6 +236,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 4000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -261,6 +271,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, timestamp + 1000 + 1),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -299,6 +310,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, timestamp + 1000 + 1),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -349,6 +361,133 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         verify(client, times(2)).execute(eq(TransportSearchAction.TYPE), any());
     }
 
+    public void testExtractionShouldRecordEmittedDocumentCountInTelemetry() throws IOException {
+        List<InternalComposite.InternalBucket> compositeBucket = Arrays.asList(
+            createCompositeBucket(
+                1000L,
+                "time_bucket",
+                1,
+                Arrays.asList(createMax("time", 1999), createAvg("responsetime", 11.0)),
+                Collections.singletonList(Tuple.tuple("airline", "a"))
+            ),
+            createCompositeBucket(
+                1000L,
+                "time_bucket",
+                2,
+                Arrays.asList(createMax("time", 1999), createAvg("responsetime", 12.0)),
+                Collections.singletonList(Tuple.tuple("airline", "b"))
+            ),
+            createCompositeBucket(2000L, "time_bucket", 0, Collections.emptyList(), Collections.emptyList()),
+            createCompositeBucket(
+                3000L,
+                "time_bucket",
+                4,
+                Arrays.asList(createMax("time", 3999), createAvg("responsetime", 31.0)),
+                Collections.singletonList(Tuple.tuple("airline", "c"))
+            ),
+            createCompositeBucket(
+                3000L,
+                "time_bucket",
+                3,
+                Arrays.asList(createMax("time", 3999), createAvg("responsetime", 32.0)),
+                Collections.singletonList(Tuple.tuple("airline", "b"))
+            )
+        );
+
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            telemetrySupport.telemetry,
+            aggregatedSearchRequestBuilder
+        );
+
+        ActionFuture<SearchResponse> searchResponse = toActionFuture(
+            createSearchResponse("buckets", compositeBucket, Map.of("time_bucket", 4000L, "airline", "d"))
+        );
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(searchResponse);
+
+        extractor.next();
+
+        verify(telemetrySupport.resultCountHistogram).record(
+            4,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
+        );
+        verify(telemetrySupport.pageSizeHistogram).record(
+            10,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
+        );
+    }
+
+    public void testFullPageThenEmptyShouldNotRecordFullPageInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            telemetrySupport.telemetry,
+            aggregatedSearchRequestBuilder
+        );
+
+        ActionFuture<SearchResponse> fullPageResponse = toActionFuture(
+            createSearchResponse("buckets", createCompositeBuckets(10), Map.of("time_bucket", 1000L))
+        );
+        ActionFuture<SearchResponse> emptyResponse = toActionFuture(createSearchResponse("buckets", Collections.emptyList(), null));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(fullPageResponse).thenReturn(emptyResponse);
+
+        extractor.next();
+        extractor.next();
+
+        verify(telemetrySupport.fullPageCounter, never()).incrementBy(anyLong(), anyMap());
+    }
+
+    public void testFullPageThenNonEmptyShouldRecordFullPageOnceInTelemetry() throws IOException {
+        DatafeedSearchTelemetryTestSupport telemetrySupport = new DatafeedSearchTelemetryTestSupport();
+        CompositeAggregationDataExtractor extractor = new CompositeAggregationDataExtractor(
+            compositeAggregationBuilder,
+            client,
+            createContext(1000L, 4000L),
+            timingStatsReporter,
+            telemetrySupport.telemetry,
+            aggregatedSearchRequestBuilder
+        );
+
+        ActionFuture<SearchResponse> fullPageResponse = toActionFuture(
+            createSearchResponse("buckets", createCompositeBuckets(10), Map.of("time_bucket", 1000L))
+        );
+        ActionFuture<SearchResponse> partialPageResponse = toActionFuture(
+            createSearchResponse(
+                "buckets",
+                Collections.singletonList(
+                    createCompositeBucket(
+                        2000L,
+                        "time_bucket",
+                        1,
+                        Arrays.asList(createMax("time", 2999), createAvg("responsetime", 21.0)),
+                        Collections.singletonList(Tuple.tuple("airline", "z"))
+                    )
+                ),
+                null
+            )
+        );
+        ActionFuture<SearchResponse> emptyResponse = toActionFuture(createSearchResponse("buckets", Collections.emptyList(), null));
+        when(client.execute(eq(TransportSearchAction.TYPE), any())).thenReturn(fullPageResponse)
+            .thenReturn(partialPageResponse)
+            .thenReturn(emptyResponse);
+
+        extractor.next();
+        extractor.next();
+        extractor.next();
+
+        verify(telemetrySupport.fullPageCounter, times(1)).incrementBy(
+            1,
+            Map.of(DatafeedSearchTelemetry.EXTRACTOR_TYPE_ATTRIBUTE, ExtractorType.COMPOSITE.attributeValue())
+        );
+    }
+
     public void testExtractionSetsProjectRouting() throws IOException {
         List<InternalComposite.InternalBucket> buckets = Collections.singletonList(
             createCompositeBucket(
@@ -366,6 +505,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L, projectRouting),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -385,6 +525,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
             client,
             createContext(1000L, 2000L),
             timingStatsReporter,
+            DatafeedSearchTelemetry.NOOP,
             aggregatedSearchRequestBuilder
         );
 
@@ -394,6 +535,22 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
+    }
+
+    private List<InternalComposite.InternalBucket> createCompositeBuckets(int count) {
+        List<InternalComposite.InternalBucket> buckets = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            buckets.add(
+                createCompositeBucket(
+                    1000L + i,
+                    "time_bucket",
+                    1,
+                    Arrays.asList(createMax("time", 1999L + i), createAvg("responsetime", 11.0)),
+                    Collections.singletonList(Tuple.tuple("airline", "a" + i))
+                )
+            );
+        }
+        return buckets;
     }
 
     private CompositeAggregationDataExtractorContext createContext(long start, long end) {

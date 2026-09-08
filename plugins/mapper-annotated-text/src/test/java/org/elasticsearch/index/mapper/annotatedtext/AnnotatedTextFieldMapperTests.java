@@ -40,7 +40,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -734,7 +733,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
      * its own fallback field via a single loader layer, producing stable round-trips.
      */
     public void testSyntheticSourceStableWithSingleValuedKeywordDelegateAndIgnoreAbove() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         int ignoreAbove = between(10, 20);
         // At least one short value (fits ignore_above) and one long value (exceeds it) are required to trigger both storage paths.
         List<String> shortValues = randomList(1, 3, () -> randomAlphaOfLength(between(1, ignoreAbove)));

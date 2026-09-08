@@ -13,8 +13,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.simdjson.SimdJsonDirectWalker;
-import org.elasticsearch.simdjson.SimdJsonParser;
+import org.elasticsearch.simdjson.JsonDocumentParser;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -76,18 +76,15 @@ public class EscfDocumentHandlerTests extends ESTestCase {
     }
 
     private static byte[] encodeItemsArrayViaSimdWalk(String doc, String innerObjectJson) throws IOException {
-        assumeTrue("simdjson ESCF encoding required", SimdJsonPool.isEnabled());
+        assumeTrue("simdjson ESCF encoding required", EscfEncoder.isSimdEnabled());
         byte[] bytes = doc.getBytes(StandardCharsets.UTF_8);
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();
         EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
 
-        SimdJsonParser parser = SimdJsonPool.parser();
-        SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
-        parser.stage1(bytes, 0, bytes.length);
-        parser.prepareDocumentWindow(0, bytes.length);
-        walker.walkDocument(bytes, parser, handler);
-        walker.releaseNames();
+        JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
+        docParser.parseDocument(bytes, 0, bytes.length, handler);
+        docParser.publishFieldNames();
         row.finishRow();
 
         assertEquals("items", backend.columnPath(0));

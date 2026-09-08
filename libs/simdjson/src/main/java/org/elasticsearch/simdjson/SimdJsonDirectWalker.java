@@ -39,18 +39,22 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.isStruc
  *
  * <h2>Lifecycle</h2>
  *
+ * <p>Single-document callers should use a pooled {@link JsonDocumentParser} instead, which owns a
+ * walker and drives the protocol below. Driving it directly is for multi-document batches, which
+ * have no pooled equivalent.
+ *
  * <ol>
- *   <li>Create one walker per thread via {@link SimdJsonParserPool#directWalker()}, which
- *       wires a thread-confined field name cache automatically.</li>
- *   <li>For each document, call {@link #walkDocument(byte[], SimdJsonParser,
- *       JsonDocumentHandler)}. The batch parser must have its document window prepared first.</li>
+ *   <li>Construct a walker with a
+ *       {@link org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable.Child}.</li>
+ *   <li>For each document, call {@link #walkDocument(byte[], SimdJsonParser, JsonDocumentHandler)}
+ *       after {@link SimdJsonParser#prepareDocumentWindow} has prepared the structural index window.</li>
  *   <li>After processing a batch, call {@link #releaseNames()} to merge newly discovered
  *       field names back to the shared parent table. Omitting this call is safe but means
  *       field names learned in this batch won't be available to other threads.</li>
  *   <li>The walker is reusable across batches - do not create a new instance per batch.</li>
  * </ol>
  *
- * <p><strong>Not thread-safe.</strong> Pool one instance per thread.
+ * <p><strong>Not thread-safe.</strong> One instance per thread.
  */
 public final class SimdJsonDirectWalker {
 

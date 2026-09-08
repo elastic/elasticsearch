@@ -58,9 +58,10 @@ public final class SimdJsonSupport {
     }
 
     /**
-     * Maximum document size (bytes) for thread-local {@link SimdJsonParserPool} parsers and the
-     * ESCF simdjson encode path. Controlled by {@code -Des.simdjson.max_doc_bytes=<n>}; defaults
-     * to {@link #DEFAULT_MAX_DOC_BYTES}.
+     * Maximum document size (bytes) that the {@linkplain SimdJsonParserPool#getDefault() default
+     * pool} sizes its parsers for. Controlled by {@code -Des.simdjson.max_doc_bytes=<n>}; defaults
+     * to {@link #DEFAULT_MAX_DOC_BYTES}. Read {@link SimdJsonParserPool#maxDocumentBytes()} rather
+     * than this method when deciding whether a document is eligible for a given pool.
      */
     public static int maxDocBytes() {
         return Integer.getInteger("es.simdjson.max_doc_bytes", DEFAULT_MAX_DOC_BYTES);

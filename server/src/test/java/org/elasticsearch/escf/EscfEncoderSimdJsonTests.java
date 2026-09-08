@@ -17,6 +17,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -50,6 +51,9 @@ import java.util.Map;
  * non-zero-offset, and composite {@link BytesReference} shapes via {@link #assertSameOutputAllSourceShapes}.
  */
 public class EscfEncoderSimdJsonTests extends ESTestCase {
+
+    /** Largest document the encoder's leased parser accepts; above this it falls back to Jackson. */
+    private static final int MAX_DOC_BYTES = SimdJsonParserPool.getDefault().maxDocumentBytes();
 
     // -----------------------------------------------------------------------
     // Differential equality: SIMD vs Jackson for common scenarios
@@ -255,7 +259,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      */
     public void testLargeDocFallsBackToJackson() throws IOException {
         StringBuilder sb = new StringBuilder("{\"data\":\"");
-        sb.append("x".repeat(SimdJsonPool.MAX_DOC_BYTES + 10));
+        sb.append("x".repeat(MAX_DOC_BYTES + 10));
         sb.append("\"}");
         String largeJson = sb.toString();
         assertSameOutput(largeJson);
@@ -310,11 +314,11 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * When {@link SimdJsonPool#SIMDJSON_ESCF_FEATURE_FLAG} is disabled, the default encoder
+     * When {@link EscfEncoder#SIMDJSON_ESCF_FEATURE_FLAG} is disabled, the default encoder
      * uses Jackson even though {@code allowSimd} is true.
      */
     public void testFeatureFlagDisabledUsesJackson() throws IOException {
-        assumeFalse("simdjson ESCF feature flag must be disabled", SimdJsonPool.SIMDJSON_ESCF_FEATURE_FLAG.isEnabled());
+        assumeFalse("simdjson ESCF feature flag must be disabled", EscfEncoder.SIMDJSON_ESCF_FEATURE_FLAG.isEnabled());
         String json = "{\"k\":\"v\",\"n\":42,\"arr\":[1,2]}";
         BytesReference source = new BytesArray(json);
         Recycler<BytesRef> recycler = newRecycler();
@@ -402,7 +406,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     public void testMixedSizeDocsBatchFallback() throws IOException {
         String smallDoc = "{\"small\":true}";
         StringBuilder sb = new StringBuilder("{\"data\":\"");
-        sb.append("x".repeat(SimdJsonPool.MAX_DOC_BYTES + 10));
+        sb.append("x".repeat(MAX_DOC_BYTES + 10));
         sb.append("\"}");
         String largeDoc = sb.toString();
 
@@ -429,11 +433,11 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      */
     public void testJustUnderSizeLimit() throws IOException {
         StringBuilder sb = new StringBuilder("{\"data\":\"");
-        int padding = SimdJsonPool.MAX_DOC_BYTES - 15; // account for {"data":"..."}
+        int padding = MAX_DOC_BYTES - 15; // account for {"data":"..."}
         sb.append("x".repeat(padding));
         sb.append("\"}");
         String json = sb.toString();
-        assertTrue("doc should be under limit", json.length() <= SimdJsonPool.MAX_DOC_BYTES);
+        assertTrue("doc should be under limit", json.length() <= MAX_DOC_BYTES);
         assertSameOutputAllSourceShapes(json);
     }
 
@@ -441,7 +445,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * SIMD enabled at exactly the size limit — should be handled by the SIMD path (no fallback).
      */
     public void testExactlyAtSizeLimit() throws IOException {
-        String json = jsonOfLength(SimdJsonPool.MAX_DOC_BYTES);
+        String json = jsonOfLength(MAX_DOC_BYTES);
         assertSameOutputAllSourceShapes(json);
     }
 

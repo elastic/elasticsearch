@@ -24,7 +24,8 @@ libs/simdjson/
 │   └── main/java/
 │       ├── module-info.java          #   Exports org.elasticsearch.simdjson only
 │       └── org/elasticsearch/simdjson/
-│           ├── SimdJsonParserPool.java   # Public entry point (thread-local parsers)
+│           ├── SimdJsonParserPool.java   # Public entry point (thread-local document parsers)
+│           ├── JsonDocumentParser.java   # Single-document parser (stage 1 indexer + walker)
 │           ├── SimdJsonParser.java       # Stage 1 + per-document index windows
 │           ├── SimdJsonDirectWalker.java # Fused stage 2 / token walk
 │           ├── JsonDocumentHandler.java  # Callback API for field events
@@ -47,27 +48,30 @@ libs/simdjson/
 ## Related code in other modules
 
 - **`server`** — ESCF encoding integration
-  - `org.elasticsearch.escf.SimdJsonPool` — feature flag, document size limits, pool wiring
   - `org.elasticsearch.escf.EscfDocumentHandler` — `JsonDocumentHandler` implementation
-  - `org.elasticsearch.escf.EscfEncoder` — simdjson vs Jackson encode path
+  - `org.elasticsearch.escf.EscfEncoder` — feature flag, simdjson vs Jackson encode path; resolves
+    its thread's `JsonDocumentParser` once at construction
 - **`libs/native/libraries`** — downloads `org.elasticsearch:libsimdjson` native zips at
      build time.
 - **`benchmarks`** — `SimdJsonParserBenchmark` JMH harness
 
 ## Parsing pipeline
 
-1. **`SimdJsonParser.stage1`** — native structural indexing; writes byte offsets of
-   structural characters and value starts into `BitIndexes`.
-2. **`SimdJsonParser.prepareDocumentWindow`** — slices the structural index to one
-   document. For a **multi-document batch** (concatenated JSON in one buffer),
-   `beginBatch` / `prepareDocumentWindowChunked` run stage 1 lazily in **buffer
-   chunks** of at most `CHUNK_BYTE_LIMIT` bytes (default 256 KB) — i.e. a slice of
-   the batch, not a fragment of a single document. Each document must still fit in
-   one chunk. ESCF today uses the single-document path only.
-3. **`SimdJsonDirectWalker.walkDocument`** — walks the index, resolves field names
-   through the frozen name table, parses strings/numbers inline, emits handler events.
-4. **`SimdJsonParserPool.releaseNames`** — at batch boundaries, merges newly learned
-   field names back to the shared parent table.
+1. **`SimdJsonParserPool.forCurrentThread`** — returns this thread's `JsonDocumentParser`, creating
+   it on first call. Parsers are keyed by thread, so the number of native contexts is bounded by
+   the number of threads that ever parse, not by how many units of work are in flight.
+2. **`JsonDocumentParser.parseDocument`** — indexes one document (native stage 1) and walks it in
+   a single call.
+3. **`SimdJsonParser.stage1`** / **`prepareDocumentWindow`** and
+   **`SimdJsonDirectWalker.walkDocument`** — the lower-level steps `parseDocument` sequences;
+   stage 2 resolves field names, parses strings/numbers inline, and emits handler events. Used
+   directly in tests and for multi-document batches.
+4. **`JsonDocumentParser.publishFieldNames`** — at batch boundaries, merges newly learned field
+   names into the shared table so other threads can reuse them.
+
+For a **multi-document batch** (concatenated JSON in one buffer), `beginBatch` /
+`prepareDocumentWindowChunked` run stage 1 lazily in **buffer chunks** of at most
+`CHUNK_BYTE_LIMIT` bytes (default 256 KB). ESCF today uses the single-document path only.
 
 Requires `SimdJsonSupport.isSupported()` (native library loaded and vector API
 available). Windows x64 and Intel macOS are excluded at the FFM binding layer.

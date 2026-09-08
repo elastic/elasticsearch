@@ -9,6 +9,7 @@
 
 /**
  * Native-accelerated JSON parsing: parser pool, direct document walker, and handler
- * callbacks. Entry point is {@link org.elasticsearch.simdjson.SimdJsonParserPool}.
+ * callbacks. Entry point is {@link org.elasticsearch.simdjson.SimdJsonParserPool}, which hands out
+ * thread-local {@link org.elasticsearch.simdjson.JsonDocumentParser}s.
  */
 package org.elasticsearch.simdjson;

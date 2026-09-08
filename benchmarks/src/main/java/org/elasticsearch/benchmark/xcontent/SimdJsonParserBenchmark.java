@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
+import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
@@ -49,10 +51,32 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  *       documents through Jackson's {@code ESUTF8StreamJsonParser}.</li>
  * </ul>
  *
- * <p>A fresh encoder is created per invocation (matching production lifecycle where one encoder
- * is created per bulk request per concrete index).
+ * <h2>Mirroring the production lifecycle</h2>
  *
- * <p><strong>Running.</strong>
+ * <p>One invocation stands in for one bulk request against one concrete index, so that the costs
+ * that are paid per bulk rather than per document land inside the measured region:
+ * <ul>
+ *   <li>A fresh {@link EscfEncoder} is constructed per invocation and closed at the end, matching
+ *       {@code BulkBatchEncoders}, which creates one encoder per concrete index in a bulk and
+ *       closes it once the shard requests are dispatched. The encoder resolves its thread's parser
+ *       from {@link SimdJsonParserPool} at construction and publishes learned field names on
+ *       close, so both of those per-bulk costs are measured.</li>
+ *   <li>{@code docCount} spans realistic bulk sizes. The small values are the interesting ones for
+ *       per-bulk overhead: at 10k documents the per-encoder work is amortized to invisibility,
+ *       which is not representative of a typical bulk.</li>
+ *   <li>Rows are committed round-robin across {@code shardCount} partitions and each is built
+ *       separately, matching {@code BulkBatchEncoders.finalizeBatches}, which calls
+ *       {@code buildPartition} once per destination shard on the same encoder.</li>
+ * </ul>
+ *
+ * <p>Not covered: sources are all zero-offset {@code BytesArray}, whereas bulk items are usually
+ * array-backed slices with a non-zero {@code arrayOffset()} and occasionally composite (which takes
+ * the encoder's scratch-copy path); and a single index per invocation means every encoder on a
+ * thread shares one warm field name cache, so the cost of a bulk fanning out across indices with
+ * differing mappings is not exercised.
+ *
+ * <p><strong>Running.</strong> Defaults cover two document shapes; {@code otel_nested} and other
+ * parameters are available via {@code -p}.
  * <pre>{@code
  * cd benchmarks
  * # Single-threaded (default):
@@ -62,6 +86,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * # Multi-threaded (8 threads):
  * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
  *   -t 8 -rf json -rff build/jmh-result.json" | tee /tmp/bench/simdjson_vs_jackson_mt
+ *
+ * # All shapes, single bulk size:
+ * ../gradlew run --args "org.elasticsearch.benchmark.xcontent.SimdJsonParserBenchmark \
+ *   -p shape=clickbench_flat,otel_nested,small_sparse -p docCount=1000"
  * }</pre>
  */
 @Fork(value = 1, jvmArgsAppend = { "--add-modules=jdk.incubator.vector" })
@@ -73,13 +101,28 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @State(Scope.Thread)
 public class SimdJsonParserBenchmark {
 
-    @Param({ "10000" })
+    /**
+     * Documents per bulk. Spans typical client bulk sizes; the small end is where per-bulk costs
+     * such as encoder construction and field name publishing are actually visible.
+     */
+    @Param({ "100", "1000", "10000" })
     private int docCount;
 
     @Param({ "42" })
     private long seed;
 
-    @Param({ "clickbench_flat", "otel_nested", "small_sparse" })
+    /**
+     * Destination shards for the index, i.e. how many partitions the encoder fans rows out to and
+     * how many times {@code buildPartition} is called per bulk.
+     */
+    @Param({ "5" })
+    private int shardCount;
+
+    /**
+     * Document shape. {@code otel_nested} is omitted by default to keep the parameter matrix small;
+     * pass it explicitly with {@code -p shape=...}.
+     */
+    @Param({ "clickbench_flat", "small_sparse" })
     private String shape;
 
     private BytesReference[] docs;
@@ -100,50 +143,54 @@ public class SimdJsonParserBenchmark {
             totalLen += raw.length;
         }
 
-        boolean nativeAvailable;
-        try {
-            var m = Class.forName("org.elasticsearch.simdjson.SimdJsonSupport").getDeclaredMethod("isSupported");
-            nativeAvailable = (boolean) m.invoke(null);
-        } catch (Exception e) {
-            nativeAvailable = false;
-        }
         System.out.printf(
-            "[setup] thread=%s shape=%s docCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
+            "[setup] thread=%s shape=%s docCount=%d shardCount=%d docSize min=%d avg=%d max=%d nativeStage1=%s maxSimdDocBytes=%d%n",
             Thread.currentThread().getName(),
             shape,
             docCount,
+            shardCount,
             minLen,
             totalLen / docCount,
             maxLen,
-            nativeAvailable,
-            16 * 1024
+            SimdJsonSupport.isSupported(),
+            SimdJsonParserPool.getDefault().maxDocumentBytes()
         );
     }
 
     @Benchmark
     public int jacksonEncode() throws IOException {
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
-            for (BytesReference doc : docs) {
-                encoder.parseToScratch(doc, XContentType.JSON, LeafSink.NO_OP);
-                encoder.commitScratchTo(0);
-            }
-            try (EscfBatch batch = encoder.buildPartition(0)) {
-                return batch.schema().leafCount();
-            }
+            return encodeBulk(encoder);
         }
     }
 
     @Benchmark
     public int simdJsonEncode() throws IOException {
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            for (BytesReference doc : docs) {
-                encoder.parseToScratch(doc, XContentType.JSON, LeafSink.NO_OP);
-                encoder.commitScratchTo(0);
-            }
-            try (EscfBatch batch = encoder.buildPartition(0)) {
-                return batch.schema().leafCount();
+            return encodeBulk(encoder);
+        }
+    }
+
+    /**
+     * Encodes one bulk's worth of documents, fanning rows across shard partitions and building each,
+     * as {@code BulkBatchEncoders} does during routing and {@code finalizeBatches}.
+     */
+    private int encodeBulk(EscfEncoder encoder) throws IOException {
+        for (int i = 0; i < docs.length; i++) {
+            encoder.parseToScratch(docs[i], XContentType.JSON, LeafSink.NO_OP);
+            encoder.commitScratchTo(i % shardCount);
+        }
+        int leafCount = 0;
+        for (int partition = 0; partition < shardCount; partition++) {
+            // A shard that received no rows is skipped, matching finalizeBatches iterating only
+            // over shards with pending attachments.
+            if (encoder.hasPartition(partition)) {
+                try (EscfBatch batch = encoder.buildPartition(partition)) {
+                    leafCount += batch.schema().leafCount();
+                }
             }
         }
+        return leafCount;
     }
 
     // ------------------------------------------------------------------

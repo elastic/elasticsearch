@@ -13,12 +13,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdjson.JsonDocumentParser;
 import org.elasticsearch.simdjson.JsonParsingException;
-import org.elasticsearch.simdjson.SimdJsonDirectWalker;
-import org.elasticsearch.simdjson.SimdJsonParser;
+import org.elasticsearch.simdjson.SimdJsonParserPool;
+import org.elasticsearch.simdjson.SimdJsonSupport;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -46,9 +49,9 @@ import java.util.List;
  *
  * <p><strong>Parser dispatch:</strong>
  * <ol>
- *   <li>JSON, ≤ {@link SimdJsonPool#MAX_DOC_BYTES}, and {@link SimdJsonPool#isEnabled()}:
- *       {@link SimdJsonDirectWalker} (native SIMD stage 1 + fused stage 2/walk).
- *       Falls back to Jackson on any failure.</li>
+ *   <li>JSON, no larger than {@link JsonDocumentParser#maxDocumentBytes()}, and
+ *       {@link #isSimdEnabled()}: this thread's {@link JsonDocumentParser} (native SIMD stage 1 +
+ *       fused stage 2/walk). Falls back to Jackson on any failure.</li>
  *   <li>Otherwise: Jackson stream parser.</li>
  * </ol>
  */
@@ -56,8 +59,29 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     private static final Logger logger = LogManager.getLogger(EscfEncoder.class);
 
+    /**
+     * Feature flag for the simdjson-backed ESCF JSON encode path. In snapshot builds it defaults
+     * to enabled; in release builds it defaults to disabled and can be turned on with
+     * {@code -Des.simdjson_escf_feature_flag_enabled=true}.
+     */
+    static final FeatureFlag SIMDJSON_ESCF_FEATURE_FLAG = new FeatureFlag("simdjson_escf");
+
     private final EscfBatchBuilder backend;
-    private final boolean allowSimd;
+
+    /**
+     * This thread's shared parser, or {@code null} when the SIMD path is unavailable or switched
+     * off. Resolved once here rather than per document; safe because an encoder is used only on the
+     * thread that created it (a bulk's coordinating pass is synchronous and single-threaded).
+     */
+    @Nullable
+    private final JsonDocumentParser docParser;
+
+    /**
+     * Staging area for sources that are not array-backed, allocated on first need. Owned by this
+     * encoder rather than shared per-thread, so its contents cannot be clobbered by another
+     * encoder running on the same thread.
+     */
+    private byte[] scratch;
 
     public EscfEncoder() {
         this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
@@ -68,12 +92,20 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Constructor used by tests and benchmarks to disable the SIMD path and obtain a Jackson
-     * baseline for differential comparison.
+     * @param allowSimd pass {@code false} to force the Jackson path; used by tests and benchmarks
+     *                  to obtain a baseline for differential comparison
      */
     public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
         this.backend = new EscfBatchBuilder(recycler);
-        this.allowSimd = allowSimd;
+        this.docParser = allowSimd && isSimdEnabled() ? SimdJsonParserPool.getDefault().forCurrentThread() : null;
+    }
+
+    /**
+     * Whether the simdjson ESCF encode path may be used at all: the native library is loaded, the
+     * vector API is available, and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
+     */
+    static boolean isSimdEnabled() {
+        return SimdJsonSupport.isSupported() && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
     }
 
     public void parseToScratch(BytesReference source, XContentType xContentType) throws IOException {
@@ -102,15 +134,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
      * (in which case the caller falls back to Jackson).
      */
     private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType, LeafSink sink) {
-        if (allowSimd == false
-            || SimdJsonPool.isEnabled() == false
-            || xContentType.canonical() != XContentType.JSON
-            || source.length() > SimdJsonPool.MAX_DOC_BYTES) {
+        if (docParser == null || xContentType.canonical() != XContentType.JSON || source.length() > docParser.maxDocumentBytes()) {
             return false;
         }
-
-        SimdJsonParser parser = SimdJsonPool.parser();
-        SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
 
         byte[] buf;
         int offset;
@@ -128,16 +154,14 @@ public final class EscfEncoder implements SourceBatchEncoder {
         int len = source.length();
 
         try {
-            parser.stage1(buf, offset, len);
-            parser.prepareDocumentWindow(offset, len);
-
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
             EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
-            walker.walkDocument(buf, parser, handler);
+            docParser.parseDocument(buf, offset, len, handler);
             row.finishRow();
             return true;
         } catch (JsonParsingException e) {
+            // The handler may have written part of the row already; the next beginRow() discards it.
             logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
             return false;
         } catch (RuntimeException e) {
@@ -147,15 +171,17 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Copies a non-array-backed source into the thread-local scratch buffer for SIMD parsing.
+     * Copies a non-array-backed source into this encoder's scratch buffer for SIMD parsing.
      * Array-backed sources (including bulk slices with a non-zero {@code arrayOffset()}) are used
      * in place by the caller instead.
      *
-     * <p>The returned scratch must not be retained past the next call on this thread.
+     * <p>The returned scratch is only valid until the next call.
      */
-    private static byte[] copyToScratch(BytesReference source) throws IOException {
+    private byte[] copyToScratch(BytesReference source) throws IOException {
         int len = source.length();
-        byte[] scratch = SimdJsonPool.scratch();
+        if (scratch == null) {
+            scratch = new byte[docParser.maxDocumentBytes()];
+        }
         int pos = 0;
         BytesRefIterator it = source.iterator();
         for (BytesRef page = it.next(); page != null; page = it.next()) {
@@ -173,9 +199,6 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public EscfBatch buildPartition(int partitionKey) {
-        if (allowSimd && SimdJsonPool.isEnabled()) {
-            SimdJsonPool.releaseNames();
-        }
         return backend.buildPartition(partitionKey);
     }
 
@@ -194,9 +217,19 @@ public final class EscfEncoder implements SourceBatchEncoder {
         return backend.columnPath(columnIndex);
     }
 
+    /**
+     * Releases the backend and publishes the field names this encoder learned, so other threads can
+     * reuse them. The parser itself is owned by the pool and outlives this encoder.
+     */
     @Override
     public void close() {
-        backend.close();
+        try {
+            if (docParser != null) {
+                docParser.publishFieldNames();
+            }
+        } finally {
+            backend.close();
+        }
     }
 
     /** Convenience: encodes all {@code sources} into a single-partition batch. */

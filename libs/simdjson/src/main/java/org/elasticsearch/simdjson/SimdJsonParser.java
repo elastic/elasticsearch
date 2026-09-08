@@ -26,18 +26,15 @@ import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
  * simdjson C++ library. The indexer is created at construction time and released when this
  * parser is {@linkplain #close() closed}.
  *
- * <p><strong>Usage (single document):</strong>
+ * <p><strong>Usage (single document):</strong> prefer a pooled {@link JsonDocumentParser}, which
+ * owns a parser and walker and sequences them correctly.
  * <pre>{@code
- *   try (SimdJsonParser parser = new SimdJsonParser(capacity)) {
- *       SimdJsonDirectWalker walker = new SimdJsonDirectWalker(nameTable.makeChild());
- *       parser.stage1(buffer, offset, len);
- *       parser.prepareDocumentWindow(offset, len);
- *       walker.walkDocument(buffer, parser, handler);
- *       walker.releaseNames();
- *   }
+ *   JsonDocumentParser docParser = SimdJsonParserPool.getDefault().forCurrentThread();
+ *   docParser.parseDocument(buffer, offset, len, handler);
  * }</pre>
  *
- * <p><strong>Usage (multi-document batch, optional):</strong>
+ * <p><strong>Usage (multi-document batch):</strong> the chunked batch protocol has no pooled
+ * equivalent, so it drives the parser and walker directly.
  * <pre>{@code
  *   try (SimdJsonParser parser = new SimdJsonParser(capacity)) {
  *       SimdJsonDirectWalker walker = new SimdJsonDirectWalker(nameTable.makeChild());

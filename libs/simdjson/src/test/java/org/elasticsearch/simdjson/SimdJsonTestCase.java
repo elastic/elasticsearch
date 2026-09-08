@@ -81,15 +81,14 @@ public abstract class SimdJsonTestCase extends ESTestCase {
         int len = buffer.length;
 
         try (SimdJsonParser parser = new SimdJsonParser(len)) {
-            parser.stage1(buffer, len);
-            parser.prepareDocumentWindow(0, len);
-
             FrozenFieldNameTable parent = new FrozenFieldNameTable();
             FrozenFieldNameTable.Child child = parent.makeChild();
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
 
             RecordingHandler handler = new RecordingHandler(normalizeEmptyObject);
-            walker.walkDocument(buffer, parser.bitIndexes(), handler);
+            parser.stage1(buffer, 0, len);
+            parser.prepareDocumentWindow(0, len);
+            walker.walkDocument(buffer, parser, handler);
             return handler.events;
         }
     }

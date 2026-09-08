@@ -20,14 +20,14 @@
  * <ol>
  *   <li>Check {@link org.elasticsearch.simdjson.SimdJsonSupport#isSupported()} to
  *       confirm the native library is loaded and the vector API is available.</li>
- *   <li>Obtain a {@link org.elasticsearch.simdjson.SimdJsonParserPool} via
- *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#getDefault()}.</li>
- *   <li>For each document: call {@code stage1} and {@code prepareDocumentWindow} on the
- *       thread-local {@link org.elasticsearch.simdjson.SimdJsonParser}, then
- *       {@code directWalker().walkDocument(buffer, parser, handler)}.</li>
- *   <li>At partition or batch boundaries, call
- *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()} to merge newly
- *       discovered field names back to the shared cache.</li>
+ *   <li>Obtain this thread's {@link org.elasticsearch.simdjson.JsonDocumentParser} from
+ *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#forCurrentThread()}.</li>
+ *   <li>For each document no larger than
+ *       {@link org.elasticsearch.simdjson.JsonDocumentParser#maxDocumentBytes()}, call
+ *       {@link org.elasticsearch.simdjson.JsonDocumentParser#parseDocument}.</li>
+ *   <li>At a batch or partition boundary, call
+ *       {@link org.elasticsearch.simdjson.JsonDocumentParser#publishFieldNames()} so other threads
+ *       can reuse the field names this parser learned.</li>
  * </ol>
  *
  * <p>Scalar and string parsing utilities are vendored from
@@ -36,9 +36,10 @@
  * (native stage 1, field-name cache, direct walker) lives in the exported API and sibling
  * {@code internal} packages.
  *
+ * @see org.elasticsearch.simdjson.JsonDocumentParser
+ * @see org.elasticsearch.simdjson.JsonDocumentHandler
  * @see org.elasticsearch.simdjson.SimdJsonParser
  * @see org.elasticsearch.simdjson.SimdJsonDirectWalker
- * @see org.elasticsearch.simdjson.JsonDocumentHandler
  */
 module org.elasticsearch.simdjson {
     requires org.elasticsearch.foreign;

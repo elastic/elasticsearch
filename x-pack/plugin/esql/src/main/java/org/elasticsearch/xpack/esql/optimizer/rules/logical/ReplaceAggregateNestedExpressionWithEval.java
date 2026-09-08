@@ -46,7 +46,7 @@ import java.util.Map;
  *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a + 1`) BY `x % 2`
  * </pre>
  * <p>
- * When {@code extractConstants} is set, constant fields and constant channel parameters are materialized too. For example:
+ * When {@code extractConstants} is set, constant fields  are materialized too. For example:
  * <pre>
  *     STATS TOP(42, 10, "asc", "n/a")
  * </pre>
@@ -63,9 +63,8 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     /**
      * @param locallyUniqueNames when {@code true}, the synthetic eval names generated for extracted nested expressions are made
      *                           globally unique instead of being derived deterministically from the extracted expression.
-     * @param extractConstants   when {@code true}, in addition to nested expressions, also materialize constant aggregate inputs
-     *                           (a constant field or a constant {@link AggregateFunction#channelParameters() channel parameter}) into
-     *                           the pre-agg eval.
+     * @param extractConstants   when {@code true}, in addition to nested expressions, also materialize constant input fields
+     *                           into the pre-agg eval.
      */
     public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames, boolean extractConstants) {
         this.locallyUniqueNames = locallyUniqueNames;
@@ -191,7 +190,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             return true;
         }
         // check if the field or any parameter needs to be extracted into an eval
-        return needsExtraction(af, af.field()) == false && af.parameters().stream().noneMatch(parameter -> needsExtraction(af, parameter));
+        return af.fields().stream().noneMatch(field -> needsExtraction(af, field));
     }
 
     private static boolean containsAggregate(Expression e) {
@@ -218,9 +217,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // COUNT reads a constant field directly, so it needs no channel
             return false;
         }
-        // extract a constant used as a channel: the field (e.g. 42 in TOP(42, 2, "asc")) or a channel parameter (e.g. "n/a" in
-        // TOP(x, 2, "asc", "n/a")); supplier constants such as TOP's limit/order are neither.
-        return input == af.field() || af.channelParameters().stream().anyMatch(channelParameter -> channelParameter == input);
+        return true;
     }
 
     private Expression transformAggregateFunction(
@@ -234,22 +231,17 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             return af;
         }
         boolean changed = false;
-        Expression newField = af.field();
-        List<Expression> newParameters = new ArrayList<>(af.parameters());
-        if (needsExtraction(af, af.field())) {
-            newField = extractIntoEval(af.field(), af, expToAttribute, evals, counter);
-            changed = true;
-        }
-        for (int i = 0; i < af.parameters().size(); i++) {
-            Expression parameter = af.parameters().get(i);
-            if (needsExtraction(af, parameter)) {
-                newParameters.set(i, extractIntoEval(parameter, af, expToAttribute, evals, counter));
+        List<Expression> newFields = new ArrayList<>(af.fields());
+        for (int i = 0; i < af.fields().size(); i++) {
+            Expression field = af.fields().get(i);
+            if (needsExtraction(af, field)) {
+                newFields.set(i, extractIntoEval(field, af, expToAttribute, evals, counter));
                 changed = true;
             }
         }
         if (changed) {
             aggsChanged.set(true);
-            return af.withFieldAndParameters(newField, newParameters);
+            return af.withFields(newFields);
         }
         return af;
     }

@@ -186,9 +186,8 @@ public class Top extends AggregateFunction
     }
 
     @Override
-    public List<? extends Expression> channelParameters() {
-        // only outputField is read as a per-row input channel; limit and order are folded into the aggregator supplier
-        return outputField() == null ? List.of() : List.of(outputField());
+    public List<? extends Expression> fields() {
+        return outputField() == null ? List.of(field()) : List.of(field(), outputField());
     }
 
     private Integer limitValue() {
@@ -465,5 +464,18 @@ public class Top extends AggregateFunction
             }
         }
         return null;
+    }
+
+    @Override
+    public AggregateFunction withFields(List<? extends Expression> newFields) {
+        return new Top(
+            source(),
+            newFields.get(0),
+            filter(),
+            window(),
+            limitField(),
+            orderField(),
+            newFields.size() > 1 ? newFields.get(1) : null
+        );
     }
 }

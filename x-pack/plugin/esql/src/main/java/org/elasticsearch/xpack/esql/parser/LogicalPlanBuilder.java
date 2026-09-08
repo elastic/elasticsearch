@@ -1873,11 +1873,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         return input -> {
             if (input instanceof PromqlCommand pc) {
-                // Dimensions aren't known yet: pc.promqlPlan() is an UnresolvedPromqlFunction at parse time
-                // and only takes its final shape (e.g. AcrossSeriesAggregate) after ResolvePromqlFunctions.
-                // TranslateTimeSeriesCollapse recovers them from the resolved PromqlCommand output.
+                // Dimensions are derived from the child output at use time (TimeSeriesCollapse#dimensions())
+                // and do not need to be known at parse time. The bounds (start, end, stepBucketSize) are null
+                // here and are filled in by TranslateTimeSeriesCollapse, which reads them from the PromqlCommand
+                // once analysis has resolved the time parameters.
                 // value/step NameIds, by contrast, are minted at PromqlCommand construction and stable across analysis.
-                return new TimeSeriesCollapse(source, pc, pc.valueAttribute(), pc.stepAttribute(), List.of());
+                return new TimeSeriesCollapse(source, pc, pc.valueAttribute(), pc.stepAttribute());
             }
             throw new ParsingException(source, "TS_COLLAPSE can only appear directly after a PROMQL command");
         };

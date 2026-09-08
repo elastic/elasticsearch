@@ -300,7 +300,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveTwoLeggedPunksInEsRelation(),
                 // Must happen before Translating PromQL plan to ESQL plan
                 new ResolveAndVerifyPromqlRefs(),
-                // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
+                // Populates the TS_COLLAPSE wrapping a PromqlCommand with the bounds drawn from the
                 // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
                 new TranslateTimeSeriesCollapse(),
                 // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting

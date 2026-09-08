@@ -196,14 +196,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // leave it folded if a surrogate will replace the whole aggregate, e.g. SUM(1) -> MV_SUM(1) * COUNT(*)
             return false;
         }
-        if (input == af.field()) {
-            // COUNT doesn't need the field, others like TOP(42, 2, "asc") do
-            return (af instanceof Count || af instanceof CountApproximate) == false;
-        } else {
-            // extract a parameter only if it maps to its own channel, e.g. for TOP(x, 2, "asc", "n/a")
-            // the constant outputField "n/a" needs a channel, but the supplier constants don't.
-            return af.channelParameters().stream().anyMatch(channelParameter -> channelParameter == input);
+        if (af instanceof Count || af instanceof CountApproximate) {
+            // COUNT doesn't need the field
+            return false;
         }
+        // Extract the field or a parameter if it is used as a channel, e.g.
+        // for TOP(x, 2, "asc", y) both x and y are extracted, but 2 and "asc" are not.
+        return input == af.field() || af.channelParameters().stream().anyMatch(channelParameter -> channelParameter == input);
     }
 
     private Expression transformAggregateFunction(
@@ -216,34 +215,23 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         if (skipOptimisingAgg(af)) {
             return af;
         }
-
-        List<Expression> children = af.children();
-        List<Expression> newChildren = new ArrayList<>(children);
         boolean changed = false;
-
-        // the field is the first child; if it is a nested expression or a constant that the aggregator can't consume directly,
-        // replace it with a reference to an extracted eval
+        Expression newField = af.field();
+        List<Expression> newParameters = new ArrayList<>(af.parameters());
         if (needsExtraction(af, af.field())) {
-            newChildren.set(0, extractIntoEval(af.field(), af, expToAttribute, evals, counter));
+            newField = extractIntoEval(af.field(), af, expToAttribute, evals, counter);
             changed = true;
         }
-
-        // the parameters follow field, filter and window; materialise those that need their own input channel (e.g. TOP's
-        // outputField, including when it is a constant), while leaving supplier constants such as TOP's limit/order in place
-        List<? extends Expression> parameters = af.parameters();
-        for (int i = 0; i < parameters.size(); i++) {
-            Expression parameter = parameters.get(i);
+        for (int i = 0; i < af.parameters().size(); i++) {
+            Expression parameter = af.parameters().get(i);
             if (needsExtraction(af, parameter)) {
-                // The parameter's index in the children list is offset by the number of non-parameter
-                // children (field, filter, window). See also AggregateFunction constructor.
-                newChildren.set(i + 3, extractIntoEval(parameter, af, expToAttribute, evals, counter));
+                newParameters.set(i, extractIntoEval(parameter, af, expToAttribute, evals, counter));
                 changed = true;
             }
         }
-
         if (changed) {
             aggsChanged.set(true);
-            return af.replaceChildren(newChildren);
+            return af.withFieldAndParameters(newField, newParameters);
         }
         return af;
     }

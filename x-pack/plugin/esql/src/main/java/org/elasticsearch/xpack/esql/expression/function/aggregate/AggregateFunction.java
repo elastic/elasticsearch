@@ -242,6 +242,13 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), parameters));
     }
 
+    public AggregateFunction withFieldAndParameters(Expression newField, List<? extends Expression> newParameters) {
+        if (newField == this.field && newParameters == this.parameters) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), newParameters));
+    }
+
     public AggregateFunction withWindow(Expression newWindow) {
         if (newWindow == this.window) {
             return this;

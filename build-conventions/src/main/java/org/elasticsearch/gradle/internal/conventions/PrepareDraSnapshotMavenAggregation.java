@@ -10,14 +10,16 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -42,15 +44,21 @@ import javax.inject.Inject;
  * `com.gradleup.nmcp.aggregation` into the layout the DRA snapshot repo
  * (`snapshots.elastic.co/&lt;buildId&gt;/maven/`) expects.
  *
- * <p>The upstream zip is intentionally Central Portal shaped: for snapshot
- * builds it emits Maven-timestamped filenames like
+ * <p>The aggregation content is intentionally Central Portal shaped: for
+ * snapshot builds it emits Maven-timestamped filenames like
  * {@code foo-9.6.0-20260824.075015-1.jar} inside {@code 9.6.0-SNAPSHOT/}.
  * The DRA snapshot repo historically publishes {@code -SNAPSHOT.jar}
  * literals (produced by release-manager), and consumers depend on that shape.
  *
+ * <p>Rather than depend on the {@code aggregation.zip} archive and unpack it,
+ * this task reuses {@code zipAggregation}'s copy-spec source directly (the
+ * already-extracted per-project publications). That avoids materializing the
+ * DRA-side zip only to unzip it again in the publish step — nothing is zipped
+ * on the DRA path at all.
+ *
  * <p>For snapshot versions this task:
  * <ol>
- *   <li>Sync-extracts the aggregation zip into an output directory, renaming
+ *   <li>Sync-copies the aggregation source into an output directory, renaming
  *       {@code -<yyyyMMdd.HHmmss>-<n>} segments to {@code -SNAPSHOT}.
  *       Per-file checksum sidecars (.md5/.sha1/.sha*) hash the file bytes so
  *       renaming them alongside their jar/pom is byte-safe.</li>
@@ -74,17 +82,21 @@ public abstract class PrepareDraSnapshotMavenAggregation extends DefaultTask {
     // preserved by the rename.
     private static final String TIMESTAMP_REGEX = "-\\d{8}\\.\\d{6}-\\d+";
 
-    @InputFile
-    public abstract RegularFileProperty getSourceZip();
+    /**
+     * The already-extracted maven aggregation content, wired from
+     * {@code zipAggregation}'s copy-spec source so the DRA path never builds
+     * (or unpacks) the aggregation zip.
+     */
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    @IgnoreEmptyDirectories
+    public abstract ConfigurableFileCollection getSource();
 
     @Input
     public abstract Property<String> getVersion();
 
     @OutputDirectory
     public abstract DirectoryProperty getOutputDir();
-
-    @Inject
-    protected abstract ArchiveOperations getArchiveOperations();
 
     @Inject
     protected abstract FileSystemOperations getFileSystemOperations();
@@ -96,7 +108,7 @@ public abstract class PrepareDraSnapshotMavenAggregation extends DefaultTask {
         File outDir = getOutputDir().get().getAsFile();
 
         getFileSystemOperations().sync(spec -> {
-            spec.from(getArchiveOperations().zipTree(getSourceZip()));
+            spec.from(getSource());
             spec.into(outDir);
             if (snapshot) {
                 spec.rename(TIMESTAMP_REGEX, "-SNAPSHOT");

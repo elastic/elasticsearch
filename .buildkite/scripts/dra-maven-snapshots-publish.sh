@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Publishes the maven aggregation zip produced by :zipDraSnapshotMavenAggregation
+# Publishes the exploded maven tree produced by :prepareDraSnapshotMavenAggregation
 # straight into the consumer-facing root prefixes on snapshots.elastic.co
 # (snapshot workflow) or artifacts.elastic.co (staging workflow):
 #
@@ -23,11 +23,12 @@
 # https://github.com/elastic/platform-engineering-productivity/issues/2790#issuecomment-4781360993
 # for the analysis this layout is based on.
 #
-# Intended to run inline in the DRA workflow job so it can pick the aggregation
-# zip straight out of the workspace `build/distributions`. The
-# `MAVEN_AGGREGATION_ZIP` env var overrides the zip location so a future
-# stand-alone publish step can point at a downloaded buildkite artifact
-# instead.
+# Intended to run inline in the DRA workflow job so it can pick the exploded
+# maven tree straight out of the workspace `build/dra-maven-aggregation`. The
+# Gradle task emits an exploded directory (not a zip) precisely so this step can
+# upload it without a zip/unzip round-trip. The `MAVEN_AGGREGATION_DIR` env var
+# overrides the source location so a future stand-alone publish step can point at
+# a downloaded buildkite artifact instead.
 #
 # Required environment:
 #   DRA_WORKFLOW           snapshot|staging (default: snapshot)
@@ -50,10 +51,10 @@ case "$DRA_WORKFLOW" in
   *) echo "unsupported DRA_WORKFLOW='$DRA_WORKFLOW'" >&2; exit 2 ;;
 esac
 
-ZIP="${MAVEN_AGGREGATION_ZIP:-build/distributions/elasticsearch-dra-maven-aggregation-${ES_VERSION}${VERSION_SUFFIX}.zip}"
-if [[ ! -f "$ZIP" ]]; then
-  echo "DRA aggregation zip not found: $ZIP" >&2
-  echo "  (produced by :zipDraSnapshotMavenAggregation; must not be confused with" >&2
+MAVEN_DIR="${MAVEN_AGGREGATION_DIR:-build/dra-maven-aggregation}"
+if [[ ! -d "$MAVEN_DIR" ]]; then
+  echo "DRA maven aggregation tree not found: $MAVEN_DIR" >&2
+  echo "  (produced by :prepareDraSnapshotMavenAggregation; must not be confused with" >&2
   echo "   :zipAggregation output at elasticsearch-maven-aggregation-*.zip which is" >&2
   echo "   Maven Central compliant and unsuitable for the DRA snapshot layout)" >&2
   exit 1
@@ -62,12 +63,10 @@ fi
 WORK_DIR="$(mktemp -d -t es-maven-publish.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-MAVEN_DIR="$WORK_DIR/maven"
+# The maven tree is uploaded read-only straight from the Gradle output; only the
+# expanded javadoc HTML tree needs a scratch directory.
 JAVADOC_DIR="$WORK_DIR/javadoc"
-mkdir -p "$MAVEN_DIR" "$JAVADOC_DIR"
-
-echo "--- Unpacking $ZIP"
-unzip -q "$ZIP" -d "$MAVEN_DIR"
+mkdir -p "$JAVADOC_DIR"
 
 echo "--- Expanding javadoc jars"
 # Layout of the maven tree is standard:

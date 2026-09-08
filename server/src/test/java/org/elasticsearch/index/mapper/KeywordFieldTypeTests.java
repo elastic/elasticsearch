@@ -553,7 +553,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forFuzzy("field", "foo", 2, 1, true, SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forFuzzy("field", "foo", 2, 1, true, false),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
     }
@@ -570,7 +570,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm("field", "Foo", SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm("field", "Foo", false),
             ft.termQueryCaseInsensitive("Foo", MOCK_CONTEXT)
         );
     }
@@ -587,7 +587,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(
-            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, SEPARATE_COUNT),
+            ScanningBinaryDocValuesAutomatonQuery.forWildcard("field", "foo*", true, false),
             ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT)
         );
     }

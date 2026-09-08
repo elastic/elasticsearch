@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.esql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 @State(Scope.Benchmark)
 public class AnalysisBenchmark {
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /**

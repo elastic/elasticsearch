@@ -159,6 +159,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
+    public static boolean isSupported(Settings settings) {
+        return XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) && XPackSettings.NLP_ENABLED.get(settings);
+    }
+
+    public static boolean isServiceNameOrAlias(String name) {
+        return name.equals(ElasticsearchInternalService.NAME) || name.equals(ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME);
+    }
+
     /**
      * Fix for https://github.com/elastic/elasticsearch/issues/124675
      * In 8.13.0 we transitioned from model_version to model_id. Any elser inference endpoints created prior to 8.13.0 will still use
@@ -940,12 +948,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
         if (models.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
-        // if ML is disabled, do not update Deployment Stats (there won't be changes)
-        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false || XPackSettings.NLP_ENABLED.get(settings) == false) {
             listener.onResponse(models);
             return;
         }

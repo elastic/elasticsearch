@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -37,6 +38,11 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
+
+    /** A real {@link DriverContext} because {@link AsyncExternalSourceOperator#close()} deposits into its sink. */
+    private static DriverContext driverContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BLOCK_FACTORY, null);
+    }
 
     private static Page createTestPage(int numColumns, int numRows) {
         IntBlock[] blocks = new IntBlock[numColumns];
@@ -70,9 +76,9 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         // Wire a format-reader status with a known readNanos (42 ms) so parse.duration is a deterministic
         // non-zero value, not just present. recordParseAndSplits() scrapes formatReaderStatus().readNanos()
         // at close and records it as the parse.duration observation.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L)));
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L), 0L));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3a");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a");
 
         Page page = operator.getOutput();
         assertNotNull("the buffered page must be emitted", page);
@@ -126,7 +132,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 1));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
         Page page = operator.getOutput();
         assertNotNull(page);
         page.releaseBlocks();
@@ -151,7 +157,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.setSplitsTotal(10);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
         assertNull(operator.getOutput());
         operator.close();
 
@@ -171,7 +177,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3");
         assertNull(operator.getOutput());
         operator.close();
 

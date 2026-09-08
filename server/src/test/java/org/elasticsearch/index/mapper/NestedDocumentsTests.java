@@ -189,6 +189,88 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         });
     }
 
+    /**
+     * Regression test for a null-pointer exception in {@code findObjectPath} when callers access documents
+     * in non-ascending order.  The rewind path re-obtains a fresh scorer via {@code Weight.scorer(ctx)},
+     * which may return {@code null} if the segment contains no matching nested docs for that path.
+     * Before the fix, the null was stored into the map and immediately dereferenced.
+     *
+     * This test exercises the rewind code path by advancing a {@link LeafNestedDocuments} to a later
+     * nested doc, then back to an earlier one within the same segment.
+     */
+    public void testFindObjectPathBackwardDocAccess() throws IOException {
+
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("name").field("type", "keyword").endObject();
+            b.startObject("children");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("name").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Two root documents, each with nested children, in a single segment.
+        ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
+            b.field("name", "root1");
+            b.startArray("children");
+            {
+                b.startObject().field("name", "child1").endObject();
+                b.startObject().field("name", "child2").endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
+            b.field("name", "root2");
+            b.startArray("children");
+            {
+                b.startObject().field("name", "child3").endObject();
+                b.startObject().field("name", "child4").endObject();
+            }
+            b.endArray();
+        }));
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocuments(doc1.docs());
+            iw.addDocuments(doc2.docs());
+            iw.forceMerge(1);
+        }, reader -> {
+            // Segment layout (single segment after forceMerge):
+            // doc 0: nested child1 (root1)
+            // doc 1: nested child2 (root1)
+            // doc 2: root1 (parent)
+            // doc 3: nested child3 (root2)
+            // doc 4: nested child4 (root2)
+            // doc 5: root2 (parent)
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, IndexVersion.current());
+            LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
+
+            // Advance forward to doc 3 (child3 under root2) — this moves the child scorer iterator forward.
+            assertNotNull(leaf.advance(3));
+            assertEquals(3, leaf.doc());
+            assertEquals(5, leaf.rootDoc());
+            assertEquals(new SearchHit.NestedIdentity("children", 0, null), leaf.nestedIdentity());
+
+            // Now advance backward to doc 0 (child1 under root1).
+            // This triggers the rewind path in findObjectPath because the scorer iterator is past doc 0.
+            assertNotNull(leaf.advance(0));
+            assertEquals(0, leaf.doc());
+            assertEquals(2, leaf.rootDoc());
+            assertEquals(new SearchHit.NestedIdentity("children", 0, null), leaf.nestedIdentity());
+
+            // Verify forward access still works after a rewind.
+            assertNotNull(leaf.advance(4));
+            assertEquals(4, leaf.doc());
+            assertEquals(5, leaf.rootDoc());
+            assertEquals(new SearchHit.NestedIdentity("children", 1, null), leaf.nestedIdentity());
+        });
+    }
+
     public void testNestedObjectWithinNonNestedObject() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("name").field("type", "keyword").endObject();

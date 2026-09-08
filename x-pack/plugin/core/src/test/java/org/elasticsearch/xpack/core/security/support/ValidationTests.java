@@ -12,12 +12,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Validation.Error;
 import org.elasticsearch.xpack.core.security.support.Validation.Roles;
+import org.elasticsearch.xpack.core.security.support.Validation.UserManagedServiceAccounts;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -306,6 +308,85 @@ public class ValidationTests extends ESTestCase {
 
         final String tokenName3 = ValidationTests.randomInvalidTokenName();
         assertThat(Validation.isValidServiceAccountTokenName(tokenName3), is(false));
+    }
+
+    public void testUserManagedServiceAccountIdValid() {
+        final String namespace = randomUserManagedComponent();
+        final String serviceName = randomUserManagedComponent();
+        assertThat(UserManagedServiceAccounts.validateNamespace(namespace), nullValue());
+        assertThat(UserManagedServiceAccounts.validateServiceName(serviceName), nullValue());
+        assertThat(UserManagedServiceAccounts.validatePrincipal(namespace + "/" + serviceName), nullValue());
+    }
+
+    public void testUserManagedServiceAccountIdRejectsBuiltInNamespace() {
+        final String reserved = randomFrom("elastic", "ELASTIC", "Elastic", "eLaStIc");
+        assertThat(
+            UserManagedServiceAccounts.validateNamespace(reserved).toString(),
+            containsString("the [elastic] namespace is reserved for built-in service accounts")
+        );
+        assertThat(
+            UserManagedServiceAccounts.validatePrincipal(reserved + "/" + randomUserManagedComponent()).toString(),
+            containsString("reserved for built-in service accounts")
+        );
+        // Prefixes of the reserved name are a different namespace
+        assertThat(UserManagedServiceAccounts.validateNamespace("elastic-team"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateServiceName("elastic"), nullValue());
+    }
+
+    public void testUserManagedServiceAccountIdRejectsMissingComponents() {
+        final String empty = randomFrom("", null);
+        assertThat(UserManagedServiceAccounts.validateNamespace(empty).toString(), containsString("service account namespace is missing"));
+        assertThat(
+            UserManagedServiceAccounts.validateServiceName(empty).toString(),
+            containsString("service account service name is missing")
+        );
+        assertThat(UserManagedServiceAccounts.validatePrincipal(null).toString(), containsString("principal is missing"));
+    }
+
+    public void testUserManagedServiceAccountIdRejectsMalformedPrincipal() {
+        final String noSeparator = randomUserManagedComponent();
+        assertThat(
+            UserManagedServiceAccounts.validatePrincipal(noSeparator).toString(),
+            containsString("a service account ID must be in the form {namespace}/{service-name}, but was [" + noSeparator + "]")
+        );
+        // Splitting on the first separator leaves any extra one in the service name, where the charset rejects it
+        assertThat(
+            UserManagedServiceAccounts.validatePrincipal("a/b/c").toString(),
+            containsString("service account service name [b/c] must begin with a letter or digit")
+        );
+    }
+
+    public void testUserManagedServiceAccountIdRejectsInvalidCharacters() {
+        final String component = randomUserManagedComponent();
+        // '/' separates the two components of a principal and ':' separates a principal from a token secret, so both
+        // must be rejected however they appear
+        for (String invalid : List.of(component + "/x", component + ":x", " " + component, component + " ", component + "\t")) {
+            assertThat(
+                "expected [" + invalid + "] to be rejected",
+                UserManagedServiceAccounts.validateNamespace(invalid).toString(),
+                containsString("must begin with a letter or digit and may contain only letters, digits, hyphens (-) and underscores (_)")
+            );
+        }
+        // Hyphens and underscores are allowed, but not as the first character
+        assertThat(UserManagedServiceAccounts.validateServiceName("a-b_c"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateServiceName(randomFrom("-a", "_a")), notNullValue());
+    }
+
+    public void testUserManagedServiceAccountIdLengthBoundary() {
+        final int max = UserManagedServiceAccounts.MAX_COMPONENT_LENGTH;
+        assertThat(UserManagedServiceAccounts.validateNamespace(randomAlphaOfLength(max)), nullValue());
+        assertThat(UserManagedServiceAccounts.validateServiceName(randomAlphaOfLength(max)), nullValue());
+
+        final String tooLong = randomAlphaOfLengthBetween(max + 1, max + 20);
+        assertThat(
+            UserManagedServiceAccounts.validateNamespace(tooLong).toString(),
+            containsString("service account namespace may not be more than " + max + " characters long, but [" + tooLong + "] is ")
+        );
+        assertThat(UserManagedServiceAccounts.validatePrincipal(randomAlphaOfLength(max) + "/" + tooLong), notNullValue());
+    }
+
+    private static String randomUserManagedComponent() {
+        return randomAlphaOfLength(1) + randomFrom("-", "_") + randomFrom("", randomAlphaOfLengthBetween(1, 20));
     }
 
     private static char[] generateValidName(int length) {

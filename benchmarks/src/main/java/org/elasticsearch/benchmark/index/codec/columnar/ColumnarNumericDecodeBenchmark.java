@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.columnar;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 public class ColumnarNumericDecodeBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String FIELD = NumericFormat.FIELD;

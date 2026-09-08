@@ -16,8 +16,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
@@ -35,9 +34,7 @@ import java.util.Optional;
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     // Size of the corrections trailer that follows each packed vector in the codec's per-vector
     // record: 3 floats (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).

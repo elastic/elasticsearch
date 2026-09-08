@@ -53,6 +53,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.cli.terminal",
+        "org.elasticsearch.columnar",
         "org.elasticsearch.entitlement",
         "org.elasticsearch.exponentialhistogram",
         "org.elasticsearch.foreign",

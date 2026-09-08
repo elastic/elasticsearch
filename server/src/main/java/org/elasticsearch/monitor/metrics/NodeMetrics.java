@@ -165,7 +165,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.operations.total",
                 "Number of transaction log operations.",
                 "operation",
@@ -180,7 +180,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.size",
                 "Size, in bytes, of the transaction log.",
                 "bytes",
@@ -195,7 +195,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.uncommitted_operations.total",
                 "Number of uncommitted transaction log operations.",
                 "operations",
@@ -210,7 +210,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.uncommitted_operations.size",
                 "Size, in bytes, of uncommitted transaction log operations.",
                 "bytes",
@@ -225,7 +225,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.earliest_last_modified.time",
                 "Earliest last modified age for the transaction log.",
                 "time",
@@ -270,7 +270,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.jvm.mem.pools.young.size",
                 "Memory, in bytes, used by the young generation heap.",
                 "bytes",
@@ -281,7 +281,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.jvm.mem.pools.survivor.size",
                 "Memory, in bytes, used by the survivor space.",
                 "bytes",
@@ -292,7 +292,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.jvm.mem.pools.old.size",
                 "Memory, in bytes, used by the old generation heap.",
                 "bytes",
@@ -334,7 +334,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.docs.current.total",
                 "Current number of indexing documents",
                 "documents",
@@ -398,7 +398,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.deletion.docs.current.total",
                 "Current number of deleting documents",
                 "documents",
@@ -509,7 +509,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.coordinating_operations.current.size",
                 "Current number of memory bytes consumed by coordinating operations",
                 "bytes",
@@ -523,7 +523,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.coordinating_operations.current.total",
                 "Current number of coordinating operations",
                 "operations",
@@ -593,7 +593,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.primary_operations.current.size",
                 "Current number of memory bytes consumed by primary operations",
                 "bytes",
@@ -607,7 +607,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.primary_operations.current.total",
                 "Current number of primary operations",
                 "operations",
@@ -649,7 +649,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.indexing.memory.limit.size",
                 "Current memory limit for primary and coordinating operations",
                 "bytes",

@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -143,7 +144,15 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             fixedLength = length;
             return;
         }
-        transitionFixedLengthToOffsets(newOffset);
+        try {
+            transitionFixedLengthToOffsets(newOffset);
+        } catch (CircuitBreakingException e) {
+            Releasables.close(intOffsets, longOffsets);
+            intOffsets = null;
+            longOffsets = null;
+            throw e;
+        }
+        fixedLength = -1;
     }
 
     private void transitionFixedLengthToOffsets(long newOffset) {
@@ -159,7 +168,6 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 longOffsets.append(off);
             }
         }
-        fixedLength = -1;
         if (newOffset <= maxIntOffset) {
             intOffsets.append((int) newOffset);
         } else {
@@ -171,17 +179,29 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     public void append(BytesRef value) {
-        lastOffset += value.length;
-        appendOffset(lastOffset, value.length);
-        bytes.append(value.bytes, value.offset, value.length);
+        final long newOffset = lastOffset + value.length;
+        try {
+            bytes.append(value.bytes, value.offset, value.length);
+            appendOffset(newOffset, value.length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
         ++size;
     }
 
     public void append(PagedBytesCursor cursor) {
         final int length = cursor.remaining();
-        lastOffset += length;
-        appendOffset(lastOffset, length);
-        bytes.append(cursor);
+        final long newOffset = lastOffset + length;
+        try {
+            bytes.append(cursor);
+            appendOffset(newOffset, length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
+        }
+        lastOffset = newOffset;
         ++size;
     }
 
@@ -201,11 +221,11 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         bytes.truncateTo(lastOffset);
         if (intOffsets != null) {
             // Offset tables hold (oldSize + 1) entries; after truncation we need exactly (newSize + 1).
-            long entriesToKeep = newSize + 1;
-            long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
+            final long entriesToKeep = newSize + 1;
+            final long intEntriesToKeep = Math.min(intOffsets.size, entriesToKeep);
             intOffsets.truncateTo(intEntriesToKeep);
             if (longOffsets != null) {
-                long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
+                final long longEntriesToKeep = entriesToKeep - intEntriesToKeep;
                 if (longEntriesToKeep <= 0) {
                     longOffsets.close();
                     longOffsets = null;
@@ -460,7 +480,8 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             PageCacheRecycler r = bigArrays.recycler();
             this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
             int numPages = Math.toIntExact(Math.max(1, (initialCapacity + LONGS_PER_PAGE - 1) / LONGS_PER_PAGE));
-            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), true);
+            // Must be false: nothing is allocated yet, and true would keep the reservation on a refusal
+            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V<?>[numPages];
             boolean success = false;

@@ -12,12 +12,13 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromBinaryReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -25,21 +26,18 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNum
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * Loads the MIN {@code keyword} in each doc from high-cardinality binary doc values.
  */
 public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat binaryFormat;
 
-    public MvMinBytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
-    }
-
-    public MvMinBytesRefsFromBinaryBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
+    public MvMinBytesRefsFromBinaryBlockLoader(String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = fieldName;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -49,6 +47,26 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MinFromColumnarPayload(binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, MinFromArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, MinFromBinarySeparateCount::new);
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its minimum is the value itself.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -56,15 +74,35 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
-            return new MinFromArrayOrderInlineNull(bc.binary(), bc.counts());
-        }
-        return new MinFromBinarySeparateCount(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override
     public String toString() {
         return "MvMinBytesRefsFromBinary[" + fieldName + "]";
+    }
+
+    /** Reader for the columnar codec's payload, which carries its own slot count and needs no companion column. */
+    private static class MinFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+        MinFromColumnarPayload(TrackingBinaryDocValues values) {
+            super(values);
+        }
+
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            reader.readMin(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public String toString() {
+            return "MinFromColumnarPayload";
+        }
     }
 
     private static class MinFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {

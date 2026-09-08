@@ -161,8 +161,12 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
         try (Directory dir = newDirectory()) {
             final NumericColumnMetadata written;
-            try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
+            try (
+                IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+                IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+            ) {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+                ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
                 final int blockSize = randomValidBlockSize();
                 final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG).build(blockSize);
                 written = NumericColumnWriter.write(
@@ -175,9 +179,11 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out,
+                    skip
                 );
                 ColumnarCodecUtil.writeFooter(out);
+                ColumnarCodecUtil.writeFooter(skip);
             }
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");

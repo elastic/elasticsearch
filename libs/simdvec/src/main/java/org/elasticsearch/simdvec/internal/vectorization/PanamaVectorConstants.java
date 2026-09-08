@@ -32,6 +32,7 @@ public final class PanamaVectorConstants {
     static final VectorSpecies<Integer> PREFERRED_INTEGER_SPECIES;
     static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES;
     static final VectorSpecies<Long> PREFERRED_LONG_SPECIES;
+    static final VectorSpecies<Double> PREFERRED_DOUBLE_SPECIES;
 
     /*
      * A byte species with the same number of elements as the preferred 4-byte species (float and int).
@@ -67,6 +68,7 @@ public final class PanamaVectorConstants {
         PREFERRED_INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
         PREFERRED_FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
         PREFERRED_LONG_SPECIES = VectorSpecies.of(long.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
+        PREFERRED_DOUBLE_SPECIES = VectorSpecies.of(double.class, VectorShape.forBitSize(PREFERRED_VECTOR_BITSIZE));
 
         // hotspot misses some SSE intrinsics, workaround it
         // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon

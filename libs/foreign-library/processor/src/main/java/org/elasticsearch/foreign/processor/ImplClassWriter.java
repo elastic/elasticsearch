@@ -92,6 +92,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
+    private static final ClassDesc CD_System = ClassDesc.of("java.lang.System");
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
     private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
@@ -130,7 +131,7 @@ class ImplClassWriter {
         CD_String
     );
     private static final MethodTypeDesc MTD_unsupportedFallback = MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle, CD_String);
-    private static final MethodTypeDesc MTD_MemorySegmentAdapter_getString = MethodTypeDesc.of(CD_String, CD_MemorySegment, CD_long);
+    private static final MethodTypeDesc MTD_LinkerHelper_readString = MethodTypeDesc.of(CD_String, CD_MemorySegment);
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
@@ -232,7 +233,7 @@ class ImplClassWriter {
             // <clinit>: load the library, resolve the assertions flag, and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
-                    emitLoadLibrary(clinit, model.libraryName());
+                    emitLoadLibrary(clinit, model.libraryName(), model.system());
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
@@ -330,9 +331,13 @@ class ImplClassWriter {
     // <clinit> helpers
     // -------------------------------------------------------------------------
 
-    private static void emitLoadLibrary(CodeBuilder cb, String libName) {
+    private static void emitLoadLibrary(CodeBuilder cb, String libName, boolean system) {
         cb.ldc(libName);
-        cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        if (system) {
+            cb.invokestatic(CD_System, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        } else {
+            cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        }
     }
 
     /**
@@ -592,7 +597,7 @@ class ImplClassWriter {
 
     /**
      * Emits the fixed {@code Objects.checkFromIndexSize(0L, <shape>, segment.byteSize())} template for
-     * every {@code @VectorSegment}/{@code @MatrixSegment}-annotated parameter, in parameter order, at
+     * every {@code @VectorSegment}/{@code @MatrixSegment}/{@code @SlicedSegment}-annotated parameter, in parameter order, at
      * the very top of the method body — before the try block, so a failing check propagates its own
      * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
      */
@@ -603,6 +608,7 @@ class ImplClassWriter {
             switch (check) {
                 case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
                 case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
+                case BoundsCheckModel.SlicedSegmentCheck s -> emitSlicedSegmentCheck(cb, paramTypes, slots, s);
             }
         }
     }
@@ -694,6 +700,18 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /** Emits {@code Objects.checkFromIndexSize((long) offset, (long) size, segment.byteSize())}. */
+    private static void emitSlicedSegmentCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.SlicedSegmentCheck check
+    ) {
+        emitLongParamLoad(cb, paramTypes.get(check.offsetParamIndex()), slots[check.offsetParamIndex()]);
+        emitLongParamLoad(cb, paramTypes.get(check.sizeParamIndex()), slots[check.sizeParamIndex()]);
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
     }
 
     /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */
@@ -1005,26 +1023,15 @@ class ImplClassWriter {
     /**
      * Marshals a {@code MemorySegment} returned by the native call into a Java {@code String},
      * returning {@code null} for a null pointer. Stack on entry: {@code [segment]}.
+     *
+     * <p>The whole null-check + reinterpret + UTF-8 read is delegated to {@code LinkerHelper.readString}
+     * rather than inlined here so the restricted {@code MemorySegment.reinterpret} runs in the entitled
+     * {@code org.elasticsearch.foreign} module. Inlining it would attribute the {@code load_native_libraries}
+     * check to this generated {@code $Impl}, forcing every library that binds a string-returning function to
+     * hold that entitlement.
      */
     private static void emitStringReturn(CodeBuilder cb) {
-        var notNull = cb.newLabel();
-        cb.dup();
-        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
-        cb.lconst_0();
-        cb.lcmp();
-        cb.ifne(notNull);
-        // null pointer path: pop segment, return null
-        cb.pop();
-        cb.aconst_null();
-        cb.areturn();
-        cb.labelBinding(notNull);
-        // Otherwise reinterpret the segment to a known size and read it as a UTF-8 string. We route
-        // the read through MemorySegmentAdapter so the mrjar shim picks the right API for the runtime
-        // JDK (MemorySegment.getString in JDK 22+, getUtf8String in JDK 21).
-        cb.ldc(Long.MAX_VALUE);
-        cb.invokeinterface(CD_MemorySegment, "reinterpret", MethodTypeDesc.of(CD_MemorySegment, CD_long));
-        cb.ldc(0L);
-        cb.invokestatic(CD_MemorySegmentAdapter, "getString", MTD_MemorySegmentAdapter_getString);
+        cb.invokestatic(CD_LinkerHelper, "readString", MTD_LinkerHelper_readString);
         cb.areturn();
     }
 
@@ -1199,8 +1206,9 @@ class ImplClassWriter {
 
     private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
         if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
-            // Param is a struct interface that may not extend Addressable; use the struct interface type
-            // in the Java method descriptor so callers can pass the struct directly.
+            // Param is a struct interface, or a record/class implementing Addressable, that isn't
+            // declared as the literal Addressable type; use its own type in the Java method
+            // descriptor so callers can pass it directly.
             return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
         }
         return javaClassDesc(paramType);

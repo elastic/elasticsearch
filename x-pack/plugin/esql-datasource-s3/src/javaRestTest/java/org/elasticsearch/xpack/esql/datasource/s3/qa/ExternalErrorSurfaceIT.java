@@ -35,13 +35,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -50,19 +53,17 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  * status code, exception type, top-level {@code reason} and the full {@code caused_by} chain that
  * each one produces.
  *
- * <p>This is a <em>discovery</em> harness first and a regression pin second. The recorded matrix is
- * written to {@code build/external-error-surface.md} (overridable with {@code -Dtests.error.report})
- * so the messages can be read side by side; the assertions at the end are deliberately about
- * properties that hold across the whole matrix rather than about individual strings:
+ * <p>The recorded matrix is written to {@code build/external-error-surface.md} (overridable with
+ * {@code -Dtests.error.report}) so the messages can be read side by side. What it asserts:
  * <ul>
- *   <li>the top-level {@code reason} must not collapse distinct root conditions onto one string, and</li>
- *   <li>the top-level {@code reason} must not contain a JVM type name, which is what a flattened cause
- *   chain looks like from outside.</li>
+ *   <li>the top-level {@code reason} must not collapse distinct root conditions onto one string,</li>
+ *   <li>neither the {@code reason} nor any entry in the cause chain may contain a JVM type name, which
+ *   is what a flattened cause chain looks like from outside,</li>
+ *   <li>every probe returns the status recorded in {@link #EXPECTED_STATUS}, including the outcomes that
+ *   are currently 200, and</li>
+ *   <li>every {@link #KNOWN_OPEN} entry still collides -- an entry whose defect has been fixed has to go
+ *   in the same change, rather than staying on to exempt a condition that no longer needs it.</li>
  * </ul>
- * <b>Status codes are deliberately not asserted.</b> The matrix shows several user-caused conditions
- * reported as 5xx, which is wrong, but correcting a status is a compatibility-visible change and is
- * being handled separately from the message work; the per-probe status is recorded in the report so the
- * follow-up has its evidence. Adding the assertion here is the first step of that follow-up.
  * Each violation is collected and reported together, so one run tells us everything that is wrong
  * rather than stopping at the first case.
  */
@@ -204,15 +205,160 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * new behaviour.
      */
     private static final Map<String, String> KNOWN_OPEN = Map.of(
+        "bucket does not exist",
+        "reports \"Object not found\", the same as a genuinely absent key. The direct-object path asks HeadObject, "
+            + "and an HTTP HEAD response carries no body -- so S3's NoSuchBucket error code never reaches the SDK, "
+            + "which falls back to NoSuchKeyException. No fixture can change that; distinguishing it needs a second "
+            + "call (HeadBucket) on the not-found path. The listing path, which is a GET, already names it correctly",
         "key is a prefix, not an object",
         "reports \"Object not found\", the same as a genuinely absent key. The store can tell the two apart -- a "
             + "prefix has children a listing would return -- so this is a defect to improve, not one condition "
-            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement",
-        "no extension and no explicit format",
-        "reports the Iceberg catalog's own failure rather than \"the format cannot be inferred; set [format]\". "
-            + "IcebergTableCatalog#canHandle claims every s3:// path, so it claims an extensionless object, fails "
-            + "for its own reasons, and its failure is the one surfaced -- the no-reader message never fires because "
-            + "a factory did claim. Narrowing that claim is a behaviour change, not a message fix"
+            + "wearing two names. Recorded here rather than in SHARED_CONDITIONS so the gate can hold an improvement"
+    );
+
+    /**
+     * The status every probe is expected to return. This is the contract: a change here is a change to what
+     * clients see, and it has to be made deliberately in the same diff as the code that causes it. Regenerate
+     * from the report after an intentional change; never edit an entry to make a build pass.
+     */
+    private static final Map<String, Integer> EXPECTED_STATUS = Map.ofEntries(
+        // The three 200s -- multi-character delimiter, multi-character quote, malformed endpoint -- are
+        // misconfigurations we currently accept (esql-planning#1550, fix in flight as elastic/elasticsearch#157197).
+        // Pinned rather than skipped so that fix cannot land silently; the entries move with it.
+        entry("tsv object does not exist", 400),
+        entry("tsv object is empty", 400),
+        entry("tsv declared as parquet", 400),
+        entry("tsv under a data source with the wrong credentials", 400),
+        entry("object key does not exist", 400),
+        entry("bucket does not exist", 400),
+        entry("key is a prefix, not an object", 400),
+        entry("unsupported URI scheme", 400),
+        entry("scheme with no host or key", 400),
+        entry("URI with no scheme at all", 400),
+        entry("endpoint refuses connections", 503),
+        entry("wrong access key", 400),
+        entry("anonymous access against an authenticated endpoint", 400),
+        entry("no extension and no explicit format", 400),
+        entry("unknown extension and no explicit format", 400),
+        entry("explicit format contradicts the bytes (parquet declared, CSV content)", 400),
+        entry("unknown explicit format name", 400),
+        entry("parquet extension over non-parquet bytes", 400),
+        entry("parquet with correct magic but truncated body", 400),
+        entry("zero-byte object", 400),
+        entry("unknown setting key on the dataset", 400),
+        entry("multi-character delimiter", 200),
+        entry("invalid encoding name", 400),
+        entry("invalid datetime format pattern", 400),
+        entry("non-boolean header_row", 400),
+        entry("negative schema_sample_size", 400),
+        entry("multi-character quote character", 200),
+        entry("unknown error_mode value", 400),
+        entry("row with more fields than the header", 400),
+        entry("declared column of an undeclarable type", 400),
+        entry("unknown key inside the mappings block", 400),
+        entry("_id.path points at a column that is not declared", 400),
+        entry("two declared columns resolving to one physical column", 400),
+        entry("date format declared on a non-date column", 400),
+        entry("strict declaration with no columns", 400),
+        entry("declared type not coercible from the bytes", 400),
+        entry("glob matches nothing", 400),
+        entry("glob over incompatible schemas", 200),
+        entry("glob over a bucket that does not exist", 400),
+        entry("put dataset referencing an unknown data source", 404),
+        entry("put dataset with no resource", 400),
+        entry("put dataset with an empty resource", 400),
+        entry("put dataset with an unknown top-level field", 400),
+        entry("put dataset with malformed JSON", 400),
+        entry("put dataset whose name contains a comma", 400),
+        entry("put dataset whose name is uppercase", 400),
+        entry("put dataset whose name starts with an underscore", 400),
+        entry("put dataset colliding with an existing index name", 400),
+        entry("put dataset shadowing a secret parent setting", 400),
+        entry("get an unknown dataset", 404),
+        entry("delete an unknown dataset", 404),
+        entry("query an unknown dataset", 400),
+        entry("put data source with an unknown type", 400),
+        entry("put data source with no type", 400),
+        entry("put s3 data source with an unknown setting", 400),
+        entry("put s3 data source with anonymous auth plus credentials", 400),
+        entry("put s3 data source with an access key and no secret key", 400),
+        entry("put s3 data source with a malformed endpoint", 200),
+        entry("get an unknown data source", 404),
+        entry("delete an unknown data source", 404),
+        entry("delete a data source that still has datasets", 409),
+        entry("delete a data source after its datasets are gone", 200),
+        entry("query a dataset that was deleted", 400)
+    );
+
+    /**
+     * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a rename
+     * is as visible as a status change and is pinned the same way -- this PR's own CSV faults moved from
+     * {@code parsing_exception} to {@code external_client_exception}, which nothing would otherwise have caught.
+     */
+    private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
+        entry("tsv object does not exist", "external_client_exception"),
+        entry("tsv object is empty", "illegal_argument_exception"),
+        entry("tsv declared as parquet", "illegal_argument_exception"),
+        entry("tsv under a data source with the wrong credentials", "illegal_argument_exception"),
+        entry("object key does not exist", "external_client_exception"),
+        entry("bucket does not exist", "external_client_exception"),
+        entry("key is a prefix, not an object", "external_client_exception"),
+        entry("unsupported URI scheme", "validation_exception"),
+        entry("scheme with no host or key", "illegal_argument_exception"),
+        entry("URI with no scheme at all", "validation_exception"),
+        entry("endpoint refuses connections", "external_unavailable_exception"),
+        entry("wrong access key", "external_client_exception"),
+        entry("anonymous access against an authenticated endpoint", "external_client_exception"),
+        entry("no extension and no explicit format", "illegal_argument_exception"),
+        entry("unknown extension and no explicit format", "illegal_argument_exception"),
+        entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
+        entry("unknown explicit format name", "validation_exception"),
+        entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
+        entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
+        entry("zero-byte object", "illegal_argument_exception"),
+        entry("unknown setting key on the dataset", "validation_exception"),
+        entry("multi-character delimiter", "<none>"),
+        entry("invalid encoding name", "illegal_argument_exception"),
+        entry("invalid datetime format pattern", "illegal_argument_exception"),
+        entry("non-boolean header_row", "illegal_argument_exception"),
+        entry("negative schema_sample_size", "validation_exception"),
+        entry("multi-character quote character", "<none>"),
+        entry("unknown error_mode value", "validation_exception"),
+        entry("row with more fields than the header", "external_client_exception"),
+        entry("declared column of an undeclarable type", "illegal_argument_exception"),
+        entry("unknown key inside the mappings block", "x_content_parse_exception"),
+        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
+        entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
+        entry("date format declared on a non-date column", "illegal_argument_exception"),
+        entry("strict declaration with no columns", "illegal_argument_exception"),
+        entry("declared type not coercible from the bytes", "external_client_exception"),
+        entry("glob matches nothing", "illegal_argument_exception"),
+        entry("glob over incompatible schemas", "<none>"),
+        entry("glob over a bucket that does not exist", "external_client_exception"),
+        entry("put dataset referencing an unknown data source", "resource_not_found_exception"),
+        entry("put dataset with no resource", "illegal_argument_exception"),
+        entry("put dataset with an empty resource", "action_request_validation_exception"),
+        entry("put dataset with an unknown top-level field", "x_content_parse_exception"),
+        entry("put dataset with malformed JSON", "x_content_e_o_f_exception"),
+        entry("put dataset whose name contains a comma", "action_request_validation_exception"),
+        entry("put dataset whose name is uppercase", "action_request_validation_exception"),
+        entry("put dataset whose name starts with an underscore", "action_request_validation_exception"),
+        entry("put dataset colliding with an existing index name", "resource_already_exists_exception"),
+        entry("put dataset shadowing a secret parent setting", "validation_exception"),
+        entry("get an unknown dataset", "resource_not_found_exception"),
+        entry("delete an unknown dataset", "resource_not_found_exception"),
+        entry("query an unknown dataset", "verification_exception"),
+        entry("put data source with an unknown type", "illegal_argument_exception"),
+        entry("put data source with no type", "illegal_argument_exception"),
+        entry("put s3 data source with an unknown setting", "validation_exception"),
+        entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
+        entry("put s3 data source with an access key and no secret key", "validation_exception"),
+        entry("put s3 data source with a malformed endpoint", "<none>"),
+        entry("get an unknown data source", "resource_not_found_exception"),
+        entry("delete an unknown data source", "resource_not_found_exception"),
+        entry("delete a data source that still has datasets", "status_exception"),
+        entry("delete a data source after its datasets are gone", "<none>"),
+        entry("query a dataset that was deleted", "verification_exception")
     );
 
     // ---------------------------------------------------------------------------------------------
@@ -612,7 +758,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 "good_ds",
                 s3(GOOD_CSV),
                 null,
-                Map.of("properties", Map.of("id", Map.of("type", "long"), "ident", Map.of("type", "long", "path", "id")))
+                // LinkedHashMap, not Map.of: the collision message names the two columns in iteration order,
+                // and Map.of would vary it per JVM run, making this probe's own reason unpinnable.
+                Map.of("properties", collidingColumns())
             )
         );
         crudProbe(
@@ -1098,6 +1246,19 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         return SHARED_CONDITIONS.stream().anyMatch(group -> collidingNames.stream().allMatch(group::contains));
     }
 
+    /** The two colliding columns in a fixed order, so the reason they produce is stable across runs. */
+    private static Map<String, Object> collidingColumns() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("id", Map.of("type", "long"));
+        properties.put("ident", Map.of("type", "long", "path", "id"));
+        return properties;
+    }
+
+    /** A message built from a Throwable#toString rather than written for a reader. */
+    private static boolean leaksJvmType(String text) {
+        return text.contains("java.") || text.contains("org.elasticsearch.");
+    }
+
     private void assertMatrixInvariants() {
         List<String> violations = new ArrayList<>();
 
@@ -1121,8 +1282,57 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // wrapper's message was built from a Throwable#toString rather than from a message someone wrote —
         // the signature of a cause chain that was flattened instead of read.
         for (Probe p : probes) {
-            if (p.reason().contains("java.") || p.reason().contains("org.elasticsearch.")) {
+            if (leaksJvmType(p.reason())) {
                 violations.add("JVM type name in reason [" + p.group() + "/" + p.name() + "]: " + p.reason());
+            }
+            // The cause chain is user-visible too: it is rendered into every error response under caused_by.
+            for (String cause : p.causeChain()) {
+                if (leaksJvmType(cause)) {
+                    violations.add("JVM type name in caused_by [" + p.group() + "/" + p.name() + "]: " + cause);
+                }
+            }
+        }
+
+        // 3. Every probe returns the status recorded in EXPECTED_STATUS. A probe with no entry is a new
+        // condition whose contract nobody has decided yet, which is also a failure.
+        for (Probe p : probes) {
+            Integer expected = EXPECTED_STATUS.get(p.name());
+            if (expected == null) {
+                violations.add("no expected status recorded for [" + p.group() + "/" + p.name() + "]");
+            } else if (expected != p.status()) {
+                violations.add("status changed for [" + p.group() + "/" + p.name() + "]: expected " + expected + ", got " + p.status());
+            }
+            String expectedType = EXPECTED_TYPE.get(p.name());
+            if (expectedType == null) {
+                violations.add("no expected error.type recorded for [" + p.group() + "/" + p.name() + "]");
+            } else if (expectedType.equals(p.type()) == false) {
+                violations.add(
+                    "error.type changed for [" + p.group() + "/" + p.name() + "]: expected " + expectedType + ", got " + p.type()
+                );
+            }
+        }
+
+        // A renamed or deleted probe leaves its entry behind, exempting nothing and pinning a condition that no
+        // longer runs. The forward check above cannot see that, so walk the other way too.
+        Set<String> probed = probes.stream().map(Probe::name).collect(Collectors.toSet());
+        // Two probes sharing a name would satisfy both directions below while one of them goes unchecked.
+        if (probed.size() != probes.size()) {
+            violations.add("probe names are not unique: " + probes.size() + " probes, " + probed.size() + " distinct names");
+        }
+        for (String recorded : EXPECTED_STATUS.keySet()) {
+            if (probed.contains(recorded) == false) {
+                violations.add("EXPECTED_STATUS entry [" + recorded + "] matches no probe -- remove it");
+            }
+        }
+
+        // 4. A KNOWN_OPEN entry is a defect on record. When the defect is fixed the probe stops colliding,
+        // and the entry has to go in the same diff — otherwise it silently exempts a condition that no longer
+        // needs exempting, and the next regression hides behind it.
+        Set<String> stillColliding = new HashSet<>();
+        byReason.values().stream().filter(cases -> cases.size() > 1).forEach(stillColliding::addAll);
+        for (String open : KNOWN_OPEN.keySet()) {
+            if (stillColliding.contains(open) == false) {
+                violations.add("KNOWN_OPEN entry [" + open + "] no longer collides with anything -- remove it");
             }
         }
 

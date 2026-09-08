@@ -24,9 +24,10 @@ import java.nio.ByteBuffer;
  * (Reference identity does not work — the helpers wrap via {@code buffer.duplicate()}, which
  * returns a new {@code ByteBuffer} instance that shares backing memory.)
  *
- * <p>This invariant is what lets {@code PrefetchedPageReader.decompressToDirectBuffer} take its
- * zero-copy path on the prefetched route. Locking it here so an innocuous refactor of either
- * helper can't silently re-introduce a per-page heap copy.
+ * <p>This invariant is what lets uncompressed {@code PrefetchedPageReader} pages alias I/O
+ * without a wrap-time copy. Compressed codecs may still copy via {@code toByteArray()} while
+ * prefetch remains direct. Locking the wrap here so a refactor of either helper cannot silently
+ * re-introduce a per-page heap copy at slice time.
  */
 public class PrefetchedRowGroupBuilderBytesInputTests extends ESTestCase {
 

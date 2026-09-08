@@ -420,6 +420,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                     endpoint.modelName(),
                     url,
                     new EndpointMetadata(
+                        EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                         new EndpointMetadata.Heuristics(
                             List.of(),
                             StatusHeuristic.fromString(endpoint.status()),

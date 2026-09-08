@@ -35,13 +35,13 @@ import java.util.stream.Collectors;
  * users whose roles include a Kibana application privilege grant carrying at least one
  * {@code ai_index:} action.
  * <p>
- * {@code permissions.kibana.privileges} is a {@code nested} field holding one element per space the
- * document is visible in, each listing the {@code ai_index:} actions that space requires plus a
- * {@code count} of them; an element whose space is {@code "*"} means the document lives in every
- * space, and a document with no elements at all is public. This shape is currently owned by the Kibana
- * agent_builder_sml plugin's storage schema; the {@code ai-index-*} index template deliberately does
- * not declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto
- * contract.
+ * {@code permissions.kibana.privileges} is a {@code nested} field with one element per space the
+ * document is visible in, each listing that space's required {@code ai_index:} actions and their
+ * {@code count}. Space {@code "*"} means every space. An element with {@code count: 0} and no
+ * {@code name} requires nothing, so the document is public within that element's space. A document
+ * with no elements is public everywhere, though the Kibana indexer never writes that shape. The shape
+ * is owned by the Kibana agent_builder_sml storage schema; the {@code ai-index-*} template does not
+ * declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
  * <p>
  * The DLS query makes a document visible only when the user holds <em>all</em> the actions it
  * requires <em>within a single space</em>. See {@link #buildDlsQuery} for how the clauses are constructed.
@@ -118,18 +118,18 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
     }
 
     /**
-     * Builds the DLS query making a document visible only when the user holds all the actions it
-     * requires within a single space. Inside a single {@code nested} query it emits one clause per
-     * distinct effective action set (a space's own actions unioned with any {@code *} grant's),
-     * matching any of that set's spaces via {@link #spaceMatches} and gating the actions with
-     * {@code terms_set} on the per-element {@code count}; a {@code *} grant adds one further
-     * space-less clause.
+     * Builds the DLS query: a document is visible only when the user holds all the actions it requires
+     * within a single space. Inside one {@code nested} query it emits a clause per distinct action set
+     * (a space's actions unioned with any {@code *} grant's), matching that set's spaces via
+     * {@link #spaceMatches} and gating actions via {@link #requiredActionsHeld}; a {@code *} grant adds
+     * one space-less clause.
      * <p>
-     * Documents with no permission elements are public. This must be expressed as
-     * {@code must_not nested(match_all)}, never {@code must_not exists} — a root-level {@code exists}
-     * on a nested subfield matches every document, which would void the whole query. Likewise,
-     * {@code ignore_unmapped} stays {@code false} so a missing nested mapping fails loudly instead of
-     * silently failing open through the public-document branch.
+     * Documents with no permission elements are public. Express this as {@code must_not nested(match_all)},
+     * never {@code must_not exists}: a root-level {@code exists} on a nested subfield matches every
+     * document and would void the query. (The {@code must_not exists} inside {@link #requiredActionsHeld}
+     * is fine — it is nested, so it runs per child document.) Likewise {@code ignore_unmapped} stays
+     * {@code false} so a missing nested mapping fails loudly instead of failing open through the
+     * public-document branch.
      *
      * @return the serialised query, or {@code null} if the user holds no space-scoped or global grant,
      *         in which case no implicit privilege is granted at all.
@@ -158,10 +158,12 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
 
         BoolQueryBuilder spaceClauses = QueryBuilders.boolQuery();
         spacesByActions.forEach(
-            (actions, spaces) -> spaceClauses.should(QueryBuilders.boolQuery().filter(spaceMatches(spaces)).filter(termsSetOn(actions)))
+            (actions, spaces) -> spaceClauses.should(
+                QueryBuilders.boolQuery().filter(spaceMatches(spaces)).filter(requiredActionsHeld(actions))
+            )
         );
         if (globalActions.isEmpty() == false) {
-            spaceClauses.should(QueryBuilders.boolQuery().filter(termsSetOn(globalActions)));
+            spaceClauses.should(QueryBuilders.boolQuery().filter(requiredActionsHeld(globalActions)));
         }
 
         if (spaceClauses.should().isEmpty()) {
@@ -195,8 +197,31 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
             .minimumShouldMatch(1);
     }
 
-    private static TermsSetQueryBuilder termsSetOn(Set<String> actions) {
-        return new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD);
+    /**
+     * Matches elements whose required actions the user holds: either the element requires nothing
+     * ({@code count: 0} with no {@code name}), or {@code terms_set} confirms the user's {@code actions}
+     * cover all {@code count} named ones.
+     * <p>
+     * {@code terms_set} is a Lucene {@code CoveringQuery} that only visits elements named in the query,
+     * so the {@code count: 0}/no-{@code name} arm is what admits elements requiring nothing, and the
+     * {@code count >= 1} guard is what stops a malformed {@code count: 0} element naming a held action
+     * from matching {@code terms_set} on its trivially-met minimum of {@code 0}.
+     */
+    private static BoolQueryBuilder requiredActionsHeld(Set<String> actions) {
+        return QueryBuilders.boolQuery()
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(COUNT_FIELD, 0))
+                    .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(NAME_FIELD)))
+            )
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.rangeQuery(COUNT_FIELD).gte(1))
+                    .filter(
+                        new TermsSetQueryBuilder(NAME_FIELD, actions.stream().sorted().toList()).setMinimumShouldMatchField(COUNT_FIELD)
+                    )
+            )
+            .minimumShouldMatch(1);
     }
 
 }

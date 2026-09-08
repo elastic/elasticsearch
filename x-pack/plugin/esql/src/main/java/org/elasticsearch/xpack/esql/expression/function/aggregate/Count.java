@@ -120,6 +120,7 @@ public class Count extends AggregateFunction
     public Count(
         Source source,
         @Param(
+            optional = true,
             name = "field",
             type = {
                 "aggregate_metric_double",

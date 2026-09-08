@@ -1,0 +1,124 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ vectordb_columnar_index_mode ]
+      reason: "Support for 'vectordb_columnar' index mode capability required"
+
+---
+"Create vectordb_columnar index with dynamic text and vector fields":
+  - do:
+      indices.create:
+        index: test_vectordb_columnar
+        body:
+          settings:
+            index.mode: vectordb_columnar
+
+  - do:
+      index:
+        index: test_vectordb_columnar
+        id: 1
+        refresh: true
+        body:
+          title: "Dynamically mapped text"
+          embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+                      0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,
+                      1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4,
+                      2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2]
+
+  - do:
+      index:
+        index: test_vectordb_columnar
+        id: 2
+        refresh: true
+        body:
+          title: "Another vector document"
+          embedding: [3.2, 3.1, 3.0, 2.9, 2.8, 2.7, 2.6, 2.5,
+                      2.4, 2.3, 2.2, 2.1, 2.0, 1.9, 1.8, 1.7,
+                      1.6, 1.5, 1.4, 1.3, 1.2, 1.1, 1.0, 0.9,
+                      0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+
+  - do:
+      indices.get_settings:
+        index: test_vectordb_columnar
+        include_defaults: true
+  - match: { test_vectordb_columnar.settings.index.mode: "vectordb_columnar" }
+  - match: { test_vectordb_columnar.defaults.index.mapping.source.mode: "SYNTHETIC" }
+  - match: { test_vectordb_columnar.settings.index.mapping.exclude_source_vectors: "true" }
+  - match: { test_vectordb_columnar.defaults.index.queries.cache.enabled: "true" }
+
+  - do:
+      indices.get_mapping:
+        index: test_vectordb_columnar
+  - match: { test_vectordb_columnar.mappings.properties.title.type: "text" }
+  - not_exists: test_vectordb_columnar.mappings.properties.title.fields.keyword
+  - match: { test_vectordb_columnar.mappings.properties.embedding.type: "dense_vector" }
+  - match: { test_vectordb_columnar.mappings.properties.embedding.dims: 32 }
+  - match: { test_vectordb_columnar.mappings.properties.embedding.element_type: "bfloat16" }
+
+  # Dynamic strings are mapped as indexed text, so they are searchable with a match query.
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query:
+            match:
+              title: "mapped text"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query:
+            knn:
+              field: embedding
+              query_vector: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+                             0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,
+                             1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4,
+                             2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query:
+            knn:
+              field: embedding
+              query_vector: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+                             0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6,
+                             1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4,
+                             2.5, 2.6, 2.7, 2.8, 2.9, 3.0, 3.1, 3.2]
+              filter:
+                match:
+                  title: "vector"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+---
+"Vectordb_columnar index mode only supports synthetic source":
+  - do:
+      catch: /unsupported source mode \[COLUMNAR_STORED\] for index mode \[vectordb_columnar\]/
+      indices.create:
+        index: test_vectordb_columnar_stored
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.mapping.source.mode: columnar_stored
+
+---
+"Vectordb_columnar index mode forbids disabling exclude_source_vectors":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_vectordb_columnar_bad
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.mapping.exclude_source_vectors: false

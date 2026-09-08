@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -108,6 +109,16 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public FormatReader withReadConfig(String readConfig) {
+        // Delegate: a compressed .csv.gz is read exactly like the plain file, so its harvest must carry the same
+        // read configuration. Without this the interface default returns the wrapper, the inner reader stamps nothing, and its
+        // contribution can no longer match the entry the resolver seeded — the warm rail dies for compressed files
+        // only.
+        FormatReader configured = inner.withReadConfig(readConfig);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
     public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently
@@ -122,8 +133,21 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        // Inert today (the text readers this wraps offer no filter pushdown), but forwarded so the wrapper stays
+        // transparent: wrapping a reader that had opted into the pushdown would otherwise silently answer the
+        // interface default and cost it every pushed filter.
+        return inner.dropsRowsUnderPushedFilter();
+    }
+
+    @Override
     public RowPositionStrategy rowPositionStrategy() {
         return inner.rowPositionStrategy();
+    }
+
+    @Override
+    public FormatReaderStatus statusSnapshot() {
+        return inner.statusSnapshot();
     }
 
     FormatReader unwrap() {

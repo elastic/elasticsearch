@@ -618,8 +618,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
-            new DatasetService(services.clusterService(), crudValidators),
+            new DataSourceService(services.clusterService(), crudValidators, encryptionService, dataSourceModule.externalSourceMetrics()),
+            new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }

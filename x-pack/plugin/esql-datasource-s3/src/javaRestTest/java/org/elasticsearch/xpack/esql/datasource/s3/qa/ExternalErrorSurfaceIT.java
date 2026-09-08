@@ -310,7 +310,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("wrong access key", "external_client_exception"),
         entry("anonymous access against an authenticated endpoint", "external_client_exception"),
         entry("no extension and no explicit format", "illegal_argument_exception"),
-        entry("unknown extension and no explicit format", "illegal_argument_exception"),
+        entry("unknown extension and no explicit format", "unreadable_object_exception"),
         entry("explicit format contradicts the bytes (parquet declared, CSV content)", "illegal_argument_exception"),
         entry("unknown explicit format name", "validation_exception"),
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),

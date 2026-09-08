@@ -227,24 +227,50 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         result.output.contains("'docker' mode")
     }
 
-    def "consuming the variant builds the library without an explicit task dependency"() {
+    def "another project consuming the library receives it, without declaring a task dependency"() {
         given:
-        buildFile << """
-        configurations { consumer { attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE) } }
-        dependencies { consumer project(path: ':', configuration: '${NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION}') }
-        tasks.register('consume', Copy) {
-          from configurations.consumer
-          into layout.buildDirectory.dir('consumed')
-        }
-        """
+        addConsumingProject()
 
         when:
-        def result = gradleRunner("consume").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+        def result = gradleRunner(":consumer:consume").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
 
         then:
         result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
-        result.task(":consume").outcome == TaskOutcome.SUCCESS
-        file("build/consumed/${PLATFORM}/libtest.so").exists()
+        result.task(":consumer:consume").outcome == TaskOutcome.SUCCESS
+        consumedLibrary().exists()
+    }
+
+    /**
+     * Adds a second project that consumes this library. How a consumer reaches the library is the part
+     * expected to change — today a named configuration, later carried along by depending on the owning
+     * project — so it is wired in one place, leaving the tests above about behaviour only.
+     */
+    private void addConsumingProject() {
+        settingsFile << """
+        include 'consumer'
+        """
+        file("consumer/build.gradle") << """
+        import org.gradle.api.artifacts.type.ArtifactTypeDefinition
+
+        // Gradle 9 rejects a configuration that both declares dependencies and is resolved.
+        configurations.dependencyScope('nativeLibsDeclared')
+        configurations.resolvable('nativeLibs') {
+          extendsFrom(configurations.nativeLibsDeclared)
+          attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+        }
+        dependencies {
+          nativeLibsDeclared project(path: ':', configuration: '${NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION}')
+        }
+        tasks.register('consume', Copy) {
+          from configurations.nativeLibs
+          into layout.buildDirectory.dir('consumed')
+        }
+        """
+    }
+
+    /** Where {@link #addConsumingProject} leaves the library it consumed. */
+    private File consumedLibrary() {
+        file("consumer/build/consumed/${PLATFORM}/libtest.so")
     }
 
     /**

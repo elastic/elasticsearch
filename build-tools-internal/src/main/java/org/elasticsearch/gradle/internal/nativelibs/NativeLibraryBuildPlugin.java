@@ -24,9 +24,10 @@ import java.util.Map;
  * Builds a project's native library from source and offers the result to consumers.
  *
  * <p>Applied to the project owning the native sources. The build is described by
- * {@link NativeLibraryBuildExtension}; the result is published through the
- * {@value #ELEMENTS_CONFIGURATION} consumable configuration, which {@link NativeLibrariesPlugin}
- * resolves.
+ * {@link NativeLibraryBuildExtension}; the result is offered through the
+ * {@value #ELEMENTS_CONFIGURATION} consumable configuration, which consumers depend on as a project
+ * dependency. Whether the library is downloaded or compiled is decided by
+ * {@link BuildNativeLibraryTask}, not by the consumer.
  */
 public class NativeLibraryBuildPlugin implements Plugin<Project> {
 

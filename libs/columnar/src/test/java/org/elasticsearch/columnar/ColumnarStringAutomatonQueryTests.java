@@ -35,6 +35,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -149,7 +150,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -182,7 +183,7 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
                 for (String value : values) {
                     final Document doc = new Document();
                     if (value != null) {
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                     }
                     writer.addDocument(doc);
                 }

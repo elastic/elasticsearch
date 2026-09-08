@@ -16,14 +16,11 @@ import java.util.function.Consumer;
 
 /**
  * Wraps another {@link Analyzer} and caps how many characters its character filters may feed to the tokenizer
- * for a single field value. The cap is applied to the reader the tokenizer consumes, after the wrapped analyzer's
- * character filters have run, so a character-filter chain that expands its input far beyond the original text fails
- * the request with a {@code 400} rather than exhausting the node's heap.
+ * for a single field value, failing the request with a {@code 400} once the cap is exceeded.
  *
- * <p>It keeps its own {@link Analyzer#PER_FIELD_REUSE_STRATEGY} rather than adopting the delegate's: the delegate may
- * be a {@link org.elasticsearch.index.analysis.NamedAnalyzer}, whose reuse strategy rejects being wrapped by anything
- * other than a delegating wrapper. Component reuse stays local to this wrapper, and the delegate is driven only through
- * {@code createComponents} and {@code initReader}, neither of which consults the delegate's reuse strategy.
+ * <p>It uses its own {@link Analyzer#PER_FIELD_REUSE_STRATEGY}: the delegate may be a
+ * {@link org.elasticsearch.index.analysis.NamedAnalyzer}, whose reuse strategy rejects being wrapped by a
+ * non-delegating wrapper.
  *
  * @see LimitingReader
  */

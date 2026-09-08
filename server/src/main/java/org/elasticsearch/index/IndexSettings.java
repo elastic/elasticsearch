@@ -193,12 +193,10 @@ public final class IndexSettings {
     );
 
     /**
-     * A setting describing the maximum number of characters a single _analyze request may produce while
-     * applying character filters. Character filters run as a chain where each filter's output is the next
-     * filter's input, so a request-defined chain can expand its input far beyond the original text. This
-     * setting bounds that expansion and rejects the request once the limit is exceeded; an unbounded value
-     * lets a single request allocate enough memory to destabilize the node. The default of 1M characters is
-     * well above any realistic analysis input.
+     * The maximum number of characters a single {@code _analyze} request may produce while applying character
+     * filters. A character-filter chain (each filter's output feeds the next) can expand its input far beyond the
+     * original text; this setting bounds that expansion and rejects the request once the limit is exceeded. The
+     * default of 1M is well above any realistic analysis input.
      */
     public static final Setting<Integer> MAX_ANALYZE_CHAR_COUNT_SETTING = Setting.intSetting(
         "index.analyze.max_char_count",
@@ -2179,10 +2177,7 @@ public final class IndexSettings {
         this.maxTokenCount = maxTokenCount;
     }
 
-    /**
-     * Returns the maximum number of characters a single _analyze request may produce while applying
-     * character filters.
-     */
+    /** Returns the {@code index.analyze.max_char_count} limit for this index. */
     public int getMaxAnalyzeCharCount() {
         return maxAnalyzeCharCount;
     }

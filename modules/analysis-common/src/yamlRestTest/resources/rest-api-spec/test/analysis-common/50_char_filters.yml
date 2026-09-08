@@ -93,10 +93,8 @@
             path: /_analyze
             capabilities: [ analyze_max_char_count ]
         reason: index.analyze.max_char_count bounds the characters an _analyze request may produce
-    # Each mapping char filter's output is the next filter's input, so a chain expands its input geometrically:
-    # "a" -> 4 -> 16 -> 64 -> 256 -> 1024 characters. index.analyze.max_char_count caps the characters the chain
-    # may feed to the tokenizer, so the request fails with a 400 once the produced characters cross the cap
-    # instead of letting the chain grow until the node runs out of heap.
+    # A mapping chain expands its input geometrically ("a" -> 4 -> 16 -> 64 -> 256 -> 1024), so
+    # index.analyze.max_char_count fails the request with a 400 once the produced characters cross the cap.
     - do:
         indices.create:
           index: test_char_count

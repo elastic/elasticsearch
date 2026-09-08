@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -17,17 +18,14 @@ import java.io.Reader;
 
 /**
  * A {@link CharFilter} that caps how many characters may be read from the reader it wraps. Once more than
- * {@code maxCharCount} characters have been read the request fails with a {@code 400} rather than continuing to buffer
- * characters in memory.
+ * {@code maxCharCount} characters have been read, the request fails with a {@code 400}.
  *
  * <p>The {@code _analyze} API applies character filters as a chain, where each filter's output is the next filter's
- * input. Such a chain can expand its input far beyond the original text, so wrapping the reader that downstream analysis
- * pulls from bounds that expansion and keeps a single request from exhausting the node's heap.
+ * input, so a chain can expand its input far beyond the original text. Wrapping the reader downstream analysis pulls
+ * from bounds that expansion.
  *
- * <p>It extends {@link CharFilter} rather than a plain reader so that offset correction is preserved: a tokenizer asks
- * its input to correct token offsets only when that input is a {@link CharFilter}. This reader applies no correction of
- * its own and forwards each request to the reader it wraps, so an underlying character filter's offsets still reach the
- * tokenizer.
+ * <p>It extends {@link CharFilter} so offset correction is preserved: a tokenizer corrects offsets only through an
+ * input that is a {@link CharFilter}. This reader adds no correction of its own and forwards to the wrapped reader.
  */
 final class LimitingReader extends CharFilter {
 
@@ -60,7 +58,9 @@ final class LimitingReader extends CharFilter {
                 "The number of characters produced by calling _analyze has exceeded the allowed maximum of ["
                     + maxCharCount
                     + "]."
-                    + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.",
+                    + " This limit can be set by changing the ["
+                    + IndexSettings.MAX_ANALYZE_CHAR_COUNT_SETTING.getKey()
+                    + "] index level setting.",
                 RestStatus.BAD_REQUEST
             );
         }

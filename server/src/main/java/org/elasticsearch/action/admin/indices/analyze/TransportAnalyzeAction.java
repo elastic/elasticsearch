@@ -149,9 +149,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     /**
-     * Analyzes the request, bounding both the number of tokens produced ({@code maxTokenCount}) and the number
-     * of characters a character-filter chain may feed to the tokenizer for a single field value
-     * ({@code maxCharCount}). Exceeding either limit fails the request with a {@code 400}.
+     * Analyzes the request, bounding both the tokens produced ({@code maxTokenCount}) and the characters a
+     * character-filter chain may produce ({@code maxCharCount}); exceeding either limit fails with a {@code 400}.
      */
     public static AnalyzeAction.Response analyze(
         AnalyzeAction.Request request,
@@ -268,8 +267,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         if (request.explain()) {
             return new AnalyzeAction.Response(null, detailAnalyze(request, analyzer, maxTokenCount, maxCharCount));
         }
-        // On this path the character filters run inside Analyzer#tokenStream, so wrapping the analyzer is where their
-        // output is bounded before it reaches the tokenizer.
+        // On this path the character filters run inside Analyzer#tokenStream, so bound their output by wrapping the analyzer.
         try (Analyzer limitAnalyzer = new LimitCharCountAnalyzer(analyzer, maxCharCount)) {
             return new AnalyzeAction.Response(simpleAnalyze(request, limitAnalyzer, maxTokenCount), null);
         }
@@ -473,9 +471,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         char[] buf = new char[BUFFER_SIZE];
         int len;
         StringBuilder sb = new StringBuilder();
-        // A Reader reports end-of-stream only by returning -1; a short read does not mean the stream is exhausted.
-        // The reader must therefore be drained until -1 so every character reaches the wrapping LimitingReader and is
-        // counted against the character limit.
+        // A Reader signals end-of-stream only with -1; a short read is not EOF. Drain until -1 so every character
+        // reaches the wrapping LimitingReader and is counted.
         while (true) {
             try {
                 len = input.read(buf, 0, BUFFER_SIZE);

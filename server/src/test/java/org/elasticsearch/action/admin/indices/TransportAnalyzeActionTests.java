@@ -50,6 +50,9 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -576,9 +579,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     /**
-     * A character filter can produce far more characters than it consumes. When the produced characters exceed
-     * {@code index.analyze.max_char_count}, both the non-explain ({@code simpleAnalyze}) and explain
-     * ({@code detailAnalyze}) paths must fail the request with a 400, rather than buffering the expanded output.
+     * A character filter that exceeds {@code index.analyze.max_char_count} must fail both the non-explain
+     * ({@code simpleAnalyze}) and explain ({@code detailAnalyze}) paths with a 400.
      */
     public void testExceedMaxCharCountLimit() {
         int maxCharCount = 5;
@@ -587,7 +589,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             + "]."
             + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.";
 
-        // explain=false exercises the simpleAnalyze path. "abc" (3 chars) becomes "abc0123456789" (13 chars).
+        // explain=false -> simpleAnalyze path; "abc" (3 chars) -> "abc0123456789" (13 chars).
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.tokenizer("standard");
         request.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
@@ -598,7 +600,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         );
         assertEquals(expectedMessage, e.getMessage());
 
-        // explain=true exercises the detailAnalyze path with the same expanding char filter.
+        // explain=true -> detailAnalyze path, same char filter.
         AnalyzeAction.Request explainRequest = new AnalyzeAction.Request();
         explainRequest.tokenizer("standard");
         explainRequest.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
@@ -612,14 +614,13 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     /**
-     * When the produced characters stay within {@code index.analyze.max_char_count}, analysis is unaffected and
-     * returns the expected tokens.
+     * Within {@code index.analyze.max_char_count}, analysis is unaffected and returns the expected tokens.
      */
     public void testMaxCharCountNotExceededReturnsTokens() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.tokenizer("standard");
         request.addCharFilter(Map.of("type", "append", "suffix", "foo"));
-        request.text("quick brown"); // the char filter appends "foo": "quick brown" -> "quick brownfoo"; well under the limit
+        request.text("quick brown"); // appends "foo" -> "quick brownfoo", well under the limit
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, 1000);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(2, tokens.size());
@@ -628,8 +629,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     /**
-     * The limit is exclusive: a value whose character count equals the limit is accepted, and one more character
-     * is rejected. This also covers a request with no character filters, where the value itself crosses the limit.
+     * The limit is exclusive — a value at the limit is accepted, one more is rejected — including the
+     * no-character-filter case where the text itself crosses it.
      */
     public void testMaxCharCountBoundary() throws IOException {
         AnalyzeAction.Request atLimit = new AnalyzeAction.Request();
@@ -654,10 +655,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     /**
-     * The explain path writes out each character filter's output by draining the filter's reader. A reader may
-     * return fewer characters than requested without having reached the end of the stream, so the drain must
-     * continue until the reader returns {@code -1}. This uses a character filter that yields a single character
-     * per read and asserts the full text is captured rather than truncated at the first short read.
+     * The explain path must drain a character filter fully. With a filter that yields one character per read, the
+     * whole text must still be captured — draining to {@code -1}, not stopping at the first short read.
      */
     public void testExplainDrainsCharFilterReaderFully() throws IOException {
         String text = "the quick brown fox";
@@ -670,10 +669,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
 
         AnalyzeAction.CharFilteredText[] charFilters = analyze.detail().charfilters();
-        assertEquals(1, charFilters.length);
+        assertThat(charFilters, arrayWithSize(1));
         String[] texts = charFilters[0].getTexts();
-        assertEquals(1, texts.length);
-        assertEquals(text, texts[0]);
+        assertThat(texts, arrayContaining(text));
     }
 
     public void testDeprecationWarnings() throws IOException {
@@ -695,10 +693,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     /**
-     * A character filter that returns at most one character per {@link #read} call while input remains. A consumer
-     * that treats a short read as the end of the stream, rather than reading until {@code -1}, therefore sees only
-     * the first character. Used to verify that the {@code _analyze} explain path drains a character filter's reader
-     * fully.
+     * A character filter that returns at most one character per {@link #read} while input remains — the short
+     * reads a drain loop must not mistake for end-of-stream.
      */
     private static final class TrickleCharFilter extends CharFilter {
 

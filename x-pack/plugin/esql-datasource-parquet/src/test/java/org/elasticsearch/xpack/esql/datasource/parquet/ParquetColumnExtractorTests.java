@@ -831,6 +831,30 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
+     * Later buckets are look-ahead on {@link ParquetIoWatermark}. A 1-byte cap admits the first
+     * group as the node-wide overshoot and serialises the rest; extract must still finish.
+     */
+    public void testExtractWithTinyIoWatermark() throws IOException {
+        byte[] data = writeMultiRowGroupFile(2000);
+        StorageObject so = createStorageObject(data);
+        ParquetMetadata fullFooter = loadFooter(so);
+        assertTrue("expected multiple row groups", fullFooter.getBlocks().size() >= 3);
+        long rg0Rows = fullFooter.getBlocks().get(0).getRowCount();
+        long rg1Rows = fullFooter.getBlocks().get(1).getRowCount();
+        long[] survivors = new long[] { 0L, rg0Rows + 1, rg0Rows + rg1Rows + 1 };
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withIoWatermark(new ParquetIoWatermark(1));
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(so, reader, fullFooter, ErrorPolicy.PERMISSIVE)) {
+            try (Block block = extractor.extract("v", survivors, blockFactory)) {
+                IntBlock ints = (IntBlock) block;
+                assertEquals(survivors.length, ints.getPositionCount());
+                for (int i = 0; i < survivors.length; i++) {
+                    assertEquals((int) survivors[i], ints.getInt(i));
+                }
+            }
+        }
+    }
+
+    /**
      * Struct-leaf columns (e.g. {@code "event.action"}) must be extractable via the deferred
      * TopN path. The two bugs this exercises: (1) {@code resolveColumnInfo} previously returned
      * {@code null} for dotted names because it only checked top-level fields; (2)

@@ -96,6 +96,8 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryCounters;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryMetrics;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -126,7 +128,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourc
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -142,10 +143,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
@@ -165,7 +168,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -222,10 +224,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /**
      * Name of the dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline. Sized
      * {@code 0..}{@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#externalIoThreads(Settings)}
-     * — tracking the same single CPU-scaled knob ({@code snapshot_meta} shape, capped at 100, or the
-     * {@code esql.external.max_concurrent_requests} operator override) that sizes the permit semaphore and the S3/Azure
-     * SDK connection pools, so the pool cannot diverge from the concurrency the reads are permitted. Scales from 0 so
-     * idle nodes pay nothing. See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
+     * — tracking the same heap- and CPU-scaled knob (memory-capped, ceiling 100, or a
+     * {@code esql.external.max_concurrent_requests} override still clipped by the memory term)
+     * that sizes the permit semaphore and the S3/Azure SDK connection pools, so the pool cannot
+     * diverge from the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
+     * See {@link #externalBlobStorePool()} for why this is separate from {@code esql_worker}.
      */
     public static final String EXTERNAL_IO_THREAD_POOL_NAME = "esql_external_io";
 
@@ -447,6 +450,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicBoolean flattenedDataTypeEnabled = new AtomicBoolean(FLATTENED_ENABLED.get(settings));
         services.clusterService().getClusterSettings().addSettingsUpdateConsumer(FLATTENED_ENABLED, flattenedDataTypeEnabled::set);
 
+        // An operator default this node cannot use is ignored at resolution and the built-in default applies, so
+        // without this warning the operator would see their configuration silently not take effect.
+        QuerySettings.watchClusterDefaults(
+            services.clusterService().getClusterSettings(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState())
+        );
+
+        // A license lapse silently stops a cluster-wide approximation default from applying. No setting changes, so
+        // the consumer above never fires; this listener is the only place the operator can learn of it.
+        QuerySettings.watchApproximationLicense(
+            getLicenseState(),
+            () -> EsqlLicenseChecker.isQueryApproximationAllowedWithoutTracking(getLicenseState()),
+            () -> services.clusterService().state().metadata().settings(),
+            services.clusterService().getSettings()
+        );
+
         // Create DataSourceModule with all discovered plugins.
         // The GENERIC executor backs SPI coordination, decompression, and async-I/O plugin callbacks
         // (e.g. the HTTP client) — NOT object-store GETs. File-read and Phase-2 split discovery
@@ -491,10 +510,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
-        // at query time, and (b) resolve a dataset's format from an explicit "format" setting or the
-        // resource extension. Iterate ALL FormatSpec declarations (including formats with no extra
-        // config keys, e.g. orc) so every registered format is a valid "format" value and every
-        // extension resolves to its logical format name.
+        // at query time, and (b) accept an explicit "format" setting. Extension inference is not
+        // derived from these maps: FileDataSourceValidator delegates to FormatNameResolver /
+        // FormatReaderRegistry. Iterate ALL FormatSpec declarations (including formats with no extra
+        // config keys, e.g. orc) so every registered format is a valid "format" value.
         //
         // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins) for the
         // extension→reader mapping at runtime. Here we fail on conflicts so an inconsistency surfaces
@@ -528,32 +547,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ? null
             : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
 
-        // Collect known compression extensions so the CRUD validator only falls back to
-        // inner extensions for compound paths (e.g. data.csv.gz) when the outer extension
-        // is a registered compression codec — matching DecompressionCodecRegistry behavior.
-        Set<String> compressionExtensions = new HashSet<>();
-        for (DataSourcePlugin p : allDataSourcePlugins) {
-            for (DecompressionCodec codec : p.decompressionCodecs(settings)) {
-                for (String ext : codec.extensions()) {
-                    String normalized = ext.toLowerCase(Locale.ROOT);
-                    if (normalized.startsWith(".") == false) {
-                        normalized = "." + normalized;
-                    }
-                    compressionExtensions.add(normalized);
-                }
-            }
-        }
-
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
-                        .withFederatedIdentityEnabled(federatedIdentityEnabled::get);
-                }
-                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
+                    FileDataSourceValidator wired = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
+                        .withFederatedIdentityEnabled(federatedIdentityEnabled::get)
+                        .withFormatReaderRegistry(dataSourceModule.formatReaderRegistry());
+                    if (formatKeyResolver != null) {
+                        wired = wired.withFormatConfigKeyResolver(formatKeyResolver);
+                    }
+                    effective = wired;
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {
                     throw new IllegalStateException("duplicate DataSourceValidator for type [" + type + "]");
@@ -566,6 +571,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
+
+        DataSourceService dataSourceService = new DataSourceService(
+            services.clusterService(),
+            crudValidators,
+            encryptionService,
+            dataSourceModule.externalSourceMetrics()
+        );
+        DataSourceInventoryCounters inventoryCounters = new DataSourceInventoryCounters(dataSourceService, dataSourceModule);
+        DataSourceInventoryMetrics inventoryMetrics = new DataSourceInventoryMetrics(
+            services.telemetryProvider().getMeterRegistry(),
+            services.clusterService(),
+            inventoryCounters
+        );
 
         return List.of(
             new PlanExecutor(
@@ -599,8 +617,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider()
             ),
             new ViewService(services.clusterService(), parser),
-            new DataSourceService(services.clusterService(), crudValidators, encryptionService),
-            new DatasetService(services.clusterService(), crudValidators),
+            dataSourceService,
+            new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
+            inventoryCounters,
+            inventoryMetrics,
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }
@@ -655,6 +675,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             )
         );
         settings.addAll(PlannerSettings.settings());
+
+        // The cluster settings backing ES|QL query-setting defaults, derived from the query-settings registry —
+        // one per setting declared with withClusterDefault(). Never hand-maintained: opting a setting in is one
+        // word at its declaration in QuerySettings, and this list follows.
+        settings.addAll(QuerySettings.clusterSettings());
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
@@ -820,9 +845,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that
-            // consume their output. Max is the single CPU-scaled concurrency knob (snapshot_meta shape, capped at
-            // 100, or the esql.external.max_concurrent_requests override) that also sizes the permit semaphore, so
-            // pool capacity tracks the concurrency the reads are permitted. Scales from 0 so idle nodes pay nothing.
+            // consume their output. Max is the heap- and CPU-scaled concurrency knob (memory-capped,
+            // ceiling 100, or a max_concurrent_requests override still clipped by the memory term) that also
+            // sizes the permit semaphore, so pool capacity tracks the concurrency the reads are permitted.
+            // Scales from 0 so idle nodes pay nothing.
             new ScalingExecutorBuilder(
                 EXTERNAL_IO_THREAD_POOL_NAME,
                 0,

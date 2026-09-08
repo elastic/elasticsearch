@@ -530,4 +530,119 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         then:
         assertGenerateFailure(result, "Transport version generation cannot run on release branches")
     }
+
+    def "a patch id is generated when a PR targets the patch branch"() {
+        given:
+        setupPatchBranch()
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:generateTransportVersion", ":myserver:validateTransportVersionResources", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        // the id main already took, 8124000, must not be reused, and the next base must not be claimed either
+        assertReferableDefinition("new_tv", "8123001")
+        assertUpperBound("9.2", "new_tv,8123001")
+    }
+
+    def "a patch id is generated when the patch flag is used outside of CI"() {
+        given:
+        setupPatchBranch()
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateAndValidateTask("--patch", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8123001")
+        assertUpperBound("9.2", "new_tv,8123001")
+    }
+
+    def "a patch id is based on the patch branch upper bound"() {
+        given:
+        setupPatchBranch()
+        referableAndReferencedTransportVersion("first_fix", "8123001")
+        transportVersionUpperBound("9.2", "first_fix", "8123001")
+        commitAll("first-fix")
+        referencedTransportVersion("second_fix")
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:generateTransportVersion", ":myserver:validateTransportVersionResources", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        // based on the patch branch's 8123001, not main's base and not first_fix's id again
+        assertReferableDefinition("second_fix", "8123002")
+        assertUpperBound("9.2", "second_fix,8123002")
+    }
+
+    def "patch generation is idempotent"() {
+        given:
+        setupPatchBranch()
+        referencedTransportVersion("new_tv")
+
+        when:
+        runGenerateTask("--patch", PATCH_BRANCH_PROPERTY).build()
+        def result = runGenerateAndValidateTask("--patch", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("new_tv", "8123001")
+        assertUpperBound("9.2", "new_tv,8123001")
+    }
+
+    def "a patch id cannot roll over into the next base"() {
+        given:
+        setupPatchBranch()
+        referableAndReferencedTransportVersion("last_patch", "8123999")
+        transportVersionUpperBound("9.2", "last_patch", "8123999")
+        commitAll("exhaust-the-base")
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:generateTransportVersion", PATCH_BRANCH_PROPERTY).buildAndFail()
+
+        then:
+        assertGenerateFailure(result, "Exhausted the patch ids for base 8123000")
+    }
+
+    def "a patch branch fix can also be backported"() {
+        given:
+        setupPatchBranch()
+        referencedTransportVersion("new_tv")
+
+        when:
+        // note --backport-branches binds to the task it follows, so generate must come last
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:validateTransportVersionResources", ":myserver:generateTransportVersion",
+            "--backport-branches=9.1", PATCH_BRANCH_PROPERTY).build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        // a patch id for the patch branch, and a patch id for the release branch as usual
+        assertReferableDefinition("new_tv", "8123001,8012002")
+        assertUpperBound("9.2", "new_tv,8123001")
+        assertUpperBound("9.1", "new_tv,8012002")
+    }
+
+    def "the patch branch is ignored when the repository does not configure one"() {
+        given:
+        setupPatchBranch()
+        referencedTransportVersion("new_tv")
+
+        when:
+        // no patchBranch property, as in serverless, so the base is incremented as normal
+        def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", PATCH_BRANCH),
+            ":myserver:generateTransportVersion").build()
+
+        then:
+        assertGenerateSuccess(result)
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
+    }
 }

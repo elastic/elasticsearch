@@ -241,11 +241,14 @@ maroon     | false
 testKnnWithNonPushableDisjunctions
 required_capability: knn_function_v5
 
+// gray, green and maroon are equidistant from [128,128,0], so the limit must not
+// fall inside that group; 11 keeps all three and stops on a strict score gap.
+
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0]) or length(color) > 10 
 | sort _score desc, color asc
 | keep color
-| limit 10
+| limit 11
 ;
 
 color:text
@@ -259,6 +262,7 @@ firebrick
 chartreuse     
 gray           
 green   
+maroon
 ;
 
 testKnnWithNonPushableDisjunctionsAndMinCandidates
@@ -464,6 +468,8 @@ required_capability: knn_function_v5
 
 from colors metadata _score
 | where knn(rgb_vector, [0, 120, 0]) and color == "green"
+// STATS is a breaker for the limit-to-k pushdown, so knn needs an explicit LIMIT.
+| limit 10
 | eval x = [1, 2]
 | mv_expand x
 | stats count = count(*) by color

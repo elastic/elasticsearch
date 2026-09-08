@@ -63,11 +63,11 @@ import java.util.concurrent.ExecutionException;
 public class FooterByteCache {
 
     /**
-     * Default max single-entry admission (4 MiB). Oversized footers may still be returned to the
+     * Default max single-entry admission (2 MiB). Oversized footers may still be returned to the
      * caller; {@link #put} skips them and {@link #getOrLoad} evicts them so they do not occupy the
      * LRU. This is not a read limit.
      */
-    public static final long DEFAULT_MAX_ENTRY_BYTES = 4L * 1024 * 1024;
+    public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**
      * Cache key identifying a file by its storage path and total length. Uses {@code (path, length)}
@@ -111,7 +111,7 @@ public class FooterByteCache {
      */
     public static FooterByteCache fromSettings(Settings settings) {
         long maxBytes = ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.get(settings).getBytes();
-        // The budget is heap-relative, so on small heaps a fixed 4 MiB ceiling would let a single
+        // The budget is heap-relative, so on small heaps a fixed 2 MiB ceiling would let a single
         // entry evict most of the cache. Never admit an entry larger than a quarter of the budget.
         long maxEntryBytes = Math.max(1L, Math.min(DEFAULT_MAX_ENTRY_BYTES, maxBytes / 4));
         return new FooterByteCache(maxBytes, maxEntryBytes, ExternalSourceCacheSettings.FOOTER_CACHE_TTL.get(settings));

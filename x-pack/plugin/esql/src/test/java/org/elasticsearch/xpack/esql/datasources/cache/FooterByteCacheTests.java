@@ -202,7 +202,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testFromSettingsClampsMaxEntryToBudgetFraction() {
-        // The budget is heap-relative, so a fixed 4 MiB entry ceiling would let one entry evict
+        // The budget is heap-relative, so a fixed 2 MiB entry ceiling would let one entry evict
         // nearly the whole cache on a small heap. Entries are capped at a quarter of the budget.
         Settings settings = Settings.builder().put("esql.external.cache.footer.size", "1mb").build();
         FooterByteCache small = FooterByteCache.fromSettings(settings);
@@ -213,7 +213,7 @@ public class FooterByteCacheTests extends ESTestCase {
         Settings settings = Settings.builder().put("esql.external.cache.footer.size", "32mb").build();
         FooterByteCache large = FooterByteCache.fromSettings(settings);
         assertEquals(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES, large.maxEntryBytes());
-        assertEquals(4L * 1024 * 1024, large.maxEntryBytes());
+        assertEquals(2L * 1024 * 1024, large.maxEntryBytes());
     }
 
     public void testNonPositiveBudgetIsRejectedAtSettingsParseTime() {

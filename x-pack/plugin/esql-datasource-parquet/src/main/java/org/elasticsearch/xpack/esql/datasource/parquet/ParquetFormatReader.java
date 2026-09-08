@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -198,9 +199,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     /**
      * Sanity cap on a trailer-declared footer GET ({@code F+8}). Larger than this is an invalid
      * Parquet file (HTTP 400) and is rejected before the second GET. Not a cache size and not a
-     * data-page limit. Aligns with Trino's 15 MB footer-read cap and the Parquet sliding-window max.
+     * data-page limit. Same value as {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES} so
+     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting.
      */
-    static final int MAX_FOOTER_READ_BYTES = 16 * 1024 * 1024;
+    static final int MAX_FOOTER_READ_BYTES = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
     /** Clears both footer caches held by this reader. Intended for test isolation only. */
     void clearFooterCachesForTests() {
@@ -411,7 +413,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Test constructor that lowers the sanity GET cap so tests can reject an oversized trailer
-     * without allocating a 16 MiB declared footer.
+     * without allocating a production-sized declared footer.
      */
     ParquetFormatReader(BlockFactory blockFactory, int maxFooterReadBytes) {
         this(
@@ -1199,7 +1201,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ioBreaker.addEstimateBytesAndMaybeBreak(n, "parquet footer copy");
         byte[] copy;
         try {
-            copy = new byte[n];
+            copy = UninitializedArrays.newByteArray(n);
             bb.get(copy);
         } catch (Throwable t) {
             ioBreaker.addWithoutBreaking(-n);
@@ -1225,10 +1227,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * deliberate: it does not depend on the {@link FooterByteCache} surviving between the async read
      * and the parse (a wide concurrent discovery could otherwise evict the tail against the cache's
      * byte budget and force a blocking re-read on the executor thread). The bytes are additionally
-     * offered to the cache best-effort so a later split-discovery pass can reuse them, but correctness
-     * never depends on that. Callers of this listener seed {@link #parsedFooters} after a successful
-     * metadata convert or range extract. {@code release} uncharges the GET (or the heap copy) after
-     * parse, success or failure.
+     * offered to the cache best-effort after a successful parse so a later split-discovery pass can
+     * reuse them, but correctness never depends on that. Callers of this listener seed
+     * {@link #parsedFooters} after a successful metadata convert or range extract. {@code release}
+     * uncharges the GET (or the heap copy) after parse, success or failure.
      */
     private void parseTailOnExecutor(
         StorageObject object,
@@ -1243,8 +1245,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             executor.execute(() -> {
                 boolean closed = false;
                 try {
-                    footerBytes.put(cacheKey, tailBytes);
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
+                    footerBytes.put(cacheKey, tailBytes);
                     release.close();
                     closed = true;
                     listener.onResponse(footer);

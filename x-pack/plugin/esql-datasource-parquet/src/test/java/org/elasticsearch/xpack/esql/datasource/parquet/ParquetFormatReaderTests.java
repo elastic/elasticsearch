@@ -1049,6 +1049,61 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Valid footer with {@code F+8} above {@link FooterByteCache#maxEntryBytes()} parses, metadata
+     * succeeds, the byte cache stays empty ({@code put} skips), and a second {@code metadataAsync}
+     * is a parsed-cache hit with no further GETs.
+     */
+    public void testAsyncReadsValidFooterLargerThanCacheEntryThenHitsParsedCache() throws Exception {
+        int columns = 2000;
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < columns; i++) {
+            builder.optional(PrimitiveType.PrimitiveTypeName.INT64).named("col_" + i);
+        }
+        byte[] parquetData = createParquetFile(builder.named("wide_schema"), factory -> {
+            Group g = factory.newGroup();
+            g.add("col_0", 1L);
+            return List.of(g);
+        });
+        int footerRegion = parquetFooterRegion(parquetData);
+        // 256 KiB budget → maxEntry = 64 KiB, at the prefetch window so a wide footer is over cap.
+        Settings settings = Settings.builder().put("esql.external.cache.footer.size", "256kb").build();
+        ParquetFormatReader reader = new ParquetFormatReader(settings, blockFactory);
+        reader.clearFooterCachesForTests();
+        long cap = reader.footerByteCacheForTests().maxEntryBytes();
+        assertEquals(64 * 1024L, cap);
+        assertThat("fixture must exceed byte-cache admission and take the two-GET path", (long) footerRegion, greaterThan(cap));
+        assertThat((long) footerRegion, greaterThan((long) ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject);
+            PlainActionFuture<SourceMetadata> meta = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, meta);
+            SourceMetadata first = meta.actionGet(30, TimeUnit.SECONDS);
+            assertEquals(columns, first.schema().size());
+            assertEquals(2, asyncReadCount.get());
+            assertEquals(0, streamCount.get());
+            assertNull(reader.footerByteCacheForTests().get(key));
+            ParquetMetadata parsed = reader.parsedFooterForTests(key);
+            assertNotNull(parsed);
+
+            PlainActionFuture<SourceMetadata> again = new PlainActionFuture<>();
+            reader.metadataAsync(asyncObject, probePool, again);
+            SourceMetadata second = again.actionGet(30, TimeUnit.SECONDS);
+            assertEquals(first.schema().size(), second.schema().size());
+            assertEquals("parsed-cache hit must not issue another GET", 2, asyncReadCount.get());
+            assertEquals(0, streamCount.get());
+            assertNull(reader.footerByteCacheForTests().get(key));
+            assertSame(parsed, reader.parsedFooterForTests(key));
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
      * Trailer {@code F+8} above the sanity GET cap fails before the second GET. Message names the cap.
      */
     public void testAsyncRejectsFooterLargerThanSanityGetCapWithoutSecondRead() throws Exception {

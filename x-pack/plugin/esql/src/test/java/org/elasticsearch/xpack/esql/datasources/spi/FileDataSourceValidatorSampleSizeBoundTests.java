@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * The registration-time bound on {@code schema_sample_size} must admit the value the readers use by default.
@@ -85,10 +91,48 @@ public class FileDataSourceValidatorSampleSizeBoundTests extends ESTestCase {
     }
 
     private static FileDataSourceValidator validatorWithResolver() {
-        return new FileDataSourceValidator("file", (raw, consumed) -> null, Set.of("file")).withFormatConfigKeyResolver(
-            formatResolver(),
-            Set.of()
-        );
+        return new FileDataSourceValidator("file", (raw, consumed) -> null, Set.of("file")).withFormatConfigKeyResolver(formatResolver())
+            .withFormatReaderRegistry(formatRegistry());
+    }
+
+    private static FormatReaderRegistry formatRegistry() {
+        FormatReader csv = mock(FormatReader.class);
+        when(csv.formatName()).thenReturn("csv");
+        when(csv.fileExtensions()).thenReturn(List.of(".csv"));
+        when(csv.supportsWholeFileCompression()).thenReturn(true);
+        FormatReader ndjson = mock(FormatReader.class);
+        when(ndjson.formatName()).thenReturn("ndjson");
+        when(ndjson.fileExtensions()).thenReturn(List.of(".ndjson"));
+        when(ndjson.supportsWholeFileCompression()).thenReturn(true);
+        FormatReader parquet = mock(FormatReader.class);
+        when(parquet.formatName()).thenReturn("parquet");
+        when(parquet.fileExtensions()).thenReturn(List.of(".parquet"));
+        when(parquet.supportsWholeFileCompression()).thenReturn(false);
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "gzip";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return raw;
+            }
+        });
+        FormatReaderRegistry registry = new FormatReaderRegistry(codecs);
+        registry.registerLazy("csv", (s, bf) -> csv, Settings.EMPTY, null);
+        registry.registerExtension(".csv", "csv");
+        registry.registerLazy("ndjson", (s, bf) -> ndjson, Settings.EMPTY, null);
+        registry.registerExtension(".ndjson", "ndjson");
+        registry.registerLazy("parquet", (s, bf) -> parquet, Settings.EMPTY, null);
+        registry.registerExtension(".parquet", "parquet");
+        return registry;
     }
 
     public void testSchemaSampleSizeIsRejectedForParquetWhenInferredFromExtension() {

@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase<OpenPointInTimeRequest> {
@@ -46,14 +47,14 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected OpenPointInTimeRequest mutateInstance(OpenPointInTimeRequest in) throws IOException {
-        return switch (between(0, 5)) {
+        final int maxCase = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() ? 5 : 4;
+        return switch (between(0, maxCase)) {
             case 0 -> {
                 OpenPointInTimeRequest request = new OpenPointInTimeRequest("new-index");
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
-                request.routing(in.routing());
-                request.searchSlice(in.searchSlice());
+                copyRoutingOrSlice(in, request);
                 yield request;
             }
             case 1 -> {
@@ -61,8 +62,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests() + between(1, 10));
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
-                request.routing(in.routing());
-                request.searchSlice(in.searchSlice());
+                copyRoutingOrSlice(in, request);
                 yield request;
             }
             case 2 -> {
@@ -70,8 +70,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(TimeValue.timeValueSeconds(between(2000, 5000)));
                 request.preference(in.preference());
-                request.routing(in.routing());
-                request.searchSlice(in.searchSlice());
+                copyRoutingOrSlice(in, request);
                 yield request;
             }
             case 3 -> {
@@ -79,8 +78,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(randomAlphaOfLength(5));
-                request.routing(in.routing());
-                request.searchSlice(in.searchSlice());
+                copyRoutingOrSlice(in, request);
                 yield request;
             }
             case 4 -> {
@@ -97,15 +95,43 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
-                request.routing(in.routing());
-                request.searchSlice(
-                    SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
-                        ? (in.searchSlice() == null ? randomAlphaOfLength(5) : null)
-                        : in.searchSlice()
-                );
+                if (in.searchSlice() == null) {
+                    request.searchSlice(randomAlphaOfLength(5));
+                } else {
+                    request.searchSlice(null);
+                    request.routing(randomAlphaOfLength(5));
+                }
                 yield request;
             }
             default -> throw new AssertionError("Unknown option");
         };
+    }
+
+    private static void copyRoutingOrSlice(OpenPointInTimeRequest from, OpenPointInTimeRequest to) {
+        if (from.searchSlice() != null) {
+            to.searchSlice(from.searchSlice());
+        } else {
+            to.routing(from.routing());
+        }
+    }
+
+    public void testRoutingAndSearchSliceAreMutuallyExclusive() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        OpenPointInTimeRequest routingFirst = new OpenPointInTimeRequest("idx");
+        routingFirst.routing("manual");
+        IllegalArgumentException routingThenSlice = expectThrows(IllegalArgumentException.class, () -> routingFirst.searchSlice("s1"));
+        assertThat(routingThenSlice.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+
+        OpenPointInTimeRequest sliceFirst = new OpenPointInTimeRequest("idx");
+        sliceFirst.searchSlice("s1");
+        IllegalArgumentException sliceThenRouting = expectThrows(IllegalArgumentException.class, () -> sliceFirst.routing("manual"));
+        assertThat(sliceThenRouting.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+    }
+
+    public void testSearchSliceRejectedWhenFeatureDisabled() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.searchSlice("s1"));
+        assertThat(ex.getMessage(), containsString("request does not support [slice]"));
     }
 }

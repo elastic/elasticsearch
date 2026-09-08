@@ -115,6 +115,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
             );
 
         }
+        if (routingFromSlice && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            validationException = addValidationError("request does not support [slice]", validationException);
+        }
         return validationException;
     }
 
@@ -156,6 +159,9 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     }
 
     public OpenPointInTimeRequest routing(String routing) {
+        if (routing != null && routingFromSlice) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
+        }
         this.routing = routing;
         return this;
     }
@@ -180,6 +186,14 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
      * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
      */
     public OpenPointInTimeRequest searchSlice(@Nullable String searchSlice) {
+        if (searchSlice != null) {
+            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException("request does not support [slice]");
+            }
+            if (routing != null && routingFromSlice == false) {
+                throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
+            }
+        }
         this.searchSlice = searchSlice;
         if (searchSlice == null) {
             if (routingFromSlice) {

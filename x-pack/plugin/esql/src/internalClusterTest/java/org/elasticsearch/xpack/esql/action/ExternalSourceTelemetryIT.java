@@ -629,15 +629,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "emp_dep",
-                    "ds_dep",
-                    resource,
-                    null,
-                    new HashMap<>(Map.of("format", "csv"))
-                )
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "emp_dep", "ds_dep", resource, null, new HashMap<>(Map.of("format", "csv")))
             )
         );
 

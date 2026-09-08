@@ -42,6 +42,7 @@ import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -762,86 +763,81 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     public void testSearchNodesGetHostedShardsEstimateWithZeroTotalHeap() {
         final String indexName = randomIdentifier();
 
-        final ClusterState baseState = ClusterStateCreationUtils.buildServerlessRoleNodes(indexName, 1, 1, 1, 0);
-        final DiscoveryNode indexNode = baseState.nodes()
-            .stream()
-            .filter(n -> n.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
-            .findFirst()
-            .orElseThrow();
+        final ClusterState baseState = ClusterStateCreationUtils.buildServerlessRoleNodes(
+            indexName,
+            2,
+            2,
+            1,
+            0,
+            ClusterStateCreationUtils.ShardAllocationStrategy.RoundRobin
+        );
         final DiscoveryNode searchNode = baseState.nodes()
             .stream()
             .filter(n -> n.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE))
             .findFirst()
             .orElseThrow();
-        // buildServerlessRoleNodes creates primaries only; add a SEARCH_ONLY replica so hostedShardsHeapUsage is exercised
-        final ShardRouting primary = baseState.globalRoutingTable()
-            .routingTable(ProjectId.DEFAULT)
-            .index(indexName)
-            .shard(0)
-            .primaryShard();
-        final ShardId shardId = primary.shardId();
-        final ShardRouting searchReplica = shardRoutingBuilder(shardId, searchNode.getId(), false, ShardRoutingState.STARTED).withRole(
-            ShardRouting.Role.SEARCH_ONLY
-        ).build();
+        final IndexRoutingTable indexRoutingTable = baseState.globalRoutingTable().routingTable(ProjectId.DEFAULT).index(indexName);
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(indexRoutingTable.getIndex());
+        final Map<ShardId, ShardMappingSize> shardSizes = new HashMap<>();
+        final long mappingBytes = ByteSizeValue.ofKb(100).getBytes();
+        // Each indexing node hosts one primary, while the search node hosts both replicas. Its postings total therefore
+        // exceeds either indexing node's total, so including search nodes in the max would fail the assertion below.
+        final long[] postingsBytes = { ByteSizeValue.ofMb(5).getBytes(), ByteSizeValue.ofMb(10).getBytes() };
+        for (int shard = 0; shard < postingsBytes.length; shard++) {
+            final ShardRouting primary = indexRoutingTable.shard(shard).primaryShard();
+            routingBuilder.addShard(primary);
+            routingBuilder.addShard(
+                shardRoutingBuilder(primary.shardId(), searchNode.getId(), false, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.SEARCH_ONLY
+                ).build()
+            );
+            shardSizes.put(
+                primary.shardId(),
+                new ShardMappingSize(
+                    mappingBytes,
+                    10,
+                    50,
+                    postingsBytes[shard],
+                    0L,
+                    0L,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    primary.currentNodeId()
+                )
+            );
+        }
         final ClusterState clusterState = ClusterState.builder(baseState)
             .routingTable(
-                GlobalRoutingTable.builder()
-                    .put(
-                        ProjectId.DEFAULT,
-                        RoutingTable.builder()
-                            .add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(searchReplica).build())
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTable.builder().put(ProjectId.DEFAULT, RoutingTable.builder().add(routingBuilder.build()).build()).build()
             )
             .build();
 
         service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
-
-        // Use a non-zero postings value so the maxTotalPostingsInMemoryBytes assertion is meaningful
-        final long postingsBytes = ByteSizeValue.ofMb(randomIntBetween(5, 15)).getBytes();
-        final ShardMappingSize shardSize = new ShardMappingSize(
-            ByteSizeValue.ofKb(100).getBytes(),
-            10,
-            50,
-            postingsBytes,
-            0L,
-            0L,
-            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
-            indexNode.getId()
-        );
-        service.updateShardsMappingSize(new HeapMemoryUsage(1, Map.of(shardId, shardSize)));
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, shardSizes));
 
         final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
+        final String indexNode1Id = indexRoutingTable.shard(0).primaryShard().currentNodeId();
+        final String indexNode2Id = indexRoutingTable.shard(1).primaryShard().currentNodeId();
+        assertThat(perNode.keySet(), equalTo(Set.of(indexNode1Id, indexNode2Id, searchNode.getId())));
 
-        // Both nodes are present
-        assertThat(perNode.keySet(), equalTo(Set.of(indexNode.getId(), searchNode.getId())));
+        final NodeHeapEstimates indexEstimates1 = perNode.get(indexNode1Id);
+        final NodeHeapEstimates indexEstimates2 = perNode.get(indexNode2Id);
+        for (NodeHeapEstimates indexEstimates : List.of(indexEstimates1, indexEstimates2)) {
+            assertThat("indexing node totalHeapUsage must include base overhead", indexEstimates.totalHeapUsage(), greaterThan(0L));
+            assertThat("indexing node hostedShardsHeapUsage must be > 0", indexEstimates.hostedShardsHeapUsage(), greaterThan(0L));
+        }
 
-        // Index node: totalHeapUsage > 0 (includes base overhead); hostedShardsHeapUsage > 0
-        final NodeHeapEstimates indexEstimates = perNode.get(indexNode.getId());
-        assertThat("indexing node totalHeapUsage must include base overhead", indexEstimates.totalHeapUsage(), greaterThan(0L));
-        assertThat("indexing node hostedShardsHeapUsage must be > 0", indexEstimates.hostedShardsHeapUsage(), greaterThan(0L));
-
-        // Search node: totalHeapUsage == 0; hostedShardsHeapUsage > 0
         final NodeHeapEstimates searchEstimates = perNode.get(searchNode.getId());
         assertThat("search node totalHeapUsage must be 0", searchEstimates.totalHeapUsage(), equalTo(0L));
         assertThat("search node hostedShardsHeapUsage must be > 0", searchEstimates.hostedShardsHeapUsage(), greaterThan(0L));
-
-        // Hosted shards estimates must be consistent for search and indexing nodes
+        // The search node hosts both shards but counts their shared index mapping only once.
         assertThat(
-            "hostedShardsHeapUsage must be consistent for search and indexing nodes",
             searchEstimates.hostedShardsHeapUsage(),
-            equalTo(indexEstimates.hostedShardsHeapUsage())
+            equalTo(indexEstimates1.hostedShardsHeapUsage() + indexEstimates2.hostedShardsHeapUsage() - mappingBytes)
         );
-
-        // maxTotalPostingsInMemoryBytes must be driven by the indexing node's builder only.
-        // Both nodes see the same shard metrics (shard metrics are keyed by ShardId, published by index nodes),
-        // so the max equals postingsBytes regardless of whether search nodes are in the pool.
-        // What matters is that the max is non-zero and equals the expected per-shard value.
         assertThat(
-            "maxTotalPostingsInMemoryBytes must be the index node's postings",
+            "maxTotalPostingsInMemoryBytes must exclude the search node's 15 MB of postings",
             getLastMaxTotalPostingsInMemoryBytes(service),
-            equalTo(postingsBytes)
+            equalTo(postingsBytes[1])
         );
     }
 

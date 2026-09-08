@@ -126,13 +126,23 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
-     * The total number of branches a query may execute, summed over every subquery union in it. Where
-     * {@link #BRANCH_PARALLEL_DEGREE} limits how many run at once, this limits how many there are: each branch becomes either a
-     * coordinator merge segment - with its own exchange handlers and drivers, all set up eagerly - or a data node query, so the total
-     * is what a single request commits the coordinator to. Subqueries nest, so the per-{@code FROM} limit
-     * ({@link org.elasticsearch.xpack.esql.plan.logical.Fork#MAX_BRANCHES}) alone lets the total grow as a power of the nesting depth.
+     * The total number of leaf branches an independently executed query may use. The main query and each {@code IN} subquery are checked
+     * separately because each runs through the compute service independently. Where {@link #BRANCH_PARALLEL_DEGREE} limits how many run at
+     * once, this limits how many producer branches there are: each leaf becomes a data node query (or a coordinator-local source). Nested
+     * {@code UnionAll}s are merge segments, not leaves — they are bounded separately by {@link #MAX_QUERY_BRANCH_LEVELS}. Subqueries nest,
+     * so the per-{@code FROM} limit ({@link org.elasticsearch.xpack.esql.plan.logical.Fork#MAX_BRANCHES}) alone lets the leaf total grow as
+     * a power of the nesting depth.
      */
     public static final Setting<Integer> MAX_QUERY_BRANCHES = Setting.intSetting("max_query_branches", 100, 1);
+
+    /**
+     * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
+     * are checked separately because each runs through the compute service independently. Where {@link #MAX_QUERY_BRANCHES} limits how many
+     * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying under
+     * {@link #MAX_QUERY_BRANCHES}.
+     */
+    public static final Setting<Integer> MAX_QUERY_BRANCH_LEVELS = Setting.intSetting("max_query_branch_levels", 10, 1);
 
     /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
@@ -220,6 +230,7 @@ public final class QueryPragmas implements Writeable {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_QUERY_BRANCHES,
+        MAX_QUERY_BRANCH_LEVELS,
         PARSING_PARALLELISM,
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
@@ -379,6 +390,10 @@ public final class QueryPragmas implements Writeable {
 
     public int maxQueryBranches() {
         return MAX_QUERY_BRANCHES.get(settings);
+    }
+
+    public int maxQueryBranchLevels() {
+        return MAX_QUERY_BRANCH_LEVELS.get(settings);
     }
 
     /**

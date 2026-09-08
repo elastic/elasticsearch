@@ -29,28 +29,17 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
     }
 
     /**
-     * Verifies the optimized coordinator plan, additionally applying the limits that are defined for a query as a whole rather than
-     * for a single node.
+     * Verifies the optimized coordinator plan, additionally applying the limits that are defined for each independently executed query
+     * rather than for a single node.
      */
     public Failures verify(LogicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes, QueryPragmas pragmas) {
         assert isLocal == false : "query-wide limits apply to the coordinator plan only";
         Failures failures = verify(optimizedPlan, expectedOutputAttributes);
-        checkMaxUnionAllBranches(optimizedPlan, pragmas, failures);
-        return failures;
-    }
-
-    /**
-     * Rejects a query whose {@link UnionAll}s add up to more branches than the {@code max_query_branches} pragma allows.
-     * <p>
-     * This check lives here rather than in {@link #checkPlanConsistency} for two reasons: that method receives one node at a time
-     * through {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware}, which cannot see the whole
-     * plan; and it is called directly by tests on plans that were never optimized, which should not be subject to query-wide limits.
-     * It only runs on an otherwise failure-free plan, so the branch count never distracts from a more fundamental problem.
-     */
-    private static void checkMaxUnionAllBranches(LogicalPlan optimizedPlan, QueryPragmas pragmas, Failures failures) {
+        // These limits need complete main-query and IN-subquery plans, so they live here rather than in {@link #checkPlanConsistency}.
         if (failures.hasFailures() == false) {
-            UnionAll.checkTotalBranchCount(optimizedPlan, pragmas.maxQueryBranches(), failures);
+            UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxQueryBranches(), pragmas.maxQueryBranchLevels(), failures);
         }
+        return failures;
     }
 
     @Override

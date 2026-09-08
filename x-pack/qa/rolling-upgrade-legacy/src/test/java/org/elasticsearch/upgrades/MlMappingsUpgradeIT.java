@@ -9,6 +9,9 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.anyOf;
@@ -135,7 +139,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      */
     private void ensureTestJobIsOpen() throws IOException {
         Request getJob = new Request("GET", "_ml/anomaly_detectors/" + JOB_ID);
-        Response response = client().performRequest(getJob);
+        Response response = performRequestRaisingAssertionOnTransientStatus(getJob, RestStatus.NOT_FOUND);
         assertEquals(200, response.getStatusLine().getStatusCode());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobs = (List<Map<String, Object>>) entityAsMap(response).get("jobs");
@@ -168,7 +172,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertBusy(() -> {
             ensureTestJobIsOpen();
             Request getMappings = new Request("GET", XPackRestTestHelper.resultsWriteAlias(JOB_ID) + "/_mappings");
-            Response response = client().performRequest(getMappings);
+            Response response = performRequestRaisingAssertionOnTransientStatus(
+                getMappings,
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
 
             Map<String, Object> responseLevel = entityAsMap(response);
             assertNotNull(responseLevel);
@@ -196,7 +204,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "long",
                 extractValue("mappings.properties.model_size_stats.properties.peak_model_bytes.type", indexLevel)
             );
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
@@ -204,7 +212,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             Request getMappings = new Request("GET", ".ml-annotations-write/_mappings");
-            Response response = client().performRequest(getMappings);
+            Response response = performRequestRaisingAssertionOnTransientStatus(
+                getMappings,
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
 
             Map<String, Object> responseLevel = entityAsMap(response);
             assertNotNull(responseLevel);
@@ -233,7 +245,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "keyword",
                 extractValue("mappings.properties.event.type", indexLevel)
             );
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void assertMlLegacyTemplatesDeleted() throws Exception {
@@ -270,7 +282,11 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                         + "version, direct access to system indices will be prevented by default"
                 )
             );
-            Response response = client().performRequest(getMappings);
+            Response response = performRequestRaisingAssertionOnTransientStatus(
+                getMappings,
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
 
             Map<String, Object> responseLevel = entityAsMap(response);
             assertNotNull(responseLevel);
@@ -289,14 +305,18 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
     private void assertNotificationsIndexAliasCreated() throws Exception {
         assertBusy(() -> {
             Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
-            Response response = client().performRequest(getMappings);
+            Response response = performRequestRaisingAssertionOnTransientStatus(
+                getMappings,
+                RestStatus.NOT_FOUND,
+                RestStatus.SERVICE_UNAVAILABLE
+            );
             Map<String, Object> responseMap = entityAsMap(response);
             assertThat(responseMap.entrySet(), hasSize(1));
             var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
@@ -307,6 +327,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
             var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
             assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 }

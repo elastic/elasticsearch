@@ -34,6 +34,19 @@ import java.util.function.Predicate;
  */
 public final class PlainStringColumnReader extends StringColumnReader {
 
+    /** Pages read as values before a column is asked again whether a dictionary would pay for it. */
+    private static final int PAGES_BETWEEN_TRIES = 32;
+
+    /**
+     * The fewest values a page must hold for what it named to say anything about the column. A page of one value
+     * names one, which is always too many to pay for, so judging a column on one would stop it ever building a
+     * dictionary again.
+     */
+    private static final int VALUES_TO_JUDGE_BY = 128;
+
+    private boolean tooManyToPay;
+    private int pagesSinceTried;
+
     private final ValueStream.Reader values;
 
     /** The value addresses holding a null, ascending; null when no slot in the column is one. */
@@ -270,6 +283,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     /** A page of a column holding one value a document, which is the shape a run-encoded column pays off on. */
     private boolean appendSingleValuedPage(int count, StringBlockSink sink) throws IOException {
+        if (namesTooManyToPay()) {
+            return appendSingleValuedPageAsValues(count, sink);
+        }
         growPageValues(count);
         pageBytesLength = 0;
         startPageSlots(count);
@@ -299,7 +315,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
         }
         point(pageDictionary, slots);
         // As many entries as documents is no shorter as ordinals than as values.
-        if ((long) slots * MIN_PAGE_REPEAT > count) {
+        final boolean tooMany = (long) slots * MIN_PAGE_REPEAT > count;
+        rememberWhetherItPaid(tooMany, count);
+        if (tooMany) {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
@@ -308,5 +326,63 @@ public final class PlainStringColumnReader extends StringColumnReader {
         }
         sink.appendOrdinals(pageOrdinals, count, null, count, pageDictionary, slots);
         return true;
+    }
+
+    /**
+     * The same page, without a dictionary being built for it. A page handed over as values never reads the one
+     * the method above builds, and building it hashes every value and probes a table for it. So a column whose
+     * last page named too many values to pay is read this way instead: runs are still collapsed, which costs no
+     * bytes to find, but nothing is hashed.
+     *
+     * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
+     */
+    private boolean appendSingleValuedPageAsValues(int count, StringBlockSink sink) throws IOException {
+        growPageValues(count);
+        pageBytesLength = 0;
+        int runs = 0;
+        long previous = -1;
+        int previousLength = -1;
+        int previousRun = -1;
+        for (int i = 0; i < count; i++) {
+            final long identity = values.read(pageRanks[i], scratch);
+            if (previousRun < 0 || identity != previous || scratch.length != previousLength) {
+                // A run staged across two blocks is stored twice and answers with a new address, so the run
+                // before is compared once by its bytes before a new one is started.
+                if (previousRun < 0 || pageSlotHolds(previousRun, scratch) == false) {
+                    appendToPage(runs, scratch);
+                    previousRun = runs++;
+                }
+                previous = identity;
+                previousLength = scratch.length;
+            }
+            pageOrdinals[i] = previousRun;
+        }
+        point(pageDictionary, runs);
+        rememberWhetherItPaid((long) runs * MIN_PAGE_REPEAT > count, count);
+        for (int i = 0; i < count; i++) {
+            pageValues[i] = pageDictionary[pageOrdinals[i]];
+        }
+        sink.appendValues(pageValues, count, null, count);
+        return true;
+    }
+
+    /**
+     * Whether the last pages of this column named too many values for a dictionary to pay. Asked before one is
+     * built, so a column that never earns it stops paying to find that out again for every page - and asked
+     * again every {@link #PAGES_BETWEEN_TRIES} pages, so a column whose values change shape is not held to what
+     * its first pages looked like.
+     */
+    private boolean namesTooManyToPay() {
+        return tooManyToPay && ++pagesSinceTried < PAGES_BETWEEN_TRIES;
+    }
+
+    private void rememberWhetherItPaid(boolean tooMany, int count) {
+        if (count < VALUES_TO_JUDGE_BY) {
+            return;
+        }
+        tooManyToPay = tooMany;
+        if (tooMany == false || pagesSinceTried >= PAGES_BETWEEN_TRIES) {
+            pagesSinceTried = 0;
+        }
     }
 }

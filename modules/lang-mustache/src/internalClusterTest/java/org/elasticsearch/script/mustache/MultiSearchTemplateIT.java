@@ -72,6 +72,8 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            // The render-breaker test requires accounting on every coordinator; randomized no-op breakers ignore the limit.
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
             .build();
     }
 
@@ -211,7 +213,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
      * <p>
      * Render estimate = {@code 512 + source.length() + 2 × serialised(SearchSourceBuilder)}.
      * The ~16 KB template body produces a serialised builder of comparable size, so the total
-     * estimate is well above the 10 KB breaker limit. The first render therefore trips; every
+     * estimate is well above the 1 byte breaker limit. The first render therefore trips; every
      * subsequent slot is filled via the {@code renderCbe} fast-path without issuing any searches.
      */
     public void testLargeMsearchTemplateDoesNotOom() throws Exception {
@@ -246,18 +248,24 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
                 multiRequest.add(req);
             }
 
-            assertResponse(client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
-                assertThat(response.getResponses().length, equalTo(numRequests));
-                // Once the first render trips the breaker, fillRemainingWithCbe fills every
-                // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —
-                // a weaker "cbeCount > 0" check would miss a regression where only the first
-                // slot is a CBE and the rest execute as real searches.
-                for (Item item : response.getResponses()) {
-                    assertNotNull("every slot must be populated", item);
-                    assertTrue("every slot must be a CBE failure", item.isFailure());
-                    assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
-                }
-            });
+            // Exercise every possible coordinator so a node with an ineffective breaker cannot escape coverage.
+            for (String node : internalCluster().getNodeNames()) {
+                assertResponse(
+                    internalCluster().client(node).execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest),
+                    response -> {
+                        assertThat(response.getResponses().length, equalTo(numRequests));
+                        // Once the first render trips the breaker, fillRemainingWithCbe fills every
+                        // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —
+                        // a weaker "cbeCount > 0" check would miss a regression where only the first
+                        // slot is a CBE and the rest execute as real searches.
+                        for (Item item : response.getResponses()) {
+                            assertNotNull("every slot must be populated", item);
+                            assertTrue("every slot must be a CBE failure on " + node, item.isFailure());
+                            assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
+                        }
+                    }
+                );
+            }
         } finally {
             updateClusterSettings(
                 Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())

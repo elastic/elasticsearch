@@ -15,6 +15,23 @@ describe("classifyChangedFiles", () => {
     ]);
   });
 
+  test("ignores separate builds the root build cannot address", () => {
+    const result = classifyChangedFiles([
+      "plugins/examples/painless-whitelist/src/yamlRestTest/java/org/elasticsearch/example/painlesswhitelist/PainlessWhitelistClientYamlTestSuiteIT.java",
+      "plugins/examples/painless-whitelist/src/yamlRestTest/resources/rest-api-spec/test/painless_whitelist/50_allocation.yml",
+      "server/src/test/java/org/elasticsearch/index/IndexTests.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":server",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.index.IndexTests",
+      },
+    ]);
+  });
+
   test("classifies internal cluster test files", () => {
     const result = classifyChangedFiles([
       "server/src/internalClusterTest/java/org/elasticsearch/cluster/ClusterIT.java",

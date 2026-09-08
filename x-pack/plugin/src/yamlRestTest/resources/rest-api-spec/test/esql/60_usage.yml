@@ -572,6 +572,28 @@ took:
   - match: { esql.datasources.config.datasets.count: 0 }
 
 ---
+"Datasource parse.rows.by_format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_parse_by_format ]
+      reason: "Datasource parse.rows.by_format phone-home keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.parse.rows.by_format.parquet
+  - exists: esql.datasources.parse.rows.by_format.csv
+  - exists: esql.datasources.parse.rows.by_format.tsv
+  - exists: esql.datasources.parse.rows.by_format.ndjson
+  - exists: esql.datasources.parse.rows.by_format.orc
+  - exists: esql.datasources.parse.rows.by_format.other
+  - exists: esql.datasources.parse.rows.by_format.unresolved
+  # The unattributed leaf is unchanged and still gated by usage_contains_datasources.
+  - exists: esql.datasources.parse.rows.total
+
+---
 "Datasource config.changes telemetry":
   - requires:
       test_runner_features: [ capabilities ]

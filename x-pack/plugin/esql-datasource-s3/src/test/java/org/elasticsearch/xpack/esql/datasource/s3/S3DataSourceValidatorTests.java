@@ -25,7 +25,8 @@ import static org.hamcrest.Matchers.not;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+        .withResourceCheck(S3ResourceCheck::validate);
 
     @Override
     protected DataSourceValidator validator() {
@@ -886,6 +887,196 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
+    }
+
+    // --- ARN and MRAP resource rejection ---
+
+    public void testValidateDatasetRejectsMrapHost() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), containsString("s3://mfzwi23gnjvgw.mrap/data/f.parquet"));
+    }
+
+    public void testValidateDatasetRejectsMrapArn() {
+        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message.
+        // The not() assertion catches a missing return after the MRAP branch.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3::444732909647:accesspoint/mfzwi23gnjvgw.mrap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsMrapFqdn() {
+        // Full AWS global endpoint hostname that MRAP aliases resolve to — must get the MRAP message.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://mfzwi23gnjvgw.mrap.accesspoint.s3-global.amazonaws.com/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsAccessPointArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:444732909647:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+        assertThat(e.getMessage(), containsString("Use a bucket name, or an access point alias"));
+    }
+
+    public void testValidateDatasetRejectsObjectLambdaArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-object-lambda:us-east-1:444732909647:accesspoint/olap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsOutpostsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3-outposts:us-east-1:444732909647:outpost/op-x/accesspoint/ap/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsS3TablesArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://arn:aws:s3tables:us-east-1:444732909647:bucket/tb/ns/tbl", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetRejectsAccessGrantsArn() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://arn:aws:s3:us-east-1:444732909647:access-grants/default/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetArnCheckIsCaseInsensitive() {
+        // ARN prefix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://ARN:aws:s3:us-east-1:123:accesspoint/x/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+    }
+
+    public void testValidateDatasetMrapCheckIsCaseInsensitive() {
+        // .mrap suffix matching must be case-insensitive
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.MRAP/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    public void testValidateDatasetAcceptsNormalBucket() {
+        // control — must not be rejected
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAcceptsMrapInKey() {
+        // .mrap appears in the key path, not the host — legal bucket + key, must be accepted
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket/archive.mrap/data.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetAccessPointAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-ap-a1b2c3d4e-s3alias/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetObjectLambdaAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://myolap-1a4n8t--ol-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetOutpostsAlias() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetExpressDirectoryBucket() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my-bucket--use1-az4--x-s3/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetDottedBucketName() {
+        assertNotNull(validator.validateDataset(Map.of(), "s3://my.dotted.bucket/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetMrapInsideNameNotRejected() {
+        // ends-with check: ".mrap" must appear at the end, not as a substring in the middle
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket-with.mrap-inside/data/f.parquet", Map.of()));
+    }
+
+    public void testValidateDatasetArnPrefixWithoutColonNotRejected() {
+        // "arn" without the colon is a legal bucket name prefix — only "arn:" triggers the check
+        assertNotNull(validator.validateDataset(Map.of(), "s3://arnold-bucket/data/f.parquet", Map.of()));
+    }
+
+    /**
+     * The load-bearing rewrap-survival test: the S3 resource check must survive all three EsqlPlugin
+     * withers. If the resourceCheck field is missing from any wither's private-constructor call, it is
+     * silently dropped and ARN/MRAP resources pass validation after the re-wrap.
+     */
+    public void testResourceCheckSurvivesAllWithers() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withManagedIdentityEnabled(() -> false)
+            .withFederatedIdentityEnabled(() -> false)
+            .withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
+
+        var e2 = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
+        );
+        assertThat(e2.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    /**
+     * Verifies that {@link S3DataSourcePlugin#datasourceValidators} wires the S3 resource check.
+     * If {@code .withResourceCheck(...)} were dropped from the plugin, this test would fail while
+     * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
+     */
+    public void testDatasourceValidatorsIncludesResourceCheck() {
+        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(org.elasticsearch.common.settings.Settings.EMPTY).get("s3");
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
     }
 
     // --- Glob metacharacter and object-key special-character tests ---

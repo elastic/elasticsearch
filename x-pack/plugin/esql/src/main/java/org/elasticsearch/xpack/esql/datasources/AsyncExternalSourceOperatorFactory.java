@@ -23,6 +23,8 @@ import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -267,6 +269,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
+    /**
+     * Live count of in-flight producer tasks plus unclosed source operators created by {@link #get}.
+     * Each {@code get()} takes two refs before the producer starts: one released when that instance's
+     * producer finishes or fails ({@link #releaseOperator} sites), and one released from
+     * {@link AsyncExternalSourceOperator#close()} (or from {@code get()}'s catch if construction
+     * fails before an operator is returned). Hitting zero runs {@link #closeDynamicThreshold()}
+     * then {@link #onClose} (or {@link #releaseDeferredCloseRef()} when deferred extraction is on).
+     * Dual refs keep the storage lease alive until every operator built during pipeline construction
+     * has closed, even if an earlier producer fails while later {@code get()} calls are still pending.
+     */
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
     /**
      * Refcount controlling when {@link #onClose} runs when {@link #deferredExtraction} is on.
@@ -763,11 +775,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         /**
          * @param onClose lifecycle callback owned by this factory, invoked exactly once when the last
-         *                operator created by {@link AsyncExternalSourceOperatorFactory#get} completes
-         *                (ref count drops to zero). Used by the per-source concurrency budget to
-         *                deregister from the allocator. May be {@code null} when no per-source cleanup
-         *                is needed. Callers must ensure that {@code get()} is called at least once;
-         *                otherwise the callback never fires and the resource it guards leaks.
+         *                producer started by {@link AsyncExternalSourceOperatorFactory#get} has finished
+         *                <em>and</em> the last operator it returned has closed (ref count drops to zero).
+         *                A {@code get()} that throws before returning an operator still releases both
+         *                holds, so the callback fires rather than leaking the resource. Used by the
+         *                per-source concurrency budget to deregister from the allocator. May be
+         *                {@code null} when no per-source cleanup is needed. Callers must ensure that
+         *                {@code get()} is called at least once; otherwise the callback never fires and
+         *                the resource it guards leaks.
          */
         public Builder onClose(@Nullable Closeable onClose) {
             this.onClose = onClose;
@@ -904,7 +919,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
+        // Producer hold: released by existing {@link #releaseOperator} sites when this instance's
+        // background read finishes or fails. Operator hold: released from the returned operator's
+        // close() via {@code operatorHold}, so a fast-failing first producer cannot return the
+        // storage lease before later {@code get()} calls during pipeline construction.
         operatorRefCount.incrementAndGet();
+        operatorRefCount.incrementAndGet();
+        Releasable operatorHold = Releasables.releaseOnce(this::releaseOperator);
+        boolean producerStarted = false;
         try {
             long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
@@ -929,6 +951,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // finished".
             driverContext.addStopHook(() -> buffer.finish(false));
 
+            String scheme = path.scheme();
+            String formatName = formatReader.formatName();
             if (sliceQueue != null) {
                 startSliceQueueRead(buffer, driverContext);
             } else if (fileList != null && fileList.isResolved()) {
@@ -947,10 +971,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext);
                 }
             }
+            producerStarted = true;
 
-            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme(), formatReader.formatName());
+            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, scheme, formatName, operatorHold);
         } catch (Exception e) {
-            releaseOperator();
+            operatorHold.close();
+            if (producerStarted == false) {
+                releaseOperator();
+            }
             throw e;
         }
     }

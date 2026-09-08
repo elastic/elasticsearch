@@ -50,8 +50,9 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
         );
         assertThat(
             ConfigChangeTelemetry.rejectedReason(new ElasticsearchStatusException("conflict", RestStatus.CONFLICT)),
-            equalTo("other")
+            equalTo("has_dependents")
         );
+        assertThat(ConfigChangeTelemetry.rejectedReason(new IllegalArgumentException("bad mapping")), equalTo("validation"));
     }
 
     public void testPublishFailureIsNotARejection() {
@@ -69,7 +70,8 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
         recordAndAssert(new MaxDataSourcesCountException(1), "max_count");
         recordAndAssert(new MaxDatasetsCountException(2), "max_count");
         recordAndAssert(new ElasticsearchStatusException("enc", RestStatus.SERVICE_UNAVAILABLE), "unavailable");
-        recordAndAssert(new ElasticsearchStatusException("conflict", RestStatus.CONFLICT), "other");
+        recordAndAssert(new ElasticsearchStatusException("conflict", RestStatus.CONFLICT), "has_dependents");
+        recordAndAssert(new IllegalArgumentException("bad mapping"), "validation");
     }
 
     public void testRecordRejectedSkipsPublishFailure() {

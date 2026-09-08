@@ -345,9 +345,10 @@ public class DataSourceService {
                 for (String name : names) {
                     DataSource existing = updated.get(name);
                     if (existing == null) {
+                        // Do not keep a prior name's type: this refusal is for a missing name.
+                        failureType.set(null);
                         throw new ResourceNotFoundException("data source [{}] not found", name);
                     }
-                    failureType.set(existing.type());
                     final DatasetMetadata datasets = DatasetMetadata.get(project);
                     final List<String> dependents = datasets.datasets()
                         .values()
@@ -357,6 +358,7 @@ public class DataSourceService {
                         .toList();
                     if (dependents.isEmpty() == false) {
                         logger.warn("rejected delete for data source [{}]: referenced by datasets {}", name, dependents);
+                        failureType.set(existing.type());
                         throw new ElasticsearchStatusException(
                             "cannot delete data source [" + name + "]: referenced by datasets " + dependents,
                             RestStatus.CONFLICT

@@ -38,6 +38,7 @@ public final class ConfigChangeTelemetry {
     public static final String REASON_MAX_COUNT = "max_count";
     public static final String REASON_UNKNOWN_TYPE = "unknown_type";
     public static final String REASON_UNAVAILABLE = "unavailable";
+    public static final String REASON_HAS_DEPENDENTS = "has_dependents";
     public static final String REASON_OTHER = "other";
 
     private static final Set<String> KNOWN_TYPES = Set.of("s3", "gcs", "azure", "http", "local");
@@ -45,8 +46,10 @@ public final class ConfigChangeTelemetry {
     private ConfigChangeTelemetry() {}
 
     /**
-     * Clamps a validator type-id to the closed APM type set. {@code file} folds to {@code local};
-     * anything else (including the test-only {@code test} type) is {@code unknown}.
+     * Clamps a validator type-id to the closed type set used by both CRUD APM
+     * ({@code es_datasource_type}) and phone-home inventory ({@code by_type}).
+     * {@code file} folds to {@code local}; anything else (including the test-only
+     * {@code test} type) is {@code unknown}.
      */
     public static String typeToken(String type) {
         if (type == null) {
@@ -84,6 +87,14 @@ public final class ConfigChangeTelemetry {
         }
         if (e instanceof ElasticsearchStatusException ese && ese.status() == RestStatus.SERVICE_UNAVAILABLE) {
             return REASON_UNAVAILABLE;
+        }
+        if (e instanceof ElasticsearchStatusException ese && ese.status() == RestStatus.CONFLICT) {
+            return REASON_HAS_DEPENDENTS;
+        }
+        // Dedicated IAE subtypes are matched above; leftover IAE is PUT validation
+        // (DeclaredSchemaValidator, ConfigKeyValidator, and similar).
+        if (e instanceof IllegalArgumentException) {
+            return REASON_VALIDATION;
         }
         return REASON_OTHER;
     }

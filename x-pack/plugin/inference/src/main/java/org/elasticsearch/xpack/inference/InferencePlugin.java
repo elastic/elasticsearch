@@ -149,7 +149,6 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankB
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
-import org.elasticsearch.xpack.inference.registry.ClusterStateInferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
@@ -429,9 +428,6 @@ public class InferencePlugin extends Plugin
 
         modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
-        org.elasticsearch.xpack.core.inference.InferenceEndpointRegistry.setInstance(
-            new ClusterStateInferenceEndpointRegistry(modelRegistry.get())
-        );
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();

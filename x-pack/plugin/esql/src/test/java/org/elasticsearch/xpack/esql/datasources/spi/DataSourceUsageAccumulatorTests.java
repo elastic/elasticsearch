@@ -11,6 +11,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -18,27 +19,27 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testRecordRequestIncrementsByScheme() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordRequest("s3", 50L, 1024L);
-        acc.recordRequest("s3", 10L, 0L);
-        acc.recordRequest("gcs", 20L, 2048L);
+        acc.recordRequest(Type.S3, 50L, 1024L);
+        acc.recordRequest(Type.S3, 10L, 0L);
+        acc.recordRequest(Type.GCS, 20L, 2048L);
 
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_S3), equalTo(2L));
-        assertThat(acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_S3), equalTo(1024L));
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_GCS), equalTo(1L));
-        assertThat(acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_GCS), equalTo(2048L));
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_UNKNOWN), equalTo(0L));
+        assertThat(acc.storageRequests(Type.S3), equalTo(2L));
+        assertThat(acc.storageBytesRead(Type.S3), equalTo(1024L));
+        assertThat(acc.storageRequests(Type.GCS), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.GCS), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(0L));
     }
 
     public void testRecordRequestZeroBytesDoesNotIncrementBytesRead() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordRequest("file", 5L, 0L);
-        assertThat(acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE), equalTo(0L));
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE), equalTo(1L));
+        acc.recordRequest(Type.LOCAL, 5L, 0L);
+        assertThat(acc.storageBytesRead(Type.LOCAL), equalTo(0L));
+        assertThat(acc.storageRequests(Type.LOCAL), equalTo(1L));
     }
 
     public void testRecordRequestPopulatesTimeBucket() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordRequest("s3", 5L, 0L);  // < 10ms → bucket 0
+        acc.recordRequest(Type.S3, 5L, 0L);  // < 10ms → bucket 0
         assertThat(acc.storageRequestDuration(0), equalTo(1L));
         for (int b = 1; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
             assertThat(acc.storageRequestDuration(b), equalTo(0L));
@@ -49,12 +50,12 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordRetry();
         acc.recordRetry();
-        acc.recordError("s3");
-        acc.recordThrottled("gcs");
+        acc.recordError(Type.S3);
+        acc.recordThrottled(Type.GCS);
 
         assertThat(acc.storageRetries(), equalTo(2L));
-        assertThat(acc.storageErrors(DataSourceUsageAccumulator.SCHEME_S3), equalTo(1L));
-        assertThat(acc.storageThrottled(DataSourceUsageAccumulator.SCHEME_GCS), equalTo(1L));
+        assertThat(acc.storageErrors(Type.S3), equalTo(1L));
+        assertThat(acc.storageThrottled(Type.GCS), equalTo(1L));
     }
 
     public void testRecordQueryByOutcome() {
@@ -123,18 +124,15 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.breakerTripped(), equalTo(2L));
     }
 
-    public void testUnknownSchemeRoutedToUnknownBucket() {
-        // The accumulator only accepts the six declared canonical scheme names; "unknown" is the
-        // correct token for any unrecognised scheme (ExternalSourceMetrics.accScheme() clamps before
-        // calling the accumulator, so arbitrary strings never reach schemeIndex()).
+    public void testUnknownTypeRoutedToUnknownBucket() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordRequest("unknown", 10L, 100L);
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_UNKNOWN), equalTo(1L));
+        acc.recordRequest(Type.UNKNOWN, 10L, 100L);
+        assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(1L));
     }
 
-    public void testUnexpectedSchemeThrows() {
+    public void testNullTypeThrows() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        expectThrows(IllegalArgumentException.class, () -> acc.recordRequest("ftp", 10L, 100L));
+        expectThrows(NullPointerException.class, () -> acc.recordRequest(null, 10L, 100L));
     }
 
     public void testUnexpectedOutcomeThrows() {
@@ -142,20 +140,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> acc.recordQuery("weird_outcome", 10L, false));
     }
 
-    public void testSchemeIndexOutOfRangeThrowsOnAccessor() {
-        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        // OUTCOME_CANCELLED = 2 is in-range for scheme (0..5) but is semantically wrong;
-        // SCHEME_COUNT itself is reliably out-of-range and must throw.
-        expectThrows(IllegalArgumentException.class, () -> acc.storageRequests(DataSourceUsageAccumulator.SCHEME_COUNT));
-        expectThrows(IllegalArgumentException.class, () -> acc.storageBytesRead(-1));
-        expectThrows(IllegalArgumentException.class, () -> acc.storageErrors(DataSourceUsageAccumulator.SCHEME_COUNT));
-        expectThrows(IllegalArgumentException.class, () -> acc.storageThrottled(DataSourceUsageAccumulator.SCHEME_COUNT));
-    }
-
     public void testOutcomeIndexOutOfRangeThrowsOnAccessor() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        // SCHEME_FILE = 4 is out of range for the queries[] array (size OUTCOME_COUNT = 3).
-        expectThrows(IllegalArgumentException.class, () -> acc.queries(DataSourceUsageAccumulator.SCHEME_FILE));
+        expectThrows(IllegalArgumentException.class, () -> acc.queries(DataSourceUsageAccumulator.OUTCOME_COUNT));
         expectThrows(IllegalArgumentException.class, () -> acc.queries(-1));
     }
 
@@ -173,7 +160,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testDataSourceCountersPopulatesAllKeyFamilies() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        acc.recordRequest("s3", 5L, 1024L);
+        acc.recordRequest(Type.S3, 5L, 1024L);
+        acc.recordRequest(Type.LOCAL, 5L, 0L);
         acc.recordQuery("success", 100L, false);
         acc.recordDiscovery(30L, 5L, 512L);
         acc.recordParse(500L, 50L);
@@ -186,6 +174,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
         // spot-check a few keys
         assertThat(counters.get("datasources.storage.requests.total.s3"), equalTo(1L));
+        assertThat(counters.get("datasources.storage.requests.total.local"), equalTo(1L));
         assertThat(counters.get("datasources.storage.bytes_read.total.s3"), equalTo(1024L));
         assertThat(counters.get("datasources.queries.by_outcome.success"), equalTo(1L));
         assertThat(counters.get("datasources.discovery.failures.total"), equalTo(1L));
@@ -193,7 +182,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.parse.rows.total"), equalTo(500L));
 
         // verify one populated bucket per histogram family (exact bucket derived from input values above)
-        assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(1L)); // 5ms < 10ms → index 0
+        assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(2L)); // two 5ms requests
         assertThat(counters.get("datasources.discovery.files_scanned.lt_10"), equalTo(1L));     // 5 files → index 1
         assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1k"), equalTo(1L));     // 512 bytes → index 3
         assertThat(counters.get("datasources.parse.splits_scanned.lt_10"), equalTo(1L));        // 3 splits → index 1
@@ -209,6 +198,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordError("azure");
         metrics.recordThrottled("http");
         metrics.recordReadStall(100L, "file");
+        metrics.recordRequest(10L, 100L, "file");
+        metrics.recordRequest(10L, 50L, "ftp");
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 200L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
@@ -220,11 +211,13 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();
 
-        assertThat(acc.storageRequests(DataSourceUsageAccumulator.SCHEME_S3), equalTo(1L));
-        assertThat(acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_S3), equalTo(2048L));
+        assertThat(acc.storageRequests(Type.S3), equalTo(1L));
+        assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
         assertThat(acc.storageRetries(), equalTo(1L));
-        assertThat(acc.storageErrors(DataSourceUsageAccumulator.SCHEME_AZURE), equalTo(1L));
-        assertThat(acc.storageThrottled(DataSourceUsageAccumulator.SCHEME_HTTP), equalTo(1L));
+        assertThat(acc.storageErrors(Type.AZURE), equalTo(1L));
+        assertThat(acc.storageThrottled(Type.HTTP), equalTo(1L));
+        assertThat(acc.storageRequests(Type.LOCAL), equalTo(1L));
+        assertThat(acc.storageRequests(Type.UNKNOWN), equalTo(1L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS), equalTo(2L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_CANCELLED), equalTo(1L));
         assertThat(acc.queriesCancelled(), equalTo(1L));

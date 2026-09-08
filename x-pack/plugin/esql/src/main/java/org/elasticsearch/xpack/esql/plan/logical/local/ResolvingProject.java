@@ -8,17 +8,21 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -133,7 +137,23 @@ public class ResolvingProject extends Project {
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, command);
+        ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
+        List<NamedExpression> missingSynthetics = new ArrayList<>();
+        Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
+        for (NamedExpression p : projections()) {
+            // Convert-function synthetics carried through KEEP/DROP must survive re-resolution.
+            if (p.synthetic() && p instanceof UnmappedFieldsAttribute == false && names.contains(p.name()) == false) {
+                missingSynthetics.add(p);
+            }
+        }
+        return missingSynthetics.isEmpty()
+            ? recomputed
+            : new ResolvingProject(
+                source(),
+                recomputed.child(),
+                CollectionUtils.combine(recomputed.projections(), missingSynthetics),
+                command
+            );
     }
 
     @Override

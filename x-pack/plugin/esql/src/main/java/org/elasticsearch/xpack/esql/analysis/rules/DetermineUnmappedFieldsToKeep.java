@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
@@ -38,6 +39,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
@@ -76,8 +79,14 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (context.unmappedResolution().loadsAllUnmappedFields() == false) {
             return plan;
         }
+        UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);
         boolean hasUnion = plan.anyMatch(p -> p instanceof UnionPlan);
-        LogicalPlan annotated = hasUnion ? annotate(plan, computeUnmappedFieldsToKeep(plan)) : stampAll(plan);
+        // Exact KEEP/STATS above a union must not stamp or pass $$unmapped_fields through: alignment
+        // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
+        if (hasUnion && pattern.isNone()) {
+            return plan;
+        }
+        LogicalPlan annotated = hasUnion ? annotate(plan, pattern) : stampAll(plan);
         LogicalPlan withUnmappedOnProjects = annotated.transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         LogicalPlan result = hasUnion
             // Project pass before union finish keeps $$unmapped_fields on branch Projects. The pass after
@@ -190,9 +199,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof UnionPlan union) {
-            return union.replaceChildren(
-                union.children().stream().map(c -> annotate(c, computeUnmappedFieldsToKeep(c).intersect(pattern))).toList()
-            );
+            List<LogicalPlan> newChildren = new ArrayList<>(union.children().size());
+            for (LogicalPlan child : union.children()) {
+                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
+                if (annotated instanceof Project project) {
+                    annotated = passThroughUnmappedFields(project);
+                }
+                newChildren.add(annotated);
+            }
+            LogicalPlan replaced = union.replaceChildren(newChildren);
+            return replaced instanceof UnionAll unionAll ? alignUnmappedFields(unionAll) : replaced;
         }
         if (pattern.isNone()) {
             return plan;
@@ -200,7 +216,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof UnionPlan)) {
+        if (plan.anyMatch(p -> p instanceof UnionPlan) == false) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
@@ -218,6 +234,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * would otherwise drop the column before the coordinator can expand it.
      */
     private static Project passThroughUnmappedFields(Project project) {
+        if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {
+            return project;
+        }
         List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(project.child().output(), UnmappedFieldsAttribute.class);
         if (unmapped.isEmpty()) {
             return project;
@@ -235,6 +254,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * subtype. In other words, we only pad if at least one child has the attribute and at least one does not.
      */
     private static LogicalPlan finishUnionUnmappedFields(UnionPlan union) {
+        if (union instanceof UnionAll unionAll) {
+            return alignUnmappedFields(unionAll);
+        }
         List<LogicalPlan> children = union.children();
         List<LogicalPlan> newChildren = new ArrayList<>(children.size());
         boolean hasChildWithUnmappedFields = false;
@@ -252,5 +274,44 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     private static Eval padNullUnmappedFields(LogicalPlan child) {
         Alias alias = new Alias(Source.EMPTY, UnmappedFieldsAttribute.ATTRIBUTE_NAME, new Literal(Source.EMPTY, null, DataType.KEYWORD));
         return new Eval(Source.EMPTY, child, List.of(alias));
+    }
+
+    /**
+     * Null-fills {@code $$unmapped_fields} in branches that cannot surface it and rebuilds the
+     * {@link UnionAll} output, appending the {@link UnmappedFieldsAttribute} after conversion.
+     * {@link UnionPlan#refreshOutput()} unions through the pre-annotation output snapshot, which
+     * does not yet contain the attribute, so it would be dropped.
+     */
+    private static UnionAll alignUnmappedFields(UnionAll unionAll) {
+        UnmappedFieldsAttribute unmapped = unmappedFieldsAttribute(unionAll.children());
+        List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+        boolean childrenChanged = false;
+        for (LogicalPlan child : unionAll.children()) {
+            if (unmapped != null && child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
+                newChildren.add(padNullUnmappedFields(child));
+                childrenChanged = true;
+            } else {
+                newChildren.add(child);
+            }
+        }
+        UnionAll withChildren = childrenChanged ? unionAll.replaceSubPlans(newChildren) : unionAll;
+        List<Attribute> withoutUnmapped = new ArrayList<>();
+        for (Attribute attr : UnionPlan.outputUnion(withChildren.children())) {
+            if (attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false) {
+                withoutUnmapped.add(attr);
+            }
+        }
+        List<Attribute> newOutput = toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output());
+        if (unmapped != null) {
+            newOutput = CollectionUtils.combine(newOutput, unmapped);
+        }
+        if (childrenChanged == false && newOutput.equals(unionAll.output())) {
+            return unionAll;
+        }
+        return withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
+    }
+
+    private static UnmappedFieldsAttribute unmappedFieldsAttribute(List<LogicalPlan> branches) {
+        return UnmappedFieldsAttribute.unionFrom(branches);
     }
 }

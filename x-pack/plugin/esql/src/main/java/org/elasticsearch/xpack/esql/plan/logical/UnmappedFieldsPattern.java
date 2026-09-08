@@ -214,7 +214,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
     }
 
     /**
-     * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@code FORK} merges
+     * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@link UnionPlan} merges
      * branches that stamped different patterns: the coordinator expands extras that <em>any</em> sibling shipped, so
      * the output attribute must not inherit the first branch's restriction.
      * <p>

@@ -49,7 +49,7 @@ public class UnionAll extends UnionPlan implements PostOptimizationPlanVerificat
 
     @Override
     public int hashCode() {
-        return Objects.hash(UnionAll.class, children());
+        return Objects.hash(UnionAll.class, output(), children());
     }
 
     @Override
@@ -62,7 +62,7 @@ public class UnionAll extends UnionPlan implements PostOptimizationPlanVerificat
         }
         UnionAll other = (UnionAll) o;
 
-        return Objects.equals(children(), other.children());
+        return Objects.equals(output(), other.output()) && Objects.equals(children(), other.children());
     }
 
     @Override

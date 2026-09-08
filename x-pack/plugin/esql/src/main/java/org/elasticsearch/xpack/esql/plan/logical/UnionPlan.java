@@ -156,25 +156,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
 
     @Nullable
     private UnmappedFieldsAttribute unmappedFieldsAttributeFromChildren() {
-        UnmappedFieldsAttribute first = null;
-        UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
-        for (LogicalPlan child : children()) {
-            for (Attribute attr : child.output()) {
-                if (attr instanceof UnmappedFieldsAttribute childUfa) {
-                    if (first == null) {
-                        first = childUfa;
-                    }
-                    union = union.union(childUfa.pattern());
-                }
-            }
-        }
-        if (first == null) {
-            return null;
-        }
-        if (union.equals(first.pattern())) {
-            return first;
-        }
-        return new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
+        return UnmappedFieldsAttribute.unionFrom(children());
     }
 
     @Override

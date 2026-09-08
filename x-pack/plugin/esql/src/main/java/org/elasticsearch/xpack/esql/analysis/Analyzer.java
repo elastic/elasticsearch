@@ -1828,6 +1828,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
+                    // LOAD_ALL subqueries: a KEYWORD mapped on a sibling is a named union column, not a $$UM extra.
+                    // Load it from _source here instead of Eval-null. Independent EsRelations; FORK never sees this shape.
+                    if (unionPlan instanceof UnionAll
+                        && unmappedResolution.loadsAllUnmappedFields()
+                        && branchCanSurfaceLoadedField(logicalPlan)
+                        && attr instanceof FieldAttribute fa
+                        && fa instanceof UnsupportedAttribute == false
+                        && fa.dataType() == KEYWORD
+                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+                        && fa.field() instanceof MissingEsField == false) {
+                        toLoad.add(unmappedKeyword(attr));
+                        continue;
+                    }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the union branch output.
                     var attrType = alignmentDataType(attr);
@@ -4870,7 +4883,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<NamedExpression> newProjections = new ArrayList<>(p.projections());
             newProjections.addAll(syntheticAttributesToCarryOver);
-            return new Project(p.source(), p.child(), newProjections);
+            // Preserve ResolvingProject so LOAD_ALL can still read the original KEEP/DROP pattern.
+            return p.withProjections(newProjections);
         });
     }
 }

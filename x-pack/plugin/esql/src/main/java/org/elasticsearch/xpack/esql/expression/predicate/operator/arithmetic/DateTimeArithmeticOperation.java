@@ -224,7 +224,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), children(), configuration());
+        return Objects.hash(super.hashCode(), configuration());
     }
 
     @Override

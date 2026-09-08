@@ -26,8 +26,18 @@ public final class ExampleAllocationEstimators {
 
     /** Bytes {@link ExampleWhitelistedClass#repeat(int)} allocates: a String of {@code count} chars, 2 bytes each. */
     public static long repeatBytes(ExampleWhitelistedClass receiver, int count) {
-        long chars = Math.max(0L, (long) count);
+        return stringBytes(count);
+    }
 
-        return 32 + 2 * chars;
+    /**
+     * Bytes {@link ExampleWhitelistedClass#staticRepeat(int)} allocates. The annotated method is static, so the estimator
+     * takes only its arguments; an instance method's estimator takes the receiver first.
+     */
+    public static long staticRepeatBytes(int count) {
+        return stringBytes(count);
+    }
+
+    private static long stringBytes(int chars) {
+        return 32 + 2 * Math.max(0L, (long) chars);
     }
 }

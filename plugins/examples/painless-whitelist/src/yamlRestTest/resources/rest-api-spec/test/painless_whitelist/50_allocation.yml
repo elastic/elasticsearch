@@ -30,6 +30,61 @@
 - match: { hits.hits.0.fields.repeated.0: "xxx" }
 
 ---
+"allocation estimated for a static method":
+# A static method's estimator takes only the arguments, with no receiver.
+- do:
+    index:
+      index: test
+      id: "1"
+      body: { "num1": 4 }
+- do:
+    indices.refresh: {}
+
+- do:
+    search:
+      rest_total_hits_as_int: true
+      index: test
+      body:
+        query:
+          match_all: {}
+        script_fields:
+          repeated:
+            script:
+              source: "ExampleWhitelistedClass.staticRepeat((int)doc['num1'][0])"
+              lang: painless
+
+- match: { hits.total: 1 }
+- match: { hits.hits.0.fields.repeated.0: "yyyy" }
+
+---
+"allocation estimated through a def reference":
+# A def call resolves its target at runtime and charges through a MethodHandle rather than an emitted call, so it reaches
+# the estimator by a different route than the two cases above. Both routes are covered so neither can regress alone.
+- do:
+    index:
+      index: test
+      id: "1"
+      body: { "num1": 3 }
+- do:
+    indices.refresh: {}
+
+- do:
+    search:
+      rest_total_hits_as_int: true
+      index: test
+      body:
+        query:
+          match_all: {}
+        script_fields:
+          repeated:
+            script:
+              source: "def c = new ExampleWhitelistedClass(1, 2); return c.repeat((int)doc['num1'][0])"
+              lang: painless
+
+- match: { hits.total: 1 }
+- match: { hits.hits.0.fields.repeated.0: "xxx" }
+
+---
 "estimator class is not visible to scripts":
 # Each yaml test starts from a clean cluster, so this one indexes its own document rather than reusing the one above.
 - do:

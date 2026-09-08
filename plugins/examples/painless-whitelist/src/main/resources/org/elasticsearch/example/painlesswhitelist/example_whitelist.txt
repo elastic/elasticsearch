@@ -30,6 +30,7 @@ class org.elasticsearch.example.painlesswhitelist.ExampleWhitelistedClass {
   # allocation estimate, so the Painless allocation limit and metrics can account for what this allocates.
   # The estimator class is not itself allowlisted: it only needs to be reachable from the generated script.
   String repeat(int) @allocates[class="org.elasticsearch.example.painlesswhitelist.ExampleAllocationEstimators", method="repeatBytes"]
+  String staticRepeat(int) @allocates[class="org.elasticsearch.example.painlesswhitelist.ExampleAllocationEstimators", method="staticRepeatBytes"]
 }
 
 class java.lang.String {

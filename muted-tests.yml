@@ -228,9 +228,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=aggregations/terms/Double test}
   issue: https://github.com/elastic/elasticsearch/issues/151793
-- class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
-  method: testMappingsUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/152115
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
@@ -770,3 +767,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.StatelessPreFlushRelocationIT
   method: testPreFlushRelocationCombined
   issue: https://github.com/elastic/elasticsearch/issues/158726
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testBasicCCRAndILMIntegration {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/158759
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testCcrAndIlmWithRollover {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/158760
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testCCRUnfollowDuringSnapshot {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/158761
+- class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
+  method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
+  issue: https://github.com/elastic/elasticsearch/issues/158762

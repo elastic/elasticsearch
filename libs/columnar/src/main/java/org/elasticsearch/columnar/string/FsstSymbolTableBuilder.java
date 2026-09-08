@@ -38,6 +38,15 @@ final class FsstSymbolTableBuilder {
     private static final int BIGRAM_TABLE_SIZE = 1 << 16; // 256 * 256 possible byte pairs
     private static final int BYTE_RANGE = 256;
 
+    /**
+     * Maximum number of bigram candidates passed to symbol extension. The uniformity gate uses
+     * {@link FsstSymbolTable#MAX_SYMBOLS} to detect a saturated bigram space; this separate cap
+     * bounds the cost of {@link #extend}, whose scan is O(numCandidates × block size). The top 32
+     * bigrams by frequency capture nearly all compression opportunity in structured text while
+     * keeping training cost proportional to a small constant rather than the full alphabet.
+     */
+    static final int MAX_TRAINING_CANDIDATES = 32;
+
     private int maxSymbolLength = FsstSymbolTable.MAX_SYMBOL_LENGTH;
 
     private byte[] blockData;
@@ -166,7 +175,7 @@ final class FsstSymbolTableBuilder {
         }
 
         // Zero candidates means escape-only encoding (2 bytes per input byte), always worse than PACKED.
-        final int numCandidates = Math.min(nonTrivial, FsstSymbolTable.MAX_SYMBOLS);
+        final int numCandidates = Math.min(nonTrivial, MAX_TRAINING_CANDIDATES);
         if (numCandidates == 0) {
             clearBigramFreq(touched);
             return null;

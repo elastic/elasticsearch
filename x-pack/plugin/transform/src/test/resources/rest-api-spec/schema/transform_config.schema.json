@@ -247,6 +247,12 @@
           "type": "boolean",
           "description": "run this transform in unattended mode",
           "default": false
+        },
+        "align_change_detection": {
+          "$id": "#root/settings/align_change_detection",
+          "title": "align change detection",
+          "type": "boolean",
+          "default": true
         }
       }
     },

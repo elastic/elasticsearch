@@ -44,9 +44,10 @@ import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
@@ -95,7 +96,7 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             default -> throw new AssertionError(this);
         };
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -193,13 +194,22 @@ public enum StringFormat {
     private Document document(BytesRef value) {
         final Document doc = new Document();
         if (isColumnar()) {
-            doc.add(new Field(FIELD, value, columnarFieldType()));
+            doc.add(new Field(FIELD, payload(value), columnarFieldType()));
         } else if (this == ES819_BINARY) {
             doc.add(new BinaryDocValuesField(FIELD, value));
         } else {
             doc.add(new SortedDocValuesField(FIELD, value));
         }
         return doc;
+    }
+
+    /**
+     * One value as the {@link StringBinaryPayload} the columnar string surface carries. It holds a document's
+     * slots rather than bare bytes, so even a single value is written that way — and read back that way, which
+     * is why {@code readPerDocument} below decodes rather than measuring the payload.
+     */
+    static BytesRef payload(BytesRef value) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(value)));
     }
 
     private static FieldType columnarFieldType() {
@@ -238,7 +248,7 @@ public enum StringFormat {
                 dictionaryPolicy()
             );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -256,7 +266,7 @@ public enum StringFormat {
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             dictionaryPolicy()
         );
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -271,7 +281,7 @@ public enum StringFormat {
         try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             for (BytesRef value : values) {
                 final Document doc = new Document();
-                doc.add(new Field(FIELD, value, type));
+                doc.add(new Field(FIELD, payload(value), type));
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
@@ -430,8 +440,16 @@ public enum StringFormat {
         public long readPerDocument() throws IOException {
             long checksum = 0;
             final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            // The surface hands back a document's slots as one payload, so the value is decoded out of it.
+            // Measuring the payload instead would count the framing the stock formats do not carry, and this
+            // is here to be compared against them.
+            final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                checksum += values.binaryValue().length;
+                final int slots = decoder.reset(values.binaryValue());
+                for (int slot = 0; slot < slots; slot++) {
+                    final BytesRef value = decoder.next();
+                    checksum += value == null ? 0 : value.length;
+                }
             }
             return checksum;
         }

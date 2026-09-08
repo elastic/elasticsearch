@@ -615,6 +615,31 @@ public class HighlightOperatorTests extends OperatorTestCase {
         assertKeepSetDiscriminates(TermRangeQuery.newStringRange(CONTENT_FIELD, "fo", "fp", true, false), "fox", "zebra");
     }
 
+    // A match-none SHOULD clause (from a derived query naming a field HIGHLIGHT does not target) must not
+    // switch off the keep-set optimisation.
+    public void testMatchNoneClauseDoesNotDisableKeepSet() {
+        Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.SHOULD)
+            .add(new MatchNoDocsQuery("unmapped fields [year]"), BooleanClause.Occur.SHOULD)
+            .build();
+
+        HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);
+        assertThat("a match-none SHOULD clause must not disable the keep set", keepSet, notNullValue());
+        assertThat(keeps(keepSet, "fox"), equalTo(true));
+        assertThat(keeps(keepSet, "bar"), equalTo(false));
+
+        BytesRefBlock result = highlight(
+            config("fox", 5, 0, 0),
+            query,
+            bytesRefs(List.of(List.of("the quick fox"), List.of("a plain sentence")))
+        );
+        try {
+            assertThat(value(result, 0), equalTo("the quick <em>fox</em>"));
+            assertThat(result.isNull(1), equalTo(true));
+        } finally {
+            result.close();
+        }
+    }
+
     private static void assertKeepSetDiscriminates(Query query, String keptToken, String droppedToken) {
         HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);
         assertThat("query [" + query + "] must keep filtering on", keepSet, notNullValue());

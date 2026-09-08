@@ -71,6 +71,24 @@ public class HighlightSupportTests extends ESTestCase {
         assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Not(EMPTY, match)));
         assertFalse(HighlightSupport.isSupportedImplicitPredicate(of("fox")));
         assertFalse(HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, new Not(EMPTY, phrase))));
+
+        // A NOT anywhere in the conjunct, or an OR mixing a full-text leaf with a non-full-text one, is not borrowed.
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, match, new Not(EMPTY, phrase))));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(new Or(EMPTY, match, of("fox"))));
+
+        // analyzer/quote_analyzer options are not borrowed; collectImplicitQuery reports that as an error.
+        // TODO: support WHERE-side analyzer/quote_analyzer on an implicit HIGHLIGHT query.
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(match("title", "fox", options("analyzer", "english"))));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(matchPhrase("body", "quick fox", options("analyzer", "english"))));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(queryString("fox", options("analyzer", "english"))));
+        assertFalse(HighlightSupport.isSupportedImplicitPredicate(queryString("fox", options("quote_analyzer", "english"))));
+        assertFalse(
+            HighlightSupport.isSupportedImplicitPredicate(new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG))
+        );
+        assertTrue(HighlightSupport.isSupportedImplicitPredicate(match("title", "fox", options("fuzziness", "AUTO"))));
+        assertFalse(
+            HighlightSupport.isSupportedImplicitPredicate(new And(EMPTY, match, match("body", "fox", options("analyzer", "english"))))
+        );
     }
 
     public void testAllHighlightableFieldsFiltersAndDeduplicates() {

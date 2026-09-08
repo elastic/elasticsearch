@@ -1135,7 +1135,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return new IntermediateResult(input, header, expr, stepAttr(), matcher);
         }
 
-        /** Projects the plan to the command's declared output, re-aliasing columns that match by name but not by id. */
+        /**
+         * Projects the plan to the command's declared output, re-aliasing columns that match by
+         * name but not by id. Declared label columns the translated plan does not carry (e.g.
+         * {@code labels.__name__} after a name-dropping binary op) are silently omitted; only
+         * label columns may be absent -- the value and step attributes are guaranteed by translation
+         * invariants.
+         */
         private LogicalPlan emitFinalProjection(LogicalPlan plan) {
             var lookupMap = new HashMap<String, Attribute>();
             for (var attr : plan.output()) {
@@ -1146,15 +1152,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             for (var attr : plan.output()) {
                 lookupMap.putIfAbsent(mapFinite(attr), attr);
             }
-            var projected = new ArrayList<>(cmd.output());
+            var projected = new ArrayList<Attribute>();
             var evals = new ArrayList<Alias>();
-            for (int i = 0; i < projected.size(); i++) {
-                var attr = projected.get(i);
+            for (var attr : cmd.output()) {
                 var lookupAttr = lookupMap.get(attr.name());
-                if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
+                if (lookupAttr == null) {
+                    // The translated plan does not produce this declared attribute; skip it.
+                    // Only label columns are expected to be absent (e.g. `labels.__name__` after a
+                    // name-dropping binary op). The value and step attributes are guaranteed.
+                    assert attr.id().equals(cmd.valueId()) == false && attr.id().equals(cmd.stepId()) == false
+                        : "value/step column [" + attr.name() + "] must be produced by the translated plan";
+                    continue;
+                }
+                if (lookupAttr.semanticEquals(attr) == false) {
                     var alias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
                     evals.add(alias);
-                    projected.set(i, alias.toAttribute());
+                    projected.add(alias.toAttribute());
+                } else {
+                    projected.add(attr);
                 }
             }
             if (evals.isEmpty() == false) {

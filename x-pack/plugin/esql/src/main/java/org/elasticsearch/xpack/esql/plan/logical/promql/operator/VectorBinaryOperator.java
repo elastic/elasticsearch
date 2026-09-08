@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -137,9 +135,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             outputLabels = new HashSet<>(leftLabels);
             outputLabels.removeAll(match.filterLabels());
         } else if (leftLabels.equals(rightLabels)) {
-            // Same label set on both sides: the result carries the left operand's columns, minus the metric name when
-            // the operator drops it, like every other one-to-one match.
-            return dropMetricName ? leftAttrs.stream().filter(attribute -> isMetricName(attribute) == false).toList() : leftAttrs;
+            // Same label set on both sides: the result carries the left operand's columns, like every other
+            // one-to-one match. Any name-dropping (e.g. removing __name__) is handled by the translator when
+            // it decides the surviving label shape; emitFinalProjection will skip columns absent from the plan.
+            return leftAttrs;
         } else {
             // Default matching between different label sets: a pair matches only where the labels one side lacks are
             // absent on the other side too (a Prometheus signature has no entry for an absent label), and like every
@@ -147,18 +146,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             outputLabels = new HashSet<>(leftLabels);
         }
 
-        if (dropMetricName) {
-            outputLabels.remove(LabelMatcher.NAME);
-        }
-
         List<Attribute> result = new ArrayList<>();
         for (String label : outputLabels) {
             Attribute attr = findAttribute(label, leftAttrs, rightAttrs);
             if (attr != null) {
-                if (dropMetricName && isMetricName(attr)) {
-                    // A passthrough carrier is named `labels.__name__`, which the name-based removal above misses.
-                    continue;
-                }
                 result.add(attr);
             } else if (guaranteed.contains(label)) {
                 result.add(new ReferenceAttribute(source(), label, DataType.KEYWORD));
@@ -166,11 +157,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
 
         return result;
-    }
-
-    /** Whether the attribute carries the {@code __name__} label, under a bare or a passthrough ({@code labels.}) name. */
-    private static boolean isMetricName(Attribute attribute) {
-        return LabelMatcher.NAME.equals(PromqlLabels.labelName(attribute));
     }
 
     /**

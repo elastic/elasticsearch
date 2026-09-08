@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractAccountableFieldsTestCase;
 import org.elasticsearch.test.ClasspathUtils;
@@ -83,6 +84,7 @@ public class ConditionRamBytesUsedTests extends AbstractAccountableFieldsTestCas
     /**
      * {@link Condition#ramBytesUsed()} uses {@code Condition}'s shallow size. A subclass that adds instance fields would be under-counted.
      */
+    @SuppressForbidden(reason = "need access to all fields, including private instance fields")
     public void testConditionSubclassesDeclareNoFields() throws Exception {
         Set<Class<?>> leaves = discoverConcreteConditionSubclasses();
 

@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension.TestInferenceService;
@@ -247,8 +248,9 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
     }
 
     public void testDenseVectorBatchSizeSetting() throws Exception {
-        // A small batch size forces the query's rows across several inference requests, ending in a partial batch. This checks
-        // that batching preserves results: every row still gets its vector, and none is dropped or duplicated at a batch boundary.
+        // A small batch size forces the query's rows across several inference requests, ending in a partial batch. The query
+        // profile proves the setting reaches the embedding operator (its description carries the batch size); the row assertions
+        // prove batching preserves results — every row still gets its vector, none dropped or duplicated at a batch boundary.
         int customBatchSize = between(2, 5);
         updateClusterSettings(Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), customBatchSize));
 
@@ -263,12 +265,22 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
             | LIMIT %d
             """, largeIndex, DENSE_VECTOR_MODEL_ID, rows);
 
-        try (var resp = run(query)) {
+        try (var resp = run(EsqlQueryRequest.syncEsqlQueryRequest(query).profile(true))) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(rows));
             for (List<Object> row : values) {
                 assertThat(row.get(1), notNullValue());
             }
+
+            // The configured batch size reaches the embedding operator: it shows up in that operator's profile description.
+            assertThat(resp.profile(), notNullValue());
+            List<String> operatorDescriptions = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(driver -> driver.operators().stream())
+                .map(op -> op.operator())
+                .toList();
+            assertThat(operatorDescriptions, hasItem(containsString("batch_size=[" + customBatchSize + "]")));
         }
     }
 

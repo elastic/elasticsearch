@@ -23,6 +23,20 @@ static inline __m512 bf16_to_f32(__m256i bf16) {
     return _mm512_castsi512_ps(shifted);
 }
 
+/*
+ * bf16 is the upper half of the f32 bit pattern, so a 512-bit load of 32 bf16 values can be
+ * widened without shuffles: the even elements (low half of each 32-bit lane) by a shift, the
+ * odd elements (already in the high half) by masking off the low half. The two results are
+ * in a different element order than memory, which is irrelevant for reductions.
+ */
+static inline __m512 bf16_even_to_f32(__m512i v) {
+    return _mm512_castsi512_ps(_mm512_slli_epi32(v, 16));
+}
+
+static inline __m512 bf16_odd_to_f32(__m512i v) {
+    return _mm512_castsi512_ps(_mm512_and_si512(v, _mm512_set1_epi32((int)0xFFFF0000)));
+}
+
 static inline __m512 load_bf16(const bf16_t* ptr, const int elements) {
     return bf16_to_f32(_mm256_lddqu_si256((const __m256i*)(ptr + elements)));
 }
@@ -153,70 +167,68 @@ EXPORT f32_t vec_sqrDbf16Qf32_3(const bf16_t* a, const f32_t* b, const int32_t e
 }
 
 /*
- * Squared distance of 2 bf16 vectors using dpbf16, via the identity:
- * |a - b|^2 = a*a - 2*a*b + b*b
- * Each term is a dot product computed natively with dpbf16, avoiding
- * the costly bf16 -> f32 conversion that makes the generic path ALU-bound.
+ * Squared distance of 2 bf16 vectors, computed as sum((a - b)^2) on f32-widened lanes.
  *
- * `unroll_dim` consecutive blocks per pass with independent accumulators; same idea
- * as the bulk variants below.
+ * Differencing before squaring keeps the result exact to f32 rounding of the distance itself, so
+ * duplicates score exactly 0 and near-duplicates keep their precision even when the norms are
+ * large; Lucene's 1 / (1 + d) score mapping requires d >= 0. Widening with shift/mask (see
+ * bf16_even_to_f32) costs two integer ops per 32 elements per operand.
+ *
+ * `unroll_dim` consecutive blocks per pass with two independent accumulators each (even and odd
+ * lanes), same idea as the bulk variants below.
  */
 static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b, int32_t elementCount) {
     constexpr int unroll_dim = 4;
 
-    __m512 sum_self[unroll_dim];
-    __m512 sum_cross[unroll_dim];
+    __m512 sum_even[unroll_dim];
+    __m512 sum_odd[unroll_dim];
     apply_indexed<unroll_dim>([&](auto I) {
-        sum_self[I] = _mm512_setzero_ps();
-        sum_cross[I] = _mm512_setzero_ps();
+        sum_even[I] = _mm512_setzero_ps();
+        sum_odd[I] = _mm512_setzero_ps();
     });
 
     int i = 0;
-    constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    constexpr int elements = sizeof(__m512i) / sizeof(bf16_t);
     constexpr int stride = elements * unroll_dim;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
         apply_indexed<unroll_dim>([&](auto I) {
-            __m512bh av = (__m512bh)_mm512_loadu_epi16(a + i + I * elements);
-            __m512bh bv = (__m512bh)_mm512_loadu_epi16(b + i + I * elements);
-            sum_self[I] = _mm512_dpbf16_ps(sum_self[I], av, av);
-            sum_self[I] = _mm512_dpbf16_ps(sum_self[I], bv, bv);
-            sum_cross[I] = _mm512_dpbf16_ps(sum_cross[I], av, bv);
+            __m512i av = _mm512_loadu_si512(a + i + I * elements);
+            __m512i bv = _mm512_loadu_si512(b + i + I * elements);
+            __m512 d_even = _mm512_sub_ps(bf16_even_to_f32(av), bf16_even_to_f32(bv));
+            __m512 d_odd = _mm512_sub_ps(bf16_odd_to_f32(av), bf16_odd_to_f32(bv));
+            sum_even[I] = _mm512_fmadd_ps(d_even, d_even, sum_even[I]);
+            sum_odd[I] = _mm512_fmadd_ps(d_odd, d_odd, sum_odd[I]);
         });
     }
 
-    __m512 total_self = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_self);
-    __m512 total_cross = tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_cross);
+    __m512 total = _mm512_add_ps(
+        tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_even),
+        tree_reduce<unroll_dim, __m512, _mm512_add_ps>(sum_odd));
 
     // Non-batched tail
     for (; i + elements <= elementCount; i += elements) {
-        __m512bh av = (__m512bh)_mm512_loadu_epi16(a + i);
-        __m512bh bv = (__m512bh)_mm512_loadu_epi16(b + i);
-        total_self = _mm512_dpbf16_ps(total_self, av, av);
-        total_self = _mm512_dpbf16_ps(total_self, bv, bv);
-        total_cross = _mm512_dpbf16_ps(total_cross, av, bv);
+        __m512i av = _mm512_loadu_si512(a + i);
+        __m512i bv = _mm512_loadu_si512(b + i);
+        __m512 d_even = _mm512_sub_ps(bf16_even_to_f32(av), bf16_even_to_f32(bv));
+        __m512 d_odd = _mm512_sub_ps(bf16_odd_to_f32(av), bf16_odd_to_f32(bv));
+        total = _mm512_fmadd_ps(d_even, d_even, total);
+        total = _mm512_fmadd_ps(d_odd, d_odd, total);
     }
 
-    // Masked tail
-    const int maskRem = elementCount - i;
-    if (maskRem > 0) {
-        __mmask32 readMask = (__mmask32)((1UL << maskRem) - 1);
-        __mmask16 dpMask = (__mmask16)((1U << (maskRem / 2)) - 1);
-        __m512bh a_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, a + i);
-        __m512bh b_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
-        total_self = _mm512_mask_dpbf16_ps(total_self, dpMask, a_rem, a_rem);
-        total_self = _mm512_mask_dpbf16_ps(total_self, dpMask, b_rem, b_rem);
-        total_cross = _mm512_mask_dpbf16_ps(total_cross, dpMask, a_rem, b_rem);
+    // Masked tail: zero-masked lanes give a zero difference, including the unused half of a
+    // 32-bit lane when the remaining element count is odd, so this also covers odd counts.
+    const int rem = elementCount - i;
+    if (rem > 0) {
+        __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
+        __m512i av = _mm512_maskz_loadu_epi16(readMask, a + i);
+        __m512i bv = _mm512_maskz_loadu_epi16(readMask, b + i);
+        __m512 d_even = _mm512_sub_ps(bf16_even_to_f32(av), bf16_even_to_f32(bv));
+        __m512 d_odd = _mm512_sub_ps(bf16_odd_to_f32(av), bf16_odd_to_f32(bv));
+        total = _mm512_fmadd_ps(d_even, d_even, total);
+        total = _mm512_fmadd_ps(d_odd, d_odd, total);
     }
 
-    // |a - b|^2 = a*a - 2*a*b + b*b
-    f32_t result = _mm512_reduce_add_ps(total_self) - 2.0f * _mm512_reduce_add_ps(total_cross);
-
-    // Scalar tail for odd remaining element
-    if ((maskRem & 1) != 0) {
-        result += sqr_scalar(a[elementCount - 1], b[elementCount - 1]);
-    }
-
-    return result;
+    return _mm512_reduce_add_ps(total);
 }
 
 EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {

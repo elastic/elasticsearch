@@ -473,16 +473,22 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         char[] buf = new char[BUFFER_SIZE];
         int len;
         StringBuilder sb = new StringBuilder();
-        do {
+        // A Reader reports end-of-stream only by returning -1; a short read does not mean the stream is exhausted.
+        // The reader must therefore be drained until -1 so every character reaches the wrapping LimitingReader and is
+        // counted against the character limit.
+        while (true) {
             try {
                 len = input.read(buf, 0, BUFFER_SIZE);
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to analyze (charFiltering)", e);
             }
+            if (len < 0) {
+                break;
+            }
             if (len > 0) {
                 sb.append(buf, 0, len);
             }
-        } while (len == BUFFER_SIZE);
+        }
         return sb.toString();
     }
 

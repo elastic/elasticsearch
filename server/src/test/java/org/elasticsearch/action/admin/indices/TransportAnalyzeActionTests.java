@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -126,9 +127,26 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 }
             }
 
+            class TrickleCharFilterFactory extends AbstractCharFilterFactory {
+
+                TrickleCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+                    super(name);
+                }
+
+                @Override
+                public Reader create(Reader reader) {
+                    return new TrickleCharFilter(reader);
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
+                }
+            }
+
             @Override
             public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-                return singletonMap("append", AppendCharFilterFactory::new);
+                return Map.of("append", AppendCharFilterFactory::new, "trickle", TrickleCharFilterFactory::new);
             }
 
             @Override
@@ -635,6 +653,29 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * The explain path writes out each character filter's output by draining the filter's reader. A reader may
+     * return fewer characters than requested without having reached the end of the stream, so the drain must
+     * continue until the reader returns {@code -1}. This uses a character filter that yields a single character
+     * per read and asserts the full text is captured rather than truncated at the first short read.
+     */
+    public void testExplainDrainsCharFilterReaderFully() throws IOException {
+        String text = "the quick brown fox";
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("keyword");
+        request.addCharFilter(Map.of("type", "trickle"));
+        request.text(text);
+        request.explain(true);
+
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+
+        AnalyzeAction.CharFilteredText[] charFilters = analyze.detail().charfilters();
+        assertEquals(1, charFilters.length);
+        String[] texts = charFilters[0].getTexts();
+        assertEquals(1, texts.length);
+        assertEquals(text, texts[0]);
+    }
+
     public void testDeprecationWarnings() throws IOException {
         AnalyzeAction.Request req = new AnalyzeAction.Request();
         req.tokenizer("standard");
@@ -651,5 +692,31 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(1, analyze.getTokens().size());
+    }
+
+    /**
+     * A character filter that returns at most one character per {@link #read} call while input remains. A consumer
+     * that treats a short read as the end of the stream, rather than reading until {@code -1}, therefore sees only
+     * the first character. Used to verify that the {@code _analyze} explain path drains a character filter's reader
+     * fully.
+     */
+    private static final class TrickleCharFilter extends CharFilter {
+
+        TrickleCharFilter(Reader input) {
+            super(input);
+        }
+
+        @Override
+        public int read(char[] cbuf, int off, int len) throws IOException {
+            if (len == 0) {
+                return 0;
+            }
+            return input.read(cbuf, off, 1);
+        }
+
+        @Override
+        protected int correct(int currentOff) {
+            return currentOff;
+        }
     }
 }

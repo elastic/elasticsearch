@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -84,6 +85,14 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 /// See [StatelessPrimaryRelocationTargetService] for target side logic.
 public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleComponent {
 
+    public static final Setting<TimeValue> PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.pre_flush_slow_upload_queue_threshold",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
 
     private final ClusterService clusterService;
@@ -102,6 +111,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
+    private volatile TimeValue preFlushSlowUploadQueueThreshold;
 
     public StatelessPrimaryRelocationSourceService(
         Settings settings,
@@ -132,6 +142,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -280,8 +292,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             return;
         }
 
-        // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
-        // operations are blocked. NB the flush has force=false so may do nothing.
+        // Wait for the current commit to be durably uploaded before acquiring permits so the upload queue drains first.
+        // If this takes longer than preFlushSlowUploadQueueThreshold set waitIfOnGoing=true so the accumulated BCC uploads
+        // in the queue are uploaded before we acquire the permits. NB the flush has force=false so may do nothing.
         final var preFlushStep = new SubscribableListener<Engine.FlushResult>();
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
@@ -295,12 +308,21 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         );
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
-        if (hollowShardsService.isHollowShard(indexShard.shardId())) {
-            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
+        if (preFlushEngine instanceof IndexEngine indexEngine) {
+            SubscribableListener.<Void>newForked(indexEngine::waitForCurrentCommitDurability).<Engine.FlushResult>andThen(
+                recoveryExecutor,
+                threadContext,
+                (l, unused) -> {
+                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                    long elapsed = threadPool.relativeTimeInMillis() - beforeInitialFlush;
+                    boolean waitIfOngoing = elapsed >= preFlushSlowUploadQueueThreshold.millis();
+                    indexEngine.flush(false, waitIfOngoing, l);
+                }
+            ).addListener(preFlushStep);
         } else {
-            ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, false, l));
+            // HollowIndexEngine (hollow shards) and NoOpEngine (closed indices) have nothing to flush or wait for.
+            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         }
-        logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {

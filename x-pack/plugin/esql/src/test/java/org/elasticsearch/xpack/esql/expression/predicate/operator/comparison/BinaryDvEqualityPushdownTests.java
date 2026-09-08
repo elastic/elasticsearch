@@ -20,14 +20,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Collections;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Binary-DV string {@code ==}/{@code !=} must stay in the compute engine when the field will also be
- * loaded (avoid Lucene + extract dual pass), or when the value is an empty string (which binary DV
- * cannot distinguish from a missing/null value). Sorted-set keywords still push in all cases.
+ * Binary-DV string {@code ==}/{@code !=} must stay in the compute engine when the value is an empty
+ * string (binary DV cannot distinguish the empty string from a missing/null value).
+ * Sorted-set keywords still push in all cases.
  */
 public class BinaryDvEqualityPushdownTests extends ESTestCase {
 
@@ -47,37 +46,24 @@ public class BinaryDvEqualityPushdownTests extends ESTestCase {
         assertThat(equalsEmpty("url").translatable(sortedSetPredicates()), equalTo(TranslationAware.Translatable.YES));
     }
 
-    public void testEqualsNonEmptyStillPushedOnSortedSetKeywordWhenLoaded() {
-        // Sorted-set fields push regardless of whether the field is also loaded by another operator.
+    public void testEqualsNonEmptyStillPushedOnSortedSetKeyword() {
         Equals eq = equalsLiteral("url", "http://example.com");
-        assertThat(eq.translatable(sortedSetPredicatesLoading("url")), equalTo(TranslationAware.Translatable.YES));
+        assertThat(eq.translatable(sortedSetPredicates()), equalTo(TranslationAware.Translatable.YES));
     }
 
-    public void testNotEqualsNonEmptyStillPushedOnSortedSetKeywordWhenLoaded() {
+    public void testNotEqualsNonEmptyStillPushedOnSortedSetKeyword() {
         NotEquals neq = notEqualsLiteral("url", "http://example.com");
-        assertThat(neq.translatable(sortedSetPredicatesLoading("url")), equalTo(TranslationAware.Translatable.YES));
+        assertThat(neq.translatable(sortedSetPredicates()), equalTo(TranslationAware.Translatable.YES));
     }
 
-    public void testEqualsNonEmptyStillPushedOnBinaryDocValuesWhenNotLoaded() {
-        // Selective filter-only query: field not loaded beyond the filter → Lucene pushdown OK.
+    public void testEqualsNonEmptyStillPushedOnBinaryDocValues() {
         Equals eq = equalsLiteral("url", "http://example.com");
         assertThat(eq.translatable(binaryDvPredicates()), equalTo(TranslationAware.Translatable.YES));
     }
 
-    public void testNotEqualsNonEmptyStillPushedOnBinaryDocValuesWhenNotLoaded() {
-        // Selective filter-only query: field not loaded beyond the filter → Lucene pushdown OK.
+    public void testNotEqualsNonEmptyStillPushedOnBinaryDocValues() {
         NotEquals neq = notEqualsLiteral("url", "http://example.com");
         assertThat(neq.translatable(binaryDvPredicates()), equalTo(TranslationAware.Translatable.YES));
-    }
-
-    public void testNotEqualsNonEmptyNotPushedWhenFieldWillBeLoaded() {
-        NotEquals neq = notEqualsLiteral("url", "http://example.com");
-        assertThat(neq.translatable(binaryDvPredicatesLoading("url")), equalTo(TranslationAware.Translatable.NO));
-    }
-
-    public void testEqualsNonEmptyNotPushedWhenFieldWillBeLoaded() {
-        Equals eq = equalsLiteral("url", "http://example.com");
-        assertThat(eq.translatable(binaryDvPredicatesLoading("url")), equalTo(TranslationAware.Translatable.NO));
     }
 
     private static NotEquals notEqualsEmpty(String name) {
@@ -113,20 +99,7 @@ public class BinaryDvEqualityPushdownTests extends ESTestCase {
         }, new EsqlFlags(true));
     }
 
-    private static LucenePushdownPredicates binaryDvPredicatesLoading(String... fields) {
-        return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats() {
-            @Override
-            public boolean usesBinaryDocValues(FieldAttribute.FieldName field) {
-                return true;
-            }
-        }, new EsqlFlags(true), Set.of(fields));
-    }
-
     private static LucenePushdownPredicates sortedSetPredicates() {
         return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(), new EsqlFlags(true));
-    }
-
-    private static LucenePushdownPredicates sortedSetPredicatesLoading(String... fields) {
-        return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(), new EsqlFlags(true), Set.of(fields));
     }
 }

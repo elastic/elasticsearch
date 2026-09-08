@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -41,10 +41,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,54 +52,11 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
-/**
- * Pushes filter predicates into Lucene (or external sources) where profitable.
- * <p>
- * Plan-scoped (not a per-{@link FilterExec} transform) so we can see which fields
- * non-filter operators will load — binary-DV {@code ==}/{@code !=} on those fields
- * stay in the compute engine to avoid a dual pass over the string column.
- */
-public class PushFiltersToSource extends ParameterizedRule<PhysicalPlan, PhysicalPlan, LocalPhysicalOptimizerContext> {
+public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
 
     @Override
-    public PhysicalPlan apply(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        Set<String> fieldsLoadedBeyondFilters = collectFieldsLoadedBeyondFilters(plan);
-        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(
-            context.searchStats(),
-            context.flags(),
-            fieldsLoadedBeyondFilters
-        );
-        return plan.transformUp(FilterExec.class, filterExec -> rule(filterExec, pushdownPredicates, context));
-    }
-
-    /**
-     * Fields that some operator other than a {@link FilterExec}/{@link EsQueryExec} source will need
-     * loaded (aggregations, projections, evals, sorts, …). Filter-only references are excluded so a
-     * selective {@code WHERE url == "x" | STATS COUNT(*)} can still push into Lucene.
-     */
-    static Set<String> collectFieldsLoadedBeyondFilters(PhysicalPlan plan) {
-        Set<String> fields = new HashSet<>();
-        plan.forEachDown(p -> {
-            if (p instanceof FilterExec
-                || p instanceof EsQueryExec
-                || p instanceof ExternalSourceExec
-                || p instanceof ParameterizedQueryExec) {
-                return;
-            }
-            for (Attribute a : p.references()) {
-                if (a instanceof FieldAttribute fa) {
-                    fields.add(fa.name());
-                }
-            }
-        });
-        return fields;
-    }
-
-    private static PhysicalPlan rule(
-        FilterExec filterExec,
-        LucenePushdownPredicates pushdownPredicates,
-        LocalPhysicalOptimizerContext ctx
-    ) {
+    protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
+        LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec queryExec) {
             plan = planFilterExec(filterExec, queryExec, pushdownPredicates);

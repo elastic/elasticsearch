@@ -377,14 +377,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 // Binary-DV string equality/inequality rewrites to Lucene scans over the binary column
-                // (length query for "", term/contains two-phase otherwise). When the same field is also
-                // loaded for aggregation/projection/sort, that is a dual pass — keep the predicate in the
-                // compute engine and filter after extract. Empty-string checks are almost never selective
-                // enough to justify a Lucene pass even without a later extract, so those always stay out.
+                // Binary DV cannot distinguish the empty string from null (both encoded as a
+                // zero-length BytesRef), so pushing `field == ""` or `field != ""` to Lucene
+                // would match null-valued documents and produce wrong results.
                 if ((this instanceof Equals || this instanceof NotEquals)
                     && left() instanceof FieldAttribute fa
                     && pushdownPredicates.usesBinaryDocValues(fa)
-                    && (isEmptyStringLiteral(right()) || pushdownPredicates.willLoadField(fa))) {
+                    && isEmptyStringLiteral(right())) {
                     return Translatable.NO;
                 }
                 return Translatable.YES;

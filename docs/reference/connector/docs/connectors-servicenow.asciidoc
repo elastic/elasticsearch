@@ -96,6 +96,14 @@ Enable document level security::
 Restrict access to documents based on a user's permissions.
 Refer to <<es-connectors-servicenow-dls>> for more details.
 
+Expand role members::
+Available when document level security is enabled.
+When enabled, ServiceNow role members are written individually onto each document's access control list.
+Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs.
+Default value is `true`.
+Changing this setting requires a full content sync and access control sync.
+Introduced in 8.19.22.
+
 [discrete#es-connectors-servicenow-documents-syncs]
 ===== Documents and syncs
 
@@ -143,6 +151,10 @@ For default services, connectors use the following roles to find users who have 
 |===
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
+
+When **Expand role members** is disabled, content documents store compact `role_id:` tokens instead of individual user identifiers.
+Access control syncs enrich identity documents with role memberships from `sys_user_has_role` so DLS term overlap still resolves access.
+Tables with no read ACL entries or with a `public` read role omit `_allow_access_control`, making documents world-readable through DLS.
 
 [IMPORTANT]
 ====
@@ -338,6 +350,14 @@ Default value is `False`.
 Restrict access to documents based on a user's permissions.
 Refer to <<es-connectors-servicenow-client-dls>> for more details.
 
+`expand_role_members`::
+Available when document level security is enabled.
+When enabled, ServiceNow role members are written individually onto each document's access control list.
+Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs.
+Default value is `True`.
+Changing this setting requires a full content sync and access control sync.
+Introduced in 8.19.22.
+
 [discrete#es-connectors-servicenow-client-documents-syncs]
 ===== Documents and syncs
 
@@ -385,6 +405,10 @@ For default services, connectors use the following roles to find users who have 
 |===
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
+
+When **Expand role members** is disabled, content documents store compact `role_id:` tokens instead of individual user identifiers.
+Access control syncs enrich identity documents with role memberships from `sys_user_has_role` so DLS term overlap still resolves access.
+Tables with no read ACL entries or with a `public` read role omit `_allow_access_control`, making documents world-readable through DLS.
 
 [IMPORTANT]
 ====

@@ -102,6 +102,19 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         });
     }
 
+    /**
+     * A column in term order, where the documents of a page hold one value between them. The page is handed back as
+     * that value and a count, which is a third shape beside ordinals and values, so it is checked against the same
+     * per-document read as the rest.
+     */
+    public void testPageOfOneValue() throws IOException {
+        assertPageMatchesPerDocument(docs -> {
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = new String[] { "run-" + (d / 400) };
+            }
+        });
+    }
+
     private interface Documents {
         void fill(String[][] docs);
     }

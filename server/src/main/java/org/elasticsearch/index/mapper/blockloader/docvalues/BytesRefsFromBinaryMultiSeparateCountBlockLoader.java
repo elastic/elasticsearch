@@ -185,6 +185,13 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
         @Override
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+            if (size == 1 && valueCounts == null) {
+                // Every document in the page holds the same value, which is what a column in term order is made of
+                // and what an index sort on the field produces. Saying so is a block that costs nothing to build
+                // and nothing to read: no ordinal is written and no consumer walks one.
+                block = factory.constantBytes(BytesRef.deepCopyOf(dictionary[0]), docCount);
+                return;
+            }
             block = factory.buildOrdinalBytesRefDirect(ordinals, valueCount, valueCounts, docCount, dictionary, size);
         }
 

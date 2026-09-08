@@ -177,10 +177,11 @@ final class S3ClientSettings {
     );
 
     /** Whether chunked encoding should be disabled or not (Default is false). */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer needed, should be removed in v10
     static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(
         PREFIX,
         "disable_chunked_encoding",
-        key -> Setting.boolSetting(key, false, Property.NodeScope)
+        key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
     );
 
     /** An override for the s3 region to use for signing requests. */

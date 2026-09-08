@@ -365,7 +365,7 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
         ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
 
-        // Sanity cap reached (attempt == throttleMaxRetries / THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
+        // Sanity cap reached (attempt == THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
         // and the backoff must stay at baseline.
         RetryPolicy.RetryDecision giveUp = policy.decide(throttle, policy.throttleMaxRetries(), System.nanoTime());
         assertFalse("sanity-cap throttle must give up", giveUp.retry());
@@ -531,6 +531,32 @@ public class RetryPolicyTests extends ESTestCase {
         );
     }
 
+    public void testSanityCapDoesNotLimitRetriesBeforeBudgetIsSpent() {
+        // The sanity cap must be large enough that the time budget is always spent first.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, startNanos);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        long elapsedMs = clockNanos.get() / 1_000_000L;
+        assertThat("sanity cap must not terminate retries before budget is spent", retries, greaterThan(10));
+        assertThat("clock must not exceed budget", elapsedMs, lessThanOrEqualTo(300_000L));
+        assertThat(
+            "budget must be nearly spent before giving up",
+            elapsedMs,
+            greaterThan(300_000L - RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS)
+        );
+    }
+
     public void testRetryAfterHintIsUsedAsDelay() {
         // When the exception carries a Retry-After hint, that hint must be used as the delay.
         AtomicLong clockNanos = new AtomicLong(0L);
@@ -659,6 +685,38 @@ public class RetryPolicyTests extends ESTestCase {
             decision.delayMillis(),
             greaterThan(RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS / 2)
         );
+    }
+
+    public void testDelayMillisDoesNotOverflowAtHighAttemptCounts() {
+        // 500ms initial, 30s max: overflow used to occur at attempt >= 55 (500 * 2^55 > Long.MAX_VALUE).
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 1000, 500, 30_000, RetryPolicy.NO_BUDGET, null);
+        for (int attempt = 50; attempt <= 70; attempt++) {
+            long delay = policy.delayMillis(attempt, true);
+            assertTrue("delayMillis must be positive at attempt " + attempt, delay > 0);
+            assertTrue("delayMillis must not exceed throttleMaxDelayMs at attempt " + attempt, delay <= 30_000L);
+        }
+    }
+
+    public void testDecideDoesNotOverflowAfterManyHintGuidedRetries() {
+        // Regression: 55 Retry-After:1 hints walk `attempt` to 55 cheaply (no delayMillis call).
+        // The 56th exception has no hint, so delayMillis(55, true) is called — that used to overflow
+        // and throw IAE. Verify decide() returns a retry decision instead.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException withHint = new ExternalUnavailableException(true, 1_000L, "throttled with hint");
+        ExternalUnavailableException noHint = new ExternalUnavailableException(true, "throttled no hint");
+
+        int attempt = 0;
+        for (; attempt < 55; attempt++) {
+            clockNanos.addAndGet(1_000L * 1_000_000L); // advance 1s per hint retry
+            RetryPolicy.RetryDecision d = policy.decide(withHint, attempt, startNanos);
+            assertTrue("hint retry " + attempt + " must be accepted", d.retry());
+        }
+        // 56th call: no hint → delayMillis(55, true) — previously caused IAE due to overflow.
+        RetryPolicy.RetryDecision d = policy.decide(noHint, attempt, startNanos);
+        assertTrue("computed-delay retry after 55 hint retries must be accepted", d.retry());
+        assertTrue("delay must be positive", d.delayMillis() > 0);
     }
 
     public void testParseRetryAfterMs() {

@@ -465,6 +465,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -782,6 +783,47 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /** Matches {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction} normal backoff. */
+    private static final TimeValue JOB_OPEN_NORMAL_RETRY_INITIAL_DELAY = TimeValue.timeValueSeconds(5);
+    private static final TimeValue JOB_OPEN_NORMAL_RETRY_MAX_DELAY = TimeValue.timeValueMinutes(5);
+
+    /**
+     * Largest delay bound safe for {@link org.elasticsearch.action.support.RetryableAction} jitter scheduling.
+     */
+    private static final TimeValue CAPACITY_RETRY_JITTER_SAFE_MAX = TimeValue.timeValueMillis(2L * Integer.MAX_VALUE - 1L);
+
+    /**
+     * Backoff-bound floor for capacity-constrained failures in the AD job-open pipeline
+     * (scroll-context/circuit-breaker/thread-pool saturation). Longer than the default 5s so the search tier can
+     * drain before the revert delete is re-issued. Because {@code RetryableAction} sleeps on the previous bound for
+     * the failing attempt, this floor takes effect from the second capacity retry onward—the first capacity failure
+     * still waits the prior ~5s bound. Applied by
+     * {@link org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.OpenJobRetryableAction}.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_initial_delay",
+        TimeValue.timeValueSeconds(30),
+        JOB_OPEN_NORMAL_RETRY_INITIAL_DELAY,
+        CAPACITY_RETRY_JITTER_SAFE_MAX,
+        new CapacityRetryInitialDelayValidator(),
+        Property.NodeScope
+    );
+
+    /**
+     * Maximum retry backoff bound for capacity-constrained failures in the AD job-open pipeline. Higher than the
+     * default 5m cap so repeated capacity failures back off further, letting scroll contexts expire between attempts.
+     * See elastic/elasticsearch#153260.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_CAPACITY_RETRY_MAX_DELAY = Setting.timeSetting(
+        "xpack.ml.job_open_capacity_retry_max_delay",
+        TimeValue.timeValueMinutes(10),
+        JOB_OPEN_NORMAL_RETRY_MAX_DELAY,
+        CAPACITY_RETRY_JITTER_SAFE_MAX,
+        new CapacityRetryMaxDelayValidator(),
+        Property.NodeScope
+    );
+
     /**
      * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
      * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
@@ -943,6 +985,8 @@ public class MachineLearning extends Plugin
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
             JOB_OPEN_RETRY_TIMEOUT,
+            JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY,
+            JOB_OPEN_CAPACITY_RETRY_MAX_DELAY,
             CCS_STABILIZATION_CYCLES,
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,
@@ -2548,6 +2592,64 @@ public class MachineLearning extends Plugin
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
+        }
+    }
+
+    private static final class CapacityRetryInitialDelayValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue initial, Map<Setting<?>, Object> settings) {
+            TimeValue max = (TimeValue) settings.get(JOB_OPEN_CAPACITY_RETRY_MAX_DELAY);
+            if (max != null && initial.compareTo(max) > 0) {
+                throw new IllegalArgumentException(
+                    "["
+                        + JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()
+                        + "] ("
+                        + initial
+                        + ") must be less than or equal to ["
+                        + JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()
+                        + "] ("
+                        + max
+                        + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(JOB_OPEN_CAPACITY_RETRY_MAX_DELAY).iterator();
+        }
+    }
+
+    private static final class CapacityRetryMaxDelayValidator implements Setting.Validator<TimeValue> {
+
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue max, Map<Setting<?>, Object> settings) {
+            TimeValue initial = (TimeValue) settings.get(JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY);
+            if (initial != null && max.compareTo(initial) < 0) {
+                throw new IllegalArgumentException(
+                    "["
+                        + JOB_OPEN_CAPACITY_RETRY_MAX_DELAY.getKey()
+                        + "] ("
+                        + max
+                        + ") must be greater than or equal to ["
+                        + JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY.getKey()
+                        + "] ("
+                        + initial
+                        + ")"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return List.<Setting<?>>of(JOB_OPEN_CAPACITY_RETRY_INITIAL_DELAY).iterator();
         }
     }
 }

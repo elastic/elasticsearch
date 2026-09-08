@@ -79,7 +79,8 @@ public class StUnion extends BinarySpatialGeometryFunction implements AnyNullIsN
         briefSummary = "Returns the geometric union of two geometries, or unions all multi-values of a single geometry.",
         description = "Returns the geometric union of two geometries. "
             + "The result is a geometry that covers all points covered by either input geometry. "
-            + "Both geometries must share the same coordinate reference system. "
+            + "Both geometries must share the same coordinate reference system.",
+        detailedDescription = "{applies_to}`stack: preview 9.6.0`"
             + "When called with a single multi-valued argument, all values at a position are unioned into one geometry.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.GeometryDocSvg;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -55,6 +57,13 @@ public class StUnionTests extends AbstractBinarySpatialGeometryFunctionTestCase 
      * Builds test cases for the unary form {@code ST_UNION(geom)}, which returns a single geometry
      * value unchanged. Multi-value cases are covered by csv-spec integration tests.
      */
+    private static final FunctionAppliesTo UNARY_APPLIES_TO = TestCaseSupplier.appliesTo(
+        FunctionAppliesToLifecycle.PREVIEW,
+        "9.6.0",
+        "",
+        false
+    );
+
     static Iterable<Object[]> buildUnaryParameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         String evaluatorName = "StUnionUnarySourceEvaluator[geom=Attribute[channel=0]]";
@@ -62,7 +71,7 @@ public class StUnionTests extends AbstractBinarySpatialGeometryFunctionTestCase 
             DataType expectedType = DataType.isSpatialGeo(type) ? GEO_SHAPE : CARTESIAN_SHAPE;
             TestCaseSupplier.TypedDataSupplier supplier = AbstractSpatialGeometryTransformTestCase.testCaseSupplier(type);
             suppliers.add(new TestCaseSupplier(type.typeName(), List.of(type), () -> {
-                TestCaseSupplier.TypedData data = supplier.get();
+                TestCaseSupplier.TypedData data = supplier.get().withAppliesTo(UNARY_APPLIES_TO);
                 BytesRef wkb = (BytesRef) data.data();
                 return new TestCaseSupplier.TestCase(List.of(data), evaluatorName, expectedType, Matchers.equalTo(wkb));
             }));
@@ -75,7 +84,7 @@ public class StUnionTests extends AbstractBinarySpatialGeometryFunctionTestCase 
             DataType expectedType = DataType.isSpatialGeo(type) ? GEO_SHAPE : CARTESIAN_SHAPE;
             TestCaseSupplier.TypedDataSupplier hSupplier = hardcoded.get(i);
             suppliers.add(new TestCaseSupplier("hardcoded " + type.typeName(), List.of(type), () -> {
-                TestCaseSupplier.TypedData data = hSupplier.get();
+                TestCaseSupplier.TypedData data = hSupplier.get().withAppliesTo(UNARY_APPLIES_TO);
                 BytesRef wkb = (BytesRef) data.data();
                 return new TestCaseSupplier.TestCase(List.of(data), evaluatorName, expectedType, Matchers.equalTo(wkb));
             }));

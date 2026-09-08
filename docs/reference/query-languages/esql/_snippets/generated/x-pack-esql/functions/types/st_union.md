@@ -4,16 +4,16 @@
 
 | geomA | geomB | result |
 | --- | --- | --- |
+| cartesian_point {applies_to}`stack: preview 9.6.0` | | cartesian_shape |
 | cartesian_point | cartesian_point | cartesian_shape |
 | cartesian_point | cartesian_shape | cartesian_shape |
-| cartesian_point | | cartesian_shape |
+| cartesian_shape {applies_to}`stack: preview 9.6.0` | | cartesian_shape |
 | cartesian_shape | cartesian_point | cartesian_shape |
 | cartesian_shape | cartesian_shape | cartesian_shape |
-| cartesian_shape | | cartesian_shape |
+| geo_point {applies_to}`stack: preview 9.6.0` | | geo_shape |
 | geo_point | geo_point | geo_shape |
 | geo_point | geo_shape | geo_shape |
-| geo_point | | geo_shape |
+| geo_shape {applies_to}`stack: preview 9.6.0` | | geo_shape |
 | geo_shape | geo_point | geo_shape |
 | geo_shape | geo_shape | geo_shape |
-| geo_shape | | geo_shape |
 

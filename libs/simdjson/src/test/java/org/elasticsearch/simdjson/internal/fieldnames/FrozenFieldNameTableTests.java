@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytes;
 import static org.elasticsearch.simdjson.SimdJsonTestCase.toBytesAtOffset;
@@ -197,14 +198,182 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         insertName(child1, "alpha");
         child1.release();
 
+        // child2 starts frozen on child1's table, so "beta" is new to it and lands in the overflow
+        // buffer, which lookup consults so the name is still canonicalized locally.
         FrozenFieldNameTable.Child child2 = table.makeChild();
         insertName(child2, "beta");
-        assertNull("insert on inherited-frozen child must not cache new names", lookupName(child2, "beta"));
+        assertEquals("inherited-frozen child must canonicalize a new name via overflow", "beta", lookupName(child2, "beta"));
         child2.release();
 
         FrozenFieldNameTable.Child child3 = table.makeChild();
-        assertEquals("successor child must see the first released child's field via parent", "alpha", lookupName(child3, "alpha"));
-        assertNull("second child's field must not be merged after first child wins parent publish", lookupName(child3, "beta"));
+        assertEquals("successor child must see the first released child's field", "alpha", lookupName(child3, "alpha"));
+        assertEquals("successor child must see the second released child's field", "beta", lookupName(child3, "beta"));
+    }
+
+    // ---- Merging names learned after freeze ----
+
+    // A frozen child records names its table lacks and hands them to the parent on release.
+    public void testOverflowNamesArePublishedOnRelease() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child first = table.makeChild();
+        insertName(first, "known");
+        first.release();
+        assertEquals(1, table.sharedNameCount());
+
+        FrozenFieldNameTable.Child second = table.makeChild();
+        insertName(second, "learned_later");
+        assertEquals("post-freeze miss must be recorded", 1, second.overflowCount());
+        assertEquals("publication must wait for release", 1, table.sharedNameCount());
+
+        second.release();
+        assertEquals("release must merge the overflow name into the shared table", 2, table.sharedNameCount());
+    }
+
+    // Publication must not disturb children already handed out, only ones created afterwards.
+    public void testPublishingDoesNotDisturbExistingChildren() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child seed = table.makeChild();
+        insertName(seed, "known");
+        seed.release();
+
+        FrozenFieldNameTable.Child bystander = table.makeChild();
+        assertEquals("known", lookupName(bystander, "known"));
+
+        FrozenFieldNameTable.Child learner = table.makeChild();
+        insertName(learner, "brand_new");
+        learner.release();
+
+        assertNull("an existing child must not see a name published after it was created", lookupName(bystander, "brand_new"));
+        assertEquals("an existing child must keep the names it already had", "known", lookupName(bystander, "known"));
+        assertEquals("a child created after publication must see the new name", "brand_new", lookupName(table.makeChild(), "brand_new"));
+    }
+
+    // Names already shared keep their String instance, so publication never changes identity.
+    public void testMergePreservesExistingNameIdentity() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child seed = table.makeChild();
+        insertName(seed, "stable");
+        seed.release();
+
+        String beforeMerge = lookupName(table.makeChild(), "stable");
+
+        FrozenFieldNameTable.Child learner = table.makeChild();
+        insertName(learner, "addition");
+        learner.release();
+
+        assertSame("rebuilding the table must reuse the existing String instance", beforeMerge, lookupName(table.makeChild(), "stable"));
+    }
+
+    // Republishing is a no-op: a release with nothing new must not rebuild the shared table.
+    public void testRepeatedReleaseDoesNotRepublish() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child seed = table.makeChild();
+        insertName(seed, "known");
+        seed.release();
+
+        FrozenFieldNameTable.Child learner = table.makeChild();
+        insertName(learner, "extra");
+        learner.release();
+
+        String afterFirstRelease = lookupName(table.makeChild(), "extra");
+        assertEquals(2, table.sharedNameCount());
+
+        learner.release();
+        learner.release();
+        assertEquals("a release with nothing new must not change the shared table", 2, table.sharedNameCount());
+        assertSame("a no-op release must not rebuild the table", afterFirstRelease, lookupName(table.makeChild(), "extra"));
+    }
+
+    // The overflow buffer is bounded, so a child seeing many unknown names stops recording.
+    public void testOverflowRecordingIsBounded() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child seed = table.makeChild();
+        insertName(seed, "known");
+        seed.release();
+
+        FrozenFieldNameTable.Child learner = table.makeChild();
+        int beyondCap = FrozenFieldNameTable.Child.MAX_OVERFLOW + randomIntBetween(1, 50);
+        for (int i = 0; i < beyondCap; i++) {
+            assertEquals(
+                "insert must still canonicalize past the cap",
+                "high_cardinality_" + i,
+                insertName(learner, "high_cardinality_" + i)
+            );
+        }
+
+        assertEquals("recording must stop at the cap", FrozenFieldNameTable.Child.MAX_OVERFLOW, learner.overflowCount());
+        learner.release();
+        assertEquals("only recorded names may be published", 1 + FrozenFieldNameTable.Child.MAX_OVERFLOW, table.sharedNameCount());
+    }
+
+    // The shared table converges: once it covers the names in use, releases stop rebuilding it.
+    public void testMergingConvergesForAStableFieldSet() {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        List<String> schemaA = randomDistinctFieldNames(randomIntBetween(3, 10));
+        List<String> schemaB = randomDistinctFieldNames(randomIntBetween(3, 10));
+
+        FrozenFieldNameTable.Child a = table.makeChild();
+        schemaA.forEach(name -> insertName(a, name));
+        a.release();
+
+        FrozenFieldNameTable.Child b = table.makeChild();
+        schemaB.forEach(name -> insertName(b, name));
+        b.release();
+
+        // Both schemas are now shared, so a child parsing either records nothing to publish.
+        FrozenFieldNameTable.Child converged = table.makeChild();
+        for (String name : schemaA) {
+            assertEquals("converged child must resolve schema A: " + name, name, resolveName(converged, name));
+        }
+        for (String name : schemaB) {
+            assertEquals("converged child must resolve schema B: " + name, name, resolveName(converged, name));
+        }
+        assertEquals("a child that misses nothing must record nothing", 0, converged.overflowCount());
+    }
+
+    /**
+     * Children on many threads publishing at once must not lose each other's names: the shared
+     * table's CAS loop has to retry against whatever won, not overwrite it. The barrier makes all
+     * the releases collide, and the seed child ensures every publisher takes the merge path rather
+     * than the uncontended hand-off of the very first publish.
+     */
+    public void testConcurrentPublishersDoNotLoseNames() throws Exception {
+        FrozenFieldNameTable table = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child seed = table.makeChild();
+        insertName(seed, "seed_field");
+        seed.release();
+
+        int threadCount = randomIntBetween(4, 8);
+        int namesPerThread = randomIntBetween(5, 15);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount);
+        List<String> allNames = new ArrayList<>();
+        List<Thread> threads = new ArrayList<>();
+
+        for (int t = 0; t < threadCount; t++) {
+            List<String> mine = new ArrayList<>();
+            for (int n = 0; n < namesPerThread; n++) {
+                mine.add("thread" + t + "_field" + n);
+            }
+            allNames.addAll(mine);
+            threads.add(new Thread(() -> {
+                FrozenFieldNameTable.Child child = table.makeChild();
+                mine.forEach(name -> resolveName(child, name));
+                safeAwait(barrier);
+                child.release();
+            }));
+        }
+
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        FrozenFieldNameTable.Child observer = table.makeChild();
+        for (String name : allNames) {
+            assertEquals("every concurrently published name must survive: " + name, name, lookupName(observer, name));
+        }
+        assertEquals("seed_field", lookupName(observer, "seed_field"));
+        assertEquals("shared table must hold the seed plus every published name", allNames.size() + 1, table.sharedNameCount());
     }
 
     // ---- Release lifecycle ----
@@ -365,5 +534,15 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         byte[] buf = toBytes(name);
         int hash = FieldNameHash.hashName(buf, 0, buf.length);
         return child.lookup(buf, 0, buf.length, hash);
+    }
+
+    /**
+     * Resolves a name the way the walker does: look up, and insert only on a miss. Tests that care
+     * whether a name was <em>new</em> must go through this, since inserting unconditionally would
+     * record an overflow entry regardless.
+     */
+    private static String resolveName(FrozenFieldNameTable.Child child, String name) {
+        String hit = lookupName(child, name);
+        return hit != null ? hit : insertName(child, name);
     }
 }

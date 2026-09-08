@@ -75,6 +75,10 @@ public interface FieldNameLookup {
     /**
      * Merges any new entries back to a shared parent (if applicable) and prepares
      * this instance for reuse with the next batch/document.
+     *
+     * <p>Merging only affects children created afterwards; instances already handed out keep the
+     * table they were given. Safe to call repeatedly — a call with nothing new to publish is a
+     * no-op.
      */
     void release();
 }

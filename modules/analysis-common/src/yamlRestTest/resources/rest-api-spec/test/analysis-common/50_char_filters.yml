@@ -83,3 +83,36 @@
     - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
     - match:  { detail.tokenizer.tokens.0.end_offset: 15 }
     - match:  { detail.tokenizer.tokens.0.position: 0 }
+
+---
+"chained mapping char filters are bounded by index.analyze.max_char_count":
+    # Each mapping char filter's output is the next filter's input, so a chain expands its input geometrically:
+    # "a" -> 4 -> 16 -> 64 -> 256 -> 1024 characters. index.analyze.max_char_count caps the characters the chain
+    # may feed to the tokenizer, so the request fails with a 400 once the produced characters cross the cap
+    # instead of letting the chain grow until the node runs out of heap.
+    - do:
+        indices.create:
+          index: test_char_count
+          body:
+            settings:
+              index.analyze.max_char_count: 1000
+
+    - do:
+        catch: /The number of characters produced by calling _analyze has exceeded the allowed maximum of \[1000\]. This limit can be set by changing the \[index.analyze.max_char_count\] index level setting\./
+        indices.analyze:
+          index: test_char_count
+          body:
+            text: "a"
+            tokenizer: keyword
+            explain: true
+            char_filter:
+              - type: mapping
+                mappings: ["a => bbbb"]
+              - type: mapping
+                mappings: ["b => aaaa"]
+              - type: mapping
+                mappings: ["a => bbbb"]
+              - type: mapping
+                mappings: ["b => aaaa"]
+              - type: mapping
+                mappings: ["a => bbbb"]

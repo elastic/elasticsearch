@@ -193,6 +193,22 @@ public final class IndexSettings {
     );
 
     /**
+     * A setting describing the maximum number of characters a single _analyze request may produce while
+     * applying character filters. Character filters run as a chain where each filter's output is the next
+     * filter's input, so a request-defined chain can expand its input far beyond the original text. This
+     * setting bounds that expansion and rejects the request once the limit is exceeded; an unbounded value
+     * lets a single request allocate enough memory to destabilize the node. The default of 1M characters is
+     * well above any realistic analysis input.
+     */
+    public static final Setting<Integer> MAX_ANALYZE_CHAR_COUNT_SETTING = Setting.intSetting(
+        "index.analyze.max_char_count",
+        1000000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
@@ -1409,6 +1425,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
+    private volatile int maxAnalyzeCharCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1622,6 +1639,7 @@ public final class IndexSettings {
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
+        maxAnalyzeCharCount = scopedSettings.get(MAX_ANALYZE_CHAR_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
@@ -1767,6 +1785,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZE_CHAR_COUNT_SETTING, this::setMaxAnalyzeCharCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -2158,6 +2177,18 @@ public final class IndexSettings {
 
     private void setMaxTokenCount(int maxTokenCount) {
         this.maxTokenCount = maxTokenCount;
+    }
+
+    /**
+     * Returns the maximum number of characters a single _analyze request may produce while applying
+     * character filters.
+     */
+    public int getMaxAnalyzeCharCount() {
+        return maxAnalyzeCharCount;
+    }
+
+    private void setMaxAnalyzeCharCount(int maxAnalyzeCharCount) {
+        this.maxAnalyzeCharCount = maxAnalyzeCharCount;
     }
 
     /**

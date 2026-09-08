@@ -557,6 +557,84 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * A character filter can produce far more characters than it consumes. When the produced characters exceed
+     * {@code index.analyze.max_char_count}, both the non-explain ({@code simpleAnalyze}) and explain
+     * ({@code detailAnalyze}) paths must fail the request with a 400, rather than buffering the expanded output.
+     */
+    public void testExceedMaxCharCountLimit() {
+        int maxCharCount = 5;
+        String expectedMessage = "The number of characters produced by calling _analyze has exceeded the allowed maximum of ["
+            + maxCharCount
+            + "]."
+            + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.";
+
+        // explain=false exercises the simpleAnalyze path. "abc" (3 chars) becomes "abc0123456789" (13 chars).
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("standard");
+        request.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
+        request.text("abc");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, maxCharCount)
+        );
+        assertEquals(expectedMessage, e.getMessage());
+
+        // explain=true exercises the detailAnalyze path with the same expanding char filter.
+        AnalyzeAction.Request explainRequest = new AnalyzeAction.Request();
+        explainRequest.tokenizer("standard");
+        explainRequest.addCharFilter(Map.of("type", "append", "suffix", "0123456789"));
+        explainRequest.text("abc");
+        explainRequest.explain(true);
+        ElasticsearchStatusException explainException = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(explainRequest, registry, mockIndexService(), maxTokenCount, maxCharCount)
+        );
+        assertEquals(expectedMessage, explainException.getMessage());
+    }
+
+    /**
+     * When the produced characters stay within {@code index.analyze.max_char_count}, analysis is unaffected and
+     * returns the expected tokens.
+     */
+    public void testMaxCharCountNotExceededReturnsTokens() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.tokenizer("standard");
+        request.addCharFilter(Map.of("type", "append", "suffix", "foo"));
+        request.text("quick brown"); // the char filter appends "foo": "quick brown" -> "quick brownfoo"; well under the limit
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, 1000);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
+        assertEquals(2, tokens.size());
+        assertEquals("quick", tokens.get(0).getTerm());
+        assertEquals("brownfoo", tokens.get(1).getTerm());
+    }
+
+    /**
+     * The limit is exclusive: a value whose character count equals the limit is accepted, and one more character
+     * is rejected. This also covers a request with no character filters, where the value itself crosses the limit.
+     */
+    public void testMaxCharCountBoundary() throws IOException {
+        AnalyzeAction.Request atLimit = new AnalyzeAction.Request();
+        atLimit.tokenizer("standard");
+        atLimit.text("abcde"); // exactly 5 characters
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(atLimit, registry, mockIndexService(), maxTokenCount, 5);
+        assertEquals(1, analyze.getTokens().size());
+        assertEquals("abcde", analyze.getTokens().get(0).getTerm());
+
+        AnalyzeAction.Request overLimit = new AnalyzeAction.Request();
+        overLimit.tokenizer("standard");
+        overLimit.text("abcdef"); // 6 characters
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportAnalyzeAction.analyze(overLimit, registry, mockIndexService(), maxTokenCount, 5)
+        );
+        assertEquals(
+            "The number of characters produced by calling _analyze has exceeded the allowed maximum of [5]."
+                + " This limit can be set by changing the [index.analyze.max_char_count] index level setting.",
+            e.getMessage()
+        );
+    }
+
     public void testDeprecationWarnings() throws IOException {
         AnalyzeAction.Request req = new AnalyzeAction.Request();
         req.tokenizer("standard");

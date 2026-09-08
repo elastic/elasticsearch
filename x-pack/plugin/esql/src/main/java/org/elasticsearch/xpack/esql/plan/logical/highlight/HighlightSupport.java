@@ -120,8 +120,9 @@ public final class HighlightSupport {
                 yield true;
             }
             // A QSTR string can name arbitrary fields with `field:term`, and such a qualifier overrides default_field,
-            // so default_field alone cannot bound the target set. Fall back to every highlightable column; the extra
-            // (null) columns are dropped downstream by PruneColumns.
+            // so default_field alone cannot bound the target set. Fall back to every highlightable column. PruneColumns
+            // still drops unused generated highlight_* columns for a literal, but must not drop ON fields a QSTR/KQL
+            // query still translates against.
             case QueryString queryString -> false;
             case Kql kql -> false;
             case Literal literal -> false;
@@ -138,6 +139,47 @@ public final class HighlightSupport {
                 }
                 yield collectQueryFieldNames(not.field(), new LinkedHashSet<>());
             }
+            default -> false;
+        };
+    }
+
+    /**
+     * ON field names the query still has to translate against after unused generated columns are pruned.
+     * {@code null} means the query cannot be narrowed ({@code QSTR}, {@code KQL}, or an unrecognised shape)
+     * and every remaining ON field must stay in the translation context. An empty set means a literal: it is
+     * applied to whatever ON fields survive, so unused ones can go.
+     * <p>
+     * Unlike {@link #deriveFields}, negative subtrees count. {@code MATCH(a) AND NOT MATCH(b)} still
+     * translates {@code MATCH(b)}, so {@code b} cannot be dropped from ON even when {@code highlight_b}
+     * is unused.
+     */
+    public static @Nullable Set<String> fieldsRequiredForTranslation(Expression query) {
+        if (query == null) {
+            return Set.of();
+        }
+        Set<String> names = new LinkedHashSet<>();
+        if (collectTranslationFieldNames(query, names) == false) {
+            return null;
+        }
+        return names;
+    }
+
+    private static boolean collectTranslationFieldNames(Expression query, Set<String> names) {
+        return switch (query) {
+            case Match match -> {
+                names.add(Expressions.name(match.field()));
+                yield true;
+            }
+            case MatchPhrase matchPhrase -> {
+                names.add(Expressions.name(matchPhrase.field()));
+                yield true;
+            }
+            case QueryString queryString -> false;
+            case Kql kql -> false;
+            case Literal literal -> true;
+            case BinaryLogic binary -> collectTranslationFieldNames(binary.left(), names)
+                && collectTranslationFieldNames(binary.right(), names);
+            case Not not -> collectTranslationFieldNames(not.field(), names);
             default -> false;
         };
     }

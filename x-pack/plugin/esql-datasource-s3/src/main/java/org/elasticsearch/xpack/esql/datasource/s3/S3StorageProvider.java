@@ -215,7 +215,7 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, List.of()).build();
+        return configureCommon(S3Client.builder(), config, credentials).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -240,12 +240,20 @@ public class S3StorageProvider implements StorageProvider {
         // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
         // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
-        return configureCommon(S3AsyncClient.builder(), config, credentials, List.of()).httpClientBuilder(
+        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
             NettyNioAsyncHttpClient.builder()
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
                 .maxConcurrency(maxConnections)
                 .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
         ).build();
+    }
+
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials
+    ) {
+        return configureCommon(builder, config, credentials, List.of());
     }
 
     /**

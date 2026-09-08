@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,15 +52,33 @@ public class S3Configuration extends FileDataSourceConfiguration {
     /** Typed resolved form of the {@code addressing_style} setting, for provider-side switching. */
     public enum AddressingStyleMode {
         /** Path-style when an endpoint override is set; SDK default (virtual-hosted) otherwise. */
-        AUTO,
+        AUTO("auto"),
         /** Always path-style. */
-        PATH,
+        PATH("path"),
         /** SDK decides; bare-IP endpoints fall back to path-style. */
-        VIRTUAL_HOSTED
-    }
+        VIRTUAL_HOSTED("virtual_hosted");
 
-    private static final List<String> CANONICAL_ADDRESSING_STYLES = List.of("auto", "path", "virtual_hosted");
-    private static final Set<String> SUPPORTED_ADDRESSING_STYLES = Set.copyOf(CANONICAL_ADDRESSING_STYLES);
+        private final String wireValue;
+
+        AddressingStyleMode(String wireValue) {
+            this.wireValue = wireValue;
+        }
+
+        /** Returns the mode for {@code value}, or {@code null} if the value is not recognised. */
+        static AddressingStyleMode fromWireValue(String value) {
+            for (AddressingStyleMode mode : values()) {
+                if (mode.wireValue.equals(value)) {
+                    return mode;
+                }
+            }
+            return null;
+        }
+
+        /** Accepted wire values in declaration order, for use in error messages. */
+        static List<String> canonicalValues() {
+            return Arrays.stream(values()).map(m -> m.wireValue).toList();
+        }
+    }
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
@@ -98,12 +117,12 @@ public class S3Configuration extends FileDataSourceConfiguration {
     @Override
     protected void validateSettings(ValidationException errors) {
         String style = addressingStyle();
-        if (style != null && SUPPORTED_ADDRESSING_STYLES.contains(style) == false) {
+        if (style != null && AddressingStyleMode.fromWireValue(style) == null) {
             errors.addValidationError(
                 "Unsupported addressing_style value ["
                     + style
                     + "]; supported values: ["
-                    + String.join(", ", CANONICAL_ADDRESSING_STYLES)
+                    + String.join(", ", AddressingStyleMode.canonicalValues())
                     + "]"
             );
         }
@@ -225,13 +244,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
      */
     public AddressingStyleMode resolveAddressingStyle() {
         String style = addressingStyle();
-        if ("path".equals(style)) {
-            return AddressingStyleMode.PATH;
+        if (style == null) {
+            return AddressingStyleMode.AUTO;
         }
-        if ("virtual_hosted".equals(style)) {
-            return AddressingStyleMode.VIRTUAL_HOSTED;
-        }
-        return AddressingStyleMode.AUTO;
+        AddressingStyleMode mode = AddressingStyleMode.fromWireValue(style);
+        return mode != null ? mode : AddressingStyleMode.AUTO;
     }
 
     /** The IAM role ARN to assume via STS {@code AssumeRoleWithWebIdentity} on the federated auth path. */

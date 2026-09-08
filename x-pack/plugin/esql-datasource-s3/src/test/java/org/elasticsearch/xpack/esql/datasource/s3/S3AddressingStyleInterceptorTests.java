@@ -108,8 +108,18 @@ public class S3AddressingStyleInterceptorTests extends ESTestCase {
         ) {
             try {
                 client.headObject(HeadObjectRequest.builder().bucket(BUCKET).key(KEY).build());
+                fail("expected interceptor to abort before any network I/O");
             } catch (Exception e) {
-                // expected: interceptor aborts before any network I/O
+                // Walk the cause chain: the SDK wraps our AbortException in a SdkClientException.
+                // Any exception that doesn't originate from AbortException is unexpected.
+                Throwable t = e;
+                while (t != null) {
+                    if (t instanceof AbortException) break;
+                    t = t.getCause();
+                }
+                if (t == null) {
+                    throw new AssertionError("unexpected exception — interceptor may not have been called", e);
+                }
             }
         }
         assertNotNull("Interceptor was not invoked for endpoint=" + endpoint + " style=" + addressingStyle, interceptor.capturedUri);
@@ -133,7 +143,14 @@ public class S3AddressingStyleInterceptorTests extends ESTestCase {
         @Override
         public void beforeTransmission(Context.BeforeTransmission context, ExecutionAttributes executionAttributes) {
             capturedUri = context.httpRequest().getUri();
-            throw new RuntimeException("abort: URI captured, no network I/O intended");
+            throw new AbortException();
+        }
+    }
+
+    /** Thrown by {@link CapturingInterceptor} to abort the request before any network I/O. */
+    private static final class AbortException extends RuntimeException {
+        AbortException() {
+            super(null, null, true, false);
         }
     }
 }

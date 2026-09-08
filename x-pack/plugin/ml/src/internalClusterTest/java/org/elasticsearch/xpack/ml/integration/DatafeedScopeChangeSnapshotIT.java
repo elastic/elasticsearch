@@ -80,7 +80,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assume.assumeTrue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {

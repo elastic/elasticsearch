@@ -76,8 +76,10 @@ import java.util.regex.Pattern;
  *   <li>{@code LuceneTestCase} extends {@code Assert}, not {@code RandomizedTest}, so
  *       {@code RandomizedTest} helpers are inherited only by types that extend
  *       {@code RandomizedTest} itself</li>
- *   <li>{@code org.junit.Assume} is left alone ({@code assumeThat} is not redeclared on
- *       {@code LuceneTestCase})</li>
+ *   <li>{@code LuceneTestCase} redeclares {@code assumeTrue}/{@code assumeFalse}/
+ *       {@code assumeNoException} but not {@code assumeThat}/{@code assumeNotNull}.
+ *       {@code PackagingTestCase} extends {@code Assert}, so it does not inherit those
+ *       Lucene assume methods</li>
  *   <li>Inherited nested types are in scope in the class <em>body</em> (and record components),
  *       not in modifiers / {@code extends} / {@code implements}</li>
  *   <li>Javadoc {@code {@link Nested}} still needs the import when the link sits outside an
@@ -90,13 +92,16 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
     /**
      * Bump this when the rewrite rules change so Spotless invalidates its up-to-date cache.
      */
-    private final int revision = 9;
+    private final int revision = 10;
 
     private static final List<String> REDUNDANT_TEST_STATIC_TYPES = List.of(
         "org.junit.Assert",
         "org.hamcrest.MatcherAssert",
         "com.carrotsearch.randomizedtesting.RandomizedTest"
     );
+
+    // LuceneTestCase redeclares these
+    private static final Set<String> LUCENE_INHERITED_ASSUME_METHODS = Set.of("assumeTrue", "assumeFalse", "assumeNoException");
 
     @Override
     public String apply(String unix) {
@@ -167,19 +172,24 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         if (imp.isAsterisk()) {
             return REDUNDANT_TEST_STATIC_TYPES.contains(name);
         }
-        return REDUNDANT_TEST_STATIC_TYPES.stream().anyMatch(type -> name.startsWith(type + "."));
+        return isLuceneInheritedAssumeImport(name)
+            || REDUNDANT_TEST_STATIC_TYPES.stream().anyMatch(type -> name.startsWith(type + "."));
+    }
+
+    private static boolean isLuceneInheritedAssumeImport(String name) {
+        return name.startsWith("org.junit.Assume.") && LUCENE_INHERITED_ASSUME_METHODS.contains(simpleName(name));
     }
 
     private static boolean isInheritedByEveryUsage(ImportDeclaration imp, CompilationUnit cu, Map<String, Set<String>> directSupers) {
-        boolean assertStyle = isAssertStyleImport(imp.getNameAsString());
+        String name = imp.getNameAsString();
         if (imp.isAsterisk()) {
             return cu.findAll(MethodCallExpr.class)
                 .stream()
                 .filter(call -> call.getScope().isEmpty())
-                .allMatch(call -> inheritsTestMethods(call, directSupers, assertStyle));
+                .allMatch(call -> inheritsTestMethods(call, directSupers, name));
         }
-        List<Node> usages = staticImportUsages(cu, simpleName(imp.getNameAsString()));
-        return usages.isEmpty() == false && usages.stream().allMatch(usage -> inheritsTestMethods(usage, directSupers, assertStyle));
+        List<Node> usages = staticImportUsages(cu, simpleName(name));
+        return usages.isEmpty() == false && usages.stream().allMatch(usage -> inheritsTestMethods(usage, directSupers, name));
     }
 
     private static boolean isAssertStyleImport(String name) {
@@ -189,13 +199,13 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
             || name.startsWith("org.hamcrest.MatcherAssert.");
     }
 
-    private static boolean inheritsTestMethods(Node usage, Map<String, Set<String>> directSupers, boolean assertStyle) {
+    private static boolean inheritsTestMethods(Node usage, Map<String, Set<String>> directSupers, String importName) {
         for (Enclosing enclosing : enclosingTypes(usage)) {
-            if (enclosing.anonymous() && matchesTestHost(enclosing.typeName(), assertStyle)) {
+            if (enclosing.anonymous() && matchesTestHost(enclosing.typeName(), importName)) {
                 return true;
             }
             for (String inherited : transitiveSupers(enclosing.typeName(), directSupers)) {
-                if (matchesTestHost(inherited, assertStyle)) {
+                if (matchesTestHost(inherited, importName)) {
                     return true;
                 }
             }
@@ -203,15 +213,30 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         return false;
     }
 
-    private static boolean matchesTestHost(String simpleName, boolean assertStyle) {
-        return assertStyle ? inheritsAssertMethods(simpleName) : simpleName.equals("RandomizedTest");
+    private static boolean matchesTestHost(String simpleName, String importName) {
+        if (isLuceneInheritedAssumeImport(importName)) {
+            return inheritsLuceneAssumeMethods(simpleName);
+        }
+        if (isAssertStyleImport(importName)) {
+            return inheritsAssertMethods(simpleName);
+        }
+        return simpleName.equals("RandomizedTest");
     }
 
     private static boolean inheritsAssertMethods(String simpleName) {
+        return isLuceneTestCaseHost(simpleName) || simpleName.equals("Assert");
+    }
+
+    private static boolean inheritsLuceneAssumeMethods(String simpleName) {
+        // PackagingTestCase extends Assert, not LuceneTestCase.
+        return isLuceneTestCaseHost(simpleName) && simpleName.equals("PackagingTestCase") == false;
+    }
+
+    private static boolean isLuceneTestCaseHost(String simpleName) {
         if (simpleName.equals("RandomizedTest") || simpleName.equals("RestClientTestCase")) {
             return false;
         }
-        return simpleName.equals("LuceneTestCase") || simpleName.equals("Assert") || simpleName.endsWith("TestCase");
+        return simpleName.equals("LuceneTestCase") || simpleName.endsWith("TestCase");
     }
 
     private static boolean isStaticMethodName(String simpleName) {

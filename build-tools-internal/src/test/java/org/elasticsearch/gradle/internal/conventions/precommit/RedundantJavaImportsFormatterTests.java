@@ -66,6 +66,103 @@ public class RedundantJavaImportsFormatterTests {
     }
 
     @Test
+    public void testRemovesAssumeFalseWhenExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.rest.ESRestTestCase;
+
+            import static org.junit.Assume.assumeFalse;
+
+            public abstract class EsqlSpecTestCase extends ESRestTestCase {
+                public void testThing() {
+                    assumeFalse("skip", true);
+                }
+            }
+            """;
+        String expected = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.rest.ESRestTestCase;
+
+            public abstract class EsqlSpecTestCase extends ESRestTestCase {
+                public void testThing() {
+                    assumeFalse("skip", true);
+                }
+            }
+            """;
+        assertEquals(expected, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsAssumeNotNullWhenExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import org.elasticsearch.test.ESTestCase;
+
+            import static org.junit.Assume.assumeNotNull;
+
+            public class ExampleTests extends ESTestCase {
+                public void testThing(Object value) {
+                    assumeNotNull(value);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsAssumeFalseWhenExtendingPackagingTestCase() {
+        String input = """
+            package org.elasticsearch.packaging.test;
+
+            import org.junit.Assert;
+
+            import static org.junit.Assume.assumeFalse;
+
+            public abstract class PackagingTestCase extends Assert {
+                public void testThing() {
+                    assumeFalse(true);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsAssumeTrueWhenSubclassingPackagingTestCase() {
+        String input = """
+            package org.elasticsearch.packaging.test;
+
+            import static org.junit.Assume.assumeTrue;
+
+            public class DebMetadataTests extends PackagingTestCase {
+                public void testThing() {
+                    assumeTrue(true);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
+    public void testKeepsAssumeFalseWhenNotExtendingTestCase() {
+        String input = """
+            package org.elasticsearch.example;
+
+            import static org.junit.Assume.assumeFalse;
+
+            public class ForkTestUtils {
+                public static void skip() {
+                    assumeFalse("skip", true);
+                }
+            }
+            """;
+        assertEquals(input, RedundantJavaImportsFormatter.format(input));
+    }
+
+    @Test
     public void testKeepsJunitStaticImportsWhenNotExtendingTestCase() {
         String input = """
             package org.elasticsearch.example;

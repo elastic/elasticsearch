@@ -1665,6 +1665,12 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES,
 
         /**
+         * Does the usage information for ESQL contain per-format parse-row phone-home keys
+         * ({@code datasources.parse.rows.by_format.<format>})?
+         */
+        USAGE_CONTAINS_DATASOURCE_PARSE_BY_FORMAT,
+
+        /**
          * Does the usage information for ESQL contain datasource/dataset CRUD change counters
          * ({@code datasources.config.datasources.changes.by_op.*} and
          * {@code datasources.config.datasets.changes.by_op.*})?

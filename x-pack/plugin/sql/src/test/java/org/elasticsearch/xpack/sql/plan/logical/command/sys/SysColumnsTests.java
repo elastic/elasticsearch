@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.Types;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,7 +43,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
@@ -305,7 +306,8 @@ public class SysColumnsTests extends ESTestCase {
             null,
             false,
             false,
-            null
+            null,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -354,7 +356,8 @@ public class SysColumnsTests extends ESTestCase {
             null,
             false,
             false,
-            null
+            null,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 
@@ -379,7 +382,10 @@ public class SysColumnsTests extends ESTestCase {
     ) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = analyzer(config, IndexResolution.valid(test));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
+        Command cmd = (Command) analyzer.analyze(
+            parser.createStatement(sql, params, ZoneOffset.UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH),
+            true
+        );
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);

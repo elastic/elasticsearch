@@ -1237,6 +1237,34 @@ cnt:long
 
 // -------------------------------------------------------------------------------
 
+count with bucket for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+required_capability: fn_bucket_histogram_types
+required_capability: fn_count_histogram_bucket
+
+// tag::countBucketTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 1)
+| SORT RANGE_MIN(bucket)
+// end::countBucketTDigestForDocs[]
+;
+
+// tag::countBucketTDigestForDocs-result[]
+count:long | bucket:double_range
+8733       | 0.0..1.0
+100        | 1.0..2.0
+4          | 2.0..3.0
+2          | 3.0..4.0
+0          | 4.0..5.0
+0          | 5.0..6.0
+2          | 6.0..7.0
+// end::countBucketTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
 isNotNullFilter (timeseries mode)
 required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull

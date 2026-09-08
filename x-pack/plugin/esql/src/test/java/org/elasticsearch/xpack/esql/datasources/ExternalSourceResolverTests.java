@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -5599,5 +5601,139 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 return 0;
             }
         };
+    }
+
+    // ===== Cache key isolation for dataset queries (_datasource sub-map) =====
+
+    /**
+     * Dataset queries store credentials in a {@code _datasource} sub-map rather than at the top level.
+     * The cache key builders ({@link ListingCacheKey#build}, {@link SchemaCacheKey#build}, etc.) now walk
+     * the sub-map themselves so a call site that forgets to flatten via
+     * {@link ExternalSourceResolver#storageConfig} still produces the correct key.
+     * {@code storageConfig} is called at every resolver call site regardless (belt-and-suspenders).
+     * <p>
+     * The tests below verify:
+     * <ol>
+     *   <li>Raw config with a {@code _datasource} sub-map already produces distinct keys (builder
+     *       walks the sub-map directly).</li>
+     *   <li>Pre-flattened config (via {@code storageConfig}) also produces distinct keys — same result,
+     *       confirming both paths are consistent.</li>
+     * </ol>
+     * The resolver-level test ({@link #testDatasetAggregateKeyIsolatedByEndpointInDatasource}) pins the
+     * end-to-end contract through {@link ExternalSourceResolver#datasetAggregateKey}.
+     */
+    public void testListingCacheKeyDifferentiatesByDatasetCredentials() {
+        Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+
+        // Builder walks _datasource directly → credential difference visible even from raw config.
+        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
+        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
+        assertNotEquals("key builder walks _datasource directly → distinct credential hashes from raw config", rawA, rawB);
+
+        // storageConfig (belt-and-suspenders) also exposes the difference.
+        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
+        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
+        assertNotEquals("flattened config also exposes credentials → listing keys must differ", flatA, flatB);
+    }
+
+    public void testListingCacheKeyDifferentiatesByDatasetEndpoint() {
+        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com", "region", "us-east-1"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com", "region", "us-east-1"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+
+        // Builder walks _datasource directly → endpoint difference visible even from raw config.
+        ListingCacheKey rawA = ListingCacheKey.build("s3", "bucket", "prefix/", configA, "");
+        ListingCacheKey rawB = ListingCacheKey.build("s3", "bucket", "prefix/", configB, "");
+        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+
+        // storageConfig (belt-and-suspenders) also exposes the difference.
+        ListingCacheKey flatA = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configA), "");
+        ListingCacheKey flatB = ListingCacheKey.build("s3", "bucket", "prefix/", ExternalSourceResolver.storageConfig(configB), "");
+        assertNotEquals("flattened config also exposes endpoint → listing keys must differ", flatA, flatB);
+    }
+
+    public void testSchemaCacheKeyDifferentiatesByDatasetEndpoint() {
+        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+        long mtime = 1000L;
+
+        // Builder walks _datasource directly → endpoint difference visible even from raw config.
+        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
+        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
+        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+
+        // storageConfig (belt-and-suspenders) also exposes the difference.
+        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
+        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
+        assertNotEquals("flattened config also exposes endpoint → schema keys must differ", flatA, flatB);
+    }
+
+    public void testSchemaCacheKeyIgnoresDatasetCredentials() {
+        // Schema cache is deliberately credential-independent (shared across users). Credentials inside
+        // _datasource must also be ignored whether the config is raw or pre-flattened via storageConfig.
+        Map<String, Object> dsA = new HashMap<>(Map.of("access_key", "key-a", "endpoint", "http://s3.example.com"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("access_key", "key-b", "endpoint", "http://s3.example.com"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+        long mtime = 1000L;
+
+        // Raw config: credentials in _datasource are still ignored (schema is user-independent).
+        SchemaCacheKey rawA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configA);
+        SchemaCacheKey rawB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", configB);
+        assertEquals("schema keys differing only in _datasource credentials must be equal — cache is shared across users", rawA, rawB);
+
+        // Same invariant holds after storageConfig flattening.
+        SchemaCacheKey flatA = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configA));
+        SchemaCacheKey flatB = SchemaCacheKey.build("s3://bucket/file.csv", mtime, "csv", ExternalSourceResolver.storageConfig(configB));
+        assertEquals("flattened config: credential-independent schema cache invariant must still hold", flatA, flatB);
+    }
+
+    public void testFileMetadataCacheKeyDifferentiatesByDatasetEndpoint() {
+        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+
+        // Builder walks _datasource directly → endpoint difference visible even from raw config.
+        FileMetadataCacheKey rawA = FileMetadataCacheKey.build("s3://bucket/file.csv", configA);
+        FileMetadataCacheKey rawB = FileMetadataCacheKey.build("s3://bucket/file.csv", configB);
+        assertNotEquals("key builder walks _datasource directly → distinct endpoints from raw config", rawA, rawB);
+
+        // storageConfig (belt-and-suspenders) also exposes the difference.
+        FileMetadataCacheKey flatA = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configA));
+        FileMetadataCacheKey flatB = FileMetadataCacheKey.build("s3://bucket/file.csv", ExternalSourceResolver.storageConfig(configB));
+        assertNotEquals("flattened config also exposes endpoint → file-metadata keys must differ", flatA, flatB);
+    }
+
+    /**
+     * Pins the end-to-end resolver path: {@link ExternalSourceResolver#datasetAggregateKey} must produce
+     * different {@link SchemaCacheKey}s for dataset configs that differ only in {@code _datasource.endpoint},
+     * without pre-flattening via {@code storageConfig}. If the {@code storageConfig(config)} call inside
+     * {@code datasetAggregateKey} is removed, this test catches the regression.
+     */
+    public void testDatasetAggregateKeyIsolatedByEndpointInDatasource() {
+        ExternalSourceResolver resolver = datasetGateResolver(null);
+        // datasetAggregateKey requires at least 2 files (the dataset-level aggregate is only meaningful
+        // for multi-file datasets; single-file listings return null to fall back to per-file caching).
+        FileList listing = GlobExpander.fileListOf(
+            List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
+            "s3://bucket/data/*.ndjson"
+        );
+        Map<String, Object> dsA = new HashMap<>(Map.of("endpoint", "http://endpoint-a.example.com"));
+        Map<String, Object> dsB = new HashMap<>(Map.of("endpoint", "http://endpoint-b.example.com"));
+        Map<String, Object> configA = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsA));
+        Map<String, Object> configB = new HashMap<>(Map.of(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsB));
+
+        SchemaCacheKey keyA = resolver.datasetAggregateKey(listing, configA);
+        SchemaCacheKey keyB = resolver.datasetAggregateKey(listing, configB);
+        assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyA);
+        assertNotNull("ndjson listing must qualify for a dataset aggregate key", keyB);
+        assertNotEquals("datasetAggregateKey must produce different keys for different _datasource.endpoint values", keyA, keyB);
     }
 }

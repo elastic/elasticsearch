@@ -127,6 +127,22 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals("sao_paulo", file1.get("city"));
     }
 
+    /**
+     * The rename is only true once the template binds: over mixed-depth files detection bails to
+     * {@link PartitionMetadata#EMPTY}, no {@code _partition._index} column surfaces, and a notice raised before the
+     * bail-out would ride the cached listing into every later run.
+     */
+    public void testReservedPlaceholderRenameIsSilentWhenDetectionBailsOut() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{_index}/{year}");
+
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/alpha/2024/file1.parquet"),
+            entry("s3://bucket/data/beta/2023/01/file2.parquet")
+        );
+
+        assertTrue(detector.detect(files, WarningSinks.FAILING).isEmpty());
+    }
+
     public void testInconsistentSegmentCountReturnsEmpty() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/{month}");
 

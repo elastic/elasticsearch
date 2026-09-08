@@ -70,9 +70,6 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
-        // Warn at detection time (not construction), mirroring the Hive detector.
-        ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
-
         int segmentCount = columnNames.size();
 
         // Every file must sit at the same directory depth. The template binds the LAST N segments before the
@@ -121,6 +118,9 @@ public final class TemplatePartitionDetector implements PartitionDetector {
             filePartitionValues.put(files.get(i).path(), typed);
         }
 
+        // Only now is the rename true: the bail-outs above surface no partition column at all, and a notice raised
+        // before them would ride the cached listing into every later run.
+        ReservedPartitionNames.warnRenamed(renamedColumns, warningSink);
         return new PartitionMetadata(partitionColumns, filePartitionValues);
     }
 

@@ -53,6 +53,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -623,7 +624,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("quick brown"); // appends "foo" -> "quick brownfoo", well under the limit
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount, 1000);
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
-        assertEquals(2, tokens.size());
+        assertThat(tokens, hasSize(2));
         assertEquals("quick", tokens.get(0).getTerm());
         assertEquals("brownfoo", tokens.get(1).getTerm());
     }
@@ -637,7 +638,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         atLimit.tokenizer("standard");
         atLimit.text("abcde"); // exactly 5 characters
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(atLimit, registry, mockIndexService(), maxTokenCount, 5);
-        assertEquals(1, analyze.getTokens().size());
+        assertThat(analyze.getTokens(), hasSize(1));
         assertEquals("abcde", analyze.getTokens().get(0).getTerm());
 
         AnalyzeAction.Request overLimit = new AnalyzeAction.Request();

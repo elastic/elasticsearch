@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -44,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  * argument.
  * </p>
  */
-public class StUnionUnary extends SpatialUnaryDocValuesFunction {
+public class StUnionUnary extends SpatialUnaryDocValuesFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StUnionUnary",

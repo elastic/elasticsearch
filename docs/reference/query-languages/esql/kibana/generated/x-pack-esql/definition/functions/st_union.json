@@ -11,6 +11,18 @@
           "type" : "cartesian_point",
           "optional" : false,
           "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "cartesian_point",
+          "optional" : false,
+          "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
@@ -47,6 +59,18 @@
           "type" : "cartesian_shape",
           "optional" : false,
           "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "cartesian_shape",
+          "optional" : false,
+          "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
         },
         {
           "name" : "geomB",
@@ -75,6 +99,18 @@
       ],
       "variadic" : false,
       "returnType" : "cartesian_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geo_point",
+          "optional" : false,
+          "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_shape"
     },
     {
       "params" : [
@@ -107,6 +143,18 @@
           "type" : "geo_shape",
           "optional" : true,
           "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. Must share the same coordinate reference system as the first parameter. If `null`, the function returns `null`. When omitted, all multi-values of `geomA` are unioned into a single geometry."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "geo_shape"
+    },
+    {
+      "params" : [
+        {
+          "name" : "geomA",
+          "type" : "geo_shape",
+          "optional" : false,
+          "description" : "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,

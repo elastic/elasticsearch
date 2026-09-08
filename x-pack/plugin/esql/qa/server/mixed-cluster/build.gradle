@@ -232,6 +232,14 @@ tasks.named("yamlRestTest") {
   enabled = false
 }
 
+// bcUpgradeTest is a same-version detached-main cluster: every node reports the current
+// version, so MixedClusterExternalSourceIT cannot select distinct old and current coordinators.
+tasks.named("bcUpgradeTest") {
+  filter {
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
 }

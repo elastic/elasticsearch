@@ -70,6 +70,10 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
                 "external data-source BWC coverage starts at 9.5.0",
                 MixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)
             );
+            assumeTrue(
+                "requires distinguishable old and current nodes",
+                MixedClusterTestSupport.bwcVersion().before(org.elasticsearch.Version.CURRENT)
+            );
             base.evaluate();
         }
     }).around(s3Fixture).around(cluster);

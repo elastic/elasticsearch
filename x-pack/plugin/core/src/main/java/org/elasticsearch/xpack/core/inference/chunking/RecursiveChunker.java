@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.core.inference.chunking;
 import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.text.ReadLimitedCharSequence;
 import org.elasticsearch.inference.ChunkingSettings;
 
 import java.util.ArrayList;
@@ -86,25 +89,33 @@ public class RecursiveChunker implements Chunker {
     }
 
     private List<ChunkOffsetAndCount> splitTextBySeparatorRegex(String input, ChunkOffset offset, String separatorRegex) {
-        var pattern = Pattern.compile(separatorRegex, Pattern.MULTILINE);
-        var matcher = pattern.matcher(input).region(offset.start(), offset.end());
+        try {
+            var pattern = Pattern.compile(separatorRegex, Pattern.MULTILINE);
+            var matcher = pattern.matcher(new ReadLimitedCharSequence(input, RecursiveChunkingSettings.MAX_REGEX_READOVER_COUNT))
+                .region(offset.start(), offset.end());
 
-        var chunkOffsets = new ArrayList<ChunkOffsetAndCount>();
-        int chunkStart = offset.start();
-        while (matcher.find()) {
-            var chunkEnd = matcher.start();
+            var chunkOffsets = new ArrayList<ChunkOffsetAndCount>();
+            int chunkStart = offset.start();
+            while (matcher.find()) {
+                var chunkEnd = matcher.start();
 
-            if (chunkStart < chunkEnd) {
-                chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, chunkEnd)));
+                if (chunkStart < chunkEnd) {
+                    chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, chunkEnd)));
+                }
+                chunkStart = chunkEnd;
             }
-            chunkStart = chunkEnd;
-        }
 
-        if (chunkStart < offset.end()) {
-            chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, offset.end())));
-        }
+            if (chunkStart < offset.end()) {
+                chunkOffsets.add(buildChunkOffsetAndCount(input, new ChunkOffset(chunkStart, offset.end())));
+            }
 
-        return chunkOffsets;
+            return chunkOffsets;
+        } catch (ReadLimitedCharSequence.LimitExceededException e) {
+            throw new CircuitBreakingException(
+                "Chunk separator regex has exceeded the read limit " + e.readLimit(),
+                CircuitBreaker.Durability.TRANSIENT
+            );
+        }
     }
 
     private List<ChunkOffsetAndCount> mergeChunkOffsetsUpToMaxChunkSize(List<ChunkOffsetAndCount> chunkOffsets, int maxChunkSize) {

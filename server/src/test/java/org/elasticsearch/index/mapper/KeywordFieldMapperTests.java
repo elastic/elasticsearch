@@ -1825,6 +1825,35 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
     }
 
+    /**
+     * Pre-gate BWC: on a columnar index created before {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR},
+     * a value exceeding {@code ignore_above} must populate {@code _ignored} and write a fallback to
+     * {@code field._original} (binary doc values, matching the logsdb storage format).
+     */
+    public void testIgnoredFieldStoredInBinaryDocValuesForPreGateColumnarIndex() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        assertTrue(
+            "_ignored must contain 'field'",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue()))
+        );
+        assertFalse(
+            "field._original must not use stored fields in columnar mode",
+            doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertTrue(
+            "field._original must be written as binary doc values",
+            doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField)
+        );
+    }
+
     @Override
     protected String randomSyntheticSourceKeep() {
         // Only option all keeps array source in ignored source.

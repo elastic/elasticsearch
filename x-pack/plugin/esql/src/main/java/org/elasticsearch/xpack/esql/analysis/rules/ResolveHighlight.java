@@ -13,19 +13,18 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fills implicit HIGHLIGHT query and ON fields during analysis so generated columns exist for later KEEP.
+ * Fills implicit HIGHLIGHT query and ON fields during analysis so generated columns exist for later KEEP. This has to
+ * settle during analysis because those columns are part of {@link Highlight#output()}, so a downstream
+ * {@code KEEP highlight_title} can only resolve once they exist. Deriving nothing leaves the node untouched and lets
+ * {@code Highlight#postAnalysisVerification} report the failure the user can act on.
+ * <p>
  * {@link #skipResolved()} is false because {@code WHERE <full-text> | HIGHLIGHT ON <fields>} is already resolved and
  * would otherwise be skipped.
  */
@@ -45,7 +44,7 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
         Expression query = highlight.query();
         boolean implicit = highlight.implicitQuery();
         if (query == null) {
-            query = collectImplicitQuery(highlight.child());
+            query = HighlightSupport.collectImplicitQuery(highlight.child(), highlight.source()).query();
             implicit = query != null;
         }
 
@@ -93,31 +92,5 @@ public class ResolveHighlight extends AnalyzerRule<Highlight> {
             return highlight;
         }
         return highlight.withResolved(query, implicit, fields, generated);
-    }
-
-    /**
-     * Collects the searchable conjuncts of every {@code WHERE} that still describes the documents reaching {@code HIGHLIGHT}.
-     * The walk moves down the child chain (children are upstream) and stops at the first node that is not
-     * {@link DocPreserving}, because past that point a row no longer maps to a single document.
-     * <p>
-     * Predicates are collected as-is, with no check that their attributes are still live: a predicate whose field was later
-     * dropped or renamed translates against a context that only knows the ON fields, so it becomes a match-none query
-     * and the column comes out null. An {@code AttributeSet} liveness guard would be worse, since membership is
-     * {@code NameId}-based and RENAME or MV_EXPAND mint fresh ids, silently dropping predicates.
-     * <p>
-     * WHEREs filter conjunctively, but highlight terms are OR-ed because the highlight query is display, not selection.
-     */
-    private static Expression collectImplicitQuery(LogicalPlan child) {
-        List<Expression> predicates = new ArrayList<>();
-        for (LogicalPlan current = child; current instanceof UnaryPlan unary && current instanceof DocPreserving; current = unary.child()) {
-            if (current instanceof Filter filter) {
-                for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
-                    if (HighlightSupport.isSupportedImplicitPredicate(conjunct)) {
-                        predicates.add(conjunct);
-                    }
-                }
-            }
-        }
-        return predicates.isEmpty() ? null : Predicates.combineOr(predicates);
     }
 }

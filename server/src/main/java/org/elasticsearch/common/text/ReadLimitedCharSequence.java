@@ -33,6 +33,7 @@ public class ReadLimitedCharSequence implements CharSequence {
         private final int readLimit;
 
         public LimitExceededException(int readLimit) {
+            super("Read limit exceeded: " + readLimit);
             this.readLimit = readLimit;
         }
 

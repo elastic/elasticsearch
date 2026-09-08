@@ -353,13 +353,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                 SECURITY_ORIGIN,
                 TransportDeleteAction.TYPE,
                 deleteRequest,
-                ActionListener.wrap(deleteResponse -> {
-                    if (deleteResponse.getResult() == DocWriteResponse.Result.DELETED) {
-                        invalidateAccountCacheClusterWide(accountId.asPrincipal(), listener.map(ignore -> true));
-                    } else {
-                        listener.onResponse(false);
-                    }
-                }, listener::onFailure)
+                ActionListener.wrap(
+                    deleteResponse -> invalidateAccountCacheClusterWide(
+                        accountId.asPrincipal(),
+                        listener.map(ignore -> deleteResponse.getResult() == DocWriteResponse.Result.DELETED)
+                    ),
+                    listener::onFailure
+                )
             );
         });
     }

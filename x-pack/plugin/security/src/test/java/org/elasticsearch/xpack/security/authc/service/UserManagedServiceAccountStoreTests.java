@@ -363,21 +363,22 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
-    public void testDeleteAccountReportsWhenThereWasNothingToDelete() {
+    public void testDeleteAccountClearsTheCacheEvenWhenThereWasNothingToDelete() {
         respondWithDeleteResult(false);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.IMMEDIATE, future);
         assertThat(future.actionGet(), is(false));
 
-        assertThat(clearedCacheKeys, empty());
+        assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
 
     public void testDeleteAccountFailsWhenTheCacheCannotBeCleared() {
         final ElasticsearchException failure = new ElasticsearchException("node unreachable");
+        final boolean found = randomBoolean();
         responseProvider.set((request, listener) -> {
             if (request instanceof DeleteRequest) {
-                listener.onResponse(deleteResponse(true));
+                listener.onResponse(deleteResponse(found));
             } else if (request instanceof ClearSecurityCacheRequest) {
                 listener.onFailure(failure);
             } else {

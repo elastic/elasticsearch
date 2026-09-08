@@ -1,0 +1,61 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "ingestion_method": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "updated_at": {
+          "type": "date"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "keyword"
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "kibana": {
+              "type": "object",
+              "properties": {
+                "privileges": {
+                  "type": "nested",
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "space": {
+                      "type": "keyword"
+                    },
+                    "count": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Additional template mappings applied to the Elastic AI Index.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

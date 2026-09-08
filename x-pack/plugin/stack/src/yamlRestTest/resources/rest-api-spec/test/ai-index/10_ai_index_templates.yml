@@ -6,6 +6,13 @@ setup:
         wait_for_events: languid
 
 ---
+teardown:
+  - do:
+      cluster.delete_component_template:
+        name: ai-index@custom
+        ignore: 404
+
+---
 "The base `ai-index-` prefix alone is not matched by either template, so no mappings are applied":
   - do:
       indices.create:
@@ -55,13 +62,13 @@ setup:
 ---
 "Dot-prefixed standard AI index picks up the managed template":
   - requires:
-      test_runner_features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings_regex"]
 
   # MetadataCreateIndexService warns for any non-hidden dot-prefixed index. The template
   # deliberately leaves index.hidden unset.
   - do:
-      allowed_warnings:
-        - "index name [.ai-index-idx-foo] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
       indices.create:
         index: .ai-index-idx-foo
   - match: { acknowledged: true }
@@ -84,3 +91,102 @@ setup:
         name: .ai-index-ds-foo
   - match: { data_streams.0.name: .ai-index-ds-foo }
   - match: { data_streams.0.template: ai-index-ds }
+
+---
+"SML index composes the shared mappings with the SML-specific ones":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-sml-data-000001
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-sml-data-000001
+  # From ai-index@mappings.
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.type.normalizer: lowercase }
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.title.fields.semantic.type: semantic_text }
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.attributes.type: flattened }
+
+  # From ai-index-sml@mappings.
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.ingestion_method.type: keyword }
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.origin.properties.uri.type: keyword }
+  - match: { \.ai-index-idx-sml-data-000001.mappings.dynamic: strict }
+  # The implicit privilege provider's DLS filter requires this to be `nested`.
+  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
+
+---
+"SML index is fronted by the write alias":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-sml-data-000001
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_alias:
+        index: .ai-index-idx-sml-data-000001
+  - match: { \.ai-index-idx-sml-data-000001.aliases.\.ai-index-idx-sml-data.is_write_index: true }
+
+---
+"SML index rejects unmapped fields":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-sml-data-000001
+
+  - do:
+      catch: /strict_dynamic_mapping_exception/
+      index:
+        index: .ai-index-idx-sml-data-000001
+        body: { not_a_mapped_field: "x" }
+
+---
+"A user ai-index@custom component does not reach the SML index":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      cluster.put_component_template:
+        name: ai-index@custom
+        body:
+          template:
+            mappings:
+              properties:
+                user_custom_field:
+                  type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-foo
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-index-idx-sml-data-000001
+
+  # The generic AI index template composes ai-index@custom, so the user field lands there.
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-foo
+  - match: { \.ai-index-idx-foo.mappings.properties.user_custom_field.type: keyword }
+
+  # The SML template deliberately does not, so the same component cannot alter the SML index.
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-sml-data-000001
+  - is_false: \.ai-index-idx-sml-data-000001.mappings.properties.user_custom_field

@@ -85,7 +85,7 @@ echo --- Building release artifacts
   exportCompressedDockerImages \
   exportDockerContexts \
   :zipAggregation \
-  :zipDraSnapshotMavenAggregation \
+  :prepareDraSnapshotMavenAggregation \
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script

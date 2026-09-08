@@ -1474,19 +1474,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         for (var commandAndLabel : List.of(
             Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
-            Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK")
+            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
         )) {
-            test().addLanguagesLookup()
-                .statementError(
-                    setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                    containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; ["
-                            + commandAndLabel.v2()
-                            + "] is not supported yet"
-                    )
-                );
+            test().statementError(
+                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
+                containsString(
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; ["
+                        + commandAndLabel.v2()
+                        + "] is not supported yet"
+                )
+            );
         }
     }
 
@@ -1544,7 +1542,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1552,7 +1550,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
+                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [TS] is not supported yet"
                 )
             );
     }

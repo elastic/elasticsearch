@@ -69,7 +69,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -211,33 +210,55 @@ public class ExternalSourceResolver {
      * {@link ExternalSourceResolution} completed by {@link #resolveNextPath} (see {@link #bufferedWarnings}), so
      * {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for {@code TransportEsqlQueryAction#toResponse}
      * to emit on the thread that builds the client response. Cleared at the start of each {@link #resolve} call;
-     * append-only in between, so concurrent per-file callbacks (see {@link #metadataReadConcurrency}) are safe.
+     * append-only in between. A comma list raises one exclusion notice per segment, each naming its own prefix, so
+     * this channel is capped like {@link #pendingMetadataWarnings} rather than trusting the listing to stay short.
      */
-    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
+    private final NoticeBuffer pendingShadowWarnings = new NoticeBuffer();
 
     /**
      * A resolved source's {@link SourceMetadata#warnings()}, buffered for the completion-time attach alongside
      * {@link #pendingShadowWarnings} but counted separately: a wide glob resolves one metadata per file, and a per-file
-     * notice must not multiply into hundreds of headers, nor spend the shadow channel's room. Deduplicated by exact
-     * text and capped at {@link SkipWarnings#MAX_ADDED_WARNINGS}; when the cap is hit a single overflow marker is
-     * appended after everything else in {@link #bufferedWarnings}. Filled on both the cold and the cache-hit path so the same query
-     * warns identically on every run. Guarded by its own monitor because per-file callbacks run concurrently.
+     * notice must not multiply into hundreds of headers, nor spend the shadow channel's room. Filled on both the cold
+     * and the cache-hit path so the same query warns identically on every run.
      */
-    private final Set<String> pendingMetadataWarnings = new LinkedHashSet<>();
-    private boolean metadataWarningsOverflowed;
+    private final NoticeBuffer pendingMetadataWarnings = new NoticeBuffer();
 
-    private void bufferMetadataWarnings(List<String> warnings) {
-        synchronized (pendingMetadataWarnings) {
-            for (String warning : warnings) {
-                if (pendingMetadataWarnings.contains(warning)) {
-                    continue;
-                }
-                if (pendingMetadataWarnings.size() >= SkipWarnings.MAX_ADDED_WARNINGS) {
-                    metadataWarningsOverflowed = true;
-                    return;
-                }
-                pendingMetadataWarnings.add(warning);
+    /**
+     * One resolve-time notice channel: deduplicated by exact text and capped at {@link SkipWarnings#MAX_ADDED_WARNINGS},
+     * remembering that it overflowed so {@link ExternalSourceResolver#bufferedWarnings} can append a single overflow
+     * marker after everything else. Synchronized because per-file callbacks run concurrently (see
+     * {@link ExternalSourceResolver#metadataReadConcurrency}).
+     */
+    private static final class NoticeBuffer {
+        private final Set<String> notices = new LinkedHashSet<>();
+        private boolean overflowed;
+
+        synchronized void add(String notice) {
+            if (notices.contains(notice)) {
+                return;
             }
+            if (notices.size() >= SkipWarnings.MAX_ADDED_WARNINGS) {
+                overflowed = true;
+                return;
+            }
+            notices.add(notice);
+        }
+
+        synchronized void addAll(List<String> all) {
+            for (String notice : all) {
+                add(notice);
+            }
+        }
+
+        synchronized void clear() {
+            notices.clear();
+            overflowed = false;
+        }
+
+        /** Appends this channel's notices to {@code out}; returns whether the cap dropped any. */
+        synchronized boolean drainTo(List<String> out) {
+            out.addAll(notices);
+            return overflowed;
         }
     }
 
@@ -248,12 +269,11 @@ public class ExternalSourceResolver {
      * (elastic/elasticsearch#153780).
      */
     private List<String> bufferedWarnings() {
-        List<String> warnings = new ArrayList<>(pendingShadowWarnings);
-        synchronized (pendingMetadataWarnings) {
-            warnings.addAll(pendingMetadataWarnings);
-            if (metadataWarningsOverflowed) {
-                warnings.add(SkipWarnings.overflowMessage());
-            }
+        List<String> warnings = new ArrayList<>();
+        boolean overflowed = pendingShadowWarnings.drainTo(warnings);
+        overflowed |= pendingMetadataWarnings.drainTo(warnings);
+        if (overflowed) {
+            warnings.add(SkipWarnings.overflowMessage());
         }
         return warnings;
     }
@@ -475,10 +495,7 @@ public class ExternalSourceResolver {
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
-        synchronized (pendingMetadataWarnings) {
-            pendingMetadataWarnings.clear();
-            metadataWarningsOverflowed = false;
-        }
+        pendingMetadataWarnings.clear();
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -747,14 +764,14 @@ public class ExternalSourceResolver {
                     computedStatistics[0] = metadata.statistics().orElse(null);
                     return stampInferredReadConfig(SchemaCacheEntry.from(metadata));
                 });
-                bufferMetadataWarnings(schemaEntry.warnings());
+                pendingMetadataWarnings.addAll(schemaEntry.warnings());
                 harvestedStatistics = computedStatistics[0];
                 List<Attribute> schema = schemaEntry.toAttributes();
                 extMetadata = buildMetadataFromCache(schemaEntry, schema, config, harvestedStatistics);
                 storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
             } else {
                 SourceMetadata metadata = resolveSingleSource(path, config);
-                bufferMetadataWarnings(metadata.warnings());
+                pendingMetadataWarnings.addAll(metadata.warnings());
                 // Read the statistics off the reader's metadata before wrapping: wrapAsExternalSourceMetadata folds
                 // them into sourceMetadata() but does not override statistics(), so they are unreachable afterwards.
                 harvestedStatistics = metadata.statistics().orElse(null);
@@ -821,7 +838,7 @@ public class ExternalSourceResolver {
 
             FileList listing = listAndRecord(path, storagePath, provider, hints, config, cacheable);
             if (listing.fileCount() == 0) {
-                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                throw noFilesMatched(path, listing);
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
                 resolveMultiFileWithReconciliation(listing, config, schemaResolution, cacheable, listener);
@@ -1145,6 +1162,19 @@ public class ExternalSourceResolver {
         pendingShadowWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         return listing;
+    }
+
+    /**
+     * A failed resolve delivers no notices, and "matched no files" over a prefix that visibly holds objects is the
+     * least actionable error this path produces; the exclusion notice is what makes it actionable, so it goes into
+     * the message.
+     */
+    private static IllegalArgumentException noFilesMatched(String path, FileList listing) {
+        StringBuilder message = new StringBuilder("Glob pattern matched no files: ").append(path);
+        for (String notice : listing.listingWarnings()) {
+            message.append(". ").append(notice);
+        }
+        return new IllegalArgumentException(message.toString());
     }
 
     private FileList expandAndCompact(
@@ -1826,7 +1856,7 @@ public class ExternalSourceResolver {
         SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), hint.lastModifiedMillis(), formatType, storageConfig(config));
         SchemaCacheEntry cached = cacheService.getSchemaIfPresent(schemaKey);
         if (cached != null) {
-            bufferMetadataWarnings(cached.warnings());
+            pendingMetadataWarnings.addAll(cached.warnings());
             listener.onResponse(buildMetadataFromCache(cached, cached.toAttributes(), config));
             return;
         }
@@ -2327,7 +2357,7 @@ public class ExternalSourceResolver {
         // Buffer the metadata's notices here, where every fresh async resolve passes, so a non-cacheable source (or a
         // node with the cache disabled) delivers them exactly like a cacheable one.
         resolveWithFactory(path, hint, config, candidates, 0, null, listener.map(meta -> {
-            bufferMetadataWarnings(meta.warnings());
+            pendingMetadataWarnings.addAll(meta.warnings());
             return meta;
         }));
     }
@@ -2846,17 +2876,15 @@ public class ExternalSourceResolver {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-            pendingShadowWarnings.addAll(listing.listingWarnings());
         } else if (isCacheable(provider)) {
             listing = cachedListing(path, storagePath, provider, hints, config);
-            pendingShadowWarnings.addAll(listing.listingWarnings());
         } else {
             listing = expandAndCompact(path, provider, hints, config, storagePath);
-            pendingShadowWarnings.addAll(listing.listingWarnings());
         }
+        pendingShadowWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            throw noFilesMatched(path, listing);
         }
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the

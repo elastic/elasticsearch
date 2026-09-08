@@ -11,7 +11,7 @@ entries:
     name: 158340.yaml
     checksum: de806116224c9a28c42ba9fb5c78a9feeef92d62
   type: enhancement
-  title: 'ES|QL: Extend `SORT @timestamp DESC, LIMIT N` optimization to time-ordered indices'
+  title: 'Extend ES|QL `SORT @timestamp DESC, LIMIT N` optimization to time-ordered indices'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -23,7 +23,7 @@ entries:
     name: 157148.yaml
     checksum: 7e8e80c2641da04b41a0220501c4d666de79c5ff
   type: bug-fix
-  title: 'ES|QL: Fix `TS STATS` literal aggregates dropped by the query optimizer'
+  title: 'Fix `TS STATS` literal aggregates dropped by the ES|QL query optimizer'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -74,7 +74,7 @@ entries:
     name: 158161.yaml
     checksum: 2dc1fd988127f8a008ffefcee1b9362f0a2d64a1
   type: bug-fix
-  title: 'ES|QL: Restore `COUNT()` in function metadata'
+  title: 'Restore `COUNT()` in ES|QL function metadata'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -86,7 +86,7 @@ entries:
     name: 158073.yaml
     checksum: 6d8d5edd5c09b208cb6ba22b4d4bbf08293f774b
   type: bug-fix
-  title: 'ES|QL: Fix federated queries on external data sources in Serverless'
+  title: 'Fix federated queries on external data sources in ES|QL'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -100,7 +100,7 @@ entries:
     name: 158160.yaml
     checksum: e878f3741bce2bfa5b9fb76709584287bf9f154e
   type: bug-fix
-  title: 'ES|QL: Fix null-handling error in late-materialization concatenation'
+  title: 'Fix null-handling error in ES|QL late-materialization concatenation'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -112,7 +112,7 @@ entries:
     name: 158195.yaml
     checksum: ecc7f8d363e901e5824f88d08c42062731dc03f4
   type: bug-fix
-  title: 'ES|QL: Fix double-free in Parquet filter block cleanup'
+  title: 'Fix double-free in Parquet filter block cleanup in ES|QL'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -150,7 +150,7 @@ entries:
     name: 158235.yaml
     checksum: b7abf11d3acb92178826869e80eb7166e6933055
   type: bug-fix
-  title: Fix shard bulk operation aborting incorrectly on expansion rejection
+  title: Fix shard bulk operation stopping incorrectly on expansion rejection
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -184,7 +184,7 @@ entries:
     name: 158258.yaml
     checksum: d940d2770cce55b600f47af5a53676138518c319
   type: enhancement
-  title: 'ES|QL: Cancel leftover object-store I/O on query completion'
+  title: 'Cancel leftover object-store I/O on ES|QL query completion'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -220,7 +220,7 @@ entries:
     name: 158203.yaml
     checksum: e6f101d8daa548104761fc280221ad4f16a22471
   type: bug-fix
-  title: 'ES|QL: Fix incorrect file statistics for external data sources'
+  title: 'Fix incorrect file statistics for ES|QL external data sources'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -244,7 +244,7 @@ entries:
     name: 156876.yaml
     checksum: 926364b294b6b8753b43e49cb06d1f2e445e79d6
   type: enhancement
-  title: 'Transform: Fix `top_metrics.size` when a source document maps to multiple destination documents'
+  title: 'Fix `top_metrics.size` when a transform source document maps to multiple destination documents'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -258,7 +258,7 @@ entries:
     name: 157699.yaml
     checksum: 851cca826c4f451c96561ff798f0215e3eb4c748
   type: bug-fix
-  title: 'ES|QL: Fix cast warnings not appearing in query results'
+  title: 'Fix cast warnings not appearing in ES|QL query results'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -296,7 +296,7 @@ entries:
     name: 157642.yaml
     checksum: 687fc34d9d485ab03b209f2b119a6bc2bf5eecf9
   type: enhancement
-  title: Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template`
+  title: Apply `_msearch` memory bounds, cancellation, and metrics to `_msearch/template` API
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -320,7 +320,7 @@ entries:
     name: 158153.yaml
     checksum: 43f647b70df10f06f6f1c208ccd46415c218d4f5
   type: bug-fix
-  title: 'ES|QL: Fix Parquet dictionary prefetch failing when dictionary starts at offset 0'
+  title: 'Fix Parquet dictionary prefetch in ES|QL failing when dictionary starts at offset 0'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -346,7 +346,7 @@ entries:
     name: 158410.yaml
     checksum: 9a6be413b25a6b2edb1a13c6ff0f7b7e4499b6ad
   type: bug-fix
-  title: 'ES|QL: Improve error messages for external data source failures'
+  title: 'Improve error messages for ES|QL external data source failures'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -386,7 +386,7 @@ entries:
     name: 155310.yaml
     checksum: 8e4acad496b0311914a8d8743b38ae6e456a04c5
   type: bug-fix
-  title: Return HTTP 4xx status codes when ML nodes are exhausted
+  title: Return HTTP 4xx status codes when machine learning nodes are exhausted
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -410,7 +410,7 @@ entries:
     name: 158155.yaml
     checksum: b1550ab6107ca32421a442d04cae40ad89f7cd00
   type: bug-fix
-  title: 'ES|QL: Clear Parquet and ORC filter state between query reuse cycles'
+  title: 'Clear Parquet and ORC filter state between ES|QL query reuse cycles'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -422,7 +422,7 @@ entries:
     name: 158163.yaml
     checksum: e187609512ac5bb45624bb152c382fa238d58617
   type: enhancement
-  title: 'ES|QL: Cache file listings for multi-file external data sources'
+  title: 'Cache file listings for multi-file external data sources in ES|QL'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -472,7 +472,7 @@ entries:
     name: 157717.yaml
     checksum: 62d1fa0b8566f1192dfd96dbbae167e2f117be63
   type: enhancement
-  title: 'ES|QL: Add optimization for `SORT @timestamp DESC, LIMIT N` query patterns'
+  title: 'Add optimization for `SORT @timestamp DESC, LIMIT N` query patterns in ES|QL'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -484,7 +484,7 @@ entries:
     name: 154642.yaml
     checksum: f3e467de24ac6ce10804a7d6b0c8216e3f4f9236
   type: bug-fix
-  title: 'ES|QL: Read NDJSON flat dotted fields into the dotted column'
+  title: 'Read NDJSON flat dotted fields into the dotted column in ES|QL'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -499,7 +499,7 @@ entries:
     name: 158323.yaml
     checksum: 383e1919ab28da962c032de9119473a8dfbe4b43
   type: enhancement
-  title: 'ES|QL: Skip `SEARCH` phase during split discovery'
+  title: 'Skip `SEARCH` phase during ES|QL split discovery'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -511,7 +511,7 @@ entries:
     name: 157891.yaml
     checksum: c0b9ee482fbf81a9a43a920501beeded4d427689
   type: bug-fix
-  title: 'ES|QL: Fix race condition in inference failure tolerance'
+  title: 'Fix race condition in ES|QL inference failure tolerance'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -537,7 +537,7 @@ entries:
     name: 157540.yaml
     checksum: b167d94ccad02db3fc73cc7c04e90d94d692ae17
   type: bug-fix
-  title: 'ES|QL: Fix datasource subscriber hang caused by shared buffer double-free'
+  title: 'Fix ES|QL datasource subscriber hang caused by shared buffer double-free'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -551,7 +551,7 @@ entries:
     name: 158174.yaml
     checksum: 03f6887c3d078f1f23e3495855bc613064925b75
   type: bug-fix
-  title: 'ES|QL: Fix column alignment in `UNION` sub-plan execution'
+  title: 'Fix column alignment in ES|QL `UNION` sub-plan execution'
   products:
   - product: cloud-serverless
   - product: elasticsearch
@@ -577,7 +577,7 @@ entries:
     name: 158085.yaml
     checksum: 1896ba1dfa6e69d507e99d37e3a486d06bb4e5b9
   type: enhancement
-  title: 'ES|QL: Reuse Parquet and ORC file footers across query phases'
+  title: 'Reuse Parquet and ORC file footers across ES|QL query phases'
   products:
   - product: cloud-serverless
   - product: elasticsearch

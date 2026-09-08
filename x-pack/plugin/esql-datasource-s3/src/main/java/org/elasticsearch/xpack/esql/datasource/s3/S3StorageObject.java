@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import io.netty.channel.ChannelException;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -18,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -33,11 +36,15 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
+
+import javax.net.ssl.SSLException;
 
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
@@ -147,10 +154,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * and status signal is preserved. A retryable transport status (5xx/429) becomes an
      * {@link ExternalUnavailableException} (503 — the read may
      * succeed on retry). A closed HTTP client ({@code Connection pool shut down} / client-closed
-     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. Other
+     * {@link IllegalStateException}) is the same 503: the client is gone, not the object. An
+     * {@link SdkClientException} whose <em>direct</em> cause is an {@link IOException},
+     * {@link TimeoutException}, or Netty {@link ChannelException} is the same 503: the SDK never
+     * got a response (Apache drop / Netty read timeout). Nested {@code SdkClientException}
+     * (IMDS/STS), {@link UnknownHostException}, and {@link SSLException} stay client-class. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
-     * error is not retried and is not disguised as a client 400. A missing object or any other
-     * failure becomes an {@link IOException},
+     * error is not retried and is not disguised as a client 400. A missing object, a credential
+     * failure, or any other failure becomes an {@link IOException},
      * which the external source operator classifies as a client-class 400. Returns the exception
      * (never throws) so both the synchronous and async read paths can route it.
      */
@@ -202,6 +213,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 S3FailureDetail.of(cause)
             );
         }
+        if (isSdkClientTransportFailure(cause)) {
+            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", path, S3FailureDetail.of(cause));
+        }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
@@ -249,6 +263,29 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             current = next;
         }
         return false;
+    }
+
+    /**
+     * Direct cause of the first {@link SdkClientException} is an {@link IOException},
+     * {@link TimeoutException}, or Netty {@link ChannelException} (Apache no-response, Netty
+     * {@code ReadTimeoutException}). Nested {@code SdkClientException} is the IMDS/STS credential
+     * chain, not a dropped GET. {@link UnknownHostException} and {@link SSLException} stay
+     * client-class.
+     */
+    static boolean isSdkClientTransportFailure(Throwable cause) {
+        Throwable sdk = ExceptionsHelper.unwrap(cause, SdkClientException.class);
+        if (sdk == null) {
+            return false;
+        }
+        Throwable below = sdk.getCause();
+        if (below == null) {
+            return false;
+        }
+        if (ExceptionsHelper.unwrap(below, UnknownHostException.class) != null
+            || ExceptionsHelper.unwrap(below, SSLException.class) != null) {
+            return false;
+        }
+        return below instanceof IOException || below instanceof TimeoutException || below instanceof ChannelException;
     }
 
     /**

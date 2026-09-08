@@ -2189,10 +2189,11 @@ public class FileSplitProvider implements SplitProvider {
                         statsFileTypes = attributesToTypeMap(readSchema);
                     }
                 }
-                // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-                // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-                // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-                // non-normalizable representation safe-misses via the marker.
+                // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+                // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+                // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+                // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+                // representation safe-misses via the marker.
                 rangeStats = SourceStatisticsSerializer.normalizeStatsToReconciled(rangeStats, statsFileTypes, reconciledTypes);
             }
             splits.add(
@@ -2268,10 +2269,11 @@ public class FileSplitProvider implements SplitProvider {
                 statsFileTypes = attributesToTypeMap(readSchema);
             }
         }
-        // Footer stats are in each file's LOCAL unit/representation; normalize to the reconciled query type so
-        // the split-filter classifier (which compares a reconciled-unit literal) and the filtered merge
-        // compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos) files, not unit-blind. A
-        // non-normalizable representation safe-misses via the marker.
+        // Footer stats are in each file's LOCAL unit/representation (footer or inferred types, not a
+        // pinned or unified type); normalize to the reconciled query type so the split-filter classifier
+        // and the filtered merge compare/serve in ONE unit across mixed DATETIME(millis)/DATE_NANOS(nanos)
+        // files and LONG/INTEGER files reconciled to DOUBLE, not unit-blind. A non-normalizable
+        // representation safe-misses via the marker.
         return SourceStatisticsSerializer.normalizeStatsToReconciled(stats, statsFileTypes, reconciledTypes);
     }
 

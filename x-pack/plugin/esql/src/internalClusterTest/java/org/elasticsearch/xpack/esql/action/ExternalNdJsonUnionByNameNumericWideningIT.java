@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -18,11 +23,18 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * The NDJSON counterpart of {@link ExternalCsvUnionByNameNumericWideningIT}: a multi-file NDJSON glob read under
@@ -170,5 +182,75 @@ public class ExternalNdJsonUnionByNameNumericWideningIT extends AbstractExternal
             assertThat(rows.stream().map(row -> row.get(0)).toList(), contains(10L, 20L, 3000000000L, 5000000000L, 6000000000L));
             assertThat("the out-of-sample overflow value must not abort the read", rows.get(2).get(0), equalTo(3000000000L));
         }
+    }
+
+    /**
+     * Two files, one integer-only and one fractional, under default {@code union_by_name}. The same
+     * two values in one file infer {@code double}; split across files they must still be {@code double}
+     * so {@code SUM(v)} analyzes. {@code 9007199254740993} is not an exact double (it reads as
+     * {@code 9007199254740992.0}); adding {@code 1.5} lands on {@code 9007199254740994.0} because the
+     * ulp at {@code 2^53} is 2.
+     */
+    public void testSplitLongAndDoubleFilesWidenToDoubleAndSumResolves() throws Exception {
+        Path dir = createTempDir().resolve("ubn_ndjson_long_double");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.ndjson"), "{\"v\":9007199254740993}\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("b.ndjson"), "{\"v\":1.5}\n", StandardCharsets.UTF_8);
+
+        String glob = StoragePath.fileUri(dir) + "/*.ndjson";
+        String dataset = registerDataset("ubn_ndjson_long_double", glob, Map.of("schema_resolution", "union_by_name"));
+        String query = "FROM " + dataset + " | STATS s = SUM(v)";
+
+        // Plan-time SkipWarnings land on the coordinator request thread. Execute there and read
+        // that node's Warning headers so the precision-loss phrases are asserted on the client
+        // path, not only via a hand-bound test ThreadContext (same pattern as
+        // ExternalCsvHivePartitionedIT.testHivePartitionShadowWarningReachesClient).
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+        CountDownLatch latch = new CountDownLatch(1);
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicReference<String> outputType = new AtomicReference<>();
+        AtomicReference<List<List<Object>>> values = new AtomicReference<>();
+        AtomicReference<Integer> columnCount = new AtomicReference<>();
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
+            try {
+                columnCount.set(response.columns().size());
+                outputType.set(response.columns().get(0).outputType());
+                values.set(getValuesList(response));
+                ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
+                    .getThreadPool()
+                    .getThreadContext();
+                threadContext.getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .stream()
+                    .map(w -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(w, false)))
+                    .forEach(warnings::add);
+            } finally {
+                latch.countDown();
+            }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
+        }));
+        assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("SUM(v) must analyze after LONG + DOUBLE widens to double", failure.get());
+        }
+
+        assertThat(columnCount.get(), equalTo(1));
+        assertThat(outputType.get(), equalTo("double"));
+        assertThat(values.get(), hasSize(1));
+        assertThat(values.get().get(0).get(0), equalTo(9007199254740994.0));
+
+        String pathA = StoragePath.ofLocalPath(dir.resolve("a.ndjson")).toString();
+        String pathB = StoragePath.ofLocalPath(dir.resolve("b.ndjson")).toString();
+        String summary = "Schema reconciliation widened long and double columns to double; integers above 2^53"
+            + " are not exact. Hint: use schema_resolution = \"strict\" to fail instead.";
+        String detailAb = "Column [v] widened to double: " + pathA + " (long), " + pathB + " (double); distinct types: [long, double]";
+        String detailBa = "Column [v] widened to double: " + pathB + " (double), " + pathA + " (long); distinct types: [double, long]";
+        List<String> reconciliation = warnings.stream()
+            .filter(w -> w.startsWith("Schema reconciliation") || w.startsWith("Column ["))
+            .toList();
+        assertThat(reconciliation, containsInAnyOrder(equalTo(summary), either(equalTo(detailAb)).or(equalTo(detailBa))));
     }
 }

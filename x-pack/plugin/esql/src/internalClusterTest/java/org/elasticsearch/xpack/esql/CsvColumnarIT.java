@@ -110,11 +110,12 @@ public class CsvColumnarIT extends CsvIT {
      * <p>Note: several entries in the generative-test catalogue
      * ({@code addresses_text}, {@code employees_gender_text}, {@code all_types},
      * {@code all_types_no_short}, {@code all_types_short_as_long}, {@code apps_short}) were
-     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here.
-     * They are still included because columnar auto-converts text→keyword and
-     * short→long, causing expected column-type headers in the csv-spec entries to mismatch.
-     * Revisit once the inventory (via {@code skip_columnar:} directives) is established and
-     * transformExpectedResults becomes worth implementing.
+     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here. They were
+     * also listed here on the assumption that columnar's text→keyword and short→long conversions
+     * would mismatch the csv-spec column-type headers. Running them proved otherwise: no test
+     * fails on column types. The only failures were the {@code unmapped_fields="load"} family
+     * described below, which now carry per-test {@code skip_columnar:} directives instead, so
+     * these datasets are no longer excluded.
      */
     private static final Set<String> COLUMNAR_INCOMPATIBLE_DATASETS = Set.of(
         // index:false / doc_values:false are no-ops in strict columnar mode — every field gets
@@ -132,19 +133,6 @@ public class CsvColumnarIT extends CsvIT {
         // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
         // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
         "employees_incompatible",
-        // Contains semantic_text and dense_vector fields that are absent from columnar field_caps,
-        // and has a short-typed field "short" that columnar normalises to long — both cause
-        // expected column-type header mismatches vs csv-spec declared types.
-        "all_types",
-        "all_types_no_short",
-        "all_types_short_as_long",
-        // id field overridden to short; columnar normalises short→long, causing a type conflict
-        // vs the base apps dataset (id: integer) and expected-type mismatches.
-        "apps_short",
-        // Keyword fields overridden to text; columnar auto-converts text→keyword, so expected
-        // column types in csv-spec entries (text) mismatch the actual columnar types (keyword).
-        "addresses_text",
-        "employees_gender_text",
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",

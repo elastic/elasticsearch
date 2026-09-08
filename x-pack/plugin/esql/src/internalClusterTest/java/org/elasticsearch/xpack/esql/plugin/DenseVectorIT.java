@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension.TestInferenceService;
@@ -69,6 +70,7 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         cleanupClusterSettings(
             InferenceSettings.DENSE_VECTOR_ENABLED_SETTING,
             InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING,
+            InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING,
             InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING
         );
     }
@@ -242,6 +244,43 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
         try (var resp = run(query)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(customLimit));
+        }
+    }
+
+    public void testDenseVectorBatchSizeSetting() throws Exception {
+        // A small batch size forces the query's rows across several inference requests, ending in a partial batch. The query
+        // profile proves the setting reaches the embedding operator (its description carries the batch size); the row assertions
+        // prove batching preserves results — every row still gets its vector, none dropped or duplicated at a batch boundary.
+        int customBatchSize = between(2, 5);
+        updateClusterSettings(Settings.builder().put(InferenceSettings.DENSE_VECTOR_BATCH_SIZE_SETTING.getKey(), customBatchSize));
+
+        final String largeIndex = "test_dense_vector_batch_size";
+        int rows = customBatchSize * 3 + 1;
+        createAndPopulateTestIndex(largeIndex, rows);
+
+        var query = String.format(Locale.ROOT, """
+            FROM %s
+            | DENSE_VECTOR title WITH { "inference_id": "%s" }
+            | KEEP id, title_dense_vector
+            | LIMIT %d
+            """, largeIndex, DENSE_VECTOR_MODEL_ID, rows);
+
+        try (var resp = run(EsqlQueryRequest.syncEsqlQueryRequest(query).profile(true))) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(rows));
+            for (List<Object> row : values) {
+                assertThat(row.get(1), notNullValue());
+            }
+
+            // The configured batch size reaches the embedding operator: it shows up in that operator's profile description.
+            assertThat(resp.profile(), notNullValue());
+            List<String> operatorDescriptions = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(driver -> driver.operators().stream())
+                .map(op -> op.operator())
+                .toList();
+            assertThat(operatorDescriptions, hasItem(containsString("batch_size=[" + customBatchSize + "]")));
         }
     }
 

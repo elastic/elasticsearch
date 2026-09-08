@@ -135,7 +135,6 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
         setupClusters(3);
         String query = "from logs-*,*:logs-* | stats sum (v)";
         EsqlQueryRequest source = syncEsqlQueryRequest(query);
-        source.pageSize(between(1, 10));
 
         AtomicReference<Throwable> startError = new AtomicReference<>();
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
@@ -144,7 +143,8 @@ public class CrossClusterLoggingIT extends AbstractCrossClusterTestCase {
             EsqlStreamQueryRequest.from(
                 source,
                 ActionListener.wrap(start -> start.publisher().subscribe(subscriber), startError::set),
-                false
+                false,
+                between(1, 10)
             )
         );
         future.actionGet(TimeValue.timeValueSeconds(30));

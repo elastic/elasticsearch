@@ -25,7 +25,7 @@ import java.util.concurrent.Flow;
  * {@link Producer#finish()} on handles obtained from {@link #registerProducer()}.
  * The REST listener subscribes via {@link Flow.Publisher#subscribe} and uses the resulting
  * {@link Flow.Subscription} to signal demand. When the outer transport action completes it calls
- * {@link #completeWithFooter} (or {@link #failStream} on failure).
+ * {@link #completeWithFooter(StreamFooter)} (or {@link #failStream(Exception, StreamFooter)} on failure).
  *
  * Multi-producer safe. Every {@link StreamingPageOperator} instance feeds this publisher
  * through its own {@link Producer} handle. Handles must be registered via {@link #registerProducer()}
@@ -51,7 +51,14 @@ import java.util.concurrent.Flow;
  */
 public class PageStreamPublisher implements Flow.Publisher<Page> {
 
-    public record StreamFooter(long tookMillis, List<String> warnings, boolean isPartial) {}
+    public record StreamFooter(
+        int status,
+        long tookMillis,
+        boolean isPartial,
+        List<String> warnings,
+        DriverCompletionInfo completionInfo,
+        Exception error
+    ) {}
 
     private record PendingDelivery(List<Page> pages, int firstOffset, int rows, int lastPageNewOffset) {
         boolean hasPartialLastPage() {
@@ -207,11 +214,15 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         }
     }
 
-    public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
+    public void completeWithFooter(StreamFooter footer) {
         synchronized (this) {
-            this.footer = new StreamFooter(tookMillis, warnings, isPartial);
+            this.footer = footer;
         }
         deliverPages();
+    }
+
+    public void completeWithFooter(long tookMillis, List<String> warnings, boolean isPartial) {
+        completeWithFooter(new StreamFooter(200, tookMillis, isPartial, warnings, null, null));
     }
 
     public synchronized StreamFooter footer() {
@@ -230,14 +241,21 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         return failure != null || terminalSignalSent;
     }
 
-    public void failStream(Exception e) {
+    public void failStream(Exception e, StreamFooter footer) {
         synchronized (this) {
             if (terminated()) {
                 return;
             }
+            if (footer != null && this.footer == null) {
+                this.footer = footer;
+            }
             this.failure = e;
         }
         deliverPages();
+    }
+
+    public void failStream(Exception e) {
+        failStream(e, null);
     }
 
     @Override

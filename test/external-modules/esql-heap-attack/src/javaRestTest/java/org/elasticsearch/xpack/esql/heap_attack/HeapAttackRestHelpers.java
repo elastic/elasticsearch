@@ -238,10 +238,13 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
     protected record StreamSummary(List<Map<String, Object>> columns, long rowCount, Map<String, Object> footer, boolean sawError) {}
 
     @SuppressWarnings("unchecked")
-    protected StreamSummary streamQuery(String esqlQuery, int pageSize) throws IOException {
-        Request request = new Request("POST", "/_query/stream");
+    protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("incremental_execution", "true");
+        request.addParameter("format", "ndjson");
+        request.addParameter("batch_size", Integer.toString(batchSize));
         request.addParameter("error_trace", "");
-        String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\",\"page_size\":" + pageSize + "}";
+        String body = "{\"query\":\"" + esqlQuery.replace("\n", "\\n") + "\"}";
         request.setJsonEntity(body);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()

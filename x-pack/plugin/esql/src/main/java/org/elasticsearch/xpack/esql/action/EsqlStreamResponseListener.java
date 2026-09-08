@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
@@ -41,16 +42,18 @@ import java.util.concurrent.atomic.AtomicReference;
  * and streams results as NDJSON to the HTTP client, one JSON line per logical unit:
  *   - First line: {@code {"columns":[...]}}
  *   - One line per page: {@code {"values":[[...],...]}}
- *   - Last line: {@code {"took":N,"is_partial":false,"warnings":["..."]}}
- *   - On error: {@code {"error":{"type":"...","reason":"..."},"status":N}}
+ *   - Last line (success): {@code {"status":200,"took":N,"is_partial":false,"warnings":[...],"documents_found":N,...}}
+ *   - Last line (failure after header): {@code {"status":N,"took":N,"is_partial":false,"warnings":[...],
+ *     "error":{"type":"...","reason":"..."}}}
+ *   - On pre-header error: same terminal-record shape with an error HTTP status code on the response line itself
  *
  * <p>Each logical unit maps to one {@link ChunkedRestResponseBodyPart}. The columns, footer and error
  * parts each emit a single small NDJSON line and therefore intentionally ignore the {@code sizeHint}
- * argument to {@code encodeChunk}. The page part respects {@code sizeHint}: because {@code page_size}
+ * argument to {@code encodeChunk}. The page part respects {@code sizeHint}: because {@code batch_size}
  * is a row count chosen by the client and per-row JSON width is unbounded, a single page can exceed the
  * target chunk size, so its rows are serialized incrementally across multiple {@code encodeChunk} calls.
  * Pages are never coalesced across parts: the next page is only available via an async {@code request(1)}
- * call, and buffering to fill a chunk would contradict the client's chosen {@code page_size}.</p>
+ * call, and buffering to fill a chunk would contradict the client's chosen {@code batch_size}.</p>
  */
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
@@ -121,7 +124,15 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 return;
             }
             RestStatus status = ExceptionsHelper.status(e);
-            channel.sendResponse(RestResponse.chunked(status, new NdjsonErrorBodyPart(e, status), this::release));
+            PageStreamPublisher.StreamFooter footer = new PageStreamPublisher.StreamFooter(
+                status.getStatus(),
+                0L,
+                false,
+                List.of(),
+                null,
+                e
+            );
+            channel.sendResponse(RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error("failed to send failure response", inner);
@@ -185,19 +196,22 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public void onError(Throwable throwable) {
             if (terminalEmitted.compareAndSet(false, true)) {
                 Exception e = throwable instanceof Exception ex ? ex : new RuntimeException(throwable);
-                RestStatus status = ExceptionsHelper.status(e);
-                ChunkedRestResponseBodyPart errorPart = new NdjsonErrorBodyPart(e, status);
+                PageStreamPublisher.StreamFooter footer = publisher.footer();
+                if (footer == null) {
+                    footer = new PageStreamPublisher.StreamFooter(ExceptionsHelper.status(e).getStatus(), 0L, false, List.of(), null, e);
+                }
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
                 ActionListener<ChunkedRestResponseBodyPart> next;
                 synchronized (continuationMonitor) {
                     next = nextBodyPartListener;
                     if (next != null) {
                         nextBodyPartListener = null;
                     } else {
-                        pendingTerminalPart = errorPart;
+                        pendingTerminalPart = footerPart;
                     }
                 }
                 if (next != null) {
-                    next.onResponse(errorPart);
+                    next.onResponse(footerPart);
                 }
             }
         }
@@ -459,72 +473,30 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             try {
                 writeJson(out, builder -> {
                     builder.startObject();
-                    if (footer != null) {
-                        builder.field("took", footer.tookMillis());
-                        builder.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
-                        if (footer.warnings().isEmpty() == false) {
-                            builder.array("warnings", footer.warnings().toArray(String[]::new));
-                        }
+                    builder.field("status", footer.status());
+                    builder.field("took", footer.tookMillis());
+                    builder.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
+                    builder.array("warnings", footer.warnings().toArray(String[]::new));
+                    if (footer.completionInfo() != null) {
+                        DriverCompletionInfo ci = footer.completionInfo();
+                        builder.field("documents_found", ci.documentsFound());
+                        builder.field("values_loaded", ci.valuesLoaded());
+                        builder.field("rows_emitted", ci.rowsEmitted());
+                        builder.field("bytes_read", ci.bytesRead());
+                        builder.field("read_nanos", ci.readNanos());
+                        builder.field("cpu_nanos", ci.cpuNanos());
                     }
-                    builder.endObject();
-                });
-                out.write(NEWLINE);
-                encoded = true;
-                return out.moveToBytesReference();
-            } catch (Exception e) {
-                IOUtils.closeWhileHandlingException(out);
-                throw e;
-            }
-        }
-
-        @Override
-        public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
-        }
-    }
-
-    private static class NdjsonErrorBodyPart implements ChunkedRestResponseBodyPart {
-        private final Throwable error;
-        private final RestStatus status;
-        private boolean encoded = false;
-
-        NdjsonErrorBodyPart(Throwable error, RestStatus status) {
-            this.error = error;
-            this.status = status;
-        }
-
-        @Override
-        public boolean isPartComplete() {
-            return encoded;
-        }
-
-        @Override
-        public boolean isLastPart() {
-            return true;
-        }
-
-        @Override
-        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
-            assert false : "no continuations";
-            listener.onFailure(new IllegalStateException("no continuations available"));
-        }
-
-        @Override
-        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
-            final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-            try {
-                writeJson(out, builder -> {
-                    builder.startObject();
-                    builder.startObject("error");
-                    Throwable cause = ExceptionsHelper.unwrapCause(error);
-                    String type = ElasticsearchException.getExceptionName(cause);
-                    String reason = error instanceof ElasticsearchException ese
-                        ? ese.getDetailedMessage()
-                        : (error.getMessage() != null ? error.getMessage() : type);
-                    builder.field("type", type);
-                    builder.field("reason", reason);
-                    builder.endObject();
-                    builder.field("status", status.getStatus());
+                    if (footer.error() != null) {
+                        builder.startObject("error");
+                        Throwable cause = ExceptionsHelper.unwrapCause(footer.error());
+                        String type = ElasticsearchException.getExceptionName(cause);
+                        String reason = footer.error() instanceof ElasticsearchException ese
+                            ? ese.getDetailedMessage()
+                            : (footer.error().getMessage() != null ? footer.error().getMessage() : type);
+                        builder.field("type", type);
+                        builder.field("reason", reason);
+                        builder.endObject();
+                    }
                     builder.endObject();
                 });
                 out.write(NEWLINE);

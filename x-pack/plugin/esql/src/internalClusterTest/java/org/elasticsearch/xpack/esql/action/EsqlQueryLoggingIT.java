@@ -329,7 +329,6 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         String query = "FROM stream-fail-index | EVAL a = count(*) | LIMIT 100";
 
         EsqlQueryRequest source = syncEsqlQueryRequest(query);
-        source.pageSize(between(1, 10));
         StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         expectThrows(Exception.class, () -> StreamQueryTestUtils.executeStreamRequest(client(), source, subscriber));
 

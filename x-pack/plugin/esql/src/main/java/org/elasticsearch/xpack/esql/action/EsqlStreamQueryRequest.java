@@ -29,23 +29,27 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     private final ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener;
     private final boolean dropNullColumns;
+    private final int batchSize;
 
     private EsqlStreamQueryRequest(
         EsqlQueryRequest source,
         ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
-        boolean dropNullColumns
+        boolean dropNullColumns,
+        int batchSize
     ) {
         super(source);
         this.streamStartListener = streamStartListener;
         this.dropNullColumns = dropNullColumns;
+        this.batchSize = batchSize;
     }
 
     public static EsqlStreamQueryRequest from(
         EsqlQueryRequest source,
         ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener,
-        boolean dropNullColumns
+        boolean dropNullColumns,
+        int batchSize
     ) {
-        return new EsqlStreamQueryRequest(source, streamStartListener, dropNullColumns);
+        return new EsqlStreamQueryRequest(source, streamStartListener, dropNullColumns, batchSize);
     }
 
     public ActionListener<EsqlStreamQueryAction.StreamStart> streamStartListener() {
@@ -56,13 +60,15 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
         return dropNullColumns;
     }
 
+    public int batchSize() {
+        return batchSize;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (pageSize() == null) {
-            e = addValidationError("[" + RequestXContent.PAGE_SIZE_FIELD.getPreferredName() + "] is required", e);
-        } else if (pageSize() < 1) {
-            e = addValidationError("[" + RequestXContent.PAGE_SIZE_FIELD.getPreferredName() + "] must be greater than or equal to 1", e);
+        if (batchSize < 1) {
+            e = addValidationError("[batch_size] must be greater than or equal to 1", e);
         }
         return e;
     }

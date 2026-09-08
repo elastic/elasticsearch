@@ -20,22 +20,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Shared helpers for integration tests that exercise the streaming {@code /_query/stream} endpoint.
+ * Shared helpers for integration tests that exercise incremental ES|QL execution
+ * ({@code POST /_query?incremental_execution=true}).
  */
 public final class StreamQueryTestUtils {
 
     private StreamQueryTestUtils() {}
 
     public static void executeStreamRequest(Client client, EsqlQueryRequest source, CountingStreamSubscriber subscriber) throws Exception {
-        if (source.pageSize() == null) {
-            source.pageSize(ESTestCase.randomIntBetween(1, 10));
-        }
+        int batchSize = ESTestCase.randomIntBetween(1, 10);
         ActionFuture<ActionResponse.Empty> future = client.execute(
             EsqlStreamQueryAction.INSTANCE,
             EsqlStreamQueryRequest.from(
                 source,
                 ActionListener.wrap(start -> start.publisher().subscribe(subscriber), subscriber.failure::set),
-                false
+                false,
+                batchSize
             )
         );
         future.actionGet(TimeValue.timeValueSeconds(60));

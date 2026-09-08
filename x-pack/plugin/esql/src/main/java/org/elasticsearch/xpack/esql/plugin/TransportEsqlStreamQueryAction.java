@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -75,7 +76,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
 /**
- * Transport action for the streaming ES|QL query endpoint ({@code POST /_query/stream}).
+ * Transport action for incremental ES|QL execution on {@code POST /_query?incremental_execution=true}.
  * Mirrors {@link TransportEsqlQueryAction} but delivers the schema and publisher out-of-band
  * (via {@link EsqlStreamQueryRequest#streamStartListener()}) before compute finishes, so the
  * transport task stays registered for the full duration of the query. This keeps
@@ -207,7 +208,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, request.allowPartialResults()),
             EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
         );
-        PageStreamPublisher publisher = new PageStreamPublisher(request.pageSize());
+        PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
         AtomicReference<Result> resultRef = new AtomicReference<>();
         activityLogger.wrapAndRun(
             listener,
@@ -360,13 +361,33 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 resultRef.set(versionedResult.inner());
                 long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
                 List<String> warnings = footerWarnings(threadPool.getThreadContext(), versionedResult.inner().completionInfo());
-                publisher.completeWithFooter(tookMillis, warnings, executionInfo.isPartial());
+                publisher.completeWithFooter(
+                    new PageStreamPublisher.StreamFooter(
+                        200,
+                        tookMillis,
+                        executionInfo.isPartial(),
+                        warnings,
+                        versionedResult.inner().completionInfo(),
+                        null
+                    )
+                );
                 planExecutor.metrics().recordTook(tookMillis);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
                 if (streamStarted.get()) {
-                    publisher.failStream(ex);
+                    long tookMillis = executionInfo.overallTook() != null ? executionInfo.overallTook().millis() : 0L;
+                    publisher.failStream(
+                        ex,
+                        new PageStreamPublisher.StreamFooter(
+                            ExceptionsHelper.status(ex).getStatus(),
+                            tookMillis,
+                            executionInfo.isPartial(),
+                            footerWarnings(threadPool.getThreadContext(), DriverCompletionInfo.EMPTY),
+                            null,
+                            ex
+                        )
+                    );
                 }
                 listener.onFailure(ex);
             })

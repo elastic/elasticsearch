@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.PageStreamPublisher;
 import java.util.List;
 
 /**
- * Action type for the streaming ES|QL query endpoint ({@code POST /_query/stream}).
+ * Action type for incremental ES|QL execution on {@code POST /_query?incremental_execution=true}.
  * Unlike {@link EsqlQueryAction}, the response type is {@link ActionResponse.Empty}: the action
  * completes only when compute finishes, so the transport task stays registered and cancellable for
  * the full duration of the query.

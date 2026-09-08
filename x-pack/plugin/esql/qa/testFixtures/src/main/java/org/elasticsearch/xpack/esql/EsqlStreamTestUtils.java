@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,6 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
@@ -125,9 +125,9 @@ public final class EsqlStreamTestUtils {
     }
 
     public static StreamOutcome stream(RestClient client, String queryJsonBody, StreamGate gate, String... queryParams) throws Exception {
-        String path = "/_query/stream";
+        String path = "/_query?incremental_execution=true&format=ndjson";
         if (queryParams.length > 0) {
-            path += "?" + String.join("&", queryParams);
+            path += "&" + String.join("&", queryParams);
         }
         Request request = new Request("POST", path);
         request.setJsonEntity(queryJsonBody);
@@ -156,7 +156,7 @@ public final class EsqlStreamTestUtils {
     }
 
     public static Response rawStream(RestClient client, String bodyJson, String... queryParams) throws IOException {
-        String path = "/_query/stream";
+        String path = "/_query";
         if (queryParams.length > 0) {
             path += "?" + String.join("&", queryParams);
         }
@@ -270,10 +270,19 @@ public final class EsqlStreamTestUtils {
             if (outcome.isPartial() && allowPartial == false) {
                 fail("is_partial=true arrived but allow_partial_results was not set");
             }
+            // "warnings" is always present in the footer (may be an empty list when the query
+            // produces no warnings). Assert presence, element type, and that raw "299 Elasticsearch-"
+            // headers were not leaked instead of the decoded warning message.
+            assertThat("Footer must always contain 'warnings'", footer, hasKey("warnings"));
             Object warnings = footer.get("warnings");
-            if (warnings != null) {
-                assertThat("Footer 'warnings' must be a list", warnings, instanceOf(List.class));
-                assertThat("Footer 'warnings', when present, must be non-empty", (List<?>) warnings, not(empty()));
+            assertThat("Footer 'warnings' must be a list", warnings, instanceOf(List.class));
+            for (Object warning : (List<?>) warnings) {
+                assertThat("Footer 'warnings' entries must be strings", warning, instanceOf(String.class));
+                assertThat(
+                    "raw Warning header leaked into the footer instead of the decoded value",
+                    (String) warning,
+                    not(startsWith("299 Elasticsearch-"))
+                );
             }
         }
 
@@ -375,10 +384,12 @@ public final class EsqlStreamTestUtils {
                             rowCount += rows.size();
                         }
 
-                        if (line.containsKey("took")) {
-                            terminal = Terminal.FOOTER;
-                        } else if (line.containsKey("error")) {
+                        // Failure footers carry both "took" and "error"; check "error" first so
+                        // that error lines are classified as Terminal.ERROR rather than Terminal.FOOTER.
+                        if (line.containsKey("error")) {
                             terminal = Terminal.ERROR;
+                        } else if (line.containsKey("took")) {
+                            terminal = Terminal.FOOTER;
                         }
 
                         if (gate != null) {

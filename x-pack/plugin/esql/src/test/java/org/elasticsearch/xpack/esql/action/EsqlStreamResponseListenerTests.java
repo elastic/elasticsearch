@@ -83,7 +83,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(values.size(), equalTo(1));
         assertThat(values.get(0), equalTo(List.of(42, "alice")));
 
-        assertThat(lines.get(2), equalTo(Map.of("took", 100, "is_partial", false)));
+        assertThat(lines.get(2), equalTo(Map.of("status", 200, "took", 100, "is_partial", false, "warnings", List.of())));
     }
 
     @SuppressWarnings("unchecked")
@@ -107,7 +107,7 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertThat(lines.size(), equalTo(2));
 
         Map<String, Object> footer = lines.get(1);
-        assertThat(footer, equalTo(Map.of("took", 42, "is_partial", false, "warnings", List.of("warning1", "warning2"))));
+        assertThat(footer, equalTo(Map.of("status", 200, "took", 42, "is_partial", false, "warnings", List.of("warning1", "warning2"))));
     }
 
     public void testFooterIsPartial() throws IOException {

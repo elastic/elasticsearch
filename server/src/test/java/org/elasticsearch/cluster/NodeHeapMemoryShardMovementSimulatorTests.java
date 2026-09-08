@@ -78,9 +78,9 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(result.get(nodeA).nodeHeapEstimates().totalHeapUsage(), equalTo(0L));
         // nodeA: remove shardHeap + indexHeap; initial hosted=30 → max(0, 30 - shardHeap - indexHeap) = 0
         assertThat(result.get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(0L));
-        // nodeB: add shardHeap + indexHeap = shardHeap + indexHeap; initial total=0 → shardHeap + indexHeap
+        // nodeB: add shardHeap + indexHeap; initial total=0 → shardHeap + indexHeap
         assertThat(result.get(nodeB).nodeHeapEstimates().totalHeapUsage(), equalTo(shardHeap + indexHeap));
-        // nodeB: add shardHeap + indexHeap = shardHeap + indexHeap; initial hosted=0 → shardHeap + indexHeap
+        // nodeB: add shardHeap + indexHeap; initial hosted=0 → shardHeap + indexHeap
         assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap + indexHeap));
     }
 

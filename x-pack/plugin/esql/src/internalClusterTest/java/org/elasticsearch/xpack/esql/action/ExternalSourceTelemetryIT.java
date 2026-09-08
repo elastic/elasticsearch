@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -142,7 +145,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing");
+    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_crud", "emp_dep", "emp_iae");
+    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
 
     @After
     public void cleanup() throws Exception {
@@ -156,13 +160,17 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 logger.warn("dataset cleanup [{}] failed", ds, e);
             }
         }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds" }))
-                .get(30, TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // never created by this method
-        } catch (Exception e) {
-            logger.warn("data source cleanup [ds] failed", e);
+        for (String name : CREATED_DATASOURCES) {
+            try {
+                client().execute(
+                    DeleteDataSourceAction.INSTANCE,
+                    new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name })
+                ).get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // never created by this method
+            } catch (Exception e) {
+                logger.warn("data source cleanup [{}] failed", name, e);
+            }
         }
     }
 
@@ -386,6 +394,334 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * Dedicated CRUD telemetry: created for both kinds, updated after a changed-description PUT,
+     * nothing after an identical dataset PUT, deleted after an in-body delete, and exactly one
+     * rejected for an unknown-type PUT. Uses deltas because the accumulator is never reset.
+     */
+    public void testConfigChangesRecordCreatedUpdatedDeletedRejected() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part.csv"), "emp_no:integer\n1\n");
+        String resource = dir.resolve("part.csv").toUri().toString();
+
+        long dsCreatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED)
+        );
+        long dsUpdatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED)
+        );
+        long dsDeletedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DELETED)
+        );
+        long dsRejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        long setCreatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_CREATED)
+        );
+        long setUpdatedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_UPDATED)
+        );
+        long setDeletedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED)
+        );
+        long setRejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+
+        resetAllMeters();
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "first", new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "first",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "second", new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "second",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        // Identical dataset PUT is a documented no-op and must not record a change.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_crud",
+                    "ds_crud",
+                    resource,
+                    "second",
+                    new HashMap<>(Map.of("format", "csv"))
+                )
+            )
+        );
+        assertAcked(
+            client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "emp_crud" }))
+        );
+        assertAcked(
+            client().execute(
+                DeleteDataSourceAction.INSTANCE,
+                new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_crud" })
+            )
+        );
+        expectThrows(
+            Exception.class,
+            () -> client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "no_such_type", null, new HashMap<>())
+            ).actionGet(TIMEOUT)
+        );
+
+        collectAllMeters();
+
+        assertThat(
+            "datasource created",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED))
+                - dsCreatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "datasource updated",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED))
+                - dsUpdatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "datasource deleted",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DELETED))
+                - dsDeletedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "exactly one rejected unknown-type PUT",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED))
+                - dsRejectedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset created",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_CREATED))
+                - setCreatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset updated",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_UPDATED))
+                - setUpdatedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset deleted",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED))
+                - setDeletedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "dataset rejected must not fire",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED))
+                - setRejectedBefore,
+            equalTo(0L)
+        );
+
+        assertThat("APM datasource created", apmConfigChanges("datasource", "created"), equalTo(1L));
+        assertThat("APM datasource updated", apmConfigChanges("datasource", "updated"), equalTo(1L));
+        assertThat("APM datasource deleted", apmConfigChanges("datasource", "deleted"), equalTo(1L));
+        assertThat("APM dataset created", apmConfigChanges("dataset", "created"), equalTo(1L));
+        assertThat("APM dataset updated", apmConfigChanges("dataset", "updated"), equalTo(1L));
+        assertThat("APM dataset deleted", apmConfigChanges("dataset", "deleted"), equalTo(1L));
+        assertThat("APM rejected observations", apmConfigChanges(null, "rejected"), equalTo(1L));
+        assertThat(
+            "unknown type clamps to unknown",
+            counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .anyMatch(
+                    m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                        && "unknown".equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                        && "unknown_type".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                ),
+            equalTo(true)
+        );
+    }
+
+    /**
+     * Unknown-type PUT dies in the coord {@code doExecute} pre-check. Max-count is thrown from the
+     * CAS task body and is the path that reaches {@code recordingListener.onFailure}.
+     */
+    public void testConfigChangesRecordMaxCountFromTaskBody() throws Exception {
+        long rejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        resetAllMeters();
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey(), 0).build())
+        );
+        try {
+            expectThrows(
+                Exception.class,
+                () -> client().execute(
+                    PutDataSourceAction.INSTANCE,
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_max", "test", null, new HashMap<>())
+                ).actionGet(TIMEOUT)
+            );
+            collectAllMeters();
+            assertThat(
+                "phone-home max-count rejection",
+                clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED))
+                    - rejectedBefore,
+                equalTo(1L)
+            );
+            assertThat(
+                "APM max_count from task body",
+                counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                    .anyMatch(
+                        m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                            && "max_count".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                    ),
+                equalTo(true)
+            );
+        } finally {
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .setPersistentSettings(Settings.builder().putNull(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey()).build())
+            );
+        }
+    }
+
+    /**
+     * {@link org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator} throws leftover
+     * {@link IllegalArgumentException}, not {@link org.elasticsearch.common.ValidationException}.
+     * After the dedicated IAE subtypes, that path must still be {@code validation}.
+     */
+    public void testConfigChangesRecordLeftoverIaeAsValidation() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part.csv"), "emp_no:integer\n1\n");
+        String resource = dir.resolve("part.csv").toUri().toString();
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_iae", "test", null, new HashMap<>())
+            )
+        );
+
+        long rejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        resetAllMeters();
+        Map<String, DatasetFieldMapping> properties = Map.of("loc", new DatasetFieldMapping("geo_point", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        expectThrows(
+            Exception.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_iae",
+                    "ds_iae",
+                    resource,
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            ).actionGet(TIMEOUT)
+        );
+        collectAllMeters();
+        assertThat(
+            "phone-home leftover IAE is validation",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED))
+                - rejectedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "APM leftover IAE is validation",
+            counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .anyMatch(
+                    m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                        && "dataset".equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE))
+                        && "validation".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                ),
+            equalTo(true)
+        );
+    }
+
+    /** Delete-with-dependents is the CAS path that used to swamp datasource {@code rejected} as {@code other}. */
+    public void testConfigChangesRecordHasDependentsOnDelete() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part.csv"), "emp_no:integer\n1\n");
+        String resource = dir.resolve("part.csv").toUri().toString();
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dep", "test", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "emp_dep", "ds_dep", resource, null, new HashMap<>(Map.of("format", "csv")))
+            )
+        );
+
+        long rejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        resetAllMeters();
+        expectThrows(
+            Exception.class,
+            () -> client().execute(
+                DeleteDataSourceAction.INSTANCE,
+                new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_dep" })
+            ).actionGet(TIMEOUT)
+        );
+        collectAllMeters();
+        assertThat(
+            "phone-home has-dependents rejection",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_REJECTED))
+                - rejectedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "APM has_dependents",
+            counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .anyMatch(
+                    m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                        && "has_dependents".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                ),
+            equalTo(true)
+        );
+    }
+
     // ---- cross-node measurement helpers ----
 
     private List<TestTelemetryPlugin> telemetryPlugins(String node) {
@@ -406,6 +742,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 plugin.collect();
             }
         }
+    }
+
+    private long apmConfigChanges(String kind, String op) {
+        return counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+            .filter(m -> kind == null || kind.equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE)))
+            .filter(m -> op.equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     private List<Measurement> counters(String name) {

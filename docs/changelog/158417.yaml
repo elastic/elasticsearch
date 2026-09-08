@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 158417
+summary: Add a detailed `knn_profile` breakdown to search profiling
+type: enhancement

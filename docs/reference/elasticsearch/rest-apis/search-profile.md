@@ -1110,6 +1110,183 @@ One of the `dfs.knn` sections for a shard looks like the following:
 
 In the `dfs.knn` portion of the response we can see the output the of timings for [query](search-profile.md#query-section), [rewrite](search-profile.md#rewrite-section), and [collector](search-profile.md#collectors-section). Unlike many other queries, kNN search does the bulk of the work during the query rewrite. This means `rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: all` Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
+
+For an HNSW search, `knn_profile` looks like the following:
+
+```js
+"knn_profile" : {
+    "algorithm" : "hnsw",
+    "field" : "vector",
+    "quantization" : "bbq_hnsw",
+    "total_time_ns" : 1275732,
+    "segments_searched" : 1,
+    "early_terminated" : false,
+    "approximate_search_time_ns" : 950000,
+    "merge_time_ns" : 12000,
+    "segments" : [
+        {
+            "name" : "_0",
+            "size_in_bytes" : 524288,
+            "doc_count" : 1000,
+            "vector_count" : 1000,
+            "vector_bytes" : 256000,
+            "search_time_ns" : 950000,
+            "nodes_visited" : 342,
+            "results_found" : 10
+        }
+    ],
+    "hnsw" : {
+        "k" : 10,
+        "num_candidates" : 100,
+        "has_filter" : false,
+        "nodes_visited" : 342,
+        "results_found_before_merge" : 10,
+        "timings" : {
+            "avg_leaf_search_ns" : 950000,
+            "max_leaf_search_ns" : 950000,
+            "min_leaf_search_ns" : 950000,
+            "overhead_ns" : 313732
+        }
+    }
+}
+```
+
+For an IVF (`bbq_disk`) search, an `ivf` section is included instead, with per-stage timing collected from the codec:
+
+```js
+"knn_profile" : {
+    "algorithm" : "ivf",
+    "field" : "vector",
+    "quantization" : "bbq_disk",
+    "scorer" : "panama",
+    "total_time_ns" : 2100000,
+    "segments_searched" : 1,
+    "early_terminated" : false,
+    "approximate_search_time_ns" : 1800000,
+    "merge_time_ns" : 15000,
+    "segments" : [
+        {
+            "name" : "_0",
+            "size_in_bytes" : 1048576,
+            "doc_count" : 5000,
+            "vector_count" : 5000,
+            "vector_bytes" : 1280000,
+            "search_time_ns" : 1800000,
+            "visit_ratio_used" : 0.1
+        }
+    ],
+    "ivf" : {
+        "visit_ratio_used" : 0.1,
+        "centroids_evaluated" : 32,
+        "postings_scored" : 4096,
+        "expected_docs_visited" : 8192,
+        "timings" : {
+            "centroid_iterator_create_ns" : 120000,
+            "centroid_read_ns" : 90000,
+            "reset_postings_scorer_ns" : 60000,
+            "posting_visit_ns" : 1500000,
+            "doc_id_read_ns" : 200000,
+            "query_quantization_ns" : 40000,
+            "scoring_ns" : 1100000,
+            "overhead_ns" : 285000
+        }
+    }
+}
+```
+
+When the kNN search performs exact rescoring (for example when an `oversample` factor is configured), a `rescore` sub-section is added to `knn_profile`:
+
+```js
+"rescore" : {
+    "type" : "late",
+    "time_ns" : 450000,
+    "inner_query_time_ns" : 1650000,
+    "doc_count" : 10
+}
+```
+
+When a filter is applied via post-filtering, `knn_profile` instead contains a `post_filter` section describing each retrieval round (`initial`, an optional `retry`, and a `fallthrough` when the rounds come up short of `k` and the search falls back to the bare pre-filtered query). Each round embeds the breakdown of the kNN query it ran under `inner`:
+
+```js
+"knn_profile" : {
+    "algorithm" : "hnsw",
+    "field" : "vector",
+    "post_filter" : {
+        "post_filter_applied" : true,
+        "selectivity" : 0.6,
+        "threshold" : 0.5,
+        "early_exit" : false,
+        "rounds" : [
+            {
+                "name" : "initial",
+                "docs_found" : 20,
+                "docs_passing_filter" : 8,
+                "vector_ops" : 160,
+                "inner" : { "algorithm" : "hnsw", "quantization" : "bbq_hnsw", "hnsw" : { } }
+            },
+            {
+                "name" : "retry",
+                "docs_found" : 10,
+                "docs_passing_filter" : 4,
+                "vector_ops" : 80,
+                "inner" : { "algorithm" : "hnsw", "hnsw" : { } }
+            }
+        ],
+        "total_vector_ops" : 240
+    }
+}
+```
+
+`post_filter_applied` reports whether post-filtering was applied. When the filter is not selective enough (`selectivity` below `threshold`), the search runs as an ordinary pre-filtered kNN query, so `knn_profile` has the usual shape for that query plus a compact `post_filter` section recording the skipped decision:
+
+```js
+"post_filter" : {
+    "post_filter_applied" : false,
+    "selectivity" : 0.2,
+    "threshold" : 0.5
+}
+```
+
+The common `knn_profile` fields are:
+
+* `algorithm`: the vector search algorithm used, either `hnsw` or `ivf`.
+* `field`: the dense_vector field that was searched.
+* `quantization`: the configured `index_options.type` for the field (for example `bbq_hnsw`, `int8_hnsw`, or `bbq_disk`).
+* `scorer`: for IVF, the vector scorer implementation that actually ran — `native`, `panama` (JDK Vector API), or `scalar`. Absent for HNSW, whose scoring is handled by Lucene.
+* `total_time_ns`: total time spent on the kNN search for this query, in nanoseconds.
+* `segments_searched`: the number of segments (or, for IVF sliced search, per-leaf searches) that were searched.
+* `segments`: a brief per-segment breakdown. Each entry has `name` (Lucene segment name), `doc_count` (live documents in the segment), `size_in_bytes` (on-disk size of the segment), `vector_count` / `vector_bytes` (indexed vectors for the searched field), and `search_time_ns`. HNSW entries also include `nodes_visited` and `results_found` for that leaf. IVF entries can include `visit_ratio_used` for that segment when the ratio is computed dynamically.
+* `early_terminated`: whether the search terminated early because enough competitive results were collected.
+* `approximate_search_time_ns`: time spent in the per-segment approximate search, summed across segments.
+* `merge_time_ns`: time spent merging per-segment results into the final top-k.
+
+The `hnsw` and `ivf` sections contain algorithm-specific counters and a `timings` sub-object with a finer-grained breakdown. The IVF codec-level timings are only collected when profiling is enabled, so they add no overhead to non-profiled searches.
+
+IVF `timings` are nested, not additive. `posting_visit_ns` includes the inner `doc_id_read_ns`, `query_quantization_ns`, and `scoring_ns`. `reset_postings_scorer_ns` includes `centroid_read_ns`. Inner keys are omitted when the codec visitor did not collect them. `visit_ratio_used` is the maximum per-segment ratio. When segments disagree, `visit_ratio_min` is also present.
+
+Both sections report `timings.overhead_ns`: whatever is left of `total_time_ns` after the per-segment approximate search, the merge, and `filter_time_ns`. This is mostly rewrite and thread-pool time, plus any per-segment work outside the measured search window. For IVF that window covers the codec's segment search alone, so the collector drain, the document ID deduplication, and any preconditioner transform are counted here rather than in `approximate_search_time_ns`. It is reported as `0` when segments were searched in parallel and their summed search time exceeds the wall-clock total.
+
+Filter application for HNSW runs inside each leaf search, so it is already counted in `approximate_search_time_ns`. `filter_time_ns` is reported only for IVF, where filter weight creation is timed separately.
+
+When exact rescoring runs, `rescore.type` is `inline` (inner query already returns the oversampled candidates) or `late` (an extra top-`rescoreK` collection first). `rescore.time_ns` is only the exact-scoring pass, not the inner approximate search, and it is not included in `total_time_ns`: the rescore runs after the kNN search it rescores has finished reporting. This also covers the rescore that an `auto_calibrate` `bbq_disk` field runs internally, which reports as `late`.
+
+Where the `knn_profile` object appears depends on how the kNN search was expressed, because that determines which phase runs it:
+
+* The top-level `knn` search option and the `knn` retriever both run in the DFS phase, so their breakdown appears under `profile.shards[].dfs.knn[].knn_profile`, as shown in the preceding example.
+* A `knn` query used inside the query DSL (`"query": { "knn": { ... } }`) runs in the query phase instead. Its breakdown — together with `vector_operations_count` — appears under `profile.shards[].searches[].knn_profile`, next to the `query` array. The object has the same shape in both cases.
+
+When a single search runs several kNN queries in the query phase (for example a `bool` query with multiple `knn` clauses), each query contributes its own breakdown. In that case `knn_profile` holds a `knn_queries` array with one element per query, each element having the shape described earlier on this page:
+
+```js
+"knn_profile" : {
+    "knn_queries" : [
+        { "algorithm" : "hnsw", "hnsw" : { } },
+        { "algorithm" : "hnsw", "hnsw" : { } }
+    ]
+}
+```
+
 
 
 ### Profiling considerations [profiling-considerations]

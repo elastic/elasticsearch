@@ -65,6 +65,7 @@ public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
             ctx,
             filterWeight,
             knnCollectorManager,
+            profileData,
             visitRatio,
             numCands,
             k,

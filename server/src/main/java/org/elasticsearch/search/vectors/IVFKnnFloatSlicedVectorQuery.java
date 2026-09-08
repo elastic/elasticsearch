@@ -65,6 +65,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             ctx,
             filterWeight,
             knnCollectorManager,
+            profileData,
             visitRatio,
             numCands,
             k,

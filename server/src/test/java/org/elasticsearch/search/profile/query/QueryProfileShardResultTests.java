@@ -9,19 +9,25 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class QueryProfileShardResultTests extends AbstractXContentSerializingTestCase<QueryProfileShardResult> {
     public static QueryProfileShardResult createTestItem() {
@@ -37,7 +43,39 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
         }
 
         Long vectorOperationsCount = randomBoolean() ? null : randomNonNegativeLong();
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount);
+        Map<String, Object> knnProfileBreakdown = randomBoolean() ? null : createRandomKnnProfile();
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount, knnProfileBreakdown);
+    }
+
+    static Map<String, Object> createRandomKnnProfile() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        String algorithm = randomFrom("ivf", "hnsw");
+        map.put("algorithm", algorithm);
+        map.put("total_time_ns", randomNonNegativeLong());
+        map.put("segments_searched", randomIntBetween(0, 20));
+        map.put("early_terminated", randomBoolean());
+        if ("ivf".equals(algorithm)) {
+            Map<String, Object> ivf = new LinkedHashMap<>();
+            ivf.put("centroids_evaluated", randomIntBetween(1, 100));
+            ivf.put("postings_scored", randomNonNegativeLong());
+            Map<String, Object> timings = new LinkedHashMap<>();
+            timings.put("centroid_iterator_create_ns", randomNonNegativeLong());
+            timings.put("posting_visit_ns", randomNonNegativeLong());
+            timings.put("scoring_ns", randomNonNegativeLong());
+            ivf.put("timings", timings);
+            map.put("ivf", ivf);
+        } else {
+            Map<String, Object> hnsw = new LinkedHashMap<>();
+            hnsw.put("k", randomIntBetween(1, 100));
+            hnsw.put("num_candidates", randomIntBetween(10, 500));
+            hnsw.put("nodes_visited", randomNonNegativeLong());
+            Map<String, Object> timings = new LinkedHashMap<>();
+            timings.put("sum_leaf_search_ns", randomNonNegativeLong());
+            timings.put("merge_ns", randomNonNegativeLong());
+            hnsw.put("timings", timings);
+            map.put("hnsw", hnsw);
+        }
+        return map;
     }
 
     @Override
@@ -66,5 +104,24 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return ProfileResultTests.RANDOM_FIELDS_EXCLUDE_FILTER;
+    }
+
+    public void testKnnProfileOmittedOnOldTransportVersion() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("knn_profile_breakdown");
+        QueryProfileShardResult original = createTestItem();
+        // The BWC contract only matters when the new field is actually present.
+        while (original.getKnnProfileBreakdown() == null) {
+            original = createTestItem();
+        }
+
+        QueryProfileShardResult oldCopy = copyInstance(original, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertThat(oldCopy.getKnnProfileBreakdown(), nullValue());
+        assertThat(oldCopy.getQueryResults(), equalTo(original.getQueryResults()));
+        assertThat(oldCopy.getRewriteTime(), equalTo(original.getRewriteTime()));
+        assertThat(oldCopy.getCollectorResult(), equalTo(original.getCollectorResult()));
+        assertThat(oldCopy.getVectorOperationsCount(), equalTo(original.getVectorOperationsCount()));
+
+        QueryProfileShardResult newCopy = copyInstance(original, TransportVersionUtils.randomVersionSupporting(gate));
+        assertThat(newCopy, equalTo(original));
     }
 }

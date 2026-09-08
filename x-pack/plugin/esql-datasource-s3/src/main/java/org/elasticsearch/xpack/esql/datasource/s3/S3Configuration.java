@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,11 +41,25 @@ public class S3Configuration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition SESSION_TOKEN = secret("session_token");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition REGION = plaintext("region");
+    private static final DataSourceConfigDefinition ADDRESSING_STYLE = plaintext("addressing_style").asCaseInsensitive();
     private static final DataSourceConfigDefinition ROLE_ARN = plaintext("role_arn").asFederatedAuth();
     private static final DataSourceConfigDefinition ROLE_SESSION_NAME = plaintext("role_session_name").asFederatedAuth();
     private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
     private static final DataSourceConfigDefinition STS_ENDPOINT = plaintext("sts_endpoint").asFederatedAuth();
     private static final DataSourceConfigDefinition STS_REGION = plaintext("sts_region").asFederatedAuth();
+
+    /** Typed resolved form of the {@code addressing_style} setting, for provider-side switching. */
+    public enum AddressingStyleMode {
+        /** Path-style when an endpoint override is set; SDK default (virtual-hosted) otherwise. */
+        AUTO,
+        /** Always path-style. */
+        PATH,
+        /** SDK decides; bare-IP endpoints fall back to path-style. */
+        VIRTUAL_HOSTED
+    }
+
+    private static final List<String> CANONICAL_ADDRESSING_STYLES = List.of("auto", "path", "virtual_hosted");
+    private static final Set<String> SUPPORTED_ADDRESSING_STYLES = Set.copyOf(CANONICAL_ADDRESSING_STYLES);
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
@@ -52,6 +67,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
         SESSION_TOKEN,
         ENDPOINT,
         REGION,
+        ADDRESSING_STYLE,
         ROLE_ARN,
         ROLE_SESSION_NAME,
         JWT_AUDIENCE,
@@ -76,6 +92,20 @@ public class S3Configuration extends FileDataSourceConfiguration {
             if (roleArn() == null) {
                 errors.addValidationError("role_arn is required when federated authentication settings are configured");
             }
+        }
+    }
+
+    @Override
+    protected void validateSettings(ValidationException errors) {
+        String style = addressingStyle();
+        if (style != null && SUPPORTED_ADDRESSING_STYLES.contains(style) == false) {
+            errors.addValidationError(
+                "Unsupported addressing_style value ["
+                    + style
+                    + "]; supported values: ["
+                    + String.join(", ", CANONICAL_ADDRESSING_STYLES)
+                    + "]"
+            );
         }
     }
 
@@ -179,6 +209,29 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     public String region() {
         return get(REGION.name());
+    }
+
+    /**
+     * The raw {@code addressing_style} string, or {@code null} when absent. Prefer
+     * {@link #resolveAddressingStyle()} in provider code that switches on the result.
+     */
+    public String addressingStyle() {
+        return get(ADDRESSING_STYLE.name());
+    }
+
+    /**
+     * Resolves the {@code addressing_style} setting to a typed enum for provider-side switching.
+     * Both absent ({@code null}) and the explicit value {@code "auto"} map to {@link AddressingStyleMode#AUTO}.
+     */
+    public AddressingStyleMode resolveAddressingStyle() {
+        String style = addressingStyle();
+        if ("path".equals(style)) {
+            return AddressingStyleMode.PATH;
+        }
+        if ("virtual_hosted".equals(style)) {
+            return AddressingStyleMode.VIRTUAL_HOSTED;
+        }
+        return AddressingStyleMode.AUTO;
     }
 
     /** The IAM role ARN to assume via STS {@code AssumeRoleWithWebIdentity} on the federated auth path. */

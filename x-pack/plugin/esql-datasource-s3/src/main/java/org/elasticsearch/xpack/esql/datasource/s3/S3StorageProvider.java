@@ -18,6 +18,7 @@ import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvide
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.IdentityProvider;
@@ -214,7 +215,7 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials).build();
+        return configureCommon(S3Client.builder(), config, credentials, List.of()).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -239,7 +240,7 @@ public class S3StorageProvider implements StorageProvider {
         // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
         // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
-        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
+        return configureCommon(S3AsyncClient.builder(), config, credentials, List.of()).httpClientBuilder(
             NettyNioAsyncHttpClient.builder()
                 .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
                 .maxConcurrency(maxConnections)
@@ -249,11 +250,13 @@ public class S3StorageProvider implements StorageProvider {
 
     /**
      * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     * Pass an empty list for {@code interceptors} in production.
      */
-    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+    static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
         B builder,
         S3Configuration config,
-        IdentityProvider<? extends AwsCredentialsIdentity> credentials
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        List<ExecutionInterceptor> interceptors
     ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
@@ -266,6 +269,7 @@ public class S3StorageProvider implements StorageProvider {
             // to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is the
             // per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
             c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
+            interceptors.forEach(c::addExecutionInterceptor);
         });
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
@@ -283,7 +287,20 @@ public class S3StorageProvider implements StorageProvider {
 
         if (config != null && config.endpoint() != null) {
             builder.endpointOverride(URI.create(config.endpoint()));
-            builder.forcePathStyle(true);
+        }
+
+        S3Configuration.AddressingStyleMode addressingStyle = config != null
+            ? config.resolveAddressingStyle()
+            : S3Configuration.AddressingStyleMode.AUTO;
+        switch (addressingStyle) {
+            case PATH -> builder.forcePathStyle(true);
+            case VIRTUAL_HOSTED -> builder.forcePathStyle(false);
+            case AUTO -> {
+                // path-style when an endpoint override is set, SDK default otherwise
+                if (config != null && config.endpoint() != null) {
+                    builder.forcePathStyle(true);
+                }
+            }
         }
 
         return builder;

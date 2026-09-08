@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -115,6 +116,31 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, null, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null, executor, listener);
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
             return () -> {};
@@ -133,8 +159,9 @@ final class CoalescedRangeReader {
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
         // Bridge the circuit breaker to the SPI's factory once, here at the boundary, so
-        // backends do not need to know about CircuitBreaker at all.
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        // backends do not need to know about CircuitBreaker at all. The watermark wrapper
+        // charges actual allocated bytes beside REQUEST so footer estimates cannot drift.
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold);
 
         for (MergedRange mr : merged) {
             inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
@@ -204,6 +231,16 @@ final class CoalescedRangeReader {
         long maxCoalesceGap,
         CircuitBreaker breaker
     ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -217,7 +254,7 @@ final class CoalescedRangeReader {
 
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         List<Releasable> buffers = new ArrayList<>(merged.size());
-        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
         try {
             for (MergedRange mr : merged) {
                 int length = (int) mr.length();

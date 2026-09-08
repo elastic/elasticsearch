@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -134,13 +135,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final BooleanSupplier federatedIdentityEnabled;
     @Nullable
     private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
+    private final BiConsumer<String, ValidationException> resourceCheck;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null, (r, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -151,16 +153,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
         BooleanSupplier federatedIdentityEnabled,
-        @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode
+        @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
+        BiConsumer<String, ValidationException> resourceCheck
     ) {
         this.type = type;
         this.configFactory = configFactory;
-        this.supportedSchemes = supportedSchemes;
+        this.supportedSchemes = Set.copyOf(supportedSchemes);
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
         this.fixedAuthMode = fixedAuthMode;
+        this.resourceCheck = resourceCheck;
     }
 
     /**
@@ -182,7 +186,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
-            fixedAuthMode
+            fixedAuthMode,
+            resourceCheck
         );
     }
 
@@ -202,7 +207,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             supplier,
             federatedIdentityEnabled,
-            fixedAuthMode
+            fixedAuthMode,
+            resourceCheck
         );
     }
 
@@ -220,7 +226,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             supplier,
-            fixedAuthMode
+            fixedAuthMode,
+            resourceCheck
         );
     }
 
@@ -237,13 +244,39 @@ public class FileDataSourceValidator implements DataSourceValidator {
             compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
-            mode
+            mode,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that runs {@code check} against the resource URI after the scheme check.
+     * The check receives the raw resource string and the accumulating {@link ValidationException}; it
+     * should call {@link ValidationException#addValidationError} for each problem it finds.
+     * Precedent for the shape: {@link #withManagedIdentityEnabled(BooleanSupplier)}.
+     */
+    public FileDataSourceValidator withResourceCheck(BiConsumer<String, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            fixedAuthMode,
+            check
         );
     }
 
     @Override
     public String type() {
         return type;
+    }
+
+    /** URI schemes this validator accepts on a dataset resource. */
+    Set<String> supportedSchemes() {
+        return supportedSchemes;
     }
 
     @Override
@@ -577,19 +610,36 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * extension maps to no registered format. Handles compound extensions (e.g. {@code data.csv.gz})
      * by stripping a known compression suffix and resolving the inner extension, mirroring the
      * runtime resolution in {@code FormatReaderRegistry}.
+     *
+     * <p>Uses {@link StoragePath} for URI parsing to avoid diverging from the read path's own URI
+     * model. A bare authority with no path component (e.g. {@code s3://my.bucket}) returns an empty
+     * object name and resolves to {@code null}, consistent with {@link StoragePath#objectName()}.
+     *
+     * <p>Extension extraction delegates to
+     * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolver#extractCleanExtension},
+     * which is scheme-aware: for {@code http}/{@code https} it uses {@link StoragePath#objectName()}
+     * to obtain the path without any query string or fragment before the last-dot scan, so presigned
+     * URLs with dotted queries (e.g. {@code ?v=1.2}) do not mislead the extension lookup.
      */
     @Nullable
     private String formatFromExtension(String resource) {
-        String objectName = extractObjectName(resource);
-        if (objectName == null) {
+        StoragePath sp;
+        try {
+            sp = StoragePath.of(resource);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String objectName = sp.objectName();
+        if (objectName.isEmpty()) {
             return null;
         }
 
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+        String rawExt = FormatNameResolver.extractCleanExtension(objectName);
+        if (rawExt == null) {
             return null;
         }
-        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String ext = "." + rawExt;
+
         String format = formatConfigKeyResolver.formatForExtension(ext);
         if (format != null) {
             return format;
@@ -599,11 +649,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // is a known compression suffix (e.g. .gz, .zst). This mirrors the read-path
         // behavior in DecompressionCodecRegistry/FormatReaderRegistry.
         if (compressionExtensions.contains(ext)) {
-            String inner = objectName.substring(0, lastDot);
-            int innerDot = inner.lastIndexOf('.');
-            if (innerDot >= 0 && innerDot < inner.length() - 1) {
-                String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
-                return formatConfigKeyResolver.formatForExtension(innerExt);
+            String inner = objectName.substring(0, objectName.lastIndexOf('.'));
+            String innerRawExt = FormatNameResolver.extractCleanExtension(inner);
+            if (innerRawExt != null) {
+                return formatConfigKeyResolver.formatForExtension("." + innerRawExt);
             }
         }
         return null;
@@ -694,6 +743,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
+        } else {
+            resourceCheck.accept(resource, errors);
         }
     }
 

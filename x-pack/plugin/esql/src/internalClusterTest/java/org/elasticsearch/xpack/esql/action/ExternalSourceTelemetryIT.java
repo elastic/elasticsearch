@@ -240,6 +240,21 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             counterTotalForTypeAndFormat(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local", "csv"),
             equalTo(10L)
         );
+        assertThat(
+            "parse.duration must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.PARSE_DURATION), "local", "csv"),
+            not(hasSize(0))
+        );
+        assertThat(
+            "parse.splits_scanned must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.PARSE_SPLITS_SCANNED), "local", "csv"),
+            not(hasSize(0))
+        );
+        assertThat(
+            "time_to_first_row must be recorded with {type=local, format=csv}",
+            forTypeAndFormat(histograms(ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW), "local", "csv"),
+            not(hasSize(0))
+        );
 
         // --- query level (coordinator): exactly one successful external-source query ---
         assertThat(
@@ -467,6 +482,15 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         return measurements.stream().filter(m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))).toList();
     }
 
+    private static List<Measurement> forTypeAndFormat(List<Measurement> measurements, String type, String format) {
+        return measurements.stream()
+            .filter(
+                m -> type.equals(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE))
+                    && format.equals(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE))
+            )
+            .toList();
+    }
+
     private static List<Measurement> forOutcome(List<Measurement> measurements, String outcome) {
         return measurements.stream().filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE))).toList();
     }
@@ -515,7 +539,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW,
             ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL,
             ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL,
-            ExternalSourceMetrics.QUERIES_TOTAL
+            ExternalSourceMetrics.STORAGE_REQUESTS_DURATION,
+            ExternalSourceMetrics.STORAGE_RETRIES_TOTAL,
+            ExternalSourceMetrics.STORAGE_ERRORS_TOTAL,
+            ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL,
+            ExternalSourceMetrics.STORAGE_READ_STALL_DURATION,
+            ExternalSourceMetrics.QUERIES_TOTAL,
+            ExternalSourceMetrics.QUERY_DURATION
         )) {
             for (Measurement m : counters(name)) {
                 assertThat(

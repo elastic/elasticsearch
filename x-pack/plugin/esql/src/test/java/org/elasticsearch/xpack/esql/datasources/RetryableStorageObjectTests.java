@@ -405,7 +405,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
     /**
      * Wiring test for the retry->node-telemetry bridge: a terminal give-up on the sync open path must publish a
      * storage error AND the cumulative backoff as a read stall to the attached {@link ExternalSourceMetrics},
-     * tagged with the storage scheme. Uses a real registry-backed metrics holder (no mock) so the production
+     * tagged with the storage type. Uses a real registry-backed metrics holder (no mock) so the production
      * {@code attachMetrics} -> {@code recordTerminalFailure} -> counters -> registry path is exercised end to end.
      */
     public void testTerminalGiveUpBridgesErrorAndStallToRegistry() {

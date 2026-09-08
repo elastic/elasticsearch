@@ -103,6 +103,9 @@ public final class DataSourceUsageAccumulator {
         assert COUNT_THRESHOLDS.length == BUCKET_COUNT - 1 : "COUNT_THRESHOLDS length mismatch";
         assert COUNT_SUFFIXES.size() == BUCKET_COUNT : "COUNT_SUFFIXES size mismatch";
         assert FORMAT_NAMES.size() == FORMAT_COUNT : "FORMAT_NAMES size mismatch";
+        for (int i = 0; i < FORMAT_COUNT; i++) {
+            assert formatIndex(FORMAT_NAMES.get(i)) == i : "FORMAT_NAMES[" + i + "]=" + FORMAT_NAMES.get(i) + " does not map to index " + i;
+        }
     }
 
     // ---- per-type counters (indexed by {@link Type#ordinal()}) ----

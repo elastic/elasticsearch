@@ -61,7 +61,7 @@ public final class DataSourceCounters {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
 
-        // ---- time histograms (no scheme attribute) ----
+        // ---- time histograms (no type/format attribute) ----
         List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
             counters.inc("datasources.storage.requests.duration." + ts.get(b), acc.storageRequestDuration(b));

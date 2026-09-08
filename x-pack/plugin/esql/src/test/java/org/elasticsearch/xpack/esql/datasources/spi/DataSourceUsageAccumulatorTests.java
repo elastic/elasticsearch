@@ -167,6 +167,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
             byFormat += acc.parseRowsByFormat(i);
         }
         assertThat(byFormat, equalTo(0L));
+        for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
+            assertThat(acc.parseDuration(b), equalTo(0L));
+        }
     }
 
     public void testOutcomeIndexOutOfRangeThrowsOnAccessor() {
@@ -215,9 +218,10 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.discovery.failures.total"), equalTo(1L));
         assertThat(counters.get("datasources.breaker.tripped.total"), equalTo(1L));
         assertThat(counters.get("datasources.parse.rows.total"), equalTo(500L));
-        assertThat(counters.get("datasources.parse.rows.by_format.csv"), equalTo(500L));
-        assertThat(counters.get("datasources.parse.rows.by_format.parquet"), equalTo(0L));
-        assertThat(counters.get("datasources.parse.rows.by_format.unresolved"), equalTo(0L));
+        for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
+            String key = "datasources.parse.rows.by_format." + format;
+            assertThat(key, counters.get(key), equalTo("csv".equals(format) ? 500L : 0L));
+        }
 
         // verify one populated bucket per histogram family (exact bucket derived from input values above)
         assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(2L)); // two 5ms requests

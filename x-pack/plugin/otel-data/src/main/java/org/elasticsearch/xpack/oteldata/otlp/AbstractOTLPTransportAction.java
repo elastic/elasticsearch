@@ -86,10 +86,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }));
 
         } catch (InvalidProtocolBufferException e) {
+            logger.debug("invalid OTLP protobuf payload", e);
             listener.onFailure(
                 new ElasticsearchStatusException("Invalid OTLP protobuf payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
             );
         } catch (ElasticsearchStatusException e) {
+            logger.debug("failed to execute otlp request", e);
             listener.onFailure(e);
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);

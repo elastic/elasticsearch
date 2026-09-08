@@ -139,14 +139,14 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     // Guard against label fan-out: the same labels are copied into every per-sample document.
                     totalExpandedBytes += indexRequest.ramBytesUsed();
                     if (totalExpandedBytes > maxExpandedContentLength) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                "Prometheus remote write request rejected: expanded content would exceed limit ["
-                                    + maxExpandedContentLength
-                                    + "] bytes",
-                                RestStatus.REQUEST_ENTITY_TOO_LARGE
-                            )
+                        ElasticsearchStatusException e = new ElasticsearchStatusException(
+                            "Prometheus remote write request rejected: expanded content would exceed limit ["
+                                + maxExpandedContentLength
+                                + "] bytes",
+                            RestStatus.REQUEST_ENTITY_TOO_LARGE
                         );
+                        logger.debug("failed to execute prometheus remote write request", e);
+                        listener.onFailure(e);
                         return;
                     }
                     bulkRequestBuilder.add(indexRequest);
@@ -186,10 +186,12 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             }));
 
         } catch (InvalidProtocolBufferException e) {
+            logger.debug("invalid Prometheus remote write payload", e);
             listener.onFailure(
                 new ElasticsearchStatusException("Invalid Prometheus remote write payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
             );
         } catch (Exception e) {
+            logger.error("failed to execute prometheus remote write request", e);
             listener.onFailure(e);
         }
     }

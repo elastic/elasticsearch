@@ -99,8 +99,8 @@ public class PlanRemoteFetchTests extends ESTestCase {
         );
 
         assertThat(
-            rewritten.collect(org.elasticsearch.xpack.esql.plan.physical.TopNExec.class).getFirst().estimatedRowSize(),
-            greaterThan(original.collect(org.elasticsearch.xpack.esql.plan.physical.TopNExec.class).getFirst().estimatedRowSize())
+            rewritten.collect(TopNExec.class).getFirst().estimatedRowSize(),
+            greaterThan(original.collect(TopNExec.class).getFirst().estimatedRowSize())
         );
     }
 

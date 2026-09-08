@@ -184,6 +184,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     searchExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        if (retainSearchContexts
+                            && connection.getTransportVersion()
+                                .supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
+                            /*
+                             * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
+                             * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
+                             * the coordinator's cluster-state view. We cannot degrade here because the data-node and coordinator plans
+                             * have already been rewritten to exchange remote-fetch handles.
+                             */
+                            l.onFailure(
+                                new IllegalStateException(
+                                    "remote fetch TopN requires transport version ["
+                                        + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
+                                        + "] but node ["
+                                        + connection.getNode().getName()
+                                        + "] has ["
+                                        + connection.getTransportVersion()
+                                        + "]"
+                                )
+                            );
+                            return;
+                        }
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (configuration.allowPartialResults()) {
@@ -209,28 +231,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .equals(connection.getNode().getId());
                             boolean enableReduceNodeLateMaterialization = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION
                                 .isEnabled();
-                            if (retainSearchContexts
-                                && connection.getTransportVersion()
-                                    .supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
-                                /*
-                                 * The coordinator only plans remote-fetch TopN when the cluster-wide minimum transport version supports
-                                 * it. Reaching this branch means the connection view changed after planning, or otherwise disagrees with
-                                 * the coordinator's cluster-state view. We cannot degrade here because the data-node and coordinator plans
-                                 * have already been rewritten to exchange remote-fetch handles.
-                                 */
-                                l.onFailure(
-                                    new IllegalStateException(
-                                        "remote fetch TopN requires transport version ["
-                                            + RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION
-                                            + "] but node ["
-                                            + connection.getNode().getName()
-                                            + "] has ["
-                                            + connection.getTransportVersion()
-                                            + "]"
-                                    )
-                                );
-                                return;
-                            }
                             if (retainSearchContexts) {
                                 assert remoteFetchRetainedSessionReleaser != null : "retainSearchContexts requires a session releaser";
                                 remoteFetchRetainedSessionReleaser.track(connection.getNode(), nodeReduceSessionId(childSessionId));

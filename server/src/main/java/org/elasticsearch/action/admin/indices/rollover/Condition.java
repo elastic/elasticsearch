@@ -24,6 +24,8 @@ import java.util.Objects;
  */
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment, Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Condition.class);
+
     /*
      * Describes the type of condition - a min_* condition (MIN), max_* condition (MAX), or an automatic condition (automatic conditions
      * are something that the platform configures and manages)
@@ -89,12 +91,12 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
 
     /**
      * Estimated heap footprint of this condition. The {@code type} enum is a shared singleton, so only the field reference is counted
-     * (already included in {@link RamUsageEstimator#shallowSizeOf(Object)}). All concrete subclasses only set the inherited {@code value}
-     * and declare no extra fields.
+     * (already included in {@link #SHALLOW_SIZE}). Concrete subclasses must only set the inherited {@code value} and declare no extra
+     * fields.
      */
     @Override
     public final long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOf(this) + RamUsageEstimator.sizeOf(name) + RamUsageEstimates.sizeOfShallowCompleteValue(value);
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimates.sizeOfShallowCompleteValue(value);
     }
 
     /**

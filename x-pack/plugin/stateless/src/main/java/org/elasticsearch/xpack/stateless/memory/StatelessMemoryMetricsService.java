@@ -913,7 +913,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
 
         long getHostedShardsHeapEstimate() {
-            return shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
+            return mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
         }
 
         long getHeapUsageEstimate(long effectivePostingsValue) {

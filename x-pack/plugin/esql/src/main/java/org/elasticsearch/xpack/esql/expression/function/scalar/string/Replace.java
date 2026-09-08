@@ -440,25 +440,28 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
-            Pattern regexPattern;
-            try {
-                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
-            } catch (PatternSyntaxException pse) {
-                // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
-                // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
-                // but for the moment we let the exception through
-                throw pse;
-            }
-            byte[] literalPrefix = extractLiteralPrefix(regexPattern);
-            if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
-                // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
-                // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
-                BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
-                if (constantNewStr != null) {
-                    return new ReplaceConstantOrdinalEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, constantNewStr);
+            String regexString = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
+            if (regexString != null) {
+                Pattern regexPattern;
+                try {
+                    regexPattern = Pattern.compile(regexString);
+                } catch (PatternSyntaxException pse) {
+                    // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
+                    // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
+                    // but for the moment we let the exception through
+                    throw pse;
                 }
+                byte[] literalPrefix = extractLiteralPrefix(regexPattern);
+                if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                    // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
+                    // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
+                    BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
+                    if (constantNewStr != null) {
+                        return new ReplaceConstantOrdinalEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, constantNewStr);
+                    }
+                }
+                return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
             }
-            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);

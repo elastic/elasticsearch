@@ -120,6 +120,11 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.parseRows(), equalTo(13L));
         assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV), equalTo(10L));
         assertThat(acc.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_PARQUET), equalTo(3L));
+        long byFormat = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            byFormat += acc.parseRowsByFormat(i);
+        }
+        assertThat(byFormat, equalTo(acc.parseRows()));
     }
 
     public void testRecordSplitsScanned() {
@@ -156,6 +161,12 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
     public void testUnexpectedFormatThrows() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         expectThrows(IllegalArgumentException.class, () -> acc.recordParse(10L, 5L, "gz"));
+        assertThat(acc.parseRows(), equalTo(0L));
+        long byFormat = 0;
+        for (int i = 0; i < DataSourceUsageAccumulator.FORMAT_COUNT; i++) {
+            byFormat += acc.parseRowsByFormat(i);
+        }
+        assertThat(byFormat, equalTo(0L));
     }
 
     public void testOutcomeIndexOutOfRangeThrowsOnAccessor() {

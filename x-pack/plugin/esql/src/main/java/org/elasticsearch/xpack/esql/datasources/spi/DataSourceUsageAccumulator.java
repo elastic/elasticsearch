@@ -196,9 +196,10 @@ public final class DataSourceUsageAccumulator {
      * @param canonicalFormat one of {@link #FORMAT_NAMES}; anything else throws {@link IllegalArgumentException}
      */
     public void recordParse(long rows, long parseDurationMillis, String canonicalFormat) {
+        int idx = formatIndex(canonicalFormat);
         if (rows > 0) {
             parseRows.add(rows);
-            parseRowsByFormat[formatIndex(canonicalFormat)].add(rows);
+            parseRowsByFormat[idx].add(rows);
         }
         bucketTime(parseDuration, Math.max(0L, parseDurationMillis));
     }

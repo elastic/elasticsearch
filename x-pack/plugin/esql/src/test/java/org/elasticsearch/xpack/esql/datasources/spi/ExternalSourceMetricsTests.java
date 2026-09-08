@@ -291,12 +291,11 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(ExternalSourceMetrics.canonicalScheme(null), equalTo("unknown"));
     }
 
-    public void testTypeTokenFoldsFileToLocal() {
-        // Both APM and phone-home fold file → local after the type-vocabulary unification.
-        assertThat(ExternalSourceMetrics.typeToken("file"), equalTo("local"));
-        assertThat(ExternalSourceMetrics.typeToken("FILE"), equalTo("local"));
-        assertThat(ExternalSourceMetrics.typeToken("s3a"), equalTo("s3"));
+    public void testTypeAttributeFoldsFileToLocal() {
+        // Both APM and phone-home fold file → local via DataSourceTelemetryVocabulary.Type.
         assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("local"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("FILE"), equalTo("local"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("s3a"), equalTo("s3"));
 
         metrics.recordRequest(1L, 1L, "file");
         Measurement request = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);

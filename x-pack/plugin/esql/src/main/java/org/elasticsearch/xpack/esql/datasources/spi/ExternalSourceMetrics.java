@@ -629,15 +629,6 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * APM {@link #TYPE_ATTRIBUTE} token for a raw or already-canonical scheme. Equivalent to
-     * {@link #canonicalScheme(String)} after the type vocabulary unification: {@code file} folds to
-     * {@code local} in both sinks.
-     */
-    public static String typeToken(String scheme) {
-        return Type.fromScheme(scheme).key();
-    }
-
-    /**
      * Folds a raw format name into the closed {@link DataSourceUsageAccumulator#FORMAT_NAMES} set.
      * Null or blank becomes {@code unresolved}; a known name is lower-cased; anything else is {@code other}.
      */

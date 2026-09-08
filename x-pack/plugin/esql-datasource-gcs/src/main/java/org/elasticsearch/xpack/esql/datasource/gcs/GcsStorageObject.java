@@ -45,6 +45,8 @@ import java.util.concurrent.Executor;
  *       async and byte-read implementations that are more efficient than the default InputStream
  *       wrappers. Note: the async path is executor-based (blocking a worker thread), not truly
  *       non-blocking like {@code HttpClient.sendAsync()} or {@code S3AsyncClient}.</li>
+ *   <li>{@link #readBytesAsyncReleasesExecutor()} — returns {@code false} for the same reason;
+ *       Phase-2 split discovery must not uncap fan-out on GCS.</li>
  * </ul>
  */
 public final class GcsStorageObject extends AbstractMeteredStorageObject {
@@ -282,6 +284,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return true;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return false;
     }
 
     @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")

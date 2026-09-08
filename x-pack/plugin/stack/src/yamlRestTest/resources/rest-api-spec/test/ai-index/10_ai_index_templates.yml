@@ -51,3 +51,36 @@ setup:
         name: ai-index-ds-foo
   - match: { data_streams.0.name: ai-index-ds-foo }
   - match: { data_streams.0.template: ai-index-ds }
+
+---
+"Dot-prefixed standard AI index picks up the managed template":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
+
+  # MetadataCreateIndexService warns for any non-hidden dot-prefixed index. The template
+  # deliberately leaves index.hidden unset.
+  - do:
+      allowed_warnings:
+        - "index name [.ai-index-idx-foo] starts with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices and system indices"
+      indices.create:
+        index: .ai-index-idx-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .ai-index-idx-foo
+  - match: { \.ai-index-idx-foo.mappings.properties.type.type: keyword }
+  - match: { \.ai-index-idx-foo.mappings.properties.type.normalizer: lowercase }
+
+---
+"Dot-prefixed data stream AI index is backed by the managed template":
+  - do:
+      indices.create_data_stream:
+        name: .ai-index-ds-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_data_stream:
+        name: .ai-index-ds-foo
+  - match: { data_streams.0.name: .ai-index-ds-foo }
+  - match: { data_streams.0.template: ai-index-ds }

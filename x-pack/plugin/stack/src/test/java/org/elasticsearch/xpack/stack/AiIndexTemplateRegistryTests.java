@@ -37,6 +37,8 @@ import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_DS_PATTERN;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_IDX_PATTERN;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -132,7 +134,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_TEMPLATE_NAME);
         assertThat(template, notNullValue());
-        assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_PATTERN));
+        assertThat(template.indexPatterns(), containsInAnyOrder(AI_INDEX_IDX_PATTERN, DOT_AI_INDEX_IDX_PATTERN));
         // The optional ai-index@custom escape hatch is composed last so user overrides win.
         assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, "ai-index@custom"));
         assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index@custom"));
@@ -144,7 +146,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_DS_TEMPLATE_NAME);
         assertThat(template, notNullValue());
-        assertThat(template.indexPatterns(), contains(AI_INDEX_DS_PATTERN));
+        assertThat(template.indexPatterns(), containsInAnyOrder(AI_INDEX_DS_PATTERN, DOT_AI_INDEX_DS_PATTERN));
         assertThat(
             template.composedOf(),
             containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, "ai-index@custom")

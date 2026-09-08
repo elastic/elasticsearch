@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["${ai-index.idx.index_pattern}"],
+  "index_patterns": ["${ai-index.idx.index_pattern}", "${ai-index.idx.dot_index_pattern}"],
   "priority": 500,
   "composed_of": [
     "ai-index@mappings",

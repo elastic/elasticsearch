@@ -36,15 +36,21 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
     static final int REGISTRY_VERSION = 3;
 
     // The computed checksum of all templates and components that are registered in this registry.
-    static final String COMPUTED_CHECKSUM = "9c7e92d6";
+    static final String COMPUTED_CHECKSUM = "4684c7e";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 
     public static final String AI_INDEX_IDX_PREFIX = "ai-index-idx-";
     public static final String AI_INDEX_DS_PREFIX = "ai-index-ds-";
 
+    public static final String DOT_AI_INDEX_IDX_PREFIX = "." + AI_INDEX_IDX_PREFIX;
+    public static final String DOT_AI_INDEX_DS_PREFIX = "." + AI_INDEX_DS_PREFIX;
+
     public static final String AI_INDEX_IDX_PATTERN = AI_INDEX_IDX_PREFIX + "*";
     public static final String AI_INDEX_DS_PATTERN = AI_INDEX_DS_PREFIX + "*";
+
+    public static final String DOT_AI_INDEX_IDX_PATTERN = DOT_AI_INDEX_IDX_PREFIX + "*";
+    public static final String DOT_AI_INDEX_DS_PATTERN = DOT_AI_INDEX_DS_PREFIX + "*";
 
     public static final String AI_INDEX_MAPPINGS_COMPONENT_NAME = "ai-index@mappings";
     public static final String AI_INDEX_DS_SETTINGS_COMPONENT_NAME = "ai-index@ds-settings";
@@ -94,14 +100,14 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
                 ROOT_RESOURCE_PATH + AI_INDEX_IDX_TEMPLATE_NAME + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of("ai-index.idx.index_pattern", AI_INDEX_IDX_PATTERN)
+                Map.of("ai-index.idx.index_pattern", AI_INDEX_IDX_PATTERN, "ai-index.idx.dot_index_pattern", DOT_AI_INDEX_IDX_PATTERN)
             ),
             new IndexTemplateConfig(
                 AI_INDEX_DS_TEMPLATE_NAME,
                 ROOT_RESOURCE_PATH + AI_INDEX_DS_TEMPLATE_NAME + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of("ai-index.ds.index_pattern", AI_INDEX_DS_PATTERN)
+                Map.of("ai-index.ds.index_pattern", AI_INDEX_DS_PATTERN, "ai-index.ds.dot_index_pattern", DOT_AI_INDEX_DS_PATTERN)
             ) };
     }
 

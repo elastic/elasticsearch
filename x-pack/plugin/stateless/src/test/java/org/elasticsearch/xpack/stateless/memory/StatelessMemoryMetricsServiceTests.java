@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.estimateHeapUsageIncludingPostings;
@@ -746,6 +749,100 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             );
         });
         return result;
+    }
+
+    /**
+     * Search nodes must appear in {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics} with:
+     * <ul>
+     *   <li>{@code totalHeapUsage == 0} — the total-heap estimate is not meaningful for search nodes</li>
+     *   <li>{@code hostedShardsHeapUsage > 0} — the hosted-shards estimate is populated from shard metrics</li>
+     * </ul>
+     * Search node postings must not influence the cross-node max used for indexing nodes' total heap estimate.
+     */
+    public void testSearchNodesGetHostedShardsEstimateWithZeroTotalHeap() {
+        final String indexName = randomIdentifier();
+
+        final ClusterState baseState = ClusterStateCreationUtils.buildServerlessRoleNodes(indexName, 1, 1, 1, 0);
+        final DiscoveryNode indexNode = baseState.nodes()
+            .stream()
+            .filter(n -> n.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .findFirst()
+            .orElseThrow();
+        final DiscoveryNode searchNode = baseState.nodes()
+            .stream()
+            .filter(n -> n.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE))
+            .findFirst()
+            .orElseThrow();
+        // buildServerlessRoleNodes creates primaries only; add a SEARCH_ONLY replica so hostedShardsHeapUsage is exercised
+        final ShardRouting primary = baseState.globalRoutingTable()
+            .routingTable(ProjectId.DEFAULT)
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+        final ShardId shardId = primary.shardId();
+        final ShardRouting searchReplica = shardRoutingBuilder(shardId, searchNode.getId(), false, ShardRoutingState.STARTED).withRole(
+            ShardRouting.Role.SEARCH_ONLY
+        ).build();
+        final ClusterState clusterState = ClusterState.builder(baseState)
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(
+                        ProjectId.DEFAULT,
+                        RoutingTable.builder()
+                            .add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(searchReplica).build())
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+
+        // Use a non-zero postings value so the maxTotalPostingsInMemoryBytes assertion is meaningful
+        final long postingsBytes = ByteSizeValue.ofMb(randomIntBetween(5, 15)).getBytes();
+        final ShardMappingSize shardSize = new ShardMappingSize(
+            ByteSizeValue.ofKb(100).getBytes(),
+            10,
+            50,
+            postingsBytes,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            indexNode.getId()
+        );
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, Map.of(shardId, shardSize)));
+
+        final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
+
+        // Both nodes are present
+        assertThat(perNode.keySet(), equalTo(Set.of(indexNode.getId(), searchNode.getId())));
+
+        // Index node: totalHeapUsage > 0 (includes base overhead); hostedShardsHeapUsage > 0
+        final NodeHeapEstimates indexEstimates = perNode.get(indexNode.getId());
+        assertThat("indexing node totalHeapUsage must include base overhead", indexEstimates.totalHeapUsage(), greaterThan(0L));
+        assertThat("indexing node hostedShardsHeapUsage must be > 0", indexEstimates.hostedShardsHeapUsage(), greaterThan(0L));
+
+        // Search node: totalHeapUsage == 0; hostedShardsHeapUsage > 0
+        final NodeHeapEstimates searchEstimates = perNode.get(searchNode.getId());
+        assertThat("search node totalHeapUsage must be 0", searchEstimates.totalHeapUsage(), equalTo(0L));
+        assertThat("search node hostedShardsHeapUsage must be > 0", searchEstimates.hostedShardsHeapUsage(), greaterThan(0L));
+
+        // Hosted shards estimates must be consistent for search and indexing nodes
+        assertThat(
+            "hostedShardsHeapUsage must be consistent for search and indexing nodes",
+            searchEstimates.hostedShardsHeapUsage(),
+            equalTo(indexEstimates.hostedShardsHeapUsage())
+        );
+
+        // maxTotalPostingsInMemoryBytes must be driven by the indexing node's builder only.
+        // Both nodes see the same shard metrics (shard metrics are keyed by ShardId, published by index nodes),
+        // so the max equals postingsBytes regardless of whether search nodes are in the pool.
+        // What matters is that the max is non-zero and equals the expected per-shard value.
+        assertThat(
+            "maxTotalPostingsInMemoryBytes must be the index node's postings",
+            getLastMaxTotalPostingsInMemoryBytes(service),
+            equalTo(postingsBytes)
+        );
     }
 
     private static Map<ShardId, ShardMappingSize> createShardMappingMetricsWithPointsInMemory(

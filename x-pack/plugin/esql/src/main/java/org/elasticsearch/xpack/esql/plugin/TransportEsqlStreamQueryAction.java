@@ -76,7 +76,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
 /**
- * Transport action for incremental ES|QL execution on {@code POST /_query?incremental_execution=true}.
+ * Transport action for streaming ES|QL execution on {@code POST /_query?streaming=true}.
  * Mirrors {@link TransportEsqlQueryAction} but delivers the schema and publisher out-of-band
  * (via {@link EsqlStreamQueryRequest#streamStartListener()}) before compute finishes, so the
  * transport task stays registered for the full duration of the query. This keeps

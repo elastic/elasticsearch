@@ -45,8 +45,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 /**
- * Shared utilities for testing the ES|QL streaming API ({@code POST /_query/stream}).
- * The main entry point is {@link #stream}, which drives an incremental NDJSON consumer
+ * Shared utilities for testing the ES|QL streaming API ({@code POST /_query?streaming=true}).
+ * The main entry point is {@link #stream}, which drives a streaming NDJSON consumer
  * over a real HTTP connection, handing each complete line to a {@link StreamGate}.
  */
 public final class EsqlStreamTestUtils {
@@ -125,7 +125,7 @@ public final class EsqlStreamTestUtils {
     }
 
     public static StreamOutcome stream(RestClient client, String queryJsonBody, StreamGate gate, String... queryParams) throws Exception {
-        String path = "/_query?incremental_execution=true&format=ndjson";
+        String path = "/_query?streaming=true&format=ndjson";
         if (queryParams.length > 0) {
             path += "&" + String.join("&", queryParams);
         }

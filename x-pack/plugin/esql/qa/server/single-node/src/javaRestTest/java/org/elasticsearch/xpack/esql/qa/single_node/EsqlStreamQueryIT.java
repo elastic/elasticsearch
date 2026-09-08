@@ -172,7 +172,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testErrorFraming() throws IOException {
         ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | EVAL x = unknown_function(value)"}
-            """, "incremental_execution=true", "format=ndjson", "batch_size=1"));
+            """, "streaming=true", "format=ndjson", "batch_size=1"));
 
         String contentType = re.getResponse().getEntity().getContentType().getValue();
         assertThat(contentType, containsString("application/x-ndjson"));
@@ -200,7 +200,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         Response response = EsqlStreamTestUtils.rawStream(
             client(),
             "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-            "incremental_execution=true",
+            "streaming=true",
             "format=ndjson"
         );
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -212,7 +212,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson",
                 "batch_size=abc"
             )
@@ -227,7 +227,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson",
                 "batch_size=0"
             )
@@ -242,7 +242,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson",
                 "batch_size=1001"
             )
@@ -251,7 +251,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("batch_size"));
     }
 
-    public void testBatchSizeRequiresIncrementalExecution() {
+    public void testBatchSizeRequiresStreaming() {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "batch_size=10")
@@ -260,7 +260,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("batch_size"));
     }
 
-    public void testNdjsonFormatRequiresIncrementalExecution() {
+    public void testNdjsonFormatRequiresStreaming() {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson")
@@ -269,15 +269,10 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("ndjson"));
     }
 
-    public void testIncrementalExecutionRequiresNdjsonFormat() {
+    public void testStreamingRequiresNdjsonFormat() {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "incremental_execution=true",
-                "format=csv"
-            )
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "streaming=true", "format=csv")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(re.getMessage(), containsString("ndjson"));
@@ -289,7 +284,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\", \"columnar\": true}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson"
             )
         );
@@ -303,7 +298,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\", \"profile\": true}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson"
             )
         );
@@ -317,7 +312,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson"
             )
         );
@@ -331,7 +326,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_execution_metadata\": true}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson"
             )
         );
@@ -345,7 +340,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
                 "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "incremental_execution=true",
+                "streaming=true",
                 "format=ndjson",
                 "delimiter=,"
             )
@@ -358,7 +353,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         Response response = EsqlStreamTestUtils.rawStream(
             client(),
             "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-            "incremental_execution=true",
+            "streaming=true",
             "format=ndjson",
             "header=present"
         );
@@ -605,17 +600,13 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         List<Map<String, Object>> streamColumns = columnList(streamHeader, "columns");
 
         assertEquals(
-            "all_columns count must agree between /_query and incremental stream for: " + esql,
+            "all_columns count must agree between /_query and streaming for:" + esql,
             queryAllColumns.size(),
             streamAllColumns.size()
         );
-        assertEquals("all_columns must agree between /_query and incremental stream for: " + esql, queryAllColumns, streamAllColumns);
-        assertEquals(
-            "columns count must agree between /_query and incremental stream for: " + esql,
-            queryColumns.size(),
-            streamColumns.size()
-        );
-        assertEquals("columns must agree between /_query and incremental stream for: " + esql, queryColumns, streamColumns);
+        assertEquals("all_columns must agree between /_query and streaming for:" + esql, queryAllColumns, streamAllColumns);
+        assertEquals("columns count must agree between /_query and streaming for:" + esql, queryColumns.size(), streamColumns.size());
+        assertEquals("columns must agree between /_query and streaming for:" + esql, queryColumns, streamColumns);
 
         List<List<Object>> queryRows = rows(queryResponse);
         List<List<Object>> streamRows = streamRows(lines);
@@ -625,10 +616,10 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
             assertThat("stream row width must match the trimmed column count for: " + esql, row.size(), equalTo(streamColumns.size()));
         }
         if (orderedRows) {
-            assertEquals("values must agree between /_query and incremental stream for: " + esql, queryRows, streamRows);
+            assertEquals("values must agree between /_query and streaming for:" + esql, queryRows, streamRows);
         } else {
             assertEquals(
-                "values must agree (ignoring row order) between /_query and incremental stream for: " + esql,
+                "values must agree (ignoring row order) between /_query and streaming for:" + esql,
                 canonicalRows(queryRows),
                 canonicalRows(streamRows)
             );
@@ -699,12 +690,12 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
     private List<Map<String, Object>> stream(String bodyJson, String... queryParams) throws IOException {
         List<String> params = new ArrayList<>();
-        params.add("incremental_execution=true");
+        params.add("streaming=true");
         params.add("format=ndjson");
         params.addAll(java.util.Arrays.asList(queryParams));
         Response response = EsqlStreamTestUtils.rawStream(client(), bodyJson, params.toArray(String[]::new));
         assertThat(
-            "/_query must respond with application/x-ndjson when incremental_execution=true",
+            "/_query must respond with application/x-ndjson when streaming=true",
             response.getEntity().getContentType().getValue(),
             containsString("application/x-ndjson")
         );

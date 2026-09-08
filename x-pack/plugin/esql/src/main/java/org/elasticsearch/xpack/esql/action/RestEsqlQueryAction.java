@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_HEADER
 public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
-    static final String INCREMENTAL_EXECUTION_OPTION = "incremental_execution";
+    static final String STREAMING_OPTION = "streaming";
     static final String BATCH_SIZE_OPTION = "batch_size";
     static final String NDJSON_FORMAT_VALUE = "ndjson";
     static final int DEFAULT_BATCH_SIZE = 100;
@@ -65,46 +65,46 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             esqlRequest = RequestXContent.parseSync(parser);
         }
 
-        boolean incrementalExecution = request.paramAsBoolean(INCREMENTAL_EXECUTION_OPTION, false);
+        boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
         String batchSizeParam = request.param(BATCH_SIZE_OPTION);
         String format = request.param(URL_PARAM_FORMAT);
 
-        if (batchSizeParam != null && incrementalExecution == false) {
-            throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] requires [" + INCREMENTAL_EXECUTION_OPTION + "=true]");
+        if (batchSizeParam != null && streaming == false) {
+            throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
         }
-        if (NDJSON_FORMAT_VALUE.equals(format) && incrementalExecution == false) {
-            throw new IllegalArgumentException("[format=ndjson] requires [" + INCREMENTAL_EXECUTION_OPTION + "=true]");
+        if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
+            throw new IllegalArgumentException("[format=ndjson] requires [" + STREAMING_OPTION + "=true]");
         }
-        if (incrementalExecution && NDJSON_FORMAT_VALUE.equals(format) == false) {
-            throw new IllegalArgumentException("[" + INCREMENTAL_EXECUTION_OPTION + "=true] requires [format=ndjson]");
+        if (streaming && NDJSON_FORMAT_VALUE.equals(format) == false) {
+            throw new IllegalArgumentException("[" + STREAMING_OPTION + "=true] requires [format=ndjson]");
         }
 
-        if (incrementalExecution) {
-            return incrementalChannelConsumer(esqlRequest, request, client, batchSizeParam);
+        if (streaming) {
+            return streamingChannelConsumer(esqlRequest, request, client, batchSizeParam);
         }
         return restChannelConsumer(esqlRequest, request, client);
     }
 
-    static RestChannelConsumer incrementalChannelConsumer(
+    static RestChannelConsumer streamingChannelConsumer(
         EsqlQueryRequest esqlRequest,
         RestRequest request,
         NodeClient client,
         String batchSizeParam
     ) {
         if (esqlRequest.columnar()) {
-            throw incompatibleWithIncrementalExecution("columnar");
+            throw incompatibleWithStreaming("columnar");
         }
         if (esqlRequest.profile()) {
-            throw incompatibleWithIncrementalExecution("profile");
+            throw incompatibleWithStreaming("profile");
         }
         if (Boolean.TRUE.equals(esqlRequest.includeCCSMetadata())) {
-            throw incompatibleWithIncrementalExecution("include_ccs_metadata");
+            throw incompatibleWithStreaming("include_ccs_metadata");
         }
         if (Boolean.TRUE.equals(esqlRequest.includeExecutionMetadata())) {
-            throw incompatibleWithIncrementalExecution("include_execution_metadata");
+            throw incompatibleWithStreaming("include_execution_metadata");
         }
         if (request.param(URL_PARAM_DELIMITER) != null) {
-            throw incompatibleWithIncrementalExecution(URL_PARAM_DELIMITER);
+            throw incompatibleWithStreaming(URL_PARAM_DELIMITER);
         }
         request.param(URL_PARAM_HEADER);
 
@@ -133,7 +133,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
 
         final int resolvedBatchSize = batchSize;
-        LOGGER.debug("Beginning incremental execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
+        LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(channel);
@@ -172,12 +172,12 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         };
     }
 
-    private static IllegalArgumentException incompatibleWithIncrementalExecution(String option) {
-        return new IllegalArgumentException(Strings.format("[%s] cannot be used with [%s=true]", option, INCREMENTAL_EXECUTION_OPTION));
+    private static IllegalArgumentException incompatibleWithStreaming(String option) {
+        return new IllegalArgumentException(Strings.format("[%s] cannot be used with [%s=true]", option, STREAMING_OPTION));
     }
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, INCREMENTAL_EXECUTION_OPTION, BATCH_SIZE_OPTION);
+        return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, STREAMING_OPTION, BATCH_SIZE_OPTION);
     }
 }

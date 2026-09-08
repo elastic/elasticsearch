@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Shared helpers for integration tests that exercise incremental ES|QL execution
- * ({@code POST /_query?incremental_execution=true}).
+ * Shared helpers for integration tests that exercise streaming ES|QL execution
+ * ({@code POST /_query?streaming=true}).
  */
 public final class StreamQueryTestUtils {
 

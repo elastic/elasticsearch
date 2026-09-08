@@ -160,8 +160,8 @@ The following configuration fields are required to set up the connector:
 `use_document_level_security`
 :   Restrict access to documents based on a user’s permissions. Refer to [Document level security](#es-connectors-servicenow-client-dls) for more details.
 
-`expand_role_members`
-:   Available when document level security is enabled. When enabled, ServiceNow role members are written individually onto each document’s access control list. Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync.
+`expand_role_members` {applies_to}`stack: ga 9.4.7+`
+:   Available when document level security is enabled. When enabled, ServiceNow role members are written individually onto each document’s access control list. Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync. Introduced in 8.19.22, 9.4.7, 9.5.4, and 9.6.0 (not available in 9.5.0–9.5.3).
 
 
 ### Documents and syncs [es-connectors-servicenow-client-documents-syncs]
@@ -202,6 +202,7 @@ The ServiceNow connector supports roles for access control lists (ACLs) to enabl
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
 
+{applies_to}`stack: ga 9.4.7+`
 When **Expand role members** is disabled, content documents store compact `role_id:` tokens instead of individual user identifiers. Access control syncs enrich identity documents with role memberships from `sys_user_has_role` so DLS term overlap still resolves access. Tables with no read ACL entries or with a `public` read role omit `_allow_access_control`, making documents world-readable through DLS.
 
 :::{important}

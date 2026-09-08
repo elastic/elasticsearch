@@ -909,6 +909,103 @@ POLYGON ((4 5, 4 0, 0 0, 0 5, 4 5))
 ;
 
 ###############################################
+# Tests for ST_UNION unary (single-argument) form
+###############################################
+
+stUnionUnaryFromMultiValue
+required_capability: fn_st_union_unary
+
+ROW a = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"), b = TO_GEOSHAPE("POLYGON ((1 0, 2 0, 2 1, 1 1, 1 0))")
+| EVAL shapes = MV_APPEND(a, b)
+| EVAL result = ST_UNION(shapes)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((1.0 0.0, 0.0 0.0, 0.0 1.0, 1.0 1.0, 2.0 1.0, 2.0 0.0, 1.0 0.0))
+;
+
+stUnionUnaryFromSingleValue
+required_capability: fn_st_union_unary
+
+ROW shape = TO_GEOSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL result = ST_UNION(shape)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))
+;
+
+stUnionUnaryNull
+required_capability: fn_st_union_unary
+
+ROW shape = TO_GEOSHAPE(null)
+| EVAL result = ST_UNION(shape)
+| KEEP result
+;
+
+result:geo_shape
+null
+;
+
+stUnionUnaryFromIndexedMultivalueGeoShapes
+required_capability: fn_st_union_unary
+
+// Union two disjoint geo_shapes stored as multiple values in one document
+FROM multivalue_geometries
+| WHERE id == 7
+| EVAL result = ST_UNION(shape)
+| KEEP id, result
+;
+
+id:l | result:geo_shape
+7    | MULTIPOLYGON (((-9.0 -9.0, -9.0 -1.0, -1.0 -1.0, -1.0 -9.0, -9.0 -9.0)),((1.0 1.0, 1.0 9.0, 9.0 9.0, 9.0 1.0, 1.0 1.0)))
+;
+
+stUnionUnaryFromIndexedSingleGeoShape
+required_capability: fn_st_union_unary
+
+// A single-valued geo_shape is returned unchanged
+FROM multivalue_geometries
+| WHERE id == 5
+| EVAL result = ST_UNION(shape)
+| KEEP id, result
+;
+
+id:l | result:geo_shape
+5    | POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))
+;
+
+stUnionUnaryFromIndexedMultivalueGeoPoints
+required_capability: fn_st_union_unary
+
+// Union two geo_points stored as multiple values in one document
+FROM multivalue_points
+| WHERE id == 0
+| EVAL result = ST_UNION(location)
+| KEEP id, result
+;
+
+id:l | result:geo_shape
+0    | MULTIPOINT (-5.0 5.0, 5.0 5.0)
+;
+
+stUnionUnaryFromIndexedSingleCartesianShape
+required_capability: fn_st_union_unary
+
+// A single-valued cartesian_shape is returned unchanged
+FROM cartesian_multipolygons
+| WHERE id == 1
+| EVAL result = ST_UNION(shape)
+| KEEP id, result
+;
+
+id:l | result:cartesian_shape
+1    | POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))
+;
+
+###############################################
 # Tests for ST_INTERSECTION
 ###############################################
 

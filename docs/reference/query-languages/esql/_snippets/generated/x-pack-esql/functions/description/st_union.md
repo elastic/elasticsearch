@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns the geometric union of two geometries. The result is a geometry that covers all points covered by either input geometry. Both geometries must share the same coordinate reference system.
+Returns the geometric union of two geometries. The result is a geometry that covers all points covered by either input geometry. Both geometries must share the same coordinate reference system. When called with a single multi-valued argument, all values at a position are unioned into one geometry.
 

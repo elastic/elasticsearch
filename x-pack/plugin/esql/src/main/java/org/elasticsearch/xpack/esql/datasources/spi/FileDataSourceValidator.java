@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
@@ -51,6 +53,15 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  * only the base dataset fields are accepted, preserving backward compatibility.
  */
 public class FileDataSourceValidator implements DataSourceValidator {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FileDataSourceValidator.class);
+
+    /** Stable log key for the {@code hive_partitioning} deprecation warning (deduplicates via {@code ThreadContext}). */
+    public static final String HIVE_PARTITIONING_DEPRECATION_KEY = "esql_dataset_hive_partitioning_deprecated";
+
+    /** Deprecation message for {@code hive_partitioning}. */
+    public static final String HIVE_PARTITIONING_DEPRECATION_MESSAGE =
+        "[hive_partitioning] is ignored; use [partition_detection: none] to disable partition detection";
 
     /**
      * Error shown when a data source is provisioned with federated authentication settings while the
@@ -276,10 +287,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum, plus the combinations in which one of the three partition settings would be
-        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
-        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
-        // which means a new registration is the only place a contradiction can still be caught.
+        // partition_detection enum, plus the combinations in which one of the two active partition settings
+        // (partition_detection, partition_path) would be silently ignored, via the owning parser.
+        // (hive_partitioning is accepted but a no-op — handled below.) Stricter than the query path deliberately:
+        // PartitionConfig resolves stored datasets leniently so an upgrade cannot turn a working dataset into a
+        // query-time error, which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -289,6 +301,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
             errors
         );
         validate(() -> PartitionConfig.validate(settings), errors);
+        // hive_partitioning is accepted but ignored (deprecated no-op). Warn only at CRUD time — PartitionConfig.fromConfig runs on
+        // every query against every stored dataset; warning there would fire on every read.
+        if (settings.containsKey(PartitionConfig.CONFIG_PARTITIONING_HIVE)) {
+            deprecationLogger.warn(DeprecationCategory.API, HIVE_PARTITIONING_DEPRECATION_KEY, HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+        }
         // file_exclusions: array-of-strings shape here, pattern compilation via the owning parser. Stricter than the query path for the
         // same reason as the partition
         // settings above: ExclusionConfig.fromConfig degrades a malformed stored value to its default so an

@@ -370,9 +370,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     /**
-     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
-     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
-     * before this validation existed keep reading.
+     * The combinations in which one of the partition settings would be silently ignored. Rejected at registration
+     * only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored before this
+     * validation existed keep reading.
      */
     public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
         expectThrows(
@@ -381,15 +381,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         expectThrows(
             ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
-        );
-        expectThrows(
-            ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
-        );
-        expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
         );
         // hive never reads a path template, so storing one would store a setting that does nothing.
         expectThrows(
@@ -398,18 +390,21 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
-    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
-        assertEquals(
-            "hive",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
-        assertEquals(
-            "none",
-            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
-                .get("partition_detection")
-        );
+    /**
+     * {@code hive_partitioning} is a deprecated no-op: any value alongside any {@code partition_detection} is
+     * accepted without error, and a deprecation warning is emitted.
+     */
+    public void testValidateDatasetAcceptsHivePartitioningWithAnyStrategy() {
+        for (Object value : List.of("false", false, "true", true)) {
+            // alongside an explicit strategy
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", value));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+            // alongside a partition_path (formerly rejected when hive_partitioning:false)
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", value, "partition_path", "{year}"));
+            assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
+        }
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {
@@ -596,9 +591,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasetHivePartitioning() {
+    /**
+     * The raw value is stored as-is (so stored datasets round-trip correctly), and a deprecation warning is emitted.
+     *
+     * <p>Note: {@code assertWarnings} captures the deprecation-log stream, not the HTTP response header.
+     * In production, {@code DatasetService.validatePutDataset} calls {@code validateDataset} twice per PUT (pre-CAS
+     * and inside the CAS task), so the warning fires twice; {@code ThreadContext.putResponse} then deduplicates it to
+     * a single response header. That dedup is not exercised here — it requires a full REST integration test.
+     */
+    public void testValidateDatasetHivePartitioningStoredAndWarned() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));
+        assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_DEPRECATION_MESSAGE);
     }
 
     public void testValidateDatasetTargetSplitSize() {

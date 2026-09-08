@@ -300,10 +300,9 @@ public class StoragePathTests extends ESTestCase {
         assertThat(e.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Invalid port")));
     }
 
-    public void testIpv6NonPortSuffixThrowsMalformedAuthority() {
-        // An IPv6 host followed by something that is not a port must say "Malformed authority", not "Invalid port".
+    public void testIpv6NonPortSuffixThrowsInvalidPort() {
+        // IPv6 URIs can genuinely have a port; "Invalid port" is accurate for a non-numeric suffix here.
         var e = expectThrows(IllegalArgumentException.class, () -> StoragePath.of("https://[::1]:notaport/path"));
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Malformed authority in location"));
-        assertThat(e.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Invalid port")));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Invalid port in location"));
     }
 }

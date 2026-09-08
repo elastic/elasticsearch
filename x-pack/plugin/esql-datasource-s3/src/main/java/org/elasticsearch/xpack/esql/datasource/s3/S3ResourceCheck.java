@@ -27,7 +27,7 @@ import java.util.Locale;
  * because it throws {@code Malformed authority in location} on ARNs before any check can run. The SDK's
  * {@code Arn.fromString} is also not used — two string checks cover all cases.
  */
-public class S3ResourceCheck {
+class S3ResourceCheck {
 
     static final String MRAP_MESSAGE_PREFIX = "[resource] looks like a multi-region access point, which is not supported, but was [";
     static final String ARN_MESSAGE_PREFIX = "[resource] does not accept an ARN but was [";
@@ -43,7 +43,7 @@ public class S3ResourceCheck {
      * ARN branch and receive a misleading "use an access point alias" suggestion (which does not
      * exist for MRAPs).
      */
-    public static void validate(String resource, ValidationException errors) {
+    static void validate(String resource, ValidationException errors) {
         // Extract the authority: everything between "://" and the first "/", lowercased for matching.
         int schemeEnd = resource.indexOf("://");
         if (schemeEnd < 0) {
@@ -62,8 +62,12 @@ public class S3ResourceCheck {
             firstPathSegmentLower = (nextSlash < 0 ? afterAuthority : afterAuthority.substring(0, nextSlash)).toLowerCase(Locale.ROOT);
         }
 
-        // 1. MRAP check: host ends with ".mrap", OR it's an ARN whose first path segment ends with ".mrap".
-        if (authorityLower.endsWith(".mrap") || (authorityLower.startsWith("arn:") && firstPathSegmentLower.endsWith(".mrap"))) {
+        // 1. MRAP check: host ends with ".mrap" (short alias) or the AWS global FQDN suffix
+        // ".mrap.accesspoint.s3-global.amazonaws.com" (what the AWS console / SDK resolves to),
+        // OR it's an ARN whose first path segment ends with ".mrap".
+        if (authorityLower.endsWith(".mrap")
+            || authorityLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")
+            || (authorityLower.startsWith("arn:") && firstPathSegmentLower.endsWith(".mrap"))) {
             errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
             return;
         }

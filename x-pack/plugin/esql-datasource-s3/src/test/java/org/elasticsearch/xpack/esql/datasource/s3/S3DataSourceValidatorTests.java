@@ -901,7 +901,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetRejectsMrapArn() {
-        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message
+        // ARN whose first path segment ends with .mrap — gets MRAP message, not generic ARN message.
+        // The not() assertion catches a missing return after the MRAP branch.
         var e = expectThrows(
             ValidationException.class,
             () -> validator.validateDataset(
@@ -911,6 +912,21 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             )
         );
         assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
+    }
+
+    public void testValidateDatasetRejectsMrapFqdn() {
+        // Full AWS global endpoint hostname that MRAP aliases resolve to — must get the MRAP message.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(
+                Map.of(),
+                "s3://mfzwi23gnjvgw.mrap.accesspoint.s3-global.amazonaws.com/data/f.parquet",
+                Map.of()
+            )
+        );
+        assertThat(e.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+        assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
     }
 
     public void testValidateDatasetRejectsAccessPointArn() {
@@ -1047,6 +1063,20 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             () -> v.validateDataset(Map.of(), "s3://mfzwi23gnjvgw.mrap/data/f.parquet", Map.of())
         );
         assertThat(e2.getMessage(), containsString("looks like a multi-region access point, which is not supported"));
+    }
+
+    /**
+     * Verifies that {@link S3DataSourcePlugin#datasourceValidators} wires the S3 resource check.
+     * If {@code .withResourceCheck(...)} were dropped from the plugin, this test would fail while
+     * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
+     */
+    public void testDatasourceValidatorsIncludesResourceCheck() {
+        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(org.elasticsearch.common.settings.Settings.EMPTY).get("s3");
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("does not accept an ARN"));
     }
 
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -151,7 +152,45 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+    }
+
+    private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {
+        UnmappedFieldsAttribute ufa = unmappedFieldsAttributeFromChildren();
+        if (ufa == null) {
+            return converted;
+        }
+        for (int i = 0; i < converted.size(); i++) {
+            if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the FORK union.
+                converted.set(i, ufa.withId(converted.get(i).id()));
+                break;
+            }
+        }
+        return converted;
+    }
+
+    @Nullable
+    private UnmappedFieldsAttribute unmappedFieldsAttributeFromChildren() {
+        UnmappedFieldsAttribute first = null;
+        UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (attr instanceof UnmappedFieldsAttribute childUfa) {
+                    if (first == null) {
+                        first = childUfa;
+                    }
+                    union = union.union(childUfa.pattern());
+                }
+            }
+        }
+        if (first == null) {
+            return null;
+        }
+        if (union.equals(first.pattern())) {
+            return first;
+        }
+        return new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
     }
 
     @Override

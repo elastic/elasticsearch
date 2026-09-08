@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimens
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForExternalId;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PruneUnusedEvalFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
@@ -82,6 +83,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushLimitToSource(),
             new PushLimitToExternalSource(),
             new PushFiltersToSource(),
+            // Runs in the same iterative batch as PushLimitToSource (rather than in the later
+            // "Field extraction" batch) so that once it drops a now-dead EvalExec that
+            // PushFiltersToSource left behind, a subsequent pass of this batch gets another
+            // chance to push a LimitExec that is now sitting directly above the EsQueryExec.
+            new PruneUnusedEvalFields(),
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),
             new PushStatsToSource(),

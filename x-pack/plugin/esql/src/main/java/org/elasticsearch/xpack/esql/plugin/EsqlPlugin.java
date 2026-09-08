@@ -126,7 +126,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourc
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -167,7 +166,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -510,10 +508,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
         // fields (e.g. CSV's "delimiter") so they persist in cluster state and reach the format reader
-        // at query time, and (b) resolve a dataset's format from an explicit "format" setting or the
-        // resource extension. Iterate ALL FormatSpec declarations (including formats with no extra
-        // config keys, e.g. orc) so every registered format is a valid "format" value and every
-        // extension resolves to its logical format name.
+        // at query time, and (b) accept an explicit "format" setting. Extension inference is not
+        // derived from these maps: FileDataSourceValidator delegates to FormatNameResolver /
+        // FormatReaderRegistry. Iterate ALL FormatSpec declarations (including formats with no extra
+        // config keys, e.g. orc) so every registered format is a valid "format" value.
         //
         // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins) for the
         // extension→reader mapping at runtime. Here we fail on conflicts so an inconsistency surfaces
@@ -547,32 +545,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ? null
             : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
 
-        // Collect known compression extensions so the CRUD validator only falls back to
-        // inner extensions for compound paths (e.g. data.csv.gz) when the outer extension
-        // is a registered compression codec — matching DecompressionCodecRegistry behavior.
-        Set<String> compressionExtensions = new HashSet<>();
-        for (DataSourcePlugin p : allDataSourcePlugins) {
-            for (DecompressionCodec codec : p.decompressionCodecs(settings)) {
-                for (String ext : codec.extensions()) {
-                    String normalized = ext.toLowerCase(Locale.ROOT);
-                    if (normalized.startsWith(".") == false) {
-                        normalized = "." + normalized;
-                    }
-                    compressionExtensions.add(normalized);
-                }
-            }
-        }
-
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
-                        .withFederatedIdentityEnabled(federatedIdentityEnabled::get);
-                }
-                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
+                    FileDataSourceValidator wired = fdv.withManagedIdentityEnabled(managedIdentityEnabled::get)
+                        .withFederatedIdentityEnabled(federatedIdentityEnabled::get)
+                        .withFormatReaderRegistry(dataSourceModule.formatReaderRegistry());
+                    if (formatKeyResolver != null) {
+                        wired = wired.withFormatConfigKeyResolver(formatKeyResolver);
+                    }
+                    effective = wired;
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {
                     throw new IllegalStateException("duplicate DataSourceValidator for type [" + type + "]");

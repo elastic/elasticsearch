@@ -36,15 +36,15 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
         Measurement requests = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);
         assertThat(requests.getLong(), equalTo(1L));
-        assertThat(requests.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
 
         Measurement bytes = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL);
         assertThat(bytes.getLong(), equalTo(2048L));
-        assertThat(bytes.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
 
         Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION);
         assertThat(duration.getLong(), equalTo(12L));
-        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
     }
 
     public void testRecordRequestWithZeroBytesSkipsByteCounterButStillCountsAndTimes() {
@@ -61,7 +61,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
         Measurement retry = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL);
         assertThat(retry.getLong(), equalTo(1L));
-        assertThat(retry.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
+        assertThat(retry.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("azure"));
     }
 
     public void testCountersBridgeToRegistryOnceAttached() {
@@ -82,7 +82,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL).getLong(), equalTo(4096L));
         Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_REQUESTS_DURATION);
         assertThat(duration.getLong(), equalTo(7L));
-        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("http"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("http"));
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_RETRIES_TOTAL).getLong(), equalTo(1L));
     }
 
@@ -96,8 +96,8 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
         List<Measurement> requests = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);
         assertThat(requests, hasSize(2));
-        assertThat(requests.get(0).attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
-        assertThat(requests.get(1).attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        assertThat(requests.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(requests.get(1).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
     }
 
     public void testCountersDoNotEmitWhenNotAttached() {
@@ -121,21 +121,21 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         metrics.recordError("s3");
         Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
         assertThat(m.getLong(), equalTo(1L));
-        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
     }
 
     public void testRecordThrottled() {
         metrics.recordThrottled("gcs");
         Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL);
         assertThat(m.getLong(), equalTo(1L));
-        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
     }
 
     public void testRecordReadStall() {
         metrics.recordReadStall(1200L, "azure");
         Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION);
         assertThat(m.getLong(), equalTo(1200L));
-        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("azure"));
     }
 
     public void testRecordReadStallClampsNegative() {
@@ -175,10 +175,11 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordTimeToFirstRow() {
-        metrics.recordTimeToFirstRow(42L, "s3");
+        metrics.recordTimeToFirstRow(42L, "s3", "parquet");
         Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.QUERY_TIME_TO_FIRST_ROW);
         assertThat(m.getLong(), equalTo(42L));
-        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("parquet"));
     }
 
     public void testRecordDiscovery() {
@@ -186,13 +187,13 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         metrics.recordDiscovery(75L, 12L, 4096L, "s3a");
         Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_DURATION);
         assertThat(duration.getLong(), equalTo(75L));
-        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         Measurement files = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_FILES_SCANNED);
         assertThat(files.getLong(), equalTo(12L));
-        assertThat(files.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(files.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         Measurement bytes = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_BYTES_SCANNED);
         assertThat(bytes.getLong(), equalTo(4096L));
-        assertThat(bytes.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(bytes.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
     }
 
     public void testRecordDiscoveryFailure() {
@@ -201,26 +202,32 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testRecordParse() {
-        metrics.recordParse(1000L, 88L, "gcs");
+        metrics.recordParse(1000L, 88L, "gcs", "csv");
         Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
         assertThat(rows.getLong(), equalTo(1000L));
-        assertThat(rows.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        assertThat(rows.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
+        assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
         Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
         assertThat(duration.getLong(), equalTo(88L));
-        assertThat(duration.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
     }
 
     public void testRecordParseWithZeroRowsSkipsRowCounterButStillTimes() {
-        metrics.recordParse(0L, 9L, "file");
+        metrics.recordParse(0L, 9L, "file", "csv");
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL), hasSize(0));
-        assertThat(single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION).getLong(), equalTo(9L));
+        Measurement duration = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
+        assertThat(duration.getLong(), equalTo(9L));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+        assertThat(duration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("csv"));
     }
 
     public void testRecordSplitsScanned() {
-        metrics.recordSplitsScanned(7L, "azure");
+        metrics.recordSplitsScanned(7L, "azure", "orc");
         Measurement m = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);
         assertThat(m.getLong(), equalTo(7L));
-        assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("azure"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("azure"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("orc"));
     }
 
     public void testRecordPoolRejected() {
@@ -246,7 +253,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL).getLong(), equalTo(1L));
         Measurement stall = single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION);
         assertThat(stall.getLong(), equalTo(900L));
-        assertThat(stall.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(stall.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
     }
 
     public void testStorageCountersSkipZeroStallAndEmitNothingWhenUnattached() {
@@ -301,6 +308,54 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         // Unknown schemes clamp to the closed unknown token; null is the same sentinel.
         assertThat(ExternalSourceMetrics.canonicalScheme("ftp"), equalTo("unknown"));
         assertThat(ExternalSourceMetrics.canonicalScheme(null), equalTo("unknown"));
+    }
+
+    public void testTypeAttributeFoldsFileToLocal() {
+        // Both APM and phone-home fold file → local via DataSourceTelemetryVocabulary.Type.
+        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("local"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("FILE"), equalTo("local"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("s3a"), equalTo("s3"));
+
+        metrics.recordRequest(1L, 1L, "file");
+        Measurement request = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);
+        assertThat(request.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("local"));
+        assertThat(request.attributes().containsKey("es_datasource_scheme"), equalTo(false));
+    }
+
+    public void testCanonicalFormatClampsUnknownAndBlank() {
+        assertThat(ExternalSourceMetrics.canonicalFormat("csv"), equalTo("csv"));
+        assertThat(ExternalSourceMetrics.canonicalFormat("CSV"), equalTo("csv"));
+        assertThat(ExternalSourceMetrics.canonicalFormat("parquet"), equalTo("parquet"));
+        assertThat(ExternalSourceMetrics.canonicalFormat("gz"), equalTo("other"));
+        assertThat(ExternalSourceMetrics.canonicalFormat(null), equalTo("unresolved"));
+        assertThat(ExternalSourceMetrics.canonicalFormat("  "), equalTo("unresolved"));
+    }
+
+    public void testStorageDiscoveryAndQueriesDoNotCarryFormat() {
+        metrics.recordRequest(1L, 1L, "s3");
+        metrics.recordDiscovery(1L, 1L, 1L, "s3");
+        metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 1L, false);
+        assertThat(
+            single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL).attributes()
+                .containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE),
+            equalTo(false)
+        );
+        assertThat(
+            single(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.DISCOVERY_DURATION).attributes()
+                .containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE),
+            equalTo(false)
+        );
+        assertThat(
+            single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_TOTAL).attributes()
+                .containsKey(ExternalSourceMetrics.FORMAT_ATTRIBUTE),
+            equalTo(false)
+        );
+    }
+
+    public void testRecordParseClampsUnknownFormatToOther() {
+        metrics.recordParse(3L, 1L, "s3", "gz");
+        Measurement rows = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.PARSE_ROWS_TOTAL);
+        assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("other"));
     }
 
     private List<Measurement> measurements(InstrumentType type, String name) {

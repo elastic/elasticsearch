@@ -948,7 +948,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme());
+            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme(), formatReader.formatName());
         } catch (Exception e) {
             releaseOperator();
             throw e;

@@ -59,14 +59,14 @@ public class FileDataSourceValidatorInventoryTests extends ESTestCase {
         assertThat(validator.authModeOrNull(Map.of("region", new DataSourceSetting("us-east-1", false))), nullValue());
     }
 
-    public void testSecretOnlyRebuildDoesNotPassEmptyRaw() {
-        java.util.concurrent.atomic.AtomicBoolean nonemptyRaw = new java.util.concurrent.atomic.AtomicBoolean();
+    public void testSecretOnlyRebuildPassesExistingSecretKeysLikePutAsUpdate() {
+        java.util.concurrent.atomic.AtomicBoolean putAsUpdateSplit = new java.util.concurrent.atomic.AtomicBoolean();
         FileDataSourceValidator validator = new FileDataSourceValidator("s3", (raw, keys) -> {
-            nonemptyRaw.set(raw != null && raw.isEmpty() == false && keys.contains("secret_key"));
+            putAsUpdateSplit.set(raw != null && raw.isEmpty() && keys.contains("secret_key"));
             return null;
         }, Set.of("s3"));
         String auth = validator.authModeOrNull(Map.of("secret_key", new DataSourceSetting(DataSourceSetting.MASK_SENTINEL, true)));
-        assertThat(nonemptyRaw.get(), equalTo(true));
+        assertThat(putAsUpdateSplit.get(), equalTo(true));
         assertThat(auth, equalTo("static_credentials"));
     }
 }

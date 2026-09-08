@@ -13,12 +13,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Closed vocabularies for configuration-inventory telemetry. Every token that reaches a
- * phone-home key segment or an APM attribute is one of these nouns.
+ * Closed vocabularies for configuration-inventory telemetry other than storage type.
+ * Type tokens live on {@link org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type}.
+ * Every other token that reaches a phone-home key segment or an APM attribute is one of these nouns.
  */
 public final class DataSourceInventoryVocabulary {
 
-    public static final List<String> TYPES = List.of("s3", "gcs", "azure", "http", "local", "unknown");
     public static final List<String> AUTH_MODES = List.of(
         "anonymous",
         "static_credentials",
@@ -41,7 +41,6 @@ public final class DataSourceInventoryVocabulary {
         "unknown"
     );
 
-    private static final Set<String> TYPE_SET = Set.copyOf(TYPES);
     private static final Set<String> AUTH_SET = Set.copyOf(AUTH_MODES);
     private static final Set<String> FORMAT_SET = Set.copyOf(FORMATS);
     private static final Set<String> SCHEMA_SET = Set.copyOf(SCHEMAS);
@@ -62,17 +61,6 @@ public final class DataSourceInventoryVocabulary {
     );
 
     private DataSourceInventoryVocabulary() {}
-
-    public static String typeToken(String type) {
-        if (type == null) {
-            return "unknown";
-        }
-        String lower = type.toLowerCase(Locale.ROOT);
-        if ("file".equals(lower)) {
-            return "local";
-        }
-        return TYPE_SET.contains(lower) ? lower : "unknown";
-    }
 
     public static String authToken(String auth) {
         return closed(auth, AUTH_SET, "unknown");

@@ -17,11 +17,13 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasetShape;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -80,14 +82,14 @@ public final class DataSourceInventoryCounters {
 
         counters.inc("datasources.config.datasources.count", dsMetadata.dataSources().size());
         for (DataSource ds : dsMetadata.dataSources().values()) {
-            counters.inc("datasources.config.datasources.by_type." + DataSourceInventoryVocabulary.typeToken(ds.type()), 1);
+            counters.inc("datasources.config.datasources.by_type." + Type.fromTypeId(ds.type()).key(), 1);
             counters.inc("datasources.config.datasources.by_auth." + authOf(ds, validatorFor), 1);
         }
 
         counters.inc("datasources.config.datasets.count", datasetMetadata.datasets().size());
         for (Dataset dataset : datasetMetadata.datasets().values()) {
             DataSource parent = dsMetadata.get(dataset.dataSource().getName());
-            String type = parent != null ? DataSourceInventoryVocabulary.typeToken(parent.type()) : "unknown";
+            String type = parent != null ? Type.fromTypeId(parent.type()).key() : Type.UNKNOWN.key();
             counters.inc("datasources.config.datasets.by_datasource_type." + type, 1);
             DatasetAttrs attrs = datasetAttrs(dataset, parent, validatorFor, codecs);
             counters.inc("datasources.config.datasets.by_format." + attrs.format, 1);
@@ -109,25 +111,31 @@ public final class DataSourceInventoryCounters {
         );
     }
 
+    /**
+     * One observation per distinct attribute set, with {@code value} equal to the object count.
+     * OTEL last-write-wins on identical attributes, so emitting {@code 1} per object would collapse
+     * two anonymous S3 sources to a single series of 1.
+     */
     public static Collection<LongWithAttributes> datasourceObservations(
         ProjectMetadata project,
         @Nullable Function<String, DataSourceValidator> validatorFor
     ) {
         DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
-        List<LongWithAttributes> out = new ArrayList<>(dsMetadata.dataSources().size());
+        Map<Map<String, Object>, Long> counts = new LinkedHashMap<>();
         for (DataSource ds : dsMetadata.dataSources().values()) {
             try {
-                out.add(
-                    new LongWithAttributes(
-                        1L,
-                        Map.of(TYPE_ATTRIBUTE, DataSourceInventoryVocabulary.typeToken(ds.type()), AUTH_ATTRIBUTE, authOf(ds, validatorFor))
-                    )
+                Map<String, Object> attrs = Map.of(
+                    TYPE_ATTRIBUTE,
+                    Type.fromTypeId(ds.type()).key(),
+                    AUTH_ATTRIBUTE,
+                    authOf(ds, validatorFor)
                 );
+                counts.merge(attrs, 1L, Long::sum);
             } catch (Exception e) {
                 // skip this object; the rest of the inventory still publishes
             }
         }
-        return out;
+        return observations(counts);
     }
 
     public static Collection<LongWithAttributes> datasetObservations(
@@ -137,40 +145,44 @@ public final class DataSourceInventoryCounters {
     ) {
         DataSourceMetadata dsMetadata = DataSourceMetadata.get(project);
         DatasetMetadata datasetMetadata = DatasetMetadata.get(project);
-        List<LongWithAttributes> out = new ArrayList<>(datasetMetadata.datasets().size());
+        Map<Map<String, Object>, Long> counts = new LinkedHashMap<>();
         for (Dataset dataset : datasetMetadata.datasets().values()) {
             try {
                 DataSource parent = dsMetadata.get(dataset.dataSource().getName());
-                String type = parent != null ? DataSourceInventoryVocabulary.typeToken(parent.type()) : "unknown";
+                String type = parent != null ? Type.fromTypeId(parent.type()).key() : Type.UNKNOWN.key();
                 DatasetAttrs attrs = datasetAttrs(dataset, parent, validatorFor, codecs);
-                out.add(
-                    new LongWithAttributes(
-                        1L,
-                        Map.of(
-                            TYPE_ATTRIBUTE,
-                            type,
-                            FORMAT_ATTRIBUTE,
-                            attrs.format,
-                            SCHEMA_ATTRIBUTE,
-                            attrs.schema,
-                            PARTITIONING_ATTRIBUTE,
-                            attrs.partitioning,
-                            COMPRESSION_ATTRIBUTE,
-                            attrs.compression
-                        )
-                    )
+                Map<String, Object> dimensions = Map.of(
+                    TYPE_ATTRIBUTE,
+                    type,
+                    FORMAT_ATTRIBUTE,
+                    attrs.format,
+                    SCHEMA_ATTRIBUTE,
+                    attrs.schema,
+                    PARTITIONING_ATTRIBUTE,
+                    attrs.partitioning,
+                    COMPRESSION_ATTRIBUTE,
+                    attrs.compression
                 );
+                counts.merge(dimensions, 1L, Long::sum);
             } catch (Exception e) {
                 // skip this object; the rest of the inventory still publishes
             }
+        }
+        return observations(counts);
+    }
+
+    private static Collection<LongWithAttributes> observations(Map<Map<String, Object>, Long> counts) {
+        List<LongWithAttributes> out = new ArrayList<>(counts.size());
+        for (var entry : counts.entrySet()) {
+            out.add(new LongWithAttributes(entry.getValue(), entry.getKey()));
         }
         return out;
     }
 
     private static void emitDenseZeros(Counters counters) {
-        for (String type : DataSourceInventoryVocabulary.TYPES) {
-            counters.inc("datasources.config.datasources.by_type." + type, 0);
-            counters.inc("datasources.config.datasets.by_datasource_type." + type, 0);
+        for (Type type : Type.values()) {
+            counters.inc("datasources.config.datasources.by_type." + type.key(), 0);
+            counters.inc("datasources.config.datasets.by_datasource_type." + type.key(), 0);
         }
         for (String auth : DataSourceInventoryVocabulary.AUTH_MODES) {
             counters.inc("datasources.config.datasources.by_auth." + auth, 0);

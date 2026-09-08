@@ -299,11 +299,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
                     }
                 }
             }
-            // fromMap short-circuits on an empty raw map; seed a placeholder so preexisting
-            // secret keys still construct a config. The placeholder is not a stored secret.
-            if (raw.isEmpty() && existingSecretKeys.isEmpty() == false) {
-                raw.put(existingSecretKeys.iterator().next(), "present");
-            }
+            // Same split as PUT-as-update: non-secret stored fields as {@code raw}, secret names as preexisting keys.
             DataSourceConfiguration config = configFactory.apply(raw, existingSecretKeys);
             if (config == null) {
                 return existingSecretKeys.isEmpty()

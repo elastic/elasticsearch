@@ -118,6 +118,60 @@ public class DataSourceInventoryCountersTests extends ESTestCase {
         assertThat(counters.get("datasources.config.datasets.by_schema.inferred"), equalTo(1L));
     }
 
+    public void testDuplicateAnonymousS3GaugesAggregate() {
+        DataSourceValidator validator = s3AnonymousCsvGzip();
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(
+                DataSourceMetadata.TYPE,
+                new DataSourceMetadata(
+                    Map.of("ds-a", new DataSource("ds-a", "s3", null, Map.of()), "ds-b", new DataSource("ds-b", "s3", null, Map.of()))
+                )
+            )
+            .putCustom(
+                DatasetMetadata.TYPE,
+                new DatasetMetadata(
+                    Map.of(
+                        "emp-a",
+                        new Dataset(
+                            "emp-a",
+                            new DataSourceReference("ds-a"),
+                            "s3://bucket/a.csv.gz",
+                            null,
+                            Map.of(),
+                            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of()))
+                        ),
+                        "emp-b",
+                        new Dataset(
+                            "emp-b",
+                            new DataSourceReference("ds-b"),
+                            "s3://bucket/b.csv.gz",
+                            null,
+                            Map.of(),
+                            new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, Map.of()))
+                        )
+                    )
+                )
+            )
+            .build();
+
+        Counters counters = new Counters();
+        DataSourceInventoryCounters.populate(project, counters, type -> validator, null);
+        assertThat(counters.get("datasources.config.datasources.by_type.s3"), equalTo(2L));
+        assertThat(counters.get("datasources.config.datasources.by_auth.anonymous"), equalTo(2L));
+        assertThat(counters.get("datasources.config.datasets.by_format.csv"), equalTo(2L));
+
+        Collection<LongWithAttributes> datasources = DataSourceInventoryCounters.datasourceObservations(project, type -> validator);
+        assertThat(datasources, hasSize(1));
+        LongWithAttributes datasource = datasources.iterator().next();
+        assertThat(datasource.value(), equalTo(2L));
+        assertThat(datasource.attributes().get(DataSourceInventoryCounters.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(datasource.attributes().get(DataSourceInventoryCounters.AUTH_ATTRIBUTE), equalTo("anonymous"));
+
+        Collection<LongWithAttributes> datasets = DataSourceInventoryCounters.datasetObservations(project, type -> validator, null);
+        assertThat(datasets, hasSize(1));
+        assertThat(datasets.iterator().next().value(), equalTo(2L));
+    }
+
     public void testAuthFactoryThrowIsUnknownAndDoesNotDropType() {
         DataSourceValidator throwing = new DataSourceValidator() {
             @Override

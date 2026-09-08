@@ -29,7 +29,6 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,10 +55,9 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
     private static final String AGGREGATE_PREFIX = WAREHOUSE + "/bwc_aggregate";
     private static final String CACHE_AGGREGATE_PREFIX = WAREHOUSE + "/bwc_cache_aggregate";
     private static final String DECLARED_PREFIX = WAREHOUSE + "/bwc_declared";
-    private static final Path CSV_DATA_PATH = org.elasticsearch.xpack.esql.CsvTestUtils.createCsvDataDirectory();
-
     private static final DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
-    private static final ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH, false);
+    // Use the no-arg factory: serverless BWC overlays an older Clusters that lacks the Path overload.
+    private static final ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {

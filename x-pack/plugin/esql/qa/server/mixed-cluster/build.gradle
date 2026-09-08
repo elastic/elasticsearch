@@ -240,6 +240,14 @@ tasks.named("bcUpgradeTest") {
   }
 }
 
+// Serverless BWC re-enables this unversioned task against an overlay Clusters that does not
+// configure federation. Dedicated v*#javaRestTest tasks remain the coverage path.
+tasks.named("javaRestTest") {
+  filter {
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
 }

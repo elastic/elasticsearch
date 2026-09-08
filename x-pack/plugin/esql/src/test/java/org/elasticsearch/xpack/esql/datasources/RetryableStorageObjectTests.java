@@ -398,14 +398,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         long total = retries.stream().mapToLong(Measurement::getLong).sum();
         assertThat("registry storage.retries.total must move by the retry count", total, equalTo(2L));
         for (Measurement m : retries) {
-            assertThat(m.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+            assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         }
     }
 
     /**
      * Wiring test for the retry->node-telemetry bridge: a terminal give-up on the sync open path must publish a
      * storage error AND the cumulative backoff as a read stall to the attached {@link ExternalSourceMetrics},
-     * tagged with the storage scheme. Uses a real registry-backed metrics holder (no mock) so the production
+     * tagged with the storage type. Uses a real registry-backed metrics holder (no mock) so the production
      * {@code attachMetrics} -> {@code recordTerminalFailure} -> counters -> registry path is exercised end to end.
      */
     public void testTerminalGiveUpBridgesErrorAndStallToRegistry() {
@@ -424,7 +424,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
         assertThat(error.getLong(), equalTo(1L));
-        assertThat(error.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("s3"));
+        assertThat(error.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         // One retry backoff was spent before giving up, so a read-stall observation is recorded (>0).
         assertThat(measurements(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(1));
         // A non-throttle fault must not touch the throttled counter.
@@ -450,7 +450,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
 
         Measurement throttled = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL);
         assertThat(throttled.getLong(), equalTo(1L));
-        assertThat(throttled.attributes().get(ExternalSourceMetrics.SCHEME_ATTRIBUTE), equalTo("gcs"));
+        assertThat(throttled.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("gcs"));
         // The generic error counter is always bumped on a terminal give-up, throttle or not.
         assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
     }

@@ -678,6 +678,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ValueStream.VALUES_PER_BLOCK,
             options.chunkCodec(),
             options.targetChunkBytes(),
+            options.plainPathTargetChunkBytes(),
             options.dictionary(),
             known,
             directory,

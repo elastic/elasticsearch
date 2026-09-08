@@ -186,6 +186,27 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.discovery.files_scanned.lt_10"), equalTo(1L));     // 5 files → index 1
         assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1k"), equalTo(1L));     // 512 bytes → index 3
         assertThat(counters.get("datasources.parse.splits_scanned.lt_10"), equalTo(1L));        // 3 splits → index 1
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.created"), equalTo(0L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(0L));
+    }
+
+    public void testRecordConfigChangeByKindAndOp() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        acc.recordConfigChange("datasource", "created");
+        acc.recordConfigChange("datasources", "updated");
+        acc.recordConfigChange("dataset", "deleted");
+        acc.recordConfigChange("datasets", "rejected");
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
+
+        Counters counters = new Counters();
+        DataSourceCounters.populate(acc, counters);
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.created"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.updated"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.deleted"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(1L));
     }
 
     public void testExternalSourceMetricsDualSink() {
@@ -210,6 +231,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordSplitsScanned(2L, "s3");
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();
+        metrics.recordConfigChange("datasource", "created", "s3", null);
+        metrics.recordConfigChange("dataset", "rejected", "local", "validation");
 
         assertThat(acc.storageRequests(Type.S3), equalTo(1L));
         assertThat(acc.storageBytesRead(Type.S3), equalTo(2048L));
@@ -226,6 +249,8 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.parseRows(), equalTo(100L));
         assertThat(acc.readerPoolRejected(), equalTo(1L));
         assertThat(acc.breakerTripped(), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
     }
 
     public void testNoopHasNullAccumulator() {

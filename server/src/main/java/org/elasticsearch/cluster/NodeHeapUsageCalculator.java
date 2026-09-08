@@ -30,9 +30,10 @@ public final class NodeHeapUsageCalculator {
      * Calculates heap usage for each selected node from the active shards in {@code clusterState}.
      * <p>
      * The stateless service reports shard-level heap inputs independent of the current routing. This method joins those inputs with the
-     * current routing view, counts index-level heap once per index per node, and applies the largest node-local postings value to every
-     * node's total to preserve the existing conservative total-heap behavior. The node predicate lets callers select the node roles they
-     * publish estimates for without deriving a separate node-id set from the same cluster state.
+     * current routing view, counts index-level heap once per index per node, includes node-local postings in hosted-shards usage, and
+     * applies the largest node-local postings value to every node's total to preserve the existing conservative total-heap behavior. The
+     * node predicate lets callers select the node roles they publish estimates for without deriving a separate node-id set from the same
+     * cluster state.
      */
     public static NodeHeapEstimatesAndMaxPostingsHeapUsage calculateForRoutingNodes(
         ClusterState clusterState,
@@ -95,7 +96,7 @@ public final class NodeHeapUsageCalculator {
                 entry.getKey(),
                 new NodeHeapEstimates(
                     Math.addExact(Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage), maxPostingsHeapUsage),
-                    Math.addExact(nodeHeapUsageComponents.shardHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
+                    Math.addExact(nodeHeapUsageComponents.shardAndIndexHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
                     nonShardHeapUsage
                 )
             );
@@ -117,7 +118,7 @@ public final class NodeHeapUsageCalculator {
                 Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage),
                 nodeHeapUsageComponents.postingsHeapUsage
             ),
-            Math.addExact(nodeHeapUsageComponents.shardHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
+            Math.addExact(nodeHeapUsageComponents.shardAndIndexHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
             nonShardHeapUsage
         );
     }
@@ -145,10 +146,10 @@ public final class NodeHeapUsageCalculator {
                 indexHeapUsage = Math.addExact(indexHeapUsage, shardAndIndexHeapUsage.indexHeapUsageBytes());
             }
         }
-        return new NodeHeapUsageComponents(Math.addExact(shardHeapUsage, indexHeapUsage), shardHeapUsage, postingsHeapUsage);
+        return new NodeHeapUsageComponents(Math.addExact(shardHeapUsage, indexHeapUsage), postingsHeapUsage);
     }
 
-    private record NodeHeapUsageComponents(long shardAndIndexHeapUsage, long shardHeapUsage, long postingsHeapUsage) {}
+    private record NodeHeapUsageComponents(long shardAndIndexHeapUsage, long postingsHeapUsage) {}
 
     /**
      * The estimated node heap usages and the max hosted postings heap usage included in every node total.

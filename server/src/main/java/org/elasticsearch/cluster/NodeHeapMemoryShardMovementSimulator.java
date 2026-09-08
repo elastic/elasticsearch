@@ -90,6 +90,10 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
         var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
+        final long shardAndPostingsUsage = Math.addExact(
+            shardAndIndexHeap.shardHeapUsageBytes(),
+            shardAndIndexHeap.shardPostingsHeapUsageBytes()
+        );
         long indexUsageDelta = 0;
         long shardUsageDelta = 0;
         switch (modification) {
@@ -99,7 +103,7 @@ class NodeHeapMemoryShardMovementSimulator {
                     // first shard for the index, and the index-level heap usage overhead must be added.
                     indexUsageDelta = shardAndIndexHeap.indexHeapUsageBytes();
                 }
-                shardUsageDelta = shardAndIndexHeap.shardHeapUsageBytes();
+                shardUsageDelta = shardAndPostingsUsage;
             }
             case REMOVE -> {
                 if (includeIndexUsage && numberOfShardsForIndex == 0) {
@@ -107,7 +111,7 @@ class NodeHeapMemoryShardMovementSimulator {
                     // usage overhead must be subtracted, since the node will no longer have the index.
                     indexUsageDelta = -1 * shardAndIndexHeap.indexHeapUsageBytes();
                 }
-                shardUsageDelta = -1 * shardAndIndexHeap.shardHeapUsageBytes();
+                shardUsageDelta = Math.negateExact(shardAndPostingsUsage);
             }
         }
 
@@ -137,7 +141,11 @@ class NodeHeapMemoryShardMovementSimulator {
                 return new NodeHeapMetrics(
                     initialMetrics.nodeId(),
                     initialMetrics.totalBytes(),
-                    new NodeHeapEstimates(adjustedTotalUsage, adjustedHostedShardsUsage)
+                    new NodeHeapEstimates(
+                        adjustedTotalUsage,
+                        adjustedHostedShardsUsage,
+                        initialMetrics.nodeHeapEstimates().nonShardHeapUsage()
+                    )
                 );
             }
             return entry.getValue();

@@ -21,33 +21,22 @@ import java.io.IOException;
  *
  * @param totalHeapUsage The total estimated heap usage. When calculated by {@link NodeHeapUsageCalculator}, this is
  *                       {@code nonShardHeapUsage + shardHeapUsage + indexHeapUsage + maxPostingsHeapUsage}.
- * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only
+ * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards: shard heap, index heap, and node-local postings
+ *                              heap.
  * @param nonShardHeapUsage The total estimated heap usage that is not derived from the node's hosted shard allocation
  */
 public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage, long nonShardHeapUsage) implements Writeable {
 
     public static final TransportVersion EXPLICIT_HEAP_ESTIMATE_COMPONENTS = TransportVersion.fromName("explicit_heap_estimate_components");
-    private static final long UNKNOWN_NON_SHARD_HEAP_USAGE = -1L;
-
-    public NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage) {
-        this(totalHeapUsage, hostedShardsHeapUsage, Math.max(0, totalHeapUsage - hostedShardsHeapUsage));
-    }
 
     public NodeHeapEstimates {
-        if (nonShardHeapUsage == UNKNOWN_NON_SHARD_HEAP_USAGE) {
-            nonShardHeapUsage = Math.max(0, totalHeapUsage - hostedShardsHeapUsage);
-        }
         assert totalHeapUsage >= 0;
         assert hostedShardsHeapUsage >= 0;
         assert nonShardHeapUsage >= 0;
     }
 
     public NodeHeapEstimates(StreamInput in) throws IOException {
-        this(
-            in.readVLong(),
-            in.readVLong(),
-            in.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS) ? in.readVLong() : UNKNOWN_NON_SHARD_HEAP_USAGE
-        );
+        this(in.readVLong(), in.readVLong(), in.getTransportVersion().supports(EXPLICIT_HEAP_ESTIMATE_COMPONENTS) ? in.readVLong() : 0L);
     }
 
     @Override

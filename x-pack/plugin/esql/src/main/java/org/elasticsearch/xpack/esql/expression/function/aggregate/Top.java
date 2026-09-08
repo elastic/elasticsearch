@@ -449,9 +449,12 @@ public class Top extends AggregateFunction
     @Override
     public Expression surrogate() {
         var s = source();
+        if (field().dataType() == DataType.NULL || (outputField() != null && outputField().dataType() == DataType.NULL)) {
+            return new Literal(s, null, DataType.NULL);
+        }
         // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
         if (outputField() != null && field().semanticEquals(outputField())) {
-            return new Top(s, field(), limitField(), orderField(), null);
+            return new Top(s, field(), filter(), window(), limitField(), orderField(), null);
         }
         // To replace Top by Min or Max, we cannot have an `outputField`
         if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1 && outputField() == null) {

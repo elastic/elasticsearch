@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
@@ -29,28 +28,48 @@ import java.util.Map;
 
 /**
  * Replace nested expressions inside a {@link Aggregate} with synthetic eval.
- * {@code STATS SUM(a + 1) BY x % 2}
- * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
- * and
- * {@code INLINE STATS SUM(a + 1) BY x % 2}
- * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a+1`_ref) BY `x % 2`_ref}
+ * <p>
+ * A nested expression in a {@code STATS}:
+ * <pre>
+ *     STATS SUM(a + 1) BY x % 2
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a + 1`) BY `x % 2`
+ * </pre>
+ * The same applies to {@code INLINE STATS}:
+ * <pre>
+ *     INLINE STATS SUM(a + 1) BY x % 2
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a + 1`) BY `x % 2`
+ * </pre>
+ * <p>
+ * When {@code extractConstants} is set, constant fields and constant channel parameters are materialized too. For example:
+ * <pre>
+ *     STATS TOP(42, 10, "asc", "n/a")
+ * </pre>
+ * becomes:
+ * <pre>
+ *     EVAL `42` = 42, `n/a` = "n/a" | STATS TOP(`42`, 10, "asc", `n/a`)
+ * </pre>
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
     private final boolean locallyUniqueNames;
-
-    public ReplaceAggregateNestedExpressionWithEval() {
-        this(false);
-    }
+    private final boolean extractConstants;
 
     /**
      * @param locallyUniqueNames when {@code true}, the synthetic eval names generated for extracted nested expressions are made
      *                           globally unique instead of being derived deterministically from the extracted expression.
+     * @param extractConstants   when {@code true}, in addition to nested expressions, also materialize constant aggregate inputs
+     *                           (a constant field or a constant {@link AggregateFunction#channelParameters() channel parameter}) into
+     *                           the pre-agg eval.
      */
-    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames) {
+    public ReplaceAggregateNestedExpressionWithEval(boolean locallyUniqueNames, boolean extractConstants) {
         this.locallyUniqueNames = locallyUniqueNames;
+        this.extractConstants = extractConstants;
     }
 
     @Override
@@ -165,7 +184,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return childrenChanged ? gf.replaceChildren(newChildren) : gf;
     }
 
-    private static boolean skipOptimisingAgg(AggregateFunction af) {
+    private boolean skipOptimisingAgg(AggregateFunction af) {
         // do not replace nested aggregates
         if (containsAggregate(af.field())
             || af.parameters().stream().anyMatch(ReplaceAggregateNestedExpressionWithEval::containsAggregate)) {
@@ -182,26 +201,25 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     /**
      * Whether an aggregate input (field or parameter) must be materialized into a synthetic pre-agg eval.
      */
-    private static boolean needsExtraction(AggregateFunction af, Expression input) {
+    private boolean needsExtraction(AggregateFunction af, Expression input) {
         if (input instanceof Attribute) {
             // already a channel, e.g. x in SUM(x), or both x and y in TOP(x, 3, "asc", y)
             return false;
         }
         if (input.foldable() == false) {
-            // nested expression that must be computed first, e.g. 2*x + 1 in SUM(2*x + 1)
+            // a nested expression must always be computed first, e.g. 2*x + 1 in SUM(2*x + 1)
             return true;
         }
-        // constant input
-        if (af instanceof SurrogateExpression se && se.surrogate() != null) {
-            // leave it folded if a surrogate will replace the whole aggregate, e.g. SUM(1) -> MV_SUM(1) * COUNT(*)
+        if (extractConstants == false) {
+            // a constant input is only materialized when extractConstants is enabled
             return false;
         }
         if (af instanceof Count || af instanceof CountApproximate) {
-            // COUNT doesn't need the field
+            // COUNT reads a constant field directly, so it needs no channel
             return false;
         }
-        // Extract the field or a parameter if it is used as a channel, e.g.
-        // for TOP(x, 2, "asc", y) both x and y are extracted, but 2 and "asc" are not.
+        // extract a constant used as a channel: the field (e.g. 42 in TOP(42, 2, "asc")) or a channel parameter (e.g. "n/a" in
+        // TOP(x, 2, "asc", "n/a")); supplier constants such as TOP's limit/order are neither.
         return input == af.field() || af.channelParameters().stream().anyMatch(channelParameter -> channelParameter == input);
     }
 

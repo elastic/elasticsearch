@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
@@ -77,6 +79,13 @@ import java.util.concurrent.atomic.LongAdder;
  * and retrying failed prefetches synchronously through the same breaker-accounted path.
  */
 public class PrefetchCircuitBreakerTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private static final MessageType SCHEMA = Types.buildMessage()
         .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -808,7 +817,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         private DirectReadBuffer allocateAndFill(long position, long length, DirectBufferFactory factory) throws IOException {
             int offset = Math.toIntExact(position);
             int bytes = Math.toIntExact(Math.min(length, data.length - position));
-            DirectReadBuffer allocated = factory.allocate(bytes);
+            DirectReadBuffer allocated = factory.allocateWritableWindow(bytes);
             try {
                 allocated.buffer().put(data, offset, bytes).flip();
                 return allocated;
@@ -977,7 +986,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         private DirectReadBuffer allocateAndFill(long position, long length, DirectBufferFactory factory) throws IOException {
             int offset = Math.toIntExact(position);
             int bytes = Math.toIntExact(Math.min(length, data.length - position));
-            DirectReadBuffer allocated = factory.allocate(bytes);
+            DirectReadBuffer allocated = factory.allocateWritableWindow(bytes);
             try {
                 allocated.buffer().put(data, offset, bytes).flip();
                 return allocated;
@@ -1061,7 +1070,11 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new InMemoryStorageObject(parquetData), new NoopCircuitBreaker("phase-two-barrier-ranges")),
+                new ParquetStorageObjectAdapter(
+                    new InMemoryStorageObject(parquetData),
+                    footerByteCache,
+                    new NoopCircuitBreaker("phase-two-barrier-ranges")
+                ),
                 PlainParquetReadOptions.builder(codecFactory).build()
             )
         ) {

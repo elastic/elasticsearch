@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.DataSourceInventoryVocabulary;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
@@ -137,6 +138,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final BooleanSupplier federatedIdentityEnabled;
     @Nullable
     private final FormatReaderRegistry formatReaderRegistry;
+    @Nullable
+    private final FileDataSourceConfiguration.AuthMode fixedAuthMode;
     private final BiConsumer<String, ValidationException> resourceCheck;
 
     public FileDataSourceValidator(
@@ -144,7 +147,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, (r, e) -> {});
+        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -155,6 +158,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BooleanSupplier managedIdentityEnabled,
         BooleanSupplier federatedIdentityEnabled,
         @Nullable FormatReaderRegistry formatReaderRegistry,
+        @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
         BiConsumer<String, ValidationException> resourceCheck
     ) {
         this.type = type;
@@ -164,6 +168,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
         this.formatReaderRegistry = formatReaderRegistry;
+        this.fixedAuthMode = fixedAuthMode;
         this.resourceCheck = resourceCheck;
     }
 
@@ -183,6 +188,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             managedIdentityEnabled,
             federatedIdentityEnabled,
             formatReaderRegistry,
+            fixedAuthMode,
             resourceCheck
         );
     }
@@ -201,6 +207,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             managedIdentityEnabled,
             federatedIdentityEnabled,
             registry,
+            fixedAuthMode,
             resourceCheck
         );
     }
@@ -221,6 +228,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             supplier,
             federatedIdentityEnabled,
             formatReaderRegistry,
+            fixedAuthMode,
             resourceCheck
         );
     }
@@ -239,6 +247,25 @@ public class FileDataSourceValidator implements DataSourceValidator {
             managedIdentityEnabled,
             supplier,
             formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck
+        );
+    }
+
+    /**
+     * Returns a new validator that reports a fixed auth mode for inventory (http/local are not
+     * {@link FileDataSourceConfiguration}s and have no credential fields to infer from).
+     */
+    public FileDataSourceValidator withFixedAuthMode(FileDataSourceConfiguration.AuthMode mode) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            mode,
             resourceCheck
         );
     }
@@ -258,6 +285,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             managedIdentityEnabled,
             federatedIdentityEnabled,
             formatReaderRegistry,
+            fixedAuthMode,
             check
         );
     }
@@ -270,6 +298,57 @@ public class FileDataSourceValidator implements DataSourceValidator {
     /** URI schemes this validator accepts on a dataset resource. */
     Set<String> supportedSchemes() {
         return supportedSchemes;
+    }
+
+    @Override
+    public String authModeOrNull(Map<String, DataSourceSetting> stored) {
+        if (fixedAuthMode != null) {
+            return fixedAuthMode.name().toLowerCase(Locale.ROOT);
+        }
+        try {
+            Map<String, Object> raw = new HashMap<>();
+            Set<String> existingSecretKeys = new HashSet<>();
+            if (stored != null) {
+                for (var entry : stored.entrySet()) {
+                    DataSourceSetting setting = entry.getValue();
+                    if (setting.secret()) {
+                        if (setting.presentationValue() != null) {
+                            existingSecretKeys.add(entry.getKey());
+                        }
+                    } else {
+                        raw.put(entry.getKey(), setting.nonSecretValue());
+                    }
+                }
+            }
+            // Same split as PUT-as-update: non-secret stored fields as {@code raw}, secret names as preexisting keys.
+            DataSourceConfiguration config = configFactory.apply(raw, existingSecretKeys);
+            if (config == null) {
+                return existingSecretKeys.isEmpty()
+                    ? null
+                    : FileDataSourceConfiguration.AuthMode.STATIC_CREDENTIALS.name().toLowerCase(Locale.ROOT);
+            }
+            if (config instanceof FileDataSourceConfiguration file) {
+                FileDataSourceConfiguration.AuthMode mode = file.resolveAuthModeOrNull();
+                return mode == null ? null : mode.name().toLowerCase(Locale.ROOT);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public DatasetShape datasetShape(Map<String, Object> datasetSettings, String resource) {
+        Map<String, Object> settings = datasetSettings == null ? Map.of() : datasetSettings;
+        String format = explicitFormat(settings);
+        if (format == null && resource != null) {
+            try {
+                format = formatFromExtension(resource);
+            } catch (IllegalArgumentException e) {
+                // registry veto (e.g. parquet.gz); leave format unresolved
+            }
+        }
+        return new DatasetShape(format, compressionNameFromResource(resource));
     }
 
     @Override
@@ -622,6 +701,28 @@ public class FileDataSourceValidator implements DataSourceValidator {
             // bare names such as data.csv are not StoragePath URIs
         }
         return resource;
+    }
+
+    /**
+     * Codec name for the resource's outer compression suffix, {@code uncompressed} when the object
+     * name has no known compression suffix, or {@code null} when the resource cannot be resolved.
+     */
+    @Nullable
+    private String compressionNameFromResource(String resource) {
+        if (resource == null) {
+            return null;
+        }
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null) {
+            return null;
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+            return "uncompressed";
+        }
+        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String name = DataSourceInventoryVocabulary.COMPRESSION_BY_EXTENSION.get(ext);
+        return name != null ? name : "uncompressed";
     }
 
     private void validateResource(String resource, ValidationException errors) {

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,11 +27,9 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -50,6 +47,11 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * from resolving them independently from the PROMQL evaluation. They stay as ESQL expressions all
  * the way down to the Mapper, which folds them to {@code long} when building the physical
  * {@code TimeSeriesCollapseExec}.
+ * <p>
+ * The grouping columns ({@link #dimensions()}) are derived from the child's output at call time
+ * rather than stored. {@link #computeReferences()} returns {@code child().outputSet()}, which is
+ * what stops {@code PruneColumns} from pruning below this node; that invariant guarantees the
+ * derived list stays consistent with whatever the child actually produces.
  */
 public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -63,7 +65,6 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
 
     private final Attribute value;
     private final Attribute step;
-    private final List<Attribute> dimensions;
     /**
      * Null until {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse} populates it from
      * the source {@link PromqlCommand}.
@@ -73,8 +74,8 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
     private final Expression stepBucketSize;
 
     /** Parse-time constructor; bounds are populated later by {@code TranslateTimeSeriesCollapse}. */
-    public TimeSeriesCollapse(Source source, LogicalPlan child, Attribute value, Attribute step, List<Attribute> dimensions) {
-        this(source, child, value, step, dimensions, null, null, null);
+    public TimeSeriesCollapse(Source source, LogicalPlan child, Attribute value, Attribute step) {
+        this(source, child, value, step, null, null, null);
     }
 
     public TimeSeriesCollapse(
@@ -82,7 +83,6 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
         LogicalPlan child,
         Attribute value,
         Attribute step,
-        List<Attribute> dimensions,
         Literal start,
         Literal end,
         Expression stepBucketSize
@@ -90,23 +90,23 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
         super(source, child);
         this.value = value;
         this.step = step;
-        this.dimensions = dimensions;
         this.start = start;
         this.end = end;
         this.stepBucketSize = stepBucketSize;
     }
 
     private TimeSeriesCollapse(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            (Literal) in.readNamedWriteable(Expression.class),
-            (Literal) in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+        // Call super(source, child) first, then set the remaining final fields directly so we can
+        // read and discard the formerly-stored dimension list for wire compatibility.
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this.value = in.readNamedWriteable(Attribute.class);
+        this.step = in.readNamedWriteable(Attribute.class);
+        // Dimensions were stored on the wire in older versions; read and discard -- they are now
+        // derived from child.output() at runtime (see dimensions()).
+        in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.start = (Literal) in.readNamedWriteable(Expression.class);
+        this.end = (Literal) in.readNamedWriteable(Expression.class);
+        this.stepBucketSize = in.readNamedWriteable(Expression.class);
     }
 
     @Override
@@ -115,7 +115,11 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(value);
         out.writeNamedWriteable(step);
-        out.writeNamedWriteableCollection(dimensions);
+        // Write an empty list in place of the formerly-stored dimensions; the receiver discards
+        // whatever list arrives (see StreamInput constructor). Writing an empty list is safe
+        // because TimeSeriesCollapse is only serialized when every cluster node supports the
+        // ts_collapse transport version, so no node receiving this will be older than this change.
+        out.writeNamedWriteableCollection(List.of());
         out.writeNamedWriteable(Objects.requireNonNull(start, "TimeSeriesCollapse start not resolved"));
         out.writeNamedWriteable(Objects.requireNonNull(end, "TimeSeriesCollapse end not resolved"));
         out.writeNamedWriteable(Objects.requireNonNull(stepBucketSize, "TimeSeriesCollapse stepBucketSize not resolved"));
@@ -134,8 +138,17 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
         return step;
     }
 
+    /**
+     * The grouping keys for the collapse: every column the child exposes except {@link #value()}
+     * and {@link #step()}.
+     * <p>
+     * This is derived rather than stored. {@link #computeReferences()} returns
+     * {@code child().outputSet()}, which is what stops {@code PruneColumns} from pruning below this
+     * node; that invariant guarantees the derived set is consistent with what the child actually
+     * produces.
+     */
     public List<Attribute> dimensions() {
-        return dimensions;
+        return child().output().stream().filter(a -> a.id().equals(value.id()) == false && a.id().equals(step.id()) == false).toList();
     }
 
     public Literal startLiteral() {
@@ -187,12 +200,12 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
 
     @Override
     public boolean expressionsResolved() {
-        return value.resolved() && step.resolved() && dimensions.stream().allMatch(Attribute::resolved);
+        return value.resolved() && step.resolved();
     }
 
     @Override
     public TimeSeriesCollapse replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesCollapse(source(), newChild, value, step, dimensions, start, end, stepBucketSize);
+        return new TimeSeriesCollapse(source(), newChild, value, step, start, end, stepBucketSize);
     }
 
     @Override
@@ -202,7 +215,7 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, TimeSeriesCollapse::new, child(), value, step, dimensions, start, end, stepBucketSize);
+        return NodeInfo.create(this, TimeSeriesCollapse::new, child(), value, step, start, end, stepBucketSize);
     }
 
     public void verify(Failures failures) {
@@ -251,16 +264,6 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
             failures.add(fail(this, "TS_COLLAPSE step must be greater than [0ms], found [{}ms]", stepMillis()));
         }
 
-        Set<NameId> seen = new HashSet<>();
-        for (Attribute dimension : dimensions) {
-            validateChildAttribute(dimension, "dimension", failures);
-            if (dimension.id().equals(value.id()) || dimension.id().equals(step.id())) {
-                failures.add(fail(dimension, "TS_COLLAPSE dimension [{}] cannot be the value or step column", dimension.name()));
-            }
-            if (seen.add(dimension.id()) == false) {
-                failures.add(fail(dimension, "TS_COLLAPSE dimension [{}] appears more than once", dimension.name()));
-            }
-        }
     }
 
     private void validateChildAttribute(Attribute attribute, String role, Failures failures) {
@@ -271,7 +274,7 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, step, dimensions, start, end, stepBucketSize);
+        return Objects.hash(super.hashCode(), value, step, start, end, stepBucketSize);
     }
 
     @Override
@@ -282,7 +285,6 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVer
         TimeSeriesCollapse other = (TimeSeriesCollapse) obj;
         return Objects.equals(value, other.value)
             && Objects.equals(step, other.step)
-            && Objects.equals(dimensions, other.dimensions)
             && Objects.equals(start, other.start)
             && Objects.equals(end, other.end)
             && Objects.equals(stepBucketSize, other.stepBucketSize);

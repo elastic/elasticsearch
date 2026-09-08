@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -143,5 +144,19 @@ public class HighlightSupportTests extends ESTestCase {
         Expression query = match("title", "fox", null);
 
         assertThat(HighlightSupport.deriveFields(query, List.of(firstDuplicate, lastDuplicate)), equalTo(List.of(lastDuplicate)));
+    }
+
+    public void testFieldsRequiredForTranslationKeepsNegativeMatch() {
+        Expression query = new And(EMPTY, match("title", "fox", null), new Not(EMPTY, match("body", "bar", null)));
+        assertThat(HighlightSupport.fieldsRequiredForTranslation(query), equalTo(Set.of("title", "body")));
+    }
+
+    public void testFieldsRequiredForTranslationLiteralCanPrune() {
+        assertThat(HighlightSupport.fieldsRequiredForTranslation(of("fox")), equalTo(Set.of()));
+    }
+
+    public void testFieldsRequiredForTranslationQueryStringKeepsAll() {
+        assertNull(HighlightSupport.fieldsRequiredForTranslation(queryString("title:fox", null)));
+        assertNull(HighlightSupport.fieldsRequiredForTranslation(new Kql(EMPTY, of("title: fox"), null, TEST_CFG)));
     }
 }

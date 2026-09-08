@@ -95,19 +95,23 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
             fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
-            SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
-            for (int j = 0; j < internalHits.length; j++) {
-                ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
-                SearchHit searchHitFields = internalHits[j];
-                searchHitFields.score(scoreDoc.score);
-                if (scoreDoc instanceof FieldDoc fieldDoc) {
-                    searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
+            try {
+                SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
+                for (int j = 0; j < internalHits.length; j++) {
+                    ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
+                    SearchHit searchHitFields = internalHits[j];
+                    searchHitFields.score(scoreDoc.score);
+                    if (scoreDoc instanceof FieldDoc fieldDoc) {
+                        searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
+                    }
                 }
+                var h = fetchResult.hits();
+                assert hit.isPooled() || h.isPooled() == false;
+                results.put(entry.getKey(), h);
+                h.mustIncRef();
+            } finally {
+                fetchResult.releaseCircuitBreakerBytes(innerHitsContext.circuitBreaker());
             }
-            var h = fetchResult.hits();
-            assert hit.isPooled() || h.isPooled() == false;
-            results.put(entry.getKey(), h);
-            h.mustIncRef();
         }
     }
 }

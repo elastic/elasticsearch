@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
@@ -35,8 +37,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -390,6 +394,57 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(
                 "Circuit breaker should be released after tripped scroll",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testInnerHitsReleasesCircuitBreaker() throws Exception {
+        String dataNode = internalCluster().startNode(
+            Settings.builder()
+                .put("indices.breaker.request.type", "memory")
+                .put("indices.breaker.request.limit", "100mb")
+                .put("search.memory_accounting_buffer_size", "1mb")
+                .build()
+        );
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String nestedIndex = "nested_test_idx";
+        assertAcked(
+            prepareCreate(nestedIndex).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            ).setMapping("children", "type=nested")
+        );
+
+        String largeChildText = Strings.repeat("nested inner hit content ", 12_000);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            List<Map<String, Object>> children = new ArrayList<>();
+            for (int c = 0; c < 5; c++) {
+                children.add(Map.of("text", largeChildText));
+            }
+            builders.add(prepareIndex(nestedIndex).setId(Integer.toString(i)).setSource(Map.of("children", children)));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(nestedIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(nestedIndex)
+                .setQuery(nestedQuery("children", matchAllQuery(), ScoreMode.Avg).innerHit(new InnerHitBuilder().setSize(5)))
+                .setSize(5),
+            response -> assertThat(response.getHits().getHits().length, equalTo(5))
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after inner_hits search completes",
                 getRequestBreakerUsed(dataNode),
                 lessThanOrEqualTo(breakerBeforeSearch)
             );

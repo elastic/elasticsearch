@@ -175,17 +175,33 @@ public final class FormatNameResolver {
         return registry.byExtension(objectName);
     }
 
-    private static String formatFromExtension(String sourcePath) {
-        if (sourcePath == null) {
+    /**
+     * Extracts the file extension from an object name or path, stripping any trailing query
+     * string ({@code ?}) or fragment ({@code #}) from within the extension substring.
+     * Returns the clean extension without a leading dot and lowercased (e.g. {@code "csv"}),
+     * or {@code null} when no usable extension is present.
+     *
+     * <p>Only the substring after the last dot is examined, so a {@code ?} or {@code #}
+     * that precedes the last dot (e.g. a glob pattern like {@code day?.csv}) does not affect
+     * the result. A special character that follows the last dot (e.g. {@code file.csv?versionId=abc})
+     * is stripped, recovering the clean extension.
+     *
+     * <p>This is the single source of truth for extension extraction, shared by
+     * {@link #formatFromExtension} and {@code FileDataSourceValidator} so the two paths
+     * cannot diverge on extension handling.
+     */
+    @Nullable
+    public static String extractCleanExtension(String objectName) {
+        if (objectName == null) {
             return null;
         }
         // StoragePath.of() strips ?/# from the path for http/https (presigned URLs); for object-store
         // schemes ? and # are literal key characters and objectName() preserves them.
         String nameToScan;
         try {
-            nameToScan = StoragePath.of(sourcePath).objectName();
+            nameToScan = StoragePath.of(objectName).objectName();
         } catch (IllegalArgumentException e) {
-            nameToScan = sourcePath;
+            nameToScan = objectName;
         }
         if (nameToScan.isEmpty()) {
             return null;
@@ -204,5 +220,9 @@ public final class FormatNameResolver {
             ext = ext.substring(0, fragmentStart);
         }
         return ext.isEmpty() ? null : ext.toLowerCase(Locale.ROOT);
+    }
+
+    private static String formatFromExtension(String sourcePath) {
+        return extractCleanExtension(sourcePath);
     }
 }

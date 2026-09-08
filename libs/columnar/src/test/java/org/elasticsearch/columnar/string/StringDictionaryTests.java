@@ -82,6 +82,99 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * A column mostly made of nulls whose values are all one of a handful of terms. A null is named by a
+     * reserved ordinal rather than by a dictionary entry, so it is no part of what a dictionary could
+     * cover — and a column whose every actual value the dictionary names should take one however many of
+     * its slots hold nothing.
+     */
+    public void testNullSlotsDoNotCostTheDictionary() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final BytesRef[][] docSlots = new BytesRef[between(500, 3000)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            // Four slots in five hold nothing, which is well past the coverage the policy asks for if the
+            // nulls are counted against it.
+            docSlots[d] = new BytesRef[] { d % 5 == 0 ? new BytesRef(terms[(d / 5) % terms.length]) : null };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected null slots", metadata.hasNullSlots());
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
+            assertFalse("nothing should have escaped", dictionaryOf(metadata).hasEscapes());
+            for (int d = 0; d < docSlots.length; d++) {
+                assertEquals("doc [" + d + "]", docSlots[d][0], reader.valueAt(reader.firstValueAddress(d)));
+            }
+        });
+    }
+
+    /**
+     * What the ordinal space is, stated rather than assumed. Several places size a table over the terms and
+     * rely on the escape marker landing one past its end — {@code ordinalMap} on the merge path turns an
+     * escape away by letting it index off the end of an array sized for the terms. That only works while the
+     * reserved ordinals sit exactly where they do, and nothing about the arithmetic says so out loud.
+     */
+    public void testTheOrdinalSpaceIsWhatEveryTableIsSizedAgainst() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO", "TRACE", "WARN" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = new BytesRef[] { switch (d % 11) {
+                // Rare enough to escape a dictionary built from what the column repeats.
+                case 5 -> new BytesRef("escaped-" + d);
+                case 7 -> null;
+                default -> new BytesRef(terms[d % terms.length]);
+            } };
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final StringColumnMetadata.Dictionary dictionary = dictionaryOf(metadata);
+            final DictionaryStringColumnReader column = (DictionaryStringColumnReader) reader;
+            assertTrue("expected values to have escaped", dictionary.hasEscapes());
+            assertTrue("expected null slots", metadata.hasNullSlots());
+
+            // A null sorts below every term, and the escape marker sits one past the last of them, so the
+            // terms are exactly the ordinals in between and a table sized over them ends at the marker.
+            assertTrue(
+                "the null is below the first term",
+                StringColumnMetadata.Dictionary.NULL_ORDINAL < StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL
+            );
+            assertEquals(
+                "the escape marker is one past the last term",
+                dictionary.dictionarySize() + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL,
+                dictionary.escapeOrdinal()
+            );
+            assertEquals("and the reader agrees", dictionary.escapeOrdinal(), column.escapeOrdinal());
+
+            // Every ordinal the column actually stores is a term's, the null's, or the marker's - nothing else.
+            int nulls = 0;
+            int escapes = 0;
+            int named = 0;
+            for (int d = 0; d < docSlots.length; d++) {
+                final int ordinal = column.ordinalAt(reader.firstValueAddress(d));
+                final BytesRef value = reader.valueAt(reader.firstValueAddress(d));
+                if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                    assertNull("doc [" + d + "] takes the null ordinal", value);
+                    nulls++;
+                } else if (ordinal == dictionary.escapeOrdinal()) {
+                    assertNotNull("doc [" + d + "] escaped", value);
+                    escapes++;
+                } else {
+                    assertTrue(
+                        "doc [" + d + "] ordinal " + ordinal + " is in term space",
+                        ordinal >= StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL && ordinal < dictionary.escapeOrdinal()
+                    );
+                    assertEquals("doc [" + d + "] resolves through its term", value, column.termAt(ordinal, new BytesRef()));
+                    named++;
+                }
+                assertEquals("doc [" + d + "]", docSlots[d][0], value);
+            }
+            assertEquals("every slot accounted for", docSlots.length, nulls + escapes + named);
+            assertThat("some slot took each of the three", nulls, greaterThan(0));
+            assertThat("some slot escaped", escapes, greaterThan(0));
+            assertThat("some slot was named", named, greaterThan(0));
+            assertEquals("the escape count is what the column recorded", escapes, (int) reader.escapeCount());
+            assertEquals("the null count is what the column recorded", nulls, (int) reader.numNullSlots());
+        });
+    }
+
     /** Nothing repeats, so there is no vocabulary and the values are stored as they are. */
     public void testAllDistinctValuesStayPlain() throws IOException {
         final BytesRef[] docValues = new BytesRef[between(200, 1500)];
@@ -456,6 +549,57 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             docValues[at] = new BytesRef("escape-" + at);
         }
         return docValues;
+    }
+
+    /**
+     * A multi-valued column that takes the dictionary. How a document's slots are found is decided apart from
+     * how its values are named, so both have to hold at once: the ordinals address slots one-for-one while the
+     * value-address table addresses documents, and a null slot is named like any other value while the
+     * null-slot table is what still tells it from the empty term beside it.
+     */
+    public void testMultiValuedColumnTakesTheDictionary() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "" };
+        final BytesRef[][] docSlots = new BytesRef[between(400, 1200)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            final BytesRef[] slots = new BytesRef[between(1, 5)];
+            for (int s = 0; s < slots.length; s++) {
+                // A null now and then, and a value the dictionary will not name now and then, so the two
+                // ways a slot leaves the ordinals both happen alongside multi-valued documents.
+                if (slots.length > 1 && d % 11 == s) {
+                    continue;
+                }
+                slots[s] = d % 17 == s ? new BytesRef("escape-" + d + "-" + s) : new BytesRef(terms[(d + s) % terms.length]);
+            }
+            if (slots.length == 1 && slots[0] == null) {
+                slots[0] = new BytesRef(terms[d % terms.length]);
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            assertTrue("expected a multi-valued column", metadata.multiValued());
+            assertEquals("numValues counts slots", numValues(docSlots), reader.numValues());
+            assertEquals("null slots recorded", numNullSlots(docSlots), metadata.numNullSlots());
+
+            final ColumnIterator iterator = reader.iterator();
+            int seen = 0;
+            for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                final int rank = iterator.rank();
+                assertEquals("slot count at doc " + doc, docSlots[doc].length, reader.valueCount(rank));
+                final long first = reader.firstValueAddress(rank);
+                for (int slot = 0; slot < docSlots[doc].length; slot++) {
+                    final long address = first + slot;
+                    if (docSlots[doc][slot] == null) {
+                        assertTrue("doc " + doc + " slot " + slot + " is null", reader.isNullSlot(address));
+                    } else {
+                        assertFalse("doc " + doc + " slot " + slot + " is a value", reader.isNullSlot(address));
+                        assertEquals("doc " + doc + " slot " + slot, docSlots[doc][slot], reader.valueAt(address));
+                    }
+                }
+                seen++;
+            }
+            assertEquals("documents with a value", numDocsWithField(docSlots), seen);
+        });
     }
 
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {

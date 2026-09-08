@@ -1,6 +1,0 @@
-area: Aggregations
-issues:
- - 157206
-pr: 157254
-summary: Fix `percentiles` aggregations failing with an already closed breaker error
-type: bug

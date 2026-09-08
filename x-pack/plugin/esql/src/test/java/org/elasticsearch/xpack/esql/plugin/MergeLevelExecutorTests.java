@@ -34,7 +34,7 @@ public class MergeLevelExecutorTests extends ESTestCase {
         PlainActionFuture<DriverCompletionInfo> done = new PlainActionFuture<>();
         ExchangeSourceHandler source = new ExchangeSourceHandler(10, Runnable::run);
         SubPlanTaskRunner runner = new SubPlanTaskRunner(2, Runnable::run);
-        var context = new MergeLevelExecutor.QueryContext("s", null, null, null, null, null, null, Map.of(), runner);
+        var context = new MergeLevelExecutor.QueryContext("s", null, null, null, null, null, null, Map.of(), runner, () -> {});
 
         int branches = randomIntBetween(1, 5);
         Exception failure = new IllegalStateException("setup failed");

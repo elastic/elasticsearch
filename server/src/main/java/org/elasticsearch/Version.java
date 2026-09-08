@@ -237,6 +237,7 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_19_19 = new Version(8_19_19_99);
     public static final Version V_8_19_20 = new Version(8_19_20_99);
     public static final Version V_8_19_21 = new Version(8_19_21_99);
+    public static final Version V_8_19_22 = new Version(8_19_22_99);
     public static final Version V_9_0_0 = new Version(9_00_00_99);
     public static final Version V_9_0_1 = new Version(9_00_01_99);
     public static final Version V_9_0_2 = new Version(9_00_02_99);
@@ -281,10 +282,12 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_9_4_4 = new Version(9_04_04_99);
     public static final Version V_9_4_5 = new Version(9_04_05_99);
     public static final Version V_9_4_6 = new Version(9_04_06_99);
+    public static final Version V_9_4_7 = new Version(9_04_07_99);
     public static final Version V_9_5_0 = new Version(9_05_00_99);
     public static final Version V_9_5_1 = new Version(9_05_01_99);
     public static final Version V_9_5_2 = new Version(9_05_02_99);
     public static final Version V_9_5_3 = new Version(9_05_03_99);
+    public static final Version V_9_5_4 = new Version(9_05_04_99);
     public static final Version V_9_6_0 = new Version(9_06_00_99);
     public static final Version CURRENT = V_9_6_0;
 

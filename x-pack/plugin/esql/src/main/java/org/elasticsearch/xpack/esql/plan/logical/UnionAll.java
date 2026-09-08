@@ -212,8 +212,8 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
      * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
      * <p>
-     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called from
-     * {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
      * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
      * exactly the same at execution time as one the user wrote.
@@ -243,11 +243,11 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
      * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
      * many branches there are in total, but a skinny chain of two-way unions can stay under that cap at arbitrary depth.
      * <p>
-     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called from
-     * {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered
-     * check to every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the
-     * same at execution time as one the user wrote.
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
+     * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, Failures failures) {
         if (stats.depth() <= maxLevels) {

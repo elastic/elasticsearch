@@ -165,7 +165,8 @@ final class MergeLevelExecutor {
         EsqlExecutionInfo execInfo,
         QueryPragmas queryPragmas,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        SubPlanTaskRunner subPlanTaskRunner
+        SubPlanTaskRunner subPlanTaskRunner,
+        Runnable warnIndexCoordinatorOnce
     ) {}
 
     private final ComputeService computeService;
@@ -624,7 +625,8 @@ final class MergeLevelExecutor {
                 ),
                 () -> exchangeSink.createExchangeSink(() -> {}),
                 owner.context.initialClusterStatuses(),
-                owner.context.configuration().profile() ? new PlanTimeProfile() : null
+                owner.context.configuration().profile() ? new PlanTimeProfile() : null,
+                owner.context.warnIndexCoordinatorOnce()
             );
         }
 

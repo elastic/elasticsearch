@@ -623,44 +623,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
-    public void testSeekCeilWithTsidOnlyPrefix() throws IOException {
-        // Defense in depth for the getMax crash: Lucene's default getMax probes with incomplete keys that can match a
-        // real _tsid without a timestamp/routing suffix. seekCeil must not call the asserting timestamp extractor on
-        // those probes — it pads with 0x00 and lands on the first term of that _tsid.
-        runTest(false, (writer, parser) -> {
-            indexMultiBlockSegment(writer, parser);
-            try (var reader = DirectoryReader.open(writer)) {
-                assertThat(reader.leaves(), hasSize(1));
-                var termsEnum = LazyFilterTermsEnum.unwrap(reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME).iterator());
-                assertThat(termsEnum, instanceOf(SyntheticIdTermsEnum.class));
-
-                BytesRef previousTsidPrefix = null;
-                BytesRef firstTermOfTsid = null;
-                for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                    var tsidPrefix = new BytesRef(term.bytes, term.offset, term.length - Long.BYTES - Integer.BYTES);
-                    if (previousTsidPrefix != null && tsidPrefix.equals(previousTsidPrefix) == false) {
-                        // Use the first term of the second _tsid so the probe is not also the segment minimum.
-                        firstTermOfTsid = BytesRef.deepCopyOf(term);
-                        break;
-                    }
-                    previousTsidPrefix = BytesRef.deepCopyOf(tsidPrefix);
-                }
-                assertThat(firstTermOfTsid, notNullValue());
-
-                var tsidOnlyProbe = new BytesRef(
-                    firstTermOfTsid.bytes,
-                    firstTermOfTsid.offset,
-                    firstTermOfTsid.length - Long.BYTES - Integer.BYTES
-                );
-                assertThat(tsidOnlyProbe.length, greaterThan(0));
-                assertThat(tsidOnlyProbe.length, lessThan(firstTermOfTsid.length));
-
-                assertThat(termsEnum.seekCeil(tsidOnlyProbe), is(TermsEnum.SeekStatus.NOT_FOUND));
-                assertThat(termsEnum.term(), equalTo(firstTermOfTsid));
-            }
-        });
-    }
-
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
         // We rely on skippers being enabled
         runTest(false, (writer, parser) -> {

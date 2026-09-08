@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -197,7 +201,37 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
             );
         }
 
-        if (hasTemplate && TemplatePartitionDetector.parseTemplateColumns(template).isEmpty()) {
+        if (hasTemplate) {
+            validatePathTemplate(template);
+        }
+    }
+
+    /**
+     * A {@code partition_path} must name each column once as a whole-segment {@code {name}}, and every other
+     * segment must be a concrete directory name. A glob-shaped literal cannot match a real directory. A
+     * repeated placeholder cannot be one column value when the two slots differ.
+     */
+    private static void validatePathTemplate(String template) {
+        List<TemplateSegment> parsed = TemplatePartitionDetector.parseTemplate(template);
+        Set<String> names = new HashSet<>();
+        boolean hasPlaceholder = false;
+        for (TemplateSegment segment : parsed) {
+            if (segment instanceof TemplateSegment.Placeholder(String name)) {
+                hasPlaceholder = true;
+                if (names.add(name) == false) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] names ["
+                            + name
+                            + "] more than once; each partition column must appear once"
+                    );
+                }
+            }
+        }
+        if (hasPlaceholder == false) {
             throw new IllegalArgumentException(
                 "["
                     + CONFIG_PARTITIONING_PATH
@@ -208,6 +242,38 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
                     + CONFIG_PARTITIONING_DETECTION
                     + "] to [hive] instead of a template"
             );
+        }
+        // year={year} also contains '{', so this scan runs after the empty-column throw: that
+        // template must report that it names no columns, not that a segment is glob-shaped.
+        for (TemplateSegment segment : parsed) {
+            if (segment instanceof TemplateSegment.Literal(String value)) {
+                if (TemplatePartitionDetector.containsEmbeddedPlaceholder(value)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] has a key=value segment ["
+                            + value
+                            + "]; a partition column must be a path segment that is exactly {name}, such as "
+                            + "[{year}/{month}]. For a key=value directory layout set ["
+                            + CONFIG_PARTITIONING_DETECTION
+                            + "] to [hive] instead of a template"
+                    );
+                }
+                if (StoragePath.containsGlobMetacharacter(value)) {
+                    throw new IllegalArgumentException(
+                        "["
+                            + CONFIG_PARTITIONING_PATH
+                            + "] ["
+                            + template
+                            + "] has a glob-shaped segment ["
+                            + value
+                            + "]; a non-placeholder segment is a required directory name, such as "
+                            + "[junk] in [{year}/junk/{month}]"
+                    );
+                }
+            }
         }
     }
 }

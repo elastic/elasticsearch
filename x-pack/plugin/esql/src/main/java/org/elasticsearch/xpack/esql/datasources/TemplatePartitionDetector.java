@@ -12,9 +12,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,14 +60,18 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         List<TemplateSegment> surfacedSegments = new ArrayList<>(parsed.size());
         List<String> surfaced = new ArrayList<>();
         List<String> renamed = new ArrayList<>(0);
+        Set<String> seenSurfaces = new HashSet<>();
+        Set<String> seenRenamed = new HashSet<>();
         for (TemplateSegment segment : parsed) {
             switch (segment) {
                 case TemplateSegment.Placeholder(String name) -> {
                     String surface = ReservedPartitionNames.surface(name);
-                    if (surface.equals(name) == false) {
+                    if (surface.equals(name) == false && seenRenamed.add(name)) {
                         renamed.add(name);
                     }
-                    surfaced.add(surface);
+                    if (seenSurfaces.add(surface)) {
+                        surfaced.add(surface);
+                    }
                     surfacedSegments.add(new TemplateSegment.Placeholder(surface));
                 }
                 case TemplateSegment.Literal literal -> surfacedSegments.add(literal);
@@ -199,7 +205,13 @@ public final class TemplatePartitionDetector implements PartitionDetector {
                         return null;
                     }
                 }
-                case TemplateSegment.Placeholder(String name) -> result.put(name, HivePartitionDetector.decodePartitionValue(dir));
+                case TemplateSegment.Placeholder(String name) -> {
+                    String decoded = HivePartitionDetector.decodePartitionValue(dir);
+                    String previous = result.put(name, decoded);
+                    if (previous != null && previous.equals(decoded) == false) {
+                        return null;
+                    }
+                }
             }
         }
         return result;
@@ -228,6 +240,11 @@ public final class TemplatePartitionDetector implements PartitionDetector {
             }
         }
         return parsed;
+    }
+
+    /** Whether {@code segment} embeds a {@code {name}} placeholder without being exactly one. */
+    static boolean containsEmbeddedPlaceholder(String segment) {
+        return PLACEHOLDER.matcher(segment).find();
     }
 
     public static List<String> parseTemplateColumns(String template) {

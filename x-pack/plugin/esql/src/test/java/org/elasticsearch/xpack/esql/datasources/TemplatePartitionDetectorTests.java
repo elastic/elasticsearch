@@ -277,6 +277,14 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
             TemplatePartitionDetector.parseTemplate("{year}/junk/{month}")
         );
         assertEquals(List.of(new TemplateSegment.Literal("year={year}")), TemplatePartitionDetector.parseTemplate("year={year}"));
+        assertEquals(
+            List.of(
+                new TemplateSegment.Placeholder("year"),
+                new TemplateSegment.Placeholder("month"),
+                new TemplateSegment.Literal("*.csv")
+            ),
+            TemplatePartitionDetector.parseTemplate("{year}/{month}/*.csv")
+        );
         assertEquals(List.of(), TemplatePartitionDetector.parseTemplate(""));
     }
 
@@ -314,6 +322,33 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
     public void testLeadingLiteralMismatchReturnsEmpty() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("logs/{year}/{month}");
         assertTrue(detector.detect(List.of(entry("s3://bucket/data/2024/01/part-0.parquet"))).isEmpty());
+    }
+
+    public void testTrailingFilenameGlobIsARequiredDirectory() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/{month}/*.csv");
+        assertTrue(detector.detect(List.of(entry("s3://bucket/logs/2024/01/part-0.csv"))).isEmpty());
+    }
+
+    public void testDuplicatePlaceholderRequiresEqualValues() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/junk/{year}");
+        assertEquals(List.of("year"), detector.columnNames());
+        PartitionMetadata match = detector.detect(List.of(entry("s3://bucket/logs/2024/junk/2024/part-0.parquet")));
+        assertFalse(match.isEmpty());
+        Map<String, Object> values = match.filePartitionValues().get(StoragePath.of("s3://bucket/logs/2024/junk/2024/part-0.parquet"));
+        assertEquals(2024, values.get("year"));
+        assertTrue(detector.detect(List.of(entry("s3://bucket/logs/2023/junk/2024/part-0.parquet"))).isEmpty());
+    }
+
+    public void testDuplicateReservedPlaceholderWarnsOnce() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{_index}/junk/{_index}");
+        assertEquals(List.of("_partition._index"), detector.columnNames());
+        PartitionMetadata match = detector.detect(List.of(entry("s3://bucket/logs/alpha/junk/alpha/part-0.parquet")));
+        assertFalse(match.isEmpty());
+        assertEquals(Set.of("_partition._index"), match.partitionColumns().keySet());
+        assertWarnings(
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_index] surfaced as [_partition._index]"
+        );
     }
 
     public void testNullTemplateThrows() {

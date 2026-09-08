@@ -1,5 +1,5 @@
 pr: 158510
-summary: Fix partition_path templates that bind the wrong directory
+summary: Fix partition_path literal binding and reject templates that cannot name distinct columns
 area: ES|QL
 type: bug
 issues: []

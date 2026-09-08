@@ -45,6 +45,16 @@ public class StoragePathTests extends ESTestCase {
         assertFalse(path.isPattern());
     }
 
+    public void testContainsGlobMetacharacter() {
+        assertTrue(StoragePath.containsGlobMetacharacter("*.csv"));
+        assertTrue(StoragePath.containsGlobMetacharacter("file?.csv"));
+        assertTrue(StoragePath.containsGlobMetacharacter("{a,b}"));
+        assertTrue(StoragePath.containsGlobMetacharacter("file[123]"));
+        assertFalse(StoragePath.containsGlobMetacharacter("junk"));
+        assertFalse(StoragePath.containsGlobMetacharacter(""));
+        assertFalse(StoragePath.containsGlobMetacharacter(null));
+    }
+
     // -- patternPrefix --
 
     public void testPatternPrefixStar() {

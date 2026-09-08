@@ -543,6 +543,24 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("{name}"));
     }
 
+    public void testValidateDatasetRejectsGlobShapedPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/{month}/*.csv"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("*.csv"));
+    }
+
+    public void testValidateDatasetRejectsDuplicatePlaceholderPartitionPath() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_path", "{year}/junk/{year}"))
+        );
+        assertThat(e.getMessage(), containsString("partition_path"));
+        assertThat(e.getMessage(), containsString("more than once"));
+    }
+
     public void testValidateDatasetHivePartitioning() {
         assertEquals(false, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", false)).get("hive_partitioning"));
         assertEquals(true, validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", true)).get("hive_partitioning"));

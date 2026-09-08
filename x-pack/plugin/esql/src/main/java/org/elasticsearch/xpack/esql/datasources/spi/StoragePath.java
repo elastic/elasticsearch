@@ -247,16 +247,24 @@ public final class StoragePath {
         return StoragePath.of(authorityPrefix() + newPath);
     }
 
-    /**
-     * Returns true if the path contains glob metacharacters: *, ?, {, [
-     */
-    public boolean isPattern() {
+    /** Whether {@code text} contains a character from {@link #GLOB_METACHARACTERS}. */
+    public static boolean containsGlobMetacharacter(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
         for (char c : GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
+            if (text.indexOf(c) >= 0) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Returns true if the path contains glob metacharacters: *, ?, {, [
+     */
+    public boolean isPattern() {
+        return containsGlobMetacharacter(path);
     }
 
     /**

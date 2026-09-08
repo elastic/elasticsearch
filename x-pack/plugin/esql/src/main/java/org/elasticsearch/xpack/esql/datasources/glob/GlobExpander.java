@@ -257,12 +257,7 @@ public final class GlobExpander {
             return StoragePath.of(path).isPattern();
         } catch (IllegalArgumentException e) {
             // Not a parseable URL; fall back to scanning the whole string
-            for (char c : StoragePath.GLOB_METACHARACTERS) {
-                if (path.indexOf(c) >= 0) {
-                    return true;
-                }
-            }
-            return false;
+            return StoragePath.containsGlobMetacharacter(path);
         }
     }
 

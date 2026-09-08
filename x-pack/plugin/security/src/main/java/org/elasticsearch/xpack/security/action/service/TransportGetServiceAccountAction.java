@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
@@ -54,10 +54,10 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        final List<ServiceAccountInfo> builtInInfos = request.getManagedBy().contains(ServiceAccountManagedBy.ELASTIC)
+        final List<ServiceAccountInfo> builtInInfos = request.getType().contains(ServiceAccountType.BUILT_IN)
             ? builtInAccountInfos(request)
             : List.of();
-        if (request.getManagedBy().contains(ServiceAccountManagedBy.USER) == false) {
+        if (request.getType().contains(ServiceAccountType.USER_MANAGED) == false) {
             listener.onResponse(newResponse(builtInInfos, List.of()));
             return;
         }

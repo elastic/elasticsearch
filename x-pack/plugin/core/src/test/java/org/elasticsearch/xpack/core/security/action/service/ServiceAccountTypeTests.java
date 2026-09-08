@@ -15,7 +15,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServiceAccountManagedByTests extends ESTestCase {
+public class ServiceAccountTypeTests extends ESTestCase {
 
     /**
      * The values are REST contract, so this pins them rather than deriving them from the constants: a rename that
@@ -23,8 +23,8 @@ public class ServiceAccountManagedByTests extends ESTestCase {
      */
     public void testValues() {
         assertThat(
-            Arrays.stream(ServiceAccountManagedBy.values()).map(ServiceAccountManagedBy::value).toList(),
-            equalTo(List.of("elastic", "user"))
+            Arrays.stream(ServiceAccountType.values()).map(ServiceAccountType::value).toList(),
+            equalTo(List.of("built_in", "user_managed"))
         );
     }
 
@@ -34,28 +34,28 @@ public class ServiceAccountManagedByTests extends ESTestCase {
      */
     public void testSerialization() {
         EnumSerializationTestUtils.assertEnumSerialization(
-            ServiceAccountManagedBy.class,
-            ServiceAccountManagedBy.ELASTIC,
-            ServiceAccountManagedBy.USER
+            ServiceAccountType.class,
+            ServiceAccountType.BUILT_IN,
+            ServiceAccountType.USER_MANAGED
         );
     }
 
     public void testFromValueAcceptsEveryValue() {
-        for (ServiceAccountManagedBy managedBy : ServiceAccountManagedBy.values()) {
-            assertThat(ServiceAccountManagedBy.fromValue(managedBy.value()), equalTo(managedBy));
+        for (ServiceAccountType type : ServiceAccountType.values()) {
+            assertThat(ServiceAccountType.fromValue(type.value()), equalTo(type));
         }
     }
 
     public void testFromValueRejectsAnythingElseAndSaysWhatItAccepts() {
-        for (String value : new String[] { "ELASTIC", "built_in", "users", "", null }) {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ServiceAccountManagedBy.fromValue(value));
-            assertThat(e.getMessage(), equalTo("invalid managed_by value [" + value + "]; must be one of [elastic, user]"));
+        for (String value : new String[] { "ELASTIC", "elastic", "user", "users", "", null }) {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ServiceAccountType.fromValue(value));
+            assertThat(e.getMessage(), equalTo("invalid type value [" + value + "]; must be one of [built_in, user_managed]"));
         }
     }
 
     public void testToStringIsTheValueSoItReadsTheSameInMessagesAndResponses() {
-        for (ServiceAccountManagedBy managedBy : ServiceAccountManagedBy.values()) {
-            assertThat(managedBy.toString(), equalTo(managedBy.value()));
+        for (ServiceAccountType type : ServiceAccountType.values()) {
+            assertThat(type.toString(), equalTo(type.value()));
         }
     }
 }

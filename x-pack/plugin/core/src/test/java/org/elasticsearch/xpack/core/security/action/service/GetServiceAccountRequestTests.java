@@ -28,7 +28,7 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected GetServiceAccountRequest createTestInstance() {
-        return new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomManagedBy());
+        return new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull(), randomType());
     }
 
     @Override
@@ -37,17 +37,17 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
             case 0 -> new GetServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), GetServiceAccountRequestTests::randomNameOrNull),
                 instance.getServiceName(),
-                instance.getManagedBy()
+                instance.getType()
             );
             case 1 -> new GetServiceAccountRequest(
                 instance.getNamespace(),
                 randomValueOtherThan(instance.getServiceName(), GetServiceAccountRequestTests::randomNameOrNull),
-                instance.getManagedBy()
+                instance.getType()
             );
             case 2 -> new GetServiceAccountRequest(
                 instance.getNamespace(),
                 instance.getServiceName(),
-                randomValueOtherThan(instance.getManagedBy(), GetServiceAccountRequestTests::randomManagedBy)
+                randomValueOtherThan(instance.getType(), GetServiceAccountRequestTests::randomType)
             );
             default -> throw new AssertionError("between(0, 2) returned something outside its own bounds");
         };
@@ -55,8 +55,8 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
 
     public void testDefaultsToBuiltInAccountsOnly() {
         assertThat(
-            new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull()).getManagedBy(),
-            equalTo(EnumSet.of(ServiceAccountManagedBy.ELASTIC))
+            new GetServiceAccountRequest(randomNameOrNull(), randomNameOrNull()).getType(),
+            equalTo(EnumSet.of(ServiceAccountType.BUILT_IN))
         );
     }
 
@@ -66,11 +66,11 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
     }
 
     public void testRequestForUserManagedAccountsRefusesToSerializeToNodesWithoutThem() {
-        for (EnumSet<ServiceAccountManagedBy> managedBy : List.of(
-            EnumSet.of(ServiceAccountManagedBy.USER),
-            EnumSet.allOf(ServiceAccountManagedBy.class)
+        for (EnumSet<ServiceAccountType> type : List.of(
+            EnumSet.of(ServiceAccountType.USER_MANAGED),
+            EnumSet.allOf(ServiceAccountType.class)
         )) {
-            final GetServiceAccountRequest request = new GetServiceAccountRequest(null, null, managedBy);
+            final GetServiceAccountRequest request = new GetServiceAccountRequest(null, null, type);
             final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> copyInstance(request, beforeUserManagedAccountInfo())
@@ -78,8 +78,8 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "cannot ask a node that does not support user-managed service accounts for accounts managed by ["
-                        + managedBy.stream().map(ServiceAccountManagedBy::value).collect(Collectors.joining(", "))
+                    "cannot ask a node that does not support user-managed service accounts for accounts of type ["
+                        + type.stream().map(ServiceAccountType::value).collect(Collectors.joining(", "))
                         + "]"
                 )
             );
@@ -94,11 +94,11 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
         return randomFrom(randomAlphaOfLengthBetween(3, 8), null);
     }
 
-    private static EnumSet<ServiceAccountManagedBy> randomManagedBy() {
+    private static EnumSet<ServiceAccountType> randomType() {
         return randomFrom(
-            EnumSet.of(ServiceAccountManagedBy.ELASTIC),
-            EnumSet.of(ServiceAccountManagedBy.USER),
-            EnumSet.allOf(ServiceAccountManagedBy.class)
+            EnumSet.of(ServiceAccountType.BUILT_IN),
+            EnumSet.of(ServiceAccountType.USER_MANAGED),
+            EnumSet.allOf(ServiceAccountType.class)
         );
     }
 }

@@ -28,7 +28,7 @@ public class GetServiceAccountRequestValidationTests extends ESTestCase {
             for (String serviceName : new String[] { null, "fleet-server", "worker*", "", "_leading-underscore" }) {
                 assertThat(
                     "namespace [" + namespace + "] and service name [" + serviceName + "] should not be rejected",
-                    new GetServiceAccountRequest(namespace, serviceName, randomManagedBy()).validate(),
+                    new GetServiceAccountRequest(namespace, serviceName, randomType()).validate(),
                     nullValue()
                 );
             }
@@ -39,21 +39,21 @@ public class GetServiceAccountRequestValidationTests extends ESTestCase {
      * A request that names no kind of account could only ever report nothing, so it is a mistake rather than an empty
      * filter.
      */
-    public void testEmptyManagedByIsRejected() {
+    public void testEmptyTypeIsRejected() {
         final ActionRequestValidationException e = new GetServiceAccountRequest(
             randomFrom("my-team", null),
             randomFrom("worker", null),
-            EnumSet.noneOf(ServiceAccountManagedBy.class)
+            EnumSet.noneOf(ServiceAccountType.class)
         ).validate();
         assertThat(e, notNullValue());
-        assertThat(e.validationErrors(), contains("managed_by must name at least one of [elastic, user]"));
+        assertThat(e.validationErrors(), contains("type must name at least one of [built_in, user_managed]"));
     }
 
-    private static EnumSet<ServiceAccountManagedBy> randomManagedBy() {
+    private static EnumSet<ServiceAccountType> randomType() {
         return randomFrom(
-            EnumSet.of(ServiceAccountManagedBy.ELASTIC),
-            EnumSet.of(ServiceAccountManagedBy.USER),
-            EnumSet.allOf(ServiceAccountManagedBy.class)
+            EnumSet.of(ServiceAccountType.BUILT_IN),
+            EnumSet.of(ServiceAccountType.USER_MANAGED),
+            EnumSet.allOf(ServiceAccountType.class)
         );
     }
 }

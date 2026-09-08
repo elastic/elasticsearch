@@ -57,9 +57,9 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
         };
     }
 
-    public void testManagedByNamesTheKind() {
-        assertThat(randomBuiltIn().managedBy(), equalTo(ServiceAccountManagedBy.ELASTIC));
-        assertThat(randomUserManaged().managedBy(), equalTo(ServiceAccountManagedBy.USER));
+    public void testTypeNamesTheKind() {
+        assertThat(randomBuiltIn().type(), equalTo(ServiceAccountType.BUILT_IN));
+        assertThat(randomUserManaged().type(), equalTo(ServiceAccountType.USER_MANAGED));
     }
 
     public void testRolesAreCopiedOnConstruction() {

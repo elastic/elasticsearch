@@ -98,14 +98,14 @@ teardown:
 
   - do:
       security.get_service_accounts:
-        managed_by: "elastic,user"
+        type: "built_in,user_managed"
   - length: { '': 5 }
   - is_true: "apps/worker_1"
-  - match: { "elastic/kibana.managed_by": "elastic" }
+  - match: { "elastic/kibana.type": "built_in" }
 
   - do:
       security.get_service_accounts:
-        managed_by: "user"
+        type: "user_managed"
   - length: { '': 1 }
   - is_true: "apps/worker_1"
 
@@ -116,7 +116,7 @@ teardown:
   - length: { '': 1 }
   - match:
       "apps/worker_1":
-        managed_by: user
+        type: user_managed
         roles: ["user_managed_monitor"]
         enabled: true
 
@@ -130,7 +130,7 @@ teardown:
       security.get_service_accounts:
         namespace: apps
         service: worker_1
-        managed_by: elastic
+        type: built_in
   - length: { '': 0 }
 
   - do:

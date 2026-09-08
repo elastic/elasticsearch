@@ -13,18 +13,18 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /**
- * Says who manages a service account: {@link #ELASTIC} for the built-in accounts that ship with Elasticsearch in the
- * reserved {@link ServiceAccountSettings#BUILTIN_NAMESPACE} namespace, and {@link #USER} for the accounts created
+ * The kind of service account: {@link #BUILT_IN} for the accounts that ship with Elasticsearch in the reserved
+ * {@link ServiceAccountSettings#BUILTIN_NAMESPACE} namespace, and {@link #USER_MANAGED} for the accounts created
  * through the service account API.
  */
-public enum ServiceAccountManagedBy {
+public enum ServiceAccountType {
 
-    ELASTIC("elastic"),
-    USER("user");
+    BUILT_IN("built_in"),
+    USER_MANAGED("user_managed");
 
     private final String value;
 
-    ServiceAccountManagedBy(String value) {
+    ServiceAccountType(String value) {
         this.value = value;
     }
 
@@ -32,13 +32,13 @@ public enum ServiceAccountManagedBy {
         return value;
     }
 
-    public static ServiceAccountManagedBy fromValue(String value) {
-        for (ServiceAccountManagedBy managedBy : values()) {
-            if (managedBy.value.equals(value)) {
-                return managedBy;
+    public static ServiceAccountType fromValue(String value) {
+        for (ServiceAccountType type : values()) {
+            if (type.value.equals(value)) {
+                return type;
             }
         }
-        throw new IllegalArgumentException("invalid managed_by value [" + value + "]; must be one of [" + values(", ") + "]");
+        throw new IllegalArgumentException("invalid type value [" + value + "]; must be one of [" + values(", ") + "]");
     }
 
     /**
@@ -46,7 +46,7 @@ public enum ServiceAccountManagedBy {
      * added here cannot leave an error message or an API description listing a subset of the values it accepts.
      */
     public static String values(String separator) {
-        return Arrays.stream(values()).map(ServiceAccountManagedBy::value).collect(Collectors.joining(separator));
+        return Arrays.stream(values()).map(ServiceAccountType::value).collect(Collectors.joining(separator));
     }
 
     @Override

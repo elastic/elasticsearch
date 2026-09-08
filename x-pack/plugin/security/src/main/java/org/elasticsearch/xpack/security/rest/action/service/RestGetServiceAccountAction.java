@@ -16,7 +16,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -53,27 +53,27 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
         final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(
             namespace,
             serviceName,
-            managedBy(request, namespace)
+            type(request, namespace)
         );
         return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 
     /**
-     * The kinds of account to report. Omitting {@code managed_by} reports built-in accounts only when no namespace is
+     * The kinds of account to report. Omitting {@code type} reports built-in accounts only when no namespace is
      * given, which keeps the whole-cluster listing's response shape for callers that read a role descriptor from every
      * entry. A request scoped to a namespace has no such shape to keep: the reserved namespace holds no user-managed
      * account and every other namespace held no account at all before this feature, so a scoped request reports both
      * kinds and finds an account the caller created without having to ask for it by kind.
      */
-    private static EnumSet<ServiceAccountManagedBy> managedBy(RestRequest request, String namespace) {
-        final String[] values = request.paramAsStringArray("managed_by", null);
+    private static EnumSet<ServiceAccountType> type(RestRequest request, String namespace) {
+        final String[] values = request.paramAsStringArray("type", null);
         if (values == null) {
-            return namespace == null ? EnumSet.of(ServiceAccountManagedBy.ELASTIC) : EnumSet.allOf(ServiceAccountManagedBy.class);
+            return namespace == null ? EnumSet.of(ServiceAccountType.BUILT_IN) : EnumSet.allOf(ServiceAccountType.class);
         }
-        final EnumSet<ServiceAccountManagedBy> managedBy = EnumSet.noneOf(ServiceAccountManagedBy.class);
+        final EnumSet<ServiceAccountType> type = EnumSet.noneOf(ServiceAccountType.class);
         for (String value : values) {
-            managedBy.add(ServiceAccountManagedBy.fromValue(value));
+            type.add(ServiceAccountType.fromValue(value));
         }
-        return managedBy;
+        return type;
     }
 }

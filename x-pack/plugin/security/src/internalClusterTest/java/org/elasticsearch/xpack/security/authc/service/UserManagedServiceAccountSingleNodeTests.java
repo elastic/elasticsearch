@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServic
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -151,7 +151,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
 
         final GetServiceAccountResponse userManaged = securityAdminClient().execute(
             GetServiceAccountAction.INSTANCE,
-            new GetServiceAccountRequest(NAMESPACE, serviceName, EnumSet.of(ServiceAccountManagedBy.USER))
+            new GetServiceAccountRequest(NAMESPACE, serviceName, EnumSet.of(ServiceAccountType.USER_MANAGED))
         ).actionGet();
         assertThat(userManaged.getServiceAccountInfos().length, equalTo(1));
         assertThat(userManaged.getServiceAccountInfos()[0], instanceOf(ServiceAccountInfo.UserManaged.class));
@@ -159,7 +159,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
         assertThat(info.principal(), equalTo(principal));
         assertThat(info.roles(), equalTo(List.of(MONITOR_ROLE)));
         assertThat(info.enabled(), is(true));
-        assertThat(info.managedBy(), equalTo(ServiceAccountManagedBy.USER));
+        assertThat(info.type(), equalTo(ServiceAccountType.USER_MANAGED));
     }
 
     public void testRoleAssignmentUpdateAffectsNextAuthentication() {

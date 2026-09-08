@@ -44,7 +44,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         return new GetServiceAccountResponse(randomServiceAccountInfos(randomValueOtherThan(length, () -> randomIntBetween(0, 3))));
     }
 
-    public void testToXContentReportsEveryAccountWithHowItIsManaged() throws IOException {
+    public void testToXContentReportsEveryAccountWithItsType() throws IOException {
         final RoleDescriptor roleDescriptor = getRoleDescriptorFor("elastic/fleet-server");
         final GetServiceAccountResponse response = new GetServiceAccountResponse(
             new ServiceAccountInfo[] {
@@ -56,11 +56,11 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
 
         assertThat(responseMap.size(), equalTo(2));
         final Map<String, Object> builtIn = fragment(responseMap, "elastic/fleet-server");
-        assertThat(builtIn.get("managed_by"), equalTo("elastic"));
+        assertThat(builtIn.get("type"), equalTo("built_in"));
         assertRoleDescriptorEquals(builtIn, roleDescriptor);
         assertThat(
             fragment(responseMap, "my-team/worker"),
-            equalTo(Map.of("managed_by", "user", "roles", List.of("role-a", "role-b"), "enabled", false))
+            equalTo(Map.of("type", "user_managed", "roles", List.of("role-a", "role-b"), "enabled", false))
         );
     }
 

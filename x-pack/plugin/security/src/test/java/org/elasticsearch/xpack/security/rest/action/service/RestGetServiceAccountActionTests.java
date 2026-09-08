@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.junit.Before;
 
 import java.util.EnumSet;
@@ -51,51 +51,54 @@ public class RestGetServiceAccountActionTests extends RestActionTestCase {
         final GetServiceAccountRequest request = dispatch("/_security/service", null);
         assertThat(request.getNamespace(), nullValue());
         assertThat(request.getServiceName(), nullValue());
-        assertThat(request.getManagedBy(), equalTo(EnumSet.of(ServiceAccountManagedBy.ELASTIC)));
+        assertThat(request.getType(), equalTo(EnumSet.of(ServiceAccountType.BUILT_IN)));
     }
 
     public void testScopedRequestReportsBothKindsByDefault() {
         final GetServiceAccountRequest namespaceRequest = dispatch("/_security/service/ns", null);
         assertThat(namespaceRequest.getNamespace(), equalTo("ns"));
         assertThat(namespaceRequest.getServiceName(), nullValue());
-        assertThat(namespaceRequest.getManagedBy(), equalTo(EnumSet.allOf(ServiceAccountManagedBy.class)));
+        assertThat(namespaceRequest.getType(), equalTo(EnumSet.allOf(ServiceAccountType.class)));
 
         final GetServiceAccountRequest serviceRequest = dispatch("/_security/service/ns/svc", null);
         assertThat(serviceRequest.getNamespace(), equalTo("ns"));
         assertThat(serviceRequest.getServiceName(), equalTo("svc"));
-        assertThat(serviceRequest.getManagedBy(), equalTo(EnumSet.allOf(ServiceAccountManagedBy.class)));
+        assertThat(serviceRequest.getType(), equalTo(EnumSet.allOf(ServiceAccountType.class)));
     }
 
-    public void testManagedByReplacesTheDefault() {
-        assertThat(dispatch("/_security/service", "user").getManagedBy(), equalTo(EnumSet.of(ServiceAccountManagedBy.USER)));
-        assertThat(dispatch("/_security/service", "elastic,user").getManagedBy(), equalTo(EnumSet.allOf(ServiceAccountManagedBy.class)));
-        assertThat(dispatch("/_security/service/ns/svc", "elastic").getManagedBy(), equalTo(EnumSet.of(ServiceAccountManagedBy.ELASTIC)));
-        assertThat(dispatch("/_security/service/ns/svc", "user,user").getManagedBy(), equalTo(EnumSet.of(ServiceAccountManagedBy.USER)));
+    public void testTypeReplacesTheDefault() {
+        assertThat(dispatch("/_security/service", "user_managed").getType(), equalTo(EnumSet.of(ServiceAccountType.USER_MANAGED)));
+        assertThat(dispatch("/_security/service", "built_in,user_managed").getType(), equalTo(EnumSet.allOf(ServiceAccountType.class)));
+        assertThat(dispatch("/_security/service/ns/svc", "built_in").getType(), equalTo(EnumSet.of(ServiceAccountType.BUILT_IN)));
+        assertThat(
+            dispatch("/_security/service/ns/svc", "user_managed,user_managed").getType(),
+            equalTo(EnumSet.of(ServiceAccountType.USER_MANAGED))
+        );
     }
 
-    public void testEmptyManagedByIsLeftForTheRequestToReject() {
+    public void testEmptyTypeIsLeftForTheRequestToReject() {
         final GetServiceAccountRequest request = dispatch("/_security/service", "");
-        assertThat(request.getManagedBy(), empty());
-        assertThat(request.validate().getMessage(), containsString("managed_by must name at least one of [elastic, user]"));
+        assertThat(request.getType(), empty());
+        assertThat(request.validate().getMessage(), containsString("type must name at least one of [built_in, user_managed]"));
     }
 
-    public void testUnknownManagedByValueIsRejected() {
+    public void testUnknownTypeValueIsRejected() {
         final RestGetServiceAccountAction action = new RestGetServiceAccountAction(Settings.EMPTY, mock(XPackLicenseState.class));
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
             .withPath("/_security/service")
-            .withParams(Map.of("managed_by", "elasticsearch"))
+            .withParams(Map.of("type", "elasticsearch"))
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.innerPrepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("invalid managed_by value [elasticsearch]; must be one of [elastic, user]"));
+        assertThat(e.getMessage(), equalTo("invalid type value [elasticsearch]; must be one of [built_in, user_managed]"));
     }
 
-    private GetServiceAccountRequest dispatch(String path, String managedBy) {
+    private GetServiceAccountRequest dispatch(String path, String type) {
         requestHolder.set(null);
         final FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
             .withPath(path);
-        if (managedBy != null) {
-            builder.withParams(Map.of("managed_by", managedBy));
+        if (type != null) {
+            builder.withParams(Map.of("type", type));
         }
         dispatchRequest(builder.build());
         final GetServiceAccountRequest request = requestHolder.get();

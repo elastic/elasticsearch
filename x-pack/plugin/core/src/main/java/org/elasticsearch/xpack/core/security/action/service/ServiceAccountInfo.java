@@ -23,7 +23,7 @@ import java.util.Objects;
  * What the service account API reports about one account. The two kinds of account describe their privileges
  * differently. A built-in account carries the fixed {@link RoleDescriptor} it was declared with, a user-managed one
  * carries the names of the roles it was created with plus whether it is enabled. So this is a union tagged by
- * {@link #managedBy()}.
+ * {@link #type()}.
  */
 public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
 
@@ -35,7 +35,7 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
 
     String principal();
 
-    ServiceAccountManagedBy managedBy();
+    ServiceAccountType type();
 
     /**
      * A built-in account, whose privileges are the role descriptor declared for it in the Elasticsearch distribution.
@@ -48,8 +48,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
 
         @Override
-        public ServiceAccountManagedBy managedBy() {
-            return ServiceAccountManagedBy.ELASTIC;
+        public ServiceAccountType type() {
+            return ServiceAccountType.BUILT_IN;
         }
     }
 
@@ -65,8 +65,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
 
         @Override
-        public ServiceAccountManagedBy managedBy() {
-            return ServiceAccountManagedBy.USER;
+        public ServiceAccountType type() {
+            return ServiceAccountType.USER_MANAGED;
         }
     }
 
@@ -75,9 +75,9 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         if (in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_INFO) == false) {
             return new BuiltIn(principal, new RoleDescriptor(in));
         }
-        return switch (in.readEnum(ServiceAccountManagedBy.class)) {
-            case ELASTIC -> new BuiltIn(principal, new RoleDescriptor(in));
-            case USER -> new UserManaged(principal, in.readStringCollectionAsList(), in.readBoolean());
+        return switch (in.readEnum(ServiceAccountType.class)) {
+            case BUILT_IN -> new BuiltIn(principal, new RoleDescriptor(in));
+            case USER_MANAGED -> new UserManaged(principal, in.readStringCollectionAsImmutableList(), in.readBoolean());
         };
     }
 
@@ -85,7 +85,7 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
     default void writeTo(StreamOutput out) throws IOException {
         final boolean tagged = out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_INFO);
         // Unreachable: a node that cannot read the tag also cannot ask for user-managed accounts, since its request
-        // arrives with a managed_by of just [elastic]. Stated as a failure rather than an assertion so that a future
+        // arrives with a type of just [built_in]. Stated as a failure rather than an assertion so that a future
         // caller that gets this wrong is told, instead of writing a truncated account into the stream.
         if (tagged == false && this instanceof BuiltIn == false) {
             throw new IllegalStateException(
@@ -96,7 +96,7 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
         out.writeString(principal());
         if (tagged) {
-            out.writeEnum(managedBy());
+            out.writeEnum(type());
         }
         switch (this) {
             case BuiltIn builtIn -> builtIn.roleDescriptor().writeTo(out);
@@ -113,7 +113,7 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(principal());
-        builder.field("managed_by", managedBy().value());
+        builder.field("type", type().value());
         switch (this) {
             case BuiltIn builtIn -> {
                 builder.field("role_descriptor");

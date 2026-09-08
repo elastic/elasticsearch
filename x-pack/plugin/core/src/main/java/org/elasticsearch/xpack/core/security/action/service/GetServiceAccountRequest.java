@@ -31,19 +31,19 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
     private final String namespace;
     @Nullable
     private final String serviceName;
-    private final EnumSet<ServiceAccountManagedBy> managedBy;
+    private final EnumSet<ServiceAccountType> type;
 
     /**
      * Reports on built-in accounts only, which is what this request meant before user-managed accounts existed.
      */
     public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName) {
-        this(namespace, serviceName, EnumSet.of(ServiceAccountManagedBy.ELASTIC));
+        this(namespace, serviceName, EnumSet.of(ServiceAccountType.BUILT_IN));
     }
 
-    public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName, EnumSet<ServiceAccountManagedBy> managedBy) {
+    public GetServiceAccountRequest(@Nullable String namespace, @Nullable String serviceName, EnumSet<ServiceAccountType> type) {
         this.namespace = namespace;
         this.serviceName = serviceName;
-        this.managedBy = EnumSet.copyOf(Objects.requireNonNull(managedBy, "managed_by cannot be null"));
+        this.type = EnumSet.copyOf(Objects.requireNonNull(type, "type cannot be null"));
     }
 
     public GetServiceAccountRequest(StreamInput in) throws IOException {
@@ -51,9 +51,9 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         this.namespace = in.readOptionalString();
         this.serviceName = in.readOptionalString();
         // A node that predates user-managed accounts can only be asking about built-in ones.
-        this.managedBy = in.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO)
-            ? in.readEnumSet(ServiceAccountManagedBy.class)
-            : EnumSet.of(ServiceAccountManagedBy.ELASTIC);
+        this.type = in.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO)
+            ? in.readEnumSet(ServiceAccountType.class)
+            : EnumSet.of(ServiceAccountType.BUILT_IN);
     }
 
     public String getNamespace() {
@@ -64,8 +64,8 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         return serviceName;
     }
 
-    public EnumSet<ServiceAccountManagedBy> getManagedBy() {
-        return managedBy;
+    public EnumSet<ServiceAccountType> getType() {
+        return type;
     }
 
     @Override
@@ -73,14 +73,12 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountRequest that = (GetServiceAccountRequest) o;
-        return Objects.equals(namespace, that.namespace)
-            && Objects.equals(serviceName, that.serviceName)
-            && managedBy.equals(that.managedBy);
+        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName) && type.equals(that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(namespace, serviceName, managedBy);
+        return Objects.hash(namespace, serviceName, type);
     }
 
     @Override
@@ -89,13 +87,13 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
         out.writeOptionalString(namespace);
         out.writeOptionalString(serviceName);
         if (out.getTransportVersion().supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_INFO)) {
-            out.writeEnumSet(managedBy);
-        } else if (managedBy.equals(EnumSet.of(ServiceAccountManagedBy.ELASTIC)) == false) {
+            out.writeEnumSet(type);
+        } else if (type.equals(EnumSet.of(ServiceAccountType.BUILT_IN)) == false) {
             // Dropping the filter would leave a request an older node reads as asking for built-in accounts, so it
             // would answer with accounts the caller did not ask for rather than reporting that it cannot answer.
             throw new IllegalStateException(
-                "cannot ask a node that does not support user-managed service accounts for accounts managed by ["
-                    + managedBy.stream().map(ServiceAccountManagedBy::value).collect(Collectors.joining(", "))
+                "cannot ask a node that does not support user-managed service accounts for accounts of type ["
+                    + type.stream().map(ServiceAccountType::value).collect(Collectors.joining(", "))
                     + "]"
             );
         }
@@ -103,8 +101,8 @@ public class GetServiceAccountRequest extends UntypedActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        if (managedBy.isEmpty()) {
-            return addValidationError("managed_by must name at least one of [" + ServiceAccountManagedBy.values(", ") + "]", null);
+        if (type.isEmpty()) {
+            return addValidationError("type must name at least one of [" + ServiceAccountType.values(", ") + "]", null);
         }
         return null;
     }

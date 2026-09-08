@@ -18,7 +18,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
@@ -75,7 +75,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     public void testTheAccountStoreIsNotConsultedUnlessUserManagedAccountsAreAsked() {
         stubUserManagedAccountsFailure();
         assertThat(principalsFor(new GetServiceAccountRequest(null, null)), equalTo(ALL_BUILT_IN_PRINCIPALS));
-        assertThat(principalsFor(elasticOnly()), equalTo(ALL_BUILT_IN_PRINCIPALS));
+        assertThat(principalsFor(builtInOnly()), equalTo(ALL_BUILT_IN_PRINCIPALS));
         verify(serviceAccountService, never()).getUserManagedAccountInfos(any(), any(), any());
     }
 
@@ -101,22 +101,22 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
             )
         );
         assertThat(
-            infos.stream().map(ServiceAccountInfo::managedBy).toList(),
+            infos.stream().map(ServiceAccountInfo::type).toList(),
             equalTo(
                 List.of(
-                    ServiceAccountManagedBy.USER,
-                    ServiceAccountManagedBy.ELASTIC,
-                    ServiceAccountManagedBy.ELASTIC,
-                    ServiceAccountManagedBy.ELASTIC,
-                    ServiceAccountManagedBy.ELASTIC,
-                    ServiceAccountManagedBy.USER
+                    ServiceAccountType.USER_MANAGED,
+                    ServiceAccountType.BUILT_IN,
+                    ServiceAccountType.BUILT_IN,
+                    ServiceAccountType.BUILT_IN,
+                    ServiceAccountType.BUILT_IN,
+                    ServiceAccountType.USER_MANAGED
                 )
             )
         );
     }
 
     public void testAskingOnlyForUserManagedAccountsExcludesTheBuiltInOnes() {
-        assertThat(infosFor(userOnly()), empty());
+        assertThat(infosFor(userManagedOnly()), empty());
 
         final ServiceAccountInfo.UserManaged account = new ServiceAccountInfo.UserManaged(
             "engineering/deploy_bot",
@@ -124,17 +124,17 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
             true
         );
         stubUserManagedAccounts(List.of(account));
-        assertThat(infosFor(userOnly()), contains(account));
+        assertThat(infosFor(userManagedOnly()), contains(account));
     }
 
     public void testTheNameFilterIsPassedToTheAccountStore() {
-        infosFor(new GetServiceAccountRequest("engineering", "deploy_bot", EnumSet.allOf(ServiceAccountManagedBy.class)));
+        infosFor(new GetServiceAccountRequest("engineering", "deploy_bot", EnumSet.allOf(ServiceAccountType.class)));
         verify(serviceAccountService).getUserManagedAccountInfos(eq("engineering"), eq("deploy_bot"), any());
     }
 
     public void testAFailedAccountStoreReadFailsTheRequest() {
         stubUserManagedAccountsFailure();
-        for (GetServiceAccountRequest request : List.of(bothKinds(), userOnly())) {
+        for (GetServiceAccountRequest request : List.of(bothKinds(), userManagedOnly())) {
             final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
             transportGetServiceAccountAction.doExecute(mock(Task.class), request, future);
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
@@ -142,16 +142,16 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         }
     }
 
-    private static GetServiceAccountRequest elasticOnly() {
-        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountManagedBy.ELASTIC));
+    private static GetServiceAccountRequest builtInOnly() {
+        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountType.BUILT_IN));
     }
 
-    private static GetServiceAccountRequest userOnly() {
-        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountManagedBy.USER));
+    private static GetServiceAccountRequest userManagedOnly() {
+        return new GetServiceAccountRequest(null, null, EnumSet.of(ServiceAccountType.USER_MANAGED));
     }
 
     private static GetServiceAccountRequest bothKinds() {
-        return new GetServiceAccountRequest(null, null, EnumSet.allOf(ServiceAccountManagedBy.class));
+        return new GetServiceAccountRequest(null, null, EnumSet.allOf(ServiceAccountType.class));
     }
 
     private List<String> principalsFor(GetServiceAccountRequest request) {

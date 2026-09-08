@@ -25,6 +25,7 @@ import java.util.function.IntFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
 
@@ -312,6 +313,110 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
+    /**
+     * Squared distance of duplicate and near-duplicate vectors at raw (unnormalised) scale, where the norms are large
+     * compared to the distance. The result must be non-negative, exactly 0 for an exact duplicate, and within f32
+     * rounding of the scalar reference; Lucene's distance-to-score mapping requires a non-negative distance.
+     */
+    public void testDuplicateAndNearDuplicateVectors() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("only meaningful for squared distance", function == SimdVecLibrary.SimilarityFunction.SQUARE_DISTANCE);
+        final int dims = size;
+        final float scale = randomFrom(64f, 150f, 300f, 500f, 1000f);
+
+        float[] base = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            base[i] = BFloat16.truncateToBFloat16((randomFloat() * 2f - 1f) * scale);
+        }
+
+        // vector 0 is an exact duplicate of the query; the others differ by one bf16 ulp in a few components
+        final int numVecs = randomIntBetween(2, 17);
+        float[][] docs = new float[numVecs][];
+        docs[0] = base.clone();
+        for (int v = 1; v < numVecs; v++) {
+            docs[v] = base.clone();
+            int perturbed = randomIntBetween(1, Math.min(4, dims));
+            for (int k = 0; k < perturbed; k++) {
+                int idx = randomInt(dims - 1);
+                docs[v][idx] = nextBFloat16AwayFromZero(docs[v][idx]);
+            }
+        }
+
+        var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
+        for (int v = 0; v < numVecs; v++) {
+            copyToBFloat16Segment(docs[v], bf16Segment, (long) v * dims * BFloat16.BYTES);
+        }
+        MemorySegment querySeg = switch (queryType) {
+            case BFLOAT16 -> {
+                var seg = arena.allocate((long) dims * BFloat16.BYTES);
+                copyToBFloat16Segment(base, seg, 0L);
+                yield seg;
+            }
+            case FLOAT32 -> {
+                var seg = arena.allocate((long) dims * Float.BYTES);
+                MemorySegment.copy(base, 0, seg, LAYOUT_LE_FLOAT, 0L, dims);
+                yield seg;
+            }
+        };
+
+        // single
+        for (int v = 0; v < numVecs; v++) {
+            float expected = ScalarOperations.similarity(function, base, docs[v]);
+            var docSeg = bf16Segment.asSlice((long) v * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES);
+            assertDistance("single vector " + v, expected, similarity(docSeg, querySeg, dims));
+        }
+
+        // bulk (sequential)
+        int[] identity = new int[numVecs];
+        for (int v = 0; v < numVecs; v++) {
+            identity[v] = v;
+        }
+        float[] expected = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, base, docs, identity, expected);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulk(bf16Segment, querySeg, dims, numVecs, scores);
+        assertDistances("bulk", expected, scores);
+
+        // bulk with offsets (random ordinals)
+        int[] ordinals = new int[numVecs];
+        for (int v = 0; v < numVecs; v++) {
+            ordinals[v] = randomInt(numVecs - 1);
+        }
+        // Guarantee that every layout scores the exact duplicate (docs[0]) on every seed.
+        ordinals[0] = 0;
+        ScalarOperations.bulkWithOffsets(function, base, docs, ordinals, expected);
+        var offsetsSeg = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int v = 0; v < numVecs; v++) {
+            offsetsSeg.setAtIndex(ValueLayout.JAVA_INT, v, ordinals[v]);
+        }
+        similarityBulkWithOffsets(bf16Segment, querySeg, dims, dims * BFloat16.BYTES, offsetsSeg, numVecs, scores);
+        assertDistances("bulk offsets", expected, scores);
+
+        // bulk sparse (same ordinals as addresses)
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int v = 0; v < numVecs; v++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                v,
+                bf16Segment.asSlice((long) ordinals[v] * dims * BFloat16.BYTES, (long) dims * BFloat16.BYTES)
+            );
+        }
+        similarityBulkSparse(addressesSeg, querySeg, dims, numVecs, scores);
+        assertDistances("bulk sparse", expected, scores);
+    }
+
+    private static void assertDistance(String what, float expected, float actual) {
+        assertThat(what + " must not be negative", actual, greaterThanOrEqualTo(0f));
+        // an exact duplicate must be exactly 0; otherwise allow f32 accumulation-order differences
+        assertEquals(what, expected, actual, expected * 1e-3f);
+    }
+
+    private static void assertDistances(String what, float[] expected, MemorySegment scores) {
+        for (int v = 0; v < expected.length; v++) {
+            assertDistance(what + " vector " + v, expected[v], scores.getAtIndex(JAVA_FLOAT_UNALIGNED, v));
+        }
+    }
+
     // Verifies that bulk sparse similarity rejects invalid arguments (undersized segments,
     // negative dims/count) with appropriate out-of-bounds exceptions.
     public void testBulkSparseIllegalArgs() {
@@ -446,6 +551,12 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
             fa[i] = BFloat16.truncateToBFloat16(randomFloat());
         }
         return fa;
+    }
+
+    /** The adjacent bf16 value one ulp further from zero; {@code bf16Value} must itself be a bf16 value. */
+    static float nextBFloat16AwayFromZero(float bf16Value) {
+        short bits = BFloat16.floatToBFloat16(bf16Value);
+        return BFloat16.bFloat16ToFloat((short) (bits + 1));
     }
 
     private static void copyToBFloat16Segment(float[] fa, MemorySegment segment, long offset) {

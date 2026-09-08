@@ -374,6 +374,36 @@ public abstract class FieldMapper extends Mapper {
         context.path().remove();
     }
 
+    /**
+     * Returns {@code true} if every multi-field supports the columnar batch path.
+     * Group mappers ({@link #resolvesColumnGroup()}) are always rejected: single-column dispatch
+     * cannot drive {@link #mapColumnGroupBatch}.
+     */
+    protected final boolean multiFieldsSupportColumnarParse(IndexSettings indexSettings) {
+        for (FieldMapper sub : builderParams.multiFields.mappers) {
+            if (sub.resolvesColumnGroup() || sub.supportsColumnarParse(indexSettings) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Drives the columnar batch path for every multi-field, passing each the same source column.
+     * No path push/pop is needed: columnar mappers name output columns from {@code fieldType().name()},
+     * which is already the full dotted path.
+     *
+     * <p>A sub-mapper throwing {@link UnsupportedOperationException} (e.g. a {@code multi_value=false}
+     * violation with {@code on_failure: ignore}) aborts the whole batch to the row path rather than
+     * handling the failure per-document as the row path does via {@code OnFailureStoredValues}.
+     * TODO: consider adding per-sub-field on_failure handling here.
+     */
+    protected final void mapColumnBatchToMultiFields(BatchMappingContext ctx, EscfColumn source) {
+        for (FieldMapper sub : builderParams.multiFields.mappers) {
+            sub.mapColumnBatch(ctx, source);
+        }
+    }
+
     protected static void throwIndexingWithScriptParam() {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }

@@ -966,7 +966,7 @@ There are a few events that have some more attributes in addition to those that 
 * `run_as_denied` and `run_as_granted`:
 
     `user.roles`
-    :   The role names as an array of the *authenticated* user which is being granted or denied the *impersonation* action. If authenticated as a [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array.
+    :   The role names as an array of the *authenticated* user which is being granted or denied the *impersonation* action. If authenticated as a built-in [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array. {applies_to}`stack: ga 9.6+` If authenticated as a user-managed service account, this contains the role names assigned to that account.
 
     `user.name`
     :   The name of the *authenticated* user which is being granted or denied the *impersonation* action.
@@ -983,7 +983,7 @@ There are a few events that have some more attributes in addition to those that 
 * `access_granted` and `access_denied`:
 
     `user.roles`
-    :   The role names of the user as an array. If authenticated using an API key, this contains the role names of the API key owner. If authenticated as a [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array.
+    :   The role names of the user as an array. If authenticated using an API key, this contains the role names of the API key owner. If authenticated as a built-in [service account](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/service-accounts.md), this is always an empty array. {applies_to}`stack: ga 9.6+` If authenticated as a user-managed service account, this contains the role names assigned to that account.
 
     `user.name`
     :   The name of the *effective* user. This is usually the same as the *authenticated* user, but if using the [run as authorization functionality](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/submitting-requests-on-behalf-of-other-users.md) this instead denotes the name of the *impersonated* user. If authenticated using an API key, this is the name of the API key owner.

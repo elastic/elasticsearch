@@ -221,8 +221,8 @@ public class RecoveryGateMonitorTests extends ESTestCase {
 
     public void testRecheckIntervalSettingUpdatesDynamically() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var initialInterval = TimeValue.timeValueMillis(between(1_000, 100_000));
-        final var updatedInterval = TimeValue.timeValueMillis(initialInterval.millis() + between(1_000, 100_000));
+        final var initialInterval = TimeValue.timeValueMillis(between(1, 100_000));
+        final var updatedInterval = TimeValue.timeValueMillis(initialInterval.millis() + between(1, 100_000));
         final var clusterSettings = new ClusterSettings(
             Settings.builder()
                 .put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true)

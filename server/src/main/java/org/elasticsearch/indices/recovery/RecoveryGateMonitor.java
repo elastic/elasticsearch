@@ -44,7 +44,7 @@ public final class RecoveryGateMonitor {
     public static final Setting<TimeValue> RECHECK_INTERVAL_SETTING = Setting.timeSetting(
         "indices.recovery.gates.recheck_interval",
         TimeValue.timeValueSeconds(1),
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

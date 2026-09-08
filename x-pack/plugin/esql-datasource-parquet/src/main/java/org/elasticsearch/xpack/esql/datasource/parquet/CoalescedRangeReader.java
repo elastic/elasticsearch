@@ -44,12 +44,14 @@ final class CoalescedRangeReader {
      * Upper bound on how far coalescing may extend a merged range, so a densely packed wide row
      * group does not become one very large contiguous array and request. This is a coalescing
      * bound, not an allocation bound: a single constituent larger than this keeps its own
-     * oversized range. The 16 MiB value mirrors {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE}
-     * as a familiar single-read ceiling, but the two constants govern unrelated paths. Using the
-     * adapter's 4 MiB {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a
-     * representative 152 MiB row group from roughly 10 requests into roughly 38.
+     * oversized range. Matches {@link ParquetStorageObjectAdapter#MAX_WINDOW_SIZE} so merge GETs
+     * and window GETs share the same 10 MiB in-flight ceiling. Permits drop when the GET completes;
+     * coalesced buffers stay until that row group is decoded. {@code C × B} budgets concurrent GET
+     * size, not retained prefetch. Using the adapter's 4 MiB
+     * {@link ParquetStorageObjectAdapter#DEFAULT_WINDOW_SIZE} here would turn a representative
+     * 152 MiB row group from roughly 16 requests into roughly 38.
      */
-    static final long MAX_MERGED_RANGE_BYTES = 16L * 1024 * 1024;
+    static final long MAX_MERGED_RANGE_BYTES = ParquetStorageObjectAdapter.MAX_WINDOW_SIZE;
 
     /**
      * A byte range within a file: {@code [offset, offset + length)}.

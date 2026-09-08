@@ -30,7 +30,13 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 /**
  * Base class for tests that need a string column on disk. It owns the whole lifecycle — the data and meta files,
  * their headers and footers, the metadata round trip, and closing the directory and input afterwards — so a test
- * describes a column as an array of per-document values and asserts against a reader over it.
+ * describes a column as an array of per-document slots and asserts against a reader over it.
+ *
+ * <p>A column is described as {@code BytesRef[][]}: a {@code null} row is a document with no value at all, and a
+ * {@code null} element within a row is a null slot. A row may hold nothing but nulls — the mapper writes a
+ * payload for an all-null array, which is what keeps it distinct from a field that is simply absent — so the
+ * codec sees that shape and these fixtures have to be able to describe it. A {@code BytesRef[]} column is the
+ * single-valued special case of the same thing.
  *
  * <p>The files are fixtures rather than real segments — this class writes and reads them both — so they carry
  * their own codec names. Nothing here has to track the names the format itself uses.
@@ -58,12 +64,12 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
      * {@link #withColumn(BytesRef[], int, ChunkCodec, int, ColumnCheck)}.
      */
     protected void withColumn(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
-        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(singleValued(docValues), check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with the block size fixed. */
     protected void withColumn(final BytesRef[] docValues, final int blockSize, final ColumnCheck check) throws IOException {
-        withColumn(docValues, blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
+        withColumn(singleValued(docValues), blockSize, check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with every layout choice fixed. */
@@ -74,7 +80,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int targetChunkBytes,
         final ColumnCheck check
     ) throws IOException {
-        withColumn(docValues, blockSize, chunkCodec, targetChunkBytes, DictionaryPolicy.NONE, check);
+        withColumn(singleValued(docValues), blockSize, chunkCodec, targetChunkBytes, DictionaryPolicy.NONE, check);
     }
 
     /**
@@ -89,17 +95,81 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final DictionaryPolicy policy,
         final ColumnCheck check
     ) throws IOException {
+        withColumn(singleValued(docValues), blockSize, chunkCodec, targetChunkBytes, policy, check);
+    }
+
+    /** As {@link #withColumn(BytesRef[], ColumnCheck)}, over a column whose documents may hold several slots. */
+    protected void withColumn(final BytesRef[][] docSlots, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, randomValidBlockSize(), check);
+    }
+
+    /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with the block size fixed. */
+    protected void withColumn(final BytesRef[][] docSlots, final int blockSize, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, blockSize, randomChunkCodec(), randomTargetChunkBytes(), DictionaryPolicy.NONE, check);
+    }
+
+    /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with every layout choice fixed. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final ColumnCheck check
+    ) throws IOException {
+        withColumn(docSlots, blockSize, chunkCodec, targetChunkBytes, DictionaryPolicy.NONE, check);
+    }
+
+    /** As {@link #withColumn(BytesRef[][], ColumnCheck)}, with every layout choice fixed and under a dictionary policy. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes, policy);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, blockSize, chunkCodec, targetChunkBytes, policy);
             try (IndexInput data = openData(dir, segmentId)) {
-                check.check(metadata, new StringColumnReader(metadata, data));
+                check.check(metadata, StringColumnReader.open(metadata, data));
             }
         }
     }
 
-    /** Verbatim or compressed; a value must read back the same either way. */
+    /**
+     * Random per-document slots. {@code sparse} leaves some documents without a value at all; {@code nulls}
+     * puts null slots among the values, including documents that hold nothing else — the mapper writes a
+     * payload for those, so a column really does contain them.
+     */
+    protected static BytesRef[][] randomDocSlots(final int maxDoc, final int maxSlots, final boolean sparse, final boolean nulls) {
+        final BytesRef[][] docSlots = new BytesRef[maxDoc][];
+        for (int doc = 0; doc < maxDoc; doc++) {
+            if (sparse && randomBoolean()) {
+                continue;
+            }
+            final BytesRef[] slots = new BytesRef[between(1, maxSlots)];
+            for (int slot = 0; slot < slots.length; slot++) {
+                if (nulls && randomBoolean()) {
+                    continue;
+                }
+                slots[slot] = new BytesRef(randomAlphaOfLengthBetween(0, 40));
+            }
+            docSlots[doc] = slots;
+        }
+        return docSlots;
+    }
+
+    /** One slot per document, so a {@code BytesRef[]} column reads as the degenerate {@code BytesRef[][]} one. */
+    protected static BytesRef[][] singleValued(final BytesRef[] docValues) {
+        final BytesRef[][] docSlots = new BytesRef[docValues.length][];
+        for (int doc = 0; doc < docValues.length; doc++) {
+            docSlots[doc] = docValues[doc] == null ? null : new BytesRef[] { docValues[doc] };
+        }
+        return docSlots;
+    }
+
     /** The column as the layout that names its values with ordinals, failing the test when it is not one. */
     protected static StringColumnMetadata.Dictionary dictionaryOf(StringColumnMetadata metadata) {
         assertTrue("expected a dictionary column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Dictionary);
@@ -112,6 +182,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return (StringColumnMetadata.Plain) metadata;
     }
 
+    /** Verbatim or compressed; a value must read back the same either way. */
     protected static ChunkCodec randomChunkCodec() {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }
@@ -135,24 +206,61 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numDocsWithField;
     }
 
+    /** The number of documents in {@code docSlots} that have at least one slot. */
+    protected static int numDocsWithField(final BytesRef[][] docSlots) {
+        int numDocsWithField = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                numDocsWithField++;
+            }
+        }
+        return numDocsWithField;
+    }
+
+    /** The total number of slots across every document, null slots included. */
+    protected static long numValues(final BytesRef[][] docSlots) {
+        long numValues = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                numValues += slots.length;
+            }
+        }
+        return numValues;
+    }
+
+    /** The total number of null slots across every document. */
+    protected static long numNullSlots(final BytesRef[][] docSlots) {
+        long numNullSlots = 0;
+        for (BytesRef[] slots : docSlots) {
+            if (slots != null) {
+                for (BytesRef slot : slots) {
+                    if (slot == null) {
+                        numNullSlots++;
+                    }
+                }
+            }
+        }
+        return numNullSlots;
+    }
+
     private static StringColumnMetadata writeColumn(
         final Directory dir,
         final byte[] segmentId,
-        final BytesRef[] docValues,
+        final BytesRef[][] docSlots,
         final int blockSize,
         final ChunkCodec chunkCodec,
         final int targetChunkBytes,
         final DictionaryPolicy policy
     ) throws IOException {
-        final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
             written = StringColumnWriter.write(
-                docValues.length,
-                numDocsWithField,
-                numDocsWithField,
-                () -> cursor(docValues),
+                docSlots.length,
+                numDocsWithField(docSlots),
+                numValues(docSlots),
+                numNullSlots(docSlots),
+                () -> cursor(docSlots),
                 blockSize,
                 chunkCodec,
                 targetChunkBytes,
@@ -171,7 +279,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         }
         try (ChecksumIndexInput in = dir.openChecksumInput(META_FILE)) {
             final FormatVersion version = ColumnarCodecUtil.checkHeader(in, META_CODEC, segmentId, "");
-            final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docValues.length, version);
+            final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, version);
             ColumnarCodecUtil.checkFooter(in);
             return read;
         }
@@ -194,20 +302,41 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
     /** A fresh single-valued cursor over {@code docValues}; {@code advance} is unsupported, as the writer never calls it. */
     protected static StringColumnValues cursor(final BytesRef[] docValues) {
+        return cursor(singleValued(docValues));
+    }
+
+    /** A fresh cursor over {@code docSlots}; {@code advance} is unsupported, as the writer never calls it. */
+    protected static StringColumnValues cursor(final BytesRef[][] docSlots) {
         return new StringColumnValues() {
+            private static final BytesRef EMPTY = new BytesRef(BytesRef.EMPTY_BYTES);
+
             private int doc = -1;
+            private int upto;
 
             @Override
             public int valueCount() {
-                return 1;
+                return docSlots[doc].length;
             }
 
             @Override
-            public void nextValue() {}
+            public int nullCount() {
+                int nulls = 0;
+                for (BytesRef slot : docSlots[doc]) {
+                    if (slot == null) {
+                        nulls++;
+                    }
+                }
+                return nulls;
+            }
+
+            @Override
+            public void nextValue() {
+                upto++;
+            }
 
             @Override
             public BytesRef value() {
-                return docValues[doc];
+                return docSlots[doc][upto - 1];
             }
 
             @Override
@@ -217,8 +346,9 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
             @Override
             public int nextDoc() {
-                for (doc = doc + 1; doc < docValues.length; doc++) {
-                    if (docValues[doc] != null) {
+                for (doc = doc + 1; doc < docSlots.length; doc++) {
+                    if (docSlots[doc] != null) {
+                        upto = 0;
                         return doc;
                     }
                 }
@@ -232,7 +362,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
             @Override
             public long cost() {
-                return docValues.length;
+                return docSlots.length;
             }
         };
     }

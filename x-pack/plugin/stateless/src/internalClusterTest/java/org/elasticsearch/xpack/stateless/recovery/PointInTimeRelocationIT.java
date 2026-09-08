@@ -1310,7 +1310,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         blobReadBlocked.countDown();
     }
 
-    public void testRelocationWithPITReferencingPinnedGenFiles() {
+    public void testRelocationWithPITReferencingPinnedGenFiles() throws Exception {
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNodeA = startSearchNode(nodeSettings);
 
@@ -1379,16 +1379,20 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newSearchNode));
 
+        // ensureGreen is not enough, the source node serves this PIT with the old id until its PIT contexts are gone.
+        waitForNoPITContextOnNode(searchNodeA, 5);
+
         // PIT search should still work after relocation, with an updated PIT id
         var updatedPitId = new AtomicReference<BytesReference>();
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
             // We index two new documents together with the updates
             assertHitCount(resp, initialDocs + 2);
+            assertFalse("PIT id should have changed after relocation.", isEquivalentId(resp.pointInTimeId(), pitId));
             updatedPitId.set(resp.pointInTimeId());
         });
 
         // Close the PIT with the updated id
-        closePointInTime(updatedPitId.get());
+        assertClosePit(updatedPitId.get(), 1);
     }
 
     /**

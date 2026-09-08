@@ -15,6 +15,7 @@ import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.ref.Cleaner;
 import java.util.Objects;
 
 /**
@@ -24,6 +25,9 @@ import java.util.Objects;
  * <p> Each instance holds a native context ({@code simdjson_stage1_ctx*}) that is reused across
  * calls. Instances are <strong>not thread-safe</strong> - each thread should own its own
  * instance.
+ *
+ * <p>The native context is freed by {@link #close()}. A {@link Cleaner} provides a backstop so
+ * that an instance which becomes unreachable without being closed does not leak native memory.
  */
 public final class StructuralIndexer implements AutoCloseable {
 
@@ -31,20 +35,25 @@ public final class StructuralIndexer implements AutoCloseable {
 
     private static final SimdJsonLibrary LIB = SimdJsonNativeSupport.library();
 
+    private static final Cleaner CLEANER = Cleaner.create();
+
     /** True when the native simdjson C++ library is loaded and available. */
     public static boolean available() {
         return LIB != null;
     }
 
-    private MemorySegment ctx;
+    private final MemorySegment ctx;
+    private final Cleaner.Cleanable cleanable;
     private final int[] outCount = new int[1];
+    private boolean closed;
 
     public StructuralIndexer(int initialCapacity) {
         Objects.requireNonNull(LIB, "Native simdjson is not available");
-        this.ctx = LIB.create(initialCapacity);
-        if (ctx.equals(MemorySegment.NULL)) {
-            throw new IllegalStateException("Native simdjson_stage1_create returned null");
-        }
+        MemorySegment created = checkNonNull(LIB.create(initialCapacity));
+        this.ctx = checkNonNull(LIB.create(initialCapacity));
+        // The cleanup action must not capture `this`, otherwise this instance stays strongly
+        // reachable from the Cleaner and the context is never freed.
+        this.cleanable = CLEANER.register(this, () -> LIB.destroy(created));
     }
 
     /**
@@ -63,8 +72,10 @@ public final class StructuralIndexer implements AutoCloseable {
      * {@code buffer} (i.e. they include {@code offset}).
      *
      * @throws JsonParsingException on invalid UTF-8 or other structural errors detected by simdjson
+     * @throws IllegalStateException if this indexer has been closed
      */
     public void index(byte[] buffer, int offset, int len, BitIndexes bitIndexes) {
+        ensureOpen();
         Objects.checkFromIndexSize(offset, len, buffer.length);
         bitIndexes.ensureCapacity(len + 1);
         bitIndexes.reset();
@@ -91,11 +102,23 @@ public final class StructuralIndexer implements AutoCloseable {
         return msg != null ? msg : "unknown error (code " + err + ")";
     }
 
+    /** Frees the native context. Idempotent. */
     @Override
     public void close() {
-        if (ctx != null) {
-            LIB.destroy(ctx);
-            ctx = null;
+        closed = true;
+        cleanable.clean();
+    }
+
+    static MemorySegment checkNonNull(MemorySegment segment) {
+        if (segment.equals(MemorySegment.NULL)) {
+            throw new IllegalStateException("Native simdjson_stage1_create returned null");
+        }
+        return segment;
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("indexer is closed");
         }
     }
 }

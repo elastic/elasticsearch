@@ -214,6 +214,38 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             return new StatelessDeterministicThreadPool(runnableWrapper);
         }
 
+        @Override
+        public void scheduleNow(Runnable task) {
+            if (isProcessPendingDeletes(task) == false) {
+                super.scheduleNow(task);
+                return;
+            }
+            // processPendingDeletes uses Semaphore.tryAcquire with a 30-minute wall-clock timeout.
+            // Under DTQ this can block the only thread while shard snapshots that still hold the lock
+            // sit in the runnable queue, so the suite times out. Re-enqueue until no other runnable
+            // work remains, matching production where generic and snapshot run on different threads.
+            super.scheduleNow(new Runnable() {
+                @Override
+                public void run() {
+                    if (hasRunnableTasks()) {
+                        logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", task);
+                        scheduleAt(getCurrentTimeMillis() + 1, this);
+                        return;
+                    }
+                    task.run();
+                }
+
+                @Override
+                public String toString() {
+                    return task.toString();
+                }
+            });
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         private class StatelessDeterministicThreadPool extends DeterministicThreadPool {
 
             protected StatelessDeterministicThreadPool(Function<Runnable, Runnable> runnableWrapper) {

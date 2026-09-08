@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.core.inference.chunking;
 import com.ibm.icu.text.BreakIterator;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.text.ReadLimitedCharSequence;
 import org.elasticsearch.inference.ChunkingSettings;
 
@@ -111,10 +109,7 @@ public class RecursiveChunker implements Chunker {
 
             return chunkOffsets;
         } catch (ReadLimitedCharSequence.LimitExceededException e) {
-            throw new CircuitBreakingException(
-                "Chunk separator regex has exceeded the read limit " + e.readLimit(),
-                CircuitBreaker.Durability.TRANSIENT
-            );
+            throw new IllegalArgumentException("Chunk separator regex has exceeded the read limit " + e.readLimit());
         }
     }
 

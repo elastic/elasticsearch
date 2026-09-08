@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.http;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -460,6 +461,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * sees is classified here too; other faults keep the path-prefixed {@link IOException} wrapper.
      */
     private Exception mapAsyncSendFailure(Throwable throwable) {
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
+        if (breakerTrip != null) {
+            return breakerTrip;
+        }
         Throwable cause = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
         if (cause instanceof ExternalUnavailableException eue) {
             return eue;

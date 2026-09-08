@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -327,9 +328,15 @@ public class Highlight extends UnaryPlan
     public void postAnalysisVerification(Failures failures) {
         verifyFieldTypes(failures);
         if (query == null) {
-            failures.add(fail(this, "HIGHLIGHT requires a query or a preceding full-text WHERE"));
+            // ResolveHighlight stores the borrowed query, not why borrowing failed, so recompute the reason here.
+            failures.add(fail(this, "{}", HighlightSupport.collectImplicitQuery(child(), source()).reasonIfMissing()));
         } else if (fields.isEmpty()) {
-            failures.add(fail(this, "HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause"));
+            failures.add(fail(this, "{}", HighlightSupport.noHighlightableFieldsMessage(query)));
+        } else if (implicitQuery && query.resolved()) {
+            String mismatch = HighlightSupport.implicitQueryFieldMismatchMessage(query, fields);
+            if (mismatch != null) {
+                failures.add(fail(this, "{}", mismatch));
+            }
         }
         if (options == null) {
             return;
@@ -380,8 +387,9 @@ public class Highlight extends UnaryPlan
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            // ON membership is enforced only when the user wrote both the query and the field list.
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false);
+            // ON membership is enforced only when the user wrote both the query and the field list. A borrowed
+            // query translates leniently so a predicate naming a non-ON field becomes match-none rather than failing.
+            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false, implicitQuery);
         } catch (IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).

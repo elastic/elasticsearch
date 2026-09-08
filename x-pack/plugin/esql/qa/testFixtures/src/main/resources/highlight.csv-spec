@@ -2081,3 +2081,34 @@ highlight_title:keyword     | highlight_body:keyword
 Return of the <em>King</em> | null
 ;
 
+
+# KEEP of one generated column must not drop ON fields a QSTR qualifier still names. Pruning title
+# out of ON leaves Lucene with searchable fields [author] and rejects [title].
+highlightQstrQualifierSurvivesPruneOfUnusedOnField
+required_capability: highlight_v6
+required_capability: qstr_function
+
+ROW title = "Return of the King", author = "Tolkien"
+| HIGHLIGHT QSTR("title:King") ON title, author
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+null
+;
+
+
+# MATCH(title) still translates against title after KEEP drops highlight_title.
+highlightMatchSurvivesPruneOfUnusedOnField
+required_capability: highlight_v6
+required_capability: match_function
+
+ROW title = "Return of the King", author = "Tolkien"
+| HIGHLIGHT MATCH(title, "king") ON title, author
+| KEEP highlight_author
+;
+
+highlight_author:keyword
+null
+;
+

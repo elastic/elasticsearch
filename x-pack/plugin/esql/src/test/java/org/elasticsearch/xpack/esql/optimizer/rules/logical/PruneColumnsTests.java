@@ -3348,4 +3348,28 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         assertFalse("HIGHLIGHT is purely additive, so an unused node should be dropped", plan.anyMatch(p -> p instanceof Highlight));
     }
+
+    public void testHighlightPruneKeepsQstrQualifiedOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT QSTR("first_name:x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneKeepsMatchFieldWhenGeneratedColumnUnused() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT MATCH(first_name, "x") ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
 }

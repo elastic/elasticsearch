@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -817,5 +818,115 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 greaterThanOrEqualTo(expectedCount)
             );
         }
+    }
+
+    /**
+     * The snapshot-deletion race, deletion-wins outcome: if the source snapshot is already being deleted when the restore-over reaches the
+     * master, the restore must be rejected before it publishes anything, leaving the destination unchanged. This is the same
+     * {@code ensureSnapshotNotDeleted} guard every restore honors, verified here for the open-index path.
+     */
+    public void testRestoreOverOpenIndexRejectedWhileSourceSnapshotIsBeingDeleted() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedIndex();
+
+        // Resolve the exact restore target up front. Once the deletion starts, it removes the source snapshot's blobs, so resolving it
+        // again
+        // would fail for the unrelated reason that the snapshot is gone; this test is specifically about the in-progress-deletion guard.
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
+        final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
+
+        // Hold the deletion of the source snapshot in progress: block the master before it finalizes the repository update that would
+        // remove
+        // the deletion entry, so SnapshotDeletionsInProgress still lists the source snapshot when the restore is submitted.
+        blockMasterOnWriteIndexFile(REPOSITORY_NAME);
+        final ActionFuture<AcknowledgedResponse> blockedDeletion = startDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        try {
+            waitForBlock(internalCluster().getMasterName(), REPOSITORY_NAME);
+            awaitNDeletionsInProgress(1);
+
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+            restoreService().restoreOverOpenIndices(
+                ProjectId.DEFAULT,
+                snapshot,
+                snapshotInfo,
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(target),
+                future
+            );
+            final ConcurrentSnapshotExecutionException e = expectThrows(
+                ConcurrentSnapshotExecutionException.class,
+                () -> future.actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(e.getMessage(), containsString("snapshot deletion is in-progress"));
+        } finally {
+            unblockNode(REPOSITORY_NAME, internalCluster().getMasterName());
+        }
+        blockedDeletion.actionGet(TEST_REQUEST_TIMEOUT);
+
+        assertThat("a restore rejected by the in-progress-deletion guard must leave the destination unchanged", historyUuid(), nullValue());
+    }
+
+    /**
+     * The snapshot-deletion race, restore-wins outcome: once the restore-over has published its {@link RestoreInProgress} entry, a delete of
+     * the source snapshot is rejected while that restore is still running, so the snapshot the restore depends on cannot be removed out from
+     * under it. Once the restore completes and its entry clears, the snapshot could be deleted normally again.
+     */
+    public void testDeletingSourceSnapshotIsRejectedWhileRestoreOverOpenIndexIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedIndex();
+
+        // Block the restore's recovery mid-flight so its RestoreInProgress entry stays in cluster state while we attempt the delete. Block
+        // on
+        // any repository read: the local store is unchanged since the snapshot, so the file diff reuses every data file locally, but
+        // recovery
+        // still reads the snapshot's shard-level metadata first, which is what this catches.
+        blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> restore = restoreOverOpenIndexFuture();
+        try {
+            waitForBlock(dataNode, REPOSITORY_NAME);
+            assertThat("the restore-over transition must be published before its recovery blocks", historyUuid(), notNullValue());
+
+            final ConcurrentSnapshotExecutionException e = expectThrows(
+                ConcurrentSnapshotExecutionException.class,
+                clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME)
+            );
+            assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
+        } finally {
+            unblockAllDataNodes(REPOSITORY_NAME);
+        }
+
+        // once unblocked the restore completes, and the rejected delete left the source snapshot intact
+        safeGet(restore);
+        awaitRestoreCompleted();
+        assertThat(historyUuid(), notNullValue());
+        assertThat(getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
+    }
+
+    /**
+     * Resolves the {@link RestoreService.OpenIndexRestoreTarget} for a single open destination index: its exact current identity (name and
+     * index UUID) plus the repository-side {@link IndexId} and {@link IndexMetadata} of the snapshot to restore it from.
+     */
+    private RestoreService.OpenIndexRestoreTarget openIndexTarget(String indexName) throws IOException {
+        final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
+        final RepositoryData repositoryData = getRepositoryData(REPOSITORY_NAME);
+        final IndexId indexId = repositoryData.resolveIndexId(indexName);
+        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(REPOSITORY_NAME);
+        final IndexMetadata snapshotIndexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
+        return new RestoreService.OpenIndexRestoreTarget(currentIndex(indexName), indexId, snapshotIndexMetadata);
+    }
+
+    private Index currentIndex(String indexName) {
+        return internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .state()
+            .metadata()
+            .getProject(ProjectId.DEFAULT)
+            .index(indexName)
+            .getIndex();
     }
 }

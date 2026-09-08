@@ -604,6 +604,85 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * A single destination for {@link #restoreOverOpenIndices}: the exact identity of the existing open index to restore over, the
+     * repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
+     *
+     * @param destinationIndex      the exact current identity (name and index UUID) of the open index to restore over, resolved by the
+     *                              caller before submitting the restore, so that an index deleted and recreated under the same name is
+     *                              never silently adopted
+     * @param snapshotIndexId       the repository-side identity of the index to restore from within the snapshot
+     * @param snapshotIndexMetadata the {@link IndexMetadata} exactly as recorded in the snapshot; the caller is not responsible for applying
+     *                              {@link RestoreService#indexMetadataRestoreTransformer}, {@link RestoreService#restoreOverOpenIndices}
+     *                              applies it internally, the same as {@link RestoreService#restoreSnapshot} does for every other index
+     *                              restored from a snapshot
+     */
+    public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
+
+    /**
+     * Restores over already-open destination indices from pre-resolved targets, in one cluster-state update that atomically applies the
+     * restored metadata and a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery routing, adds the
+     * correlated {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so a conflict on any
+     * one target — most notably an active snapshot of the destination, a transient condition that should be retried once the snapshot
+     * finishes — leaves every destination unchanged.
+     * <p>
+     * Unlike {@link #restoreSnapshot}, this does not resolve indices by name against a {@link RestoreSnapshotRequest}: the caller supplies
+     * the exact resolved {@link Index} identities and snapshot metadata for every target directly, bypassing request-based resolution.
+     * Renaming, feature states, global state restore, and partial restore are not supported here.
+     * <p>
+     * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated {@link RestoreInProgress}
+     * entry and is a no-op rather than a second initialization. This caller-supplied, stable UUID is what makes an idempotent retry safe:
+     * the intended production caller is a durable, resumable executor that owns a stable identifier across retries and failovers and passes
+     * it here as the restore UUID, so re-submitting after the first attempt already committed does not initialize the restore a second time.
+     * This is the sole difference from the public {@link #restoreSnapshot} path, which always mints a fresh random restore UUID.
+     *
+     * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
+     */
+    public void restoreOverOpenIndices(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        List<OpenIndexRestoreTarget> targets,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        final Map<String, IndexId> indicesToRestore = new HashMap<>();
+        final Map<String, Index> openIndexTargets = new HashMap<>();
+        final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
+        for (OpenIndexRestoreTarget target : targets) {
+            final String name = target.destinationIndex().getName();
+            indicesToRestore.put(name, target.snapshotIndexId());
+            openIndexTargets.put(name, target.destinationIndex());
+            // mirrors the equivalent step in #restoreSnapshot, after reading each IndexMetadata from the repository
+            snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(target.snapshotIndexMetadata()), false);
+        }
+        final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
+        final RestoreSnapshotRequest request = new RestoreSnapshotRequest(
+            masterNodeTimeout,
+            snapshot.getRepository(),
+            snapshot.getSnapshotId().getName()
+        );
+        submitUnbatchedTask(
+            "restore_snapshot_over_open_index[" + restoreUUID + "]",
+            new RestoreSnapshotStateTask(
+                listener,
+                request,
+                snapshot,
+                Set.of(),
+                indicesToRestore,
+                snapshotInfo,
+                snapshotMetadata,
+                List.of(),
+                (state, builder) -> {},
+                clusterService.getSettings(),
+                restoreUUID,
+                List.of(),
+                openIndexTargets
+            )
+        );
+    }
+
+    /**
      * A single destination for {@link #restoreOverExistingDataStreams}: the exact identity of the existing data stream to delete and
      * restore over, the snapshot-side {@link DataStream} to restore, and the repository-side identity plus metadata of every backing and
      * failure-store index the snapshot-side data stream references.

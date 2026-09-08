@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * {@code <field>_dense_vector} column. Unlike {@code KEEP}, it adds columns rather than projecting them.
  * </p>
  */
-public class DenseVector extends InferencePlan<DenseVector> implements TelemetryAware, PostAnalysisVerificationAware {
+public class DenseVector extends InferencePlan<DenseVector> implements TelemetryAware, PostAnalysisVerificationAware, DocPreserving {
 
     /** Suffix appended to each input field name to build the generated column name (e.g. {@code title} -> {@code title_dense_vector}). */
     public static final String OUTPUT_SUFFIX = "_dense_vector";

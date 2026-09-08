@@ -10,6 +10,15 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.ColumnarCodecClusterSettingProvider;
 import org.elasticsearch.index.IndexMode;
@@ -18,9 +27,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,6 +92,32 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
         }
     }
 
+    public void testSwitchOffDoesNotStickyThroughDataStreamSettingsUpdate() throws Exception {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled());
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String dsName = "ds-columnar-" + randomIdentifier();
+        putColumnarDataStreamTemplate(dsName, mode);
+        triggerDataStreamCreation(dsName);
+
+        updateClusterSettings(Settings.builder().put(CLUSTER_KEY, false));
+        try {
+            client().execute(
+                UpdateDataStreamSettingsAction.INSTANCE,
+                new UpdateDataStreamSettingsAction.Request(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT
+                ).indices(dsName)
+            ).actionGet();
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(CLUSTER_KEY));
+        }
+
+        assertAcked(client().execute(RolloverAction.INSTANCE, new RolloverRequest(dsName, null)).actionGet());
+        final String newBackingIndex = getDataStreamBackingIndexNames(dsName).get(1);
+        assertThat(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(indexSettingsFor(newBackingIndex)), equalTo(true));
+    }
+
     private String createColumnarIndex(String indexName) {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
@@ -89,6 +127,39 @@ public class ColumnarCodecClusterKillSwitchIT extends ESIntegTestCase {
         client().prepareIndex(indexName).setSource("{\"kwd\":\"a\"}", XContentType.JSON).get();
         indicesAdmin().prepareRefresh(indexName).get();
         return indexName;
+    }
+
+    private void triggerDataStreamCreation(String dsName) {
+        client().prepareIndex(dsName)
+            .setSource("{\"@timestamp\":\"" + Instant.now() + "\",\"kwd\":\"a\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+    }
+
+    private static void putColumnarDataStreamTemplate(String dsName, IndexMode mode) throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).put(INDEX_KEY, true).build();
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "kwd": { "type": "keyword" }
+                }
+              }
+            }
+            """;
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("template-" + dsName.toLowerCase(Locale.ROOT)).indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(dsName + "*"))
+                        .template(new Template(settings, new CompressedXContent(mapping), null))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                        .build()
+                )
+            ).actionGet()
+        );
     }
 
     private Settings indexSettingsFor(String indexName) {

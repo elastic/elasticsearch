@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -1385,16 +1386,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * <p>
      * Surfaced as a client-facing warning rather than a log line, because the audience is the query author, who
      * reads the response and not the node's DEBUG log. It goes to {@code warningSink}: at resolve time that is the
-     * metadata's warning list (see {@link SourceMetadata#warnings()}), at read time the read context's sink. Never
-     * {@code HeaderWarning} directly, because both paths run off the request thread. Within one response, identical
+     * metadata's warning list (see {@link SourceMetadata#warnings()}), at read time the read context's sink (or, for a
+     * context without one, the same {@code HeaderWarning} fallback {@link SkipWarnings} uses). Never {@code HeaderWarning}
+     * directly from here, because both paths run off the request thread. Within one response, identical
      * messages are collapsed to a single line regardless of how many inference paths fire; every run gets it.
      * Scanned only over the already-materialized sample (bounded by {@code schema_sample_size}), so
      * there is no per-row hot-path cost, and the trigger is the whole-field {@code \N} marker rather
      * than any backslash sequence, so a literal Windows path like {@code C:\temp} never produces a
      * false nudge. Returns on the first match.
      */
-    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows, String sourceLocation, @Nullable Consumer<String> warningSink) {
-        if (options.decodesEscapes() || warningSink == null) {
+    private void maybeHintUndecodedNullMarker(List<String[]> sampleRows, String sourceLocation, Consumer<String> warningSink) {
+        if (options.decodesEscapes()) {
             return;
         }
         for (int r = 0; r < sampleRows.size(); r++) {
@@ -3421,7 +3423,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal) : null;
-            this.warningSink = warningSink;
+            // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
+            // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
+            this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -3429,7 +3433,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     + "] encountered parse errors handled per policy (policy: "
                     + errorPolicy.modeName()
                     + "); affected rows/fields are listed below",
-                warningSink
+                this.warningSink
             );
         }
 

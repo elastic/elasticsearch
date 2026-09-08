@@ -1571,7 +1571,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // When _project.my_tag is replaced with "foo" and compared to "bar", the result is false,
         // which causes the optimizer to turn this into an empty LocalRelation
-        var localRelation = as(optimizedPlan, org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.class);
+        var localRelation = as(optimizedPlan, LocalRelation.class);
         assertThat(localRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
     }
 

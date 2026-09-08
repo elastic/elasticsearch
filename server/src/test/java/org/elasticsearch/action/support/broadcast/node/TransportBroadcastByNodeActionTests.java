@@ -708,8 +708,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals(
             "task cancelled [simulated]",
             expectThrows(
-                java.util.concurrent.ExecutionException.class,
-                org.elasticsearch.tasks.TaskCancelledException.class,
+                ExecutionException.class,
+                TaskCancelledException.class,
                 nodeResponseFuture::get
             ).getMessage()
         );
@@ -765,8 +765,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals(
             "task cancelled [simulated]",
             expectThrows(
-                java.util.concurrent.ExecutionException.class,
-                org.elasticsearch.tasks.TaskCancelledException.class,
+                ExecutionException.class,
+                TaskCancelledException.class,
                 nodeResponseFuture::get
             ).getMessage()
         );

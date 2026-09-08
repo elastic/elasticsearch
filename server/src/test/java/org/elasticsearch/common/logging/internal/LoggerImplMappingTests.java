@@ -30,7 +30,7 @@ public class LoggerImplMappingTests extends ESTestCase {
     Logger esLogger = new LoggerImpl(log4jLogger);
 
     ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> msgSupplierCaptor = ArgumentCaptor.forClass(
-        org.apache.logging.log4j.util.Supplier.class
+        Supplier.class
     );
     ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
 

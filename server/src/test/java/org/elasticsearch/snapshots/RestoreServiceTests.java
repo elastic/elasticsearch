@@ -770,8 +770,9 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * A restore over an open index that is being resharded must be rejected, preserving the existing close-index safety rule.
-     * A real reshard is stateless-only, so the guard is exercised here at the unit level with resharding metadata in place.
+     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
+     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
+     * an index and then restoring.
      */
     public void testRestoreOverOpenIndexRejectsReshardingIndex() {
         final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")

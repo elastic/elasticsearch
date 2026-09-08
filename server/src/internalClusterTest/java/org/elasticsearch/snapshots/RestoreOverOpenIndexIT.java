@@ -820,10 +820,10 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Concurrent restores of the same open index: while one restore-over is in flight, a second one submitted through the real master path
-     * must be rejected by {@link RestoreService}'s own guard against overlapping restores of the same index, leaving the first restore
-     * untouched. (The node-side transition's robustness to overlapping transitions that deliberately bypass this guard is covered
-     * separately by {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}.)
+     * This tests concurrent restores of the same open index. While one restore-over is in flight, a second one submitted through the master
+     * is rejected by {@link RestoreService}'s guard against overlapping restores of the same index, leaving the first restore untouched.
+     * (The behavior of non-master nodes encountering overlapping transitions that deliberately bypass this guard is covered separately by
+     * {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}.)
      */
     public void testRestoreOverOpenIndexRejectedWhileAnotherRestoreOverIsInFlight() throws Exception {
         internalCluster().startMasterOnlyNode();

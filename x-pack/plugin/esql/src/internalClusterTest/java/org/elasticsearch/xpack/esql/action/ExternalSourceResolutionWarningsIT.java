@@ -115,14 +115,13 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         Path part = dir.resolve("_index=alpha");
         Files.createDirectories(part);
         Files.writeString(part.resolve("a.csv"), "id,note\n1,x\n", StandardCharsets.UTF_8);
-        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
-        String glob = StoragePath.fileUri(dir) + "/**/*.csv";
+        String glob = StoragePath.fileUri(dir) + "/*" + "*/*.csv";
         String dataset = registerDataset("reserved_partition", glob, Map.of("hive_partitioning", true));
+        String query = "FROM " + dataset + " | KEEP note";
 
-        assertThat(
-            warningsOf("FROM " + dataset + " | KEEP note"),
-            hasItem(containsString("partition column [_index] surfaced as [_partition._index]"))
-        );
+        String notice = "partition column [_index] surfaced as [_partition._index]";
+        assertThat("cold listing", warningsOf(query), hasItem(containsString(notice)));
+        assertThat("cached listing", warningsOf(query), hasItem(containsString(notice)));
     }
 
     public void testKeywordWideningWarningReachesClient() throws Exception {
@@ -136,7 +135,11 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
             Map.of("schema_resolution", "union_by_name", "error_mode", "null_field")
         );
 
-        assertThat(warningsOf("FROM " + dataset + " | SORT id | KEEP col"), hasItem(containsString("widened columns to keyword")));
+        String query = "FROM " + dataset + " | SORT id | KEEP col";
+
+        String notice = "widened columns to keyword";
+        assertThat("cold resolve", warningsOf(query), hasItem(containsString(notice)));
+        assertThat("cached resolve", warningsOf(query), hasItem(containsString(notice)));
     }
 
     /** Runs {@code query} over HTTP and returns the {@code Warning} header messages of the response. */

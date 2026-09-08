@@ -346,7 +346,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
         return this.runtimeFields;
     }
 
-    Long nowInMillis() {
+    public Long nowInMillis() {
         return nowInMillis;
     }
 

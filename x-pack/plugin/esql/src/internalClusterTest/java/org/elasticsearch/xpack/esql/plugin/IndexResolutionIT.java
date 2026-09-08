@@ -118,12 +118,12 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             org.elasticsearch.xpack.esql.parser.ParsingException.class,
             containsString("Invalid index name [data-stream-1::fake]"),
-            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake"))
+            () -> run(syncEsqlQueryRequest("FROM data-stream-1::fake")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-data-stream::data]"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data")).close()
         );
     }
 
@@ -191,17 +191,17 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [no-such-index]"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index-1,no-such-index-2")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index"),
-            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*"))
+            () -> run(syncEsqlQueryRequest("FROM no-such-index,no-such-*")).close()
         );
     }
 
@@ -218,12 +218,12 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest("FROM index-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1")).close()
         );
         expectThrows(
             ClusterBlockException.class,
             containsString("index [index-1] blocked by: [FORBIDDEN/4/index closed]"),
-            () -> run(syncEsqlQueryRequest("FROM index-1,index-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,index-2")).close()
         );
         try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
             assertOk(response);
@@ -270,22 +270,22 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1,available-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1,available-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM *-index-1"))
+            () -> run(syncEsqlQueryRequest("FROM *-index-1")).close()
         );
         expectThrows(
             NoShardAvailableActionException.class,
             containsString("index [unavailable-index-1] has no active shard copy"),
-            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM unavailable-index-1").allowPartialResults(true)).close()
         );
     }
 
@@ -296,24 +296,24 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1")).close()
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true)).close()
         );
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // only the first missing index is reported
-            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2"))
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1,nonexisting-2")).close()
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("field", "type=keyword"));
         expectThrows(
             IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index has no documents and non-empty mapping
-            () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1"))
+            () -> run(syncEsqlQueryRequest("FROM index-2,nonexisting-1")).close()
         );
 
         assertAcked(client().admin().indices().prepareCreate("index-3"));
@@ -377,7 +377,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             expectThrows(
                 VerificationException.class,
                 containsString("Unknown index [test-view::failures]"),
-                () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
+                () -> run(syncEsqlQueryRequest("FROM test-view::failures")).close()
             );
         } finally {
             client().execute(

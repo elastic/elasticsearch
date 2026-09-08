@@ -64,12 +64,12 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake"))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake")).close()
         );
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":fake]"),
-            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":fake").allowPartialResults(true)).close()
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
@@ -90,6 +90,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
     public void testResolvesLocalAndRemoteIndex() {
         indexRandom(LOCAL_CLUSTER, true, "index-1", 1);
         indexRandom(REMOTE_CLUSTER_1, true, "index-1", 1);
+        indexRandom(REMOTE_CLUSTER_2, true, "index-1", 1);
 
         try (
             var response = run(
@@ -102,6 +103,16 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
                 response,
                 new EsqlResponseExecutionInfo(LOCAL_CLUSTER, "index-1", Status.SUCCESSFUL),
                 new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-1", Status.SUCCESSFUL)
+            );
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM index-*,*:index-* METADATA _index").includeCCSMetadata(true))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "index-1", REMOTE_CLUSTER_1 + ":index-1", REMOTE_CLUSTER_2 + ":index-1");
+            assertExecutionInfo(
+                response,
+                new EsqlResponseExecutionInfo(LOCAL_CLUSTER, "index-*", Status.SUCCESSFUL),
+                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_1, "index-*", Status.SUCCESSFUL),
+                new EsqlResponseExecutionInfo(REMOTE_CLUSTER_2, "index-*", Status.SUCCESSFUL)
             );
         }
     }
@@ -131,7 +142,7 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         expectThrows(
             NoSuchRemoteClusterException.class,
             containsString("no such remote cluster: [fake]"),
-            () -> run(syncEsqlQueryRequest("FROM fake:index-1 METADATA _index"))
+            () -> run(syncEsqlQueryRequest("FROM fake:index-1 METADATA _index")).close()
         );
         try (var response = run(syncEsqlQueryRequest("FROM fake*:index-1 METADATA _index"))) {
             assertOk(response);
@@ -203,14 +214,14 @@ public class RemoteIndexResolutionIT extends AbstractCrossClusterTestCase {
         expectThrows(
             org.elasticsearch.xpack.esql.parser.ParsingException.class,
             containsString("Invalid index name [data-stream-1::fake]"),
-            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":data-stream-1::fake"))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":data-stream-1::fake")).close()
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":no-such-data-stream::data]"),
-            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":no-such-data-stream::data"))
+            () -> run(syncEsqlQueryRequest("FROM " + REMOTE_CLUSTER_1 + ":no-such-data-stream::data")).close()
         );
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);

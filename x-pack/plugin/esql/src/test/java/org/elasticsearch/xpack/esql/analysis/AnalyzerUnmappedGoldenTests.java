@@ -1458,4 +1458,33 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
+    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    public void testLoadAllForkEveryBranchLoadsExtras() {
+        loadAll("""
+            FROM employees
+            | FORK (WHERE emp_no > 10)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    /**
+     * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
+     * with a null {@code $$unmapped_fields} to match its sibling.
+     */
+    public void testLoadAllForkPatternLessKeepInOneBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no, first_name)
+                   (WHERE salary > 50000)
+            """).run();
+    }
+
+    public void testLoadAllForkPatternLessKeepInEveryBranch() {
+        loadAll("""
+            FROM employees
+            | FORK (KEEP emp_no)
+                   (KEEP first_name)
+            """).run();
+    }
+
 }

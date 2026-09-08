@@ -15,14 +15,13 @@ jobs:
       github.repository == 'elastic/elasticsearch' &&
       contains(github.event.issue.labels.*.name, 'needs:risk') &&
       contains(github.event.issue.labels.*.name, '>test-failure') &&
-      (
-        github.event.label.name == 'needs:risk' ||
-        github.event.label.name == '>test-failure' ||
-        startsWith(github.event.label.name, 'Team:')
-      )
+      github.event.label.name == 'needs:risk'
     concurrency:
+      # Do not set cancel-in-progress here: if a needs:risk label is removed and
+      # re-added in quick succession, cancelling the in-progress run could drop
+      # the analysis entirely. Queuing runs instead is safe: the :eyes: reaction
+      # idempotency check prevents duplicate triggers.
       group: test-analysis-${{ github.event.issue.number }}
-      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Check if analysis was already triggered

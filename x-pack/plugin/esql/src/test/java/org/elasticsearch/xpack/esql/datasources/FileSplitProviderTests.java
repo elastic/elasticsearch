@@ -1050,11 +1050,15 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testProbeConcurrencyIsClampedToBlobStoreConcurrency() {
         assertEquals(4, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 4).build()));
         int ceiling = FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
-        assertEquals(ceiling, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build()));
-        assertEquals(
-            FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
-            probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 200).build())
-        );
+        Settings atCeiling = Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build();
+        int blobAtCeiling = ExternalSourceSettings.blobStoreConcurrency(atCeiling);
+        assertEquals(Math.min(ceiling, blobAtCeiling), probeConcurrencyFor(atCeiling));
+        Settings aboveCeiling = Settings.builder().put("esql.external.max_concurrent_requests", 200).build();
+        int blobAbove = ExternalSourceSettings.blobStoreConcurrency(aboveCeiling);
+        int expectedProbe = blobAbove > 0
+            ? Math.min(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY, blobAbove)
+            : FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
+        assertEquals(expectedProbe, probeConcurrencyFor(aboveCeiling));
         assertEquals(
             "permit limiting disabled must not disable concurrency",
             FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
@@ -1137,7 +1141,12 @@ public class FileSplitProviderTests extends ESTestCase {
         boolean expectAbovePinningCap
     ) throws Exception {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
-        CountDownLatch started = new CountDownLatch(awaitStarted);
+        int concurrency = ExternalSourceSettings.blobStoreConcurrency(settings);
+        if (expectAbovePinningCap) {
+            assumeTrue("native Parquet s3 peak>16 needs a heap that allows more than 16 GET slots", concurrency > 16);
+        }
+        int waitFor = concurrency > 0 ? Math.min(awaitStarted, concurrency) : awaitStarted;
+        CountDownLatch started = new CountDownLatch(waitFor);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger inFlight = new AtomicInteger();
         AtomicInteger peak = new AtomicInteger();

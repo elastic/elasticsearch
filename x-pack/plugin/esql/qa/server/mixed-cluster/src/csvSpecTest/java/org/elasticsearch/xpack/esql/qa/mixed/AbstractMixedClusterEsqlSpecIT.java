@@ -25,9 +25,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
@@ -60,11 +58,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH, true);
 
-    static final Version bwcVersion = Version.fromString(
-        System.getProperty("tests.old_cluster_version") != null
-            ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
-            : null
-    );
+    static final Version bwcVersion = MixedClusterTestSupport.bwcVersion();
 
     protected AbstractMixedClusterEsqlSpecIT(
         String fileName,
@@ -106,22 +100,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         HttpHost[] allHosts = parseClusterHosts(cluster.getHttpAddresses()).toArray(HttpHost[]::new);
         try (RestClient probe = buildClient(restAdminSettings(), allHosts)) {
             ObjectPath nodes = ObjectPath.createFromResponse(probe.performRequest(new Request("GET", "/_nodes")));
-            Map<String, Object> nodesMap = nodes.evaluate("nodes");
-            List<String> selected = new ArrayList<>();
-            for (String id : nodesMap.keySet()) {
-                String version = nodes.evaluate("nodes." + id + ".version");
-                boolean isOld = Version.fromString(version.replace("-SNAPSHOT", "")).equals(bwcVersion);
-                if (isOld == oldCoordinator) {
-                    HttpHost host = HttpHost.create(nodes.evaluate("nodes." + id + ".http.publish_address"));
-                    selected.add(host.getHostName() + ":" + host.getPort());
-                }
-            }
-            if (selected.isEmpty()) {
-                throw new IllegalStateException(
-                    "No " + (oldCoordinator ? "old" : "current") + " nodes found in mixed cluster for BWC version [" + bwcVersion + "]"
-                );
-            }
-            return String.join(",", selected);
+            return MixedClusterTestSupport.httpAddressesForCoordinator(nodes, oldCoordinator);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to resolve coordinator addresses from /_nodes", e);
         }

@@ -38,12 +38,78 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(testArtifact(project(":modules:ip-location")))
 
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
+
+// Generate the small Parquet fixture set used by the external csv-spec BWC variants.
+def serverProject = project(xpackModule('esql:qa:server'))
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+def parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+def parquetFixtureDir = file("${parquetFixtureOutputDir}/standalone")
+def csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
+
+tasks.register('syncBwcParquetFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesDataDir) {
+    include csvToParquetFixtures.collect { "${it}.csv" }
+  }
+  into parquetFixtureDir
+}
+
+def generateBwcParquetTasks = []
+csvToParquetFixtures.each { baseName ->
+  def taskName = "generateBwcParquet_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def parquetFile = file("${parquetFixtureDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava'), syncBwcParquetFixtures
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvInput.path, parquetFile.path]
+    inputs.file(csvInput)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateBwcParquetTasks.add(tasks.named(taskName))
+}
+
+def multifileSplitDir = file("${parquetFixtureOutputDir}/multifile_split")
+def multifileSplitEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
+tasks.register('generateBwcMultifileSplitParquet', JavaExec) {
+  dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+  args = [multifileSplitEmployeesCsv.path, multifileSplitDir.path, '3']
+  inputs.file(multifileSplitEmployeesCsv)
+  outputs.dir(multifileSplitDir)
+  doFirst {
+    delete multifileSplitDir
+  }
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateBwcParquetTasks.add(tasks.named('generateBwcMultifileSplitParquet'))
+
+def generateBwcParquetFixtures = tasks.register('generateBwcParquetFixtures') {
+  dependsOn generateBwcParquetTasks
+}
+
+sourceSets.csvSpecTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+tasks.named('processCsvSpecTestResources').configure {
+  dependsOn generateBwcParquetFixtures
+}
 
 esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
@@ -52,7 +118,23 @@ esqlCsvSpecTests {
     // leaf that pins its coordinator version.
     variant 'MixedClusterEsqlCurrentCoordinatorSpec', 'AbstractMixedClusterEsqlCurrCoordSpecIT'
     variant 'MixedClusterEsqlOldCoordinatorSpec', 'AbstractMixedClusterEsqlOldCoordSpecIT'
+    variant 'MixedClusterExternalCurrentCoordinatorSpec', 'AbstractMixedClusterExternalCurrCoordSpecIT',
+      'external-basic.csv-spec',
+      'external-multivalue.csv-spec',
+      'external-multifile.csv-spec',
+      'external-multifile-resolution.csv-spec',
+      'external-declared-schema.csv-spec',
+      'external-heavy-aggregates.csv-spec'
+    variant 'MixedClusterExternalOldCoordinatorSpec', 'AbstractMixedClusterExternalOldCoordSpecIT',
+      'external-basic.csv-spec',
+      'external-multivalue.csv-spec',
+      'external-multifile.csv-spec',
+      'external-multifile-resolution.csv-spec',
+      'external-declared-schema.csv-spec',
+      'external-heavy-aggregates.csv-spec'
 }
+
+def dataSourcesBwcVersion = Version.fromString("9.5.0")
 
 // ESQL is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
@@ -60,14 +142,18 @@ def supportedVersion = bwcVersion -> {
 }
 
 // Note: applying 'elasticsearch.internal-java-rest-test' also registers a base (unversioned)
-// 'javaRestTest' task. That task has an empty javaRestTest source set here — the csv-spec
-// test class (AbstractMixedClusterEsqlSpecIT) lives in the csvSpecTest source set and requires
-// tests.old_cluster_version to be set, so it cannot run without a BWC version. The base task
-// is harmless (it runs nothing) and is not wired to 'check' or 'bwcTest'.
+// 'javaRestTest' task. The bwc-test plugin disables that task and points every versioned
+// StandaloneRestIntegTestTask at the javaRestTest source set, so the task below runs every
+// javaRestTest class unless a version-specific filter excludes it.
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+      }
+    }
   }
 
   def csvSpecTestCurrentCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsCurrentCoordinator", StandaloneRestIntegTestTask) {
@@ -77,7 +163,9 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
+    dependsOn generateEsqlSpecTests, generateBwcParquetFixtures
+    jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+    systemProperty 'arrow.allocation.manager.type', 'Unsafe'
     // Restrict to the current-coordinator variant; the old-coordinator classes run under csvSpecTestsOldCoordinator.
     include '**/MixedClusterEsqlCurrentCoordinatorSpec*IT.class'
   }
@@ -89,8 +177,43 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     maxParallelForks = 1
     testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
     classpath = sourceSets.csvSpecTest.runtimeClasspath
-    dependsOn generateEsqlSpecTests
+    dependsOn generateEsqlSpecTests, generateBwcParquetFixtures
+    jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+    systemProperty 'arrow.allocation.manager.type', 'Unsafe'
     include '**/MixedClusterEsqlOldCoordinatorSpec*IT.class'
+  }
+
+  // External specs use dataset names that overlap with indices loaded by the ordinary specs.
+  // Dedicated tasks provide a separate JVM and cluster, and therefore a separate one-time ingest lifecycle.
+  def externalCsvSpecTests = []
+  if (bwcVersion.onOrAfter(dataSourcesBwcVersion)) {
+    def externalCurrentCoordinator = tasks.register(
+      "v${bwcVersion}#csvSpecTestsExternalCurrentCoordinator",
+      StandaloneRestIntegTestTask
+    ) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.old_cluster_version", bwcVersion)
+      maxParallelForks = 1
+      testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+      classpath = sourceSets.csvSpecTest.runtimeClasspath
+      dependsOn generateEsqlSpecTests, generateBwcParquetFixtures
+      jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+      systemProperty 'arrow.allocation.manager.type', 'Unsafe'
+      include '**/MixedClusterExternalCurrentCoordinatorSpec*IT.class'
+    }
+    def externalOldCoordinator = tasks.register("v${bwcVersion}#csvSpecTestsExternalOldCoordinator", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.old_cluster_version", bwcVersion)
+      maxParallelForks = 1
+      testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+      classpath = sourceSets.csvSpecTest.runtimeClasspath
+      dependsOn generateEsqlSpecTests, generateBwcParquetFixtures
+      jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+      systemProperty 'arrow.allocation.manager.type', 'Unsafe'
+      include '**/MixedClusterExternalOldCoordinatorSpec*IT.class'
+    }
+    externalCsvSpecTests.add(externalCurrentCoordinator)
+    externalCsvSpecTests.add(externalOldCoordinator)
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
@@ -101,10 +224,14 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn javaRestTest, csvSpecTestCurrentCoordinator, csvSpecTestOldCoordinator, yamlRestTest
+    dependsOn javaRestTest, csvSpecTestCurrentCoordinator, csvSpecTestOldCoordinator, externalCsvSpecTests, yamlRestTest
   }
 }
 
 tasks.named("yamlRestTest") {
   enabled = false
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
 }

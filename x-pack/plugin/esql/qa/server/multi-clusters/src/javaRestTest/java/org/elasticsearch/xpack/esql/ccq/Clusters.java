@@ -176,6 +176,9 @@ public class Clusters {
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
         }
+        // Released 9.5 builds default the local datasource off. The feature carries a 9.5 floor, so applying it
+        // unconditionally is also safe for older BWC nodes.
+        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(localClusterVersion())) {
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), federationEnabled);
         }
@@ -222,6 +225,7 @@ public class Clusters {
         if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
             cluster.setting(localAllowedPathsSetting(localClusterVersion()), csvDataPath.toString());
         }
+        cluster.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
         if (knowsFederationSetting(localClusterVersion())) {
             // The local coordinator only asks its remotes to resolve datasets when federation is available here.
             cluster.setting(Federation.FEDERATION_ENABLED.getKey(), "true");

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
@@ -145,6 +146,26 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
      */
     protected abstract ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder)
         throws IOException;
+
+    /**
+     * Accounts for the memory used by a generated {@link IndexRequest} and rejects the request if the running total would exceed
+     * {@link HttpTransportSettings#SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH}. Resource/scope attributes and labels are
+     * copied into every document, so {@link IndexRequest#ramBytesUsed()} reflects that fan-out.
+     *
+     * @param totalExpandedBytes bytes already accounted for from previously built index requests
+     * @param indexRequest       the newly built index request
+     * @return the updated running total including {@code indexRequest}
+     */
+    protected long accountExpandedContent(long totalExpandedBytes, IndexRequest indexRequest) {
+        long updatedTotal = totalExpandedBytes + indexRequest.ramBytesUsed();
+        if (updatedTotal > maxExpandedContentLength) {
+            throw new ElasticsearchStatusException(
+                "OTLP request rejected: expanded content would exceed limit [" + maxExpandedContentLength + "] bytes",
+                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            );
+        }
+        return updatedTotal;
+    }
 
     private void handlePartialSuccess(
         BulkResponse bulkItemResponses,

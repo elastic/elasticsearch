@@ -18,7 +18,6 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.MessageLite;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,27 +71,15 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
         LogsProcessingContext context = new LogsProcessingContext();
-        long totalAttributeBytes = 0;
+        long totalExpandedBytes = 0;
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
-            long resourceAttributeBytes = resource.getAttributesList().stream().mapToLong(a -> a.getSerializedSize()).sum();
             List<ScopeLogs> scopeLogsList = resourceLogs.getScopeLogsList();
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
-                long scopeAttributeBytes = scope.getAttributesList().stream().mapToLong(a -> a.getSerializedSize()).sum();
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
-                // Guard against attribute fan-out: resource and scope attributes are copied into every log record document.
-                totalAttributeBytes += (resourceAttributeBytes + scopeAttributeBytes) * logRecordsList.size();
-                if (totalAttributeBytes > maxExpandedContentLength) {
-                    throw new ElasticsearchStatusException(
-                        "OTLP logs request rejected: attribute data written across all documents would exceed limit ["
-                            + maxExpandedContentLength
-                            + "] bytes",
-                        RestStatus.REQUEST_ENTITY_TOO_LARGE
-                    );
-                }
                 String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
@@ -124,9 +110,9 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                         if (Strings.hasLength(ingestPipeline)) {
                             indexRequest.setPipeline(ingestPipeline);
                         }
-                        bulkRequestBuilder.add(
-                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
-                        );
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
+                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        bulkRequestBuilder.add(indexRequest);
                     }
                 }
             }

@@ -79,7 +79,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     private static final String PROMETHEUS_DATASET_SUFFIX = ".prometheus";
 
     private final Client client;
-    private final long maxLabelBytesPerRequest;
+    private final long maxExpandedContentLength;
 
     @Inject
     public PrometheusRemoteWriteTransportAction(
@@ -91,7 +91,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
     ) {
         super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
-        this.maxLabelBytesPerRequest = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
+        this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -104,7 +104,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
             int totalSamples = 0;
             int droppedMissingName = 0;
-            long totalLabelBytes = 0;
+            long totalExpandedBytes = 0;
             for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
                 int seriesSamples = timeSeries.getSamplesCount();
                 totalSamples += seriesSamples;
@@ -112,7 +112,6 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 String metricName = null;
                 String dataset = request.dataset;
                 String namespace = request.namespace;
-                long labelBytesPerDoc = 0;
                 for (Label label : timeSeries.getLabelsList()) {
                     String labelValue = label.getValue();
                     if (Strings.hasText(labelValue) == false) {
@@ -126,24 +125,7 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     } else if (DATA_STREAM_NAMESPACE_LABEL.equals(labelName)) {
                         namespace = DataStream.sanitizeNamespace(labelValue);
                     }
-                    if (isIgnoredLabel(labelName) == false) {
-                        labelBytesPerDoc += labelName.length() + labelValue.length();
-                        // Guard against label fan-out: the same labels are copied into every per-sample document, so a large
-                        // label value amplified by a high sample count can exhaust heap before the bulk executes.
-                        if (labelBytesPerDoc * seriesSamples > maxLabelBytesPerRequest - totalLabelBytes) {
-                            listener.onFailure(
-                                new ElasticsearchStatusException(
-                                    "Prometheus remote write request rejected: label data written across all documents would exceed limit ["
-                                        + maxLabelBytesPerRequest
-                                        + "] bytes",
-                                    RestStatus.REQUEST_ENTITY_TOO_LARGE
-                                )
-                            );
-                            return;
-                        }
-                    }
                 }
-                totalLabelBytes += labelBytesPerDoc * seriesSamples;
                 if (metricName == null) {
                     droppedMissingName += seriesSamples;
                     continue;
@@ -153,7 +135,21 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                     if (Double.isFinite(sample.getValue()) == false) {
                         continue;
                     }
-                    bulkRequestBuilder.add(buildIndexRequest(timeSeries, sample, metricName, dataset, namespace));
+                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, dataset, namespace);
+                    // Guard against label fan-out: the same labels are copied into every per-sample document.
+                    totalExpandedBytes += indexRequest.ramBytesUsed();
+                    if (totalExpandedBytes > maxExpandedContentLength) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                "Prometheus remote write request rejected: expanded content would exceed limit ["
+                                    + maxExpandedContentLength
+                                    + "] bytes",
+                                RestStatus.REQUEST_ENTITY_TOO_LARGE
+                            )
+                        );
+                        return;
+                    }
+                    bulkRequestBuilder.add(indexRequest);
                 }
             }
 

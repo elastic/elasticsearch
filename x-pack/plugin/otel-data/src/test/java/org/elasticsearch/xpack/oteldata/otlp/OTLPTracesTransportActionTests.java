@@ -194,7 +194,7 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
             settings
         );
 
-        // ~1 KiB resource attribute × 15 spans ≈ 15 KiB, exceeds the 10 KiB limit
+        // ~1 KiB resource attribute × 15 spans — IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
         String largeValue = "x".repeat(1024);
         List<Span> spans = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
@@ -213,7 +213,7 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
         ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
         verify(responseListener).onFailure(exception.capture());
         assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-        assertThat(exception.getValue().getMessage(), containsString("attribute data written across all documents would exceed limit"));
+        assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
         verify(client, never()).execute(any(), any(), any());
     }
 

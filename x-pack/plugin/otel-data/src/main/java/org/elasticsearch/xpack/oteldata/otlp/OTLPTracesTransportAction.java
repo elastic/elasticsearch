@@ -18,7 +18,6 @@ import io.opentelemetry.proto.trace.v1.Span;
 
 import com.google.protobuf.MessageLite;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,30 +74,16 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         SpanDocumentBuilder spanDocumentBuilder = new SpanDocumentBuilder(byteStringAccessor);
         SpanEventDocumentBuilder spanEventDocumentBuilder = new SpanEventDocumentBuilder(byteStringAccessor);
         List<ResourceSpans> resourceSpansList = tracesServiceRequest.getResourceSpansList();
-        long totalAttributeBytes = 0;
+        long totalExpandedBytes = 0;
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
             Resource resource = resourceSpans.getResource();
-            long resourceAttributeBytes = resource.getAttributesList().stream().mapToLong(a -> a.getSerializedSize()).sum();
             List<ScopeSpans> scopeSpansList = resourceSpans.getScopeSpansList();
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
-                long scopeAttributeBytes = scope.getAttributesList().stream().mapToLong(a -> a.getSerializedSize()).sum();
-                long attrBytesPerDoc = resourceAttributeBytes + scopeAttributeBytes;
                 String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<Span> spansList = scopeSpans.getSpansList();
-                // Guard against attribute fan-out: resource and scope attributes are copied into every span and span-event document.
-                long docsInScope = spansList.size() + spansList.stream().mapToLong(s -> s.getEventsCount()).sum();
-                totalAttributeBytes += attrBytesPerDoc * docsInScope;
-                if (totalAttributeBytes > maxExpandedContentLength) {
-                    throw new ElasticsearchStatusException(
-                        "OTLP traces request rejected: attribute data written across all documents would exceed limit ["
-                            + maxExpandedContentLength
-                            + "] bytes",
-                        RestStatus.REQUEST_ENTITY_TOO_LARGE
-                    );
-                }
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
                     TargetIndex index = TargetIndex.evaluate(
@@ -124,9 +108,9 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                         if (Strings.hasLength(documentId)) {
                             indexRequest.id(documentId);
                         }
-                        bulkRequestBuilder.add(
-                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
-                        );
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
+                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        bulkRequestBuilder.add(indexRequest);
                     }
                     List<Span.Event> eventsList = span.getEventsList();
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
@@ -154,9 +138,9 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             if (Strings.hasLength(eventDocumentId)) {
                                 eventRequest.id(eventDocumentId);
                             }
-                            bulkRequestBuilder.add(
-                                eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
-                            );
+                            eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
+                            totalExpandedBytes = accountExpandedContent(totalExpandedBytes, eventRequest);
+                            bulkRequestBuilder.add(eventRequest);
                         }
                     }
                 }

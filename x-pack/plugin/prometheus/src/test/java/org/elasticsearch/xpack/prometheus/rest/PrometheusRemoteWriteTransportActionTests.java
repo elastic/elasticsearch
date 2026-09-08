@@ -260,15 +260,18 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
 
     public void testLabelFanoutReturns413() {
         long now = System.currentTimeMillis();
-        long maxLabelBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(Settings.EMPTY).getBytes();
-        // 1 KiB label value × enough samples to exceed the limit
-        int sampleCount = (int) (maxLabelBytes / 1024) + 1;
-        String largeLabelValue = "x".repeat(1024);
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
 
+        // ~1 KiB label value × enough samples that IndexRequest#ramBytesUsed() exceeds the 10 KiB limit
+        String largeLabelValue = "x".repeat(1024);
         RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
             .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
             .addLabels(RemoteWrite.Label.newBuilder().setName("pad").setValue(largeLabelValue).build());
-        for (int i = 0; i < sampleCount; i++) {
+        for (int i = 0; i < 15; i++) {
             seriesBuilder.addSamples(RemoteWrite.Sample.newBuilder().setValue(i).setTimestamp(now + i).build());
         }
 
@@ -276,20 +279,23 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         Exception e = executeRequestExpectingFailure(createWriteRequest(writeRequest, "generic", "default"));
 
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-        assertThat(e.getMessage(), containsString("label data written across all documents would exceed limit"));
+        assertThat(e.getMessage(), containsString("expanded content would exceed limit"));
         verify(client, never()).execute(any(), any(), any());
     }
 
     public void testReleasesIndexingPressureOnLabelFanout() {
         long now = System.currentTimeMillis();
-        long maxLabelBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(Settings.EMPTY).getBytes();
-        int sampleCount = (int) (maxLabelBytes / 1024) + 1;
-        String largeLabelValue = "x".repeat(1024);
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.getKey(), "10kb")
+            .build();
+        action = new PrometheusRemoteWriteTransportAction(transportService, ActionFilters.EMPTY, threadPool, client, settings);
 
+        String largeLabelValue = "x".repeat(1024);
         RemoteWrite.TimeSeries.Builder seriesBuilder = RemoteWrite.TimeSeries.newBuilder()
             .addLabels(RemoteWrite.Label.newBuilder().setName("__name__").setValue("test_metric").build())
             .addLabels(RemoteWrite.Label.newBuilder().setName("pad").setValue(largeLabelValue).build());
-        for (int i = 0; i < sampleCount; i++) {
+        for (int i = 0; i < 15; i++) {
             seriesBuilder.addSamples(RemoteWrite.Sample.newBuilder().setValue(i).setTimestamp(now + i).build());
         }
 

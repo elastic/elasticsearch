@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -45,6 +46,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
@@ -313,6 +315,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     // visible for testing
     synchronized int currentQueueSize() {
         return pendingRecoveries.size();
+    }
+
+    /// Captures the current queued recoveries and the blocking gate on this node
+    public synchronized PendingRecoverySnapshot pendingRecoveries() {
+        final BlockedState state = blockedState.get();
+        String gateName = state == null ? null : state.gateName();
+        Set<String> allocationIds = pendingRecoveries.stream().map(PendingRecovery::allocationId).collect(Collectors.toSet());
+        return new PendingRecoverySnapshot(gateName, allocationIds);
     }
 
     @Override
@@ -597,6 +607,23 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         @Override
         protected void doRun() {
             task.accept(listener);
+        }
+    }
+
+    /// An immutable point-in-time view of queued recoveries of this node
+    public static final class PendingRecoverySnapshot {
+        private final @Nullable String gate;
+        private final Set<String> allocationIds;
+
+        private PendingRecoverySnapshot(@Nullable String gate, Set<String> allocationIds) {
+            this.gate = gate;
+            this.allocationIds = Set.copyOf(allocationIds);
+        }
+
+        /// Returns the gate holding the recovery with the given allocation ID, or `null` if that recovery was not gate-deferred
+        /// when this snapshot was captured.
+        public @Nullable String gateFor(String allocationId) {
+            return allocationIds.contains(allocationId) ? gate : null;
         }
     }
 

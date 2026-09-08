@@ -15,25 +15,29 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
 public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContentObject {
 
-    private final Map<String, List<RecoveryState>> shardRecoveryStates;
+    private final Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos;
 
     public RecoveryResponse(StreamInput in) throws IOException {
         super(in);
-        shardRecoveryStates = in.readMapOfLists(RecoveryState::readRecoveryState);
+        shardRecoveryInfos = in.readMapOfLists(ShardRecoveryInfo::new);
     }
 
     /**
@@ -43,41 +47,47 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
      * @param totalShards       Total count of shards seen
      * @param successfulShards  Count of shards successfully processed
      * @param failedShards      Count of shards which failed to process
-     * @param shardRecoveryStates    Map of indices to shard recovery information
+     * @param shardRecoveryInfos Map of indices to shard recovery information
      * @param shardFailures     List of failures processing shards
      */
     public RecoveryResponse(
         int totalShards,
         int successfulShards,
         int failedShards,
-        Map<String, List<RecoveryState>> shardRecoveryStates,
+        Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos,
         List<DefaultShardOperationFailedException> shardFailures
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-        this.shardRecoveryStates = shardRecoveryStates;
+        this.shardRecoveryInfos = Objects.requireNonNull(shardRecoveryInfos);
     }
 
     public boolean hasRecoveries() {
-        return shardRecoveryStates.size() > 0;
+        return shardRecoveryInfos.size() > 0;
     }
 
     public Map<String, List<RecoveryState>> shardRecoveryStates() {
-        return shardRecoveryStates;
+        return Maps.transformValues(
+            shardRecoveryInfos,
+            infos -> infos.stream().map(ShardRecoveryInfo::recoveryState).collect(Collectors.toCollection(ArrayList::new))
+        );
     }
 
     @Override
     public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
-            shardRecoveryStates.entrySet()
+            shardRecoveryInfos.entrySet()
                 .stream()
                 .filter(entry -> entry != null && entry.getValue().isEmpty() == false)
                 .map(entry -> (ToXContent) (b, p) -> {
                     b.startObject(entry.getKey());
                     b.startArray("shards");
-                    for (RecoveryState recoveryState : entry.getValue()) {
+                    for (ShardRecoveryInfo recoveryInfo : entry.getValue()) {
                         b.startObject();
-                        recoveryState.toXContent(b, p);
+                        recoveryInfo.recoveryState().toXContent(b, p);
+                        if (recoveryInfo.gate() != null) {
+                            b.field("gate", recoveryInfo.gate());
+                        }
                         b.endObject();
                     }
                     b.endArray();
@@ -92,11 +102,12 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(shardRecoveryStates, StreamOutput::writeCollection);
+        out.writeMap(shardRecoveryInfos, StreamOutput::writeCollection);
     }
 
     @Override
     public String toString() {
         return Strings.toTruncatedString(this, true, true);
     }
+
 }

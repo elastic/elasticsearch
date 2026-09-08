@@ -39,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -74,6 +75,13 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         final TestTelemetryPlugin telemetry = getTelemetryPlugin(indexNodeName);
         telemetry.resetMeter();
         final String indexName = createIndexWithBlockedRecovery(indexNodeName);
+        assertBusy(
+            () -> assertThat(
+                "a gate-deferred recovery must identify its gate in the recovery API",
+                indicesAdmin().prepareRecoveries(indexName).get().toString(),
+                containsString("\"gate\" : \"estimated_heap\"")
+            )
+        );
 
         telemetry.collect();
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
@@ -103,6 +111,11 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         safeAwait(gateOpened);
         // shards are started
         ensureGreen(indexName);
+        assertThat(
+            "the gate field must disappear after the recovery is released",
+            indicesAdmin().prepareRecoveries(indexName).get().toString(),
+            not(containsString("\"gate\""))
+        );
 
         telemetry.collect();
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));

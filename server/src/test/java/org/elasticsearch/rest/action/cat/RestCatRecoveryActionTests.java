@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -46,7 +47,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
-        final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
+        final Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos = new HashMap<>();
         final List<RecoveryState> recoveryStates = new ArrayList<>();
 
         for (int i = 0; i < successfulShards; i++) {
@@ -110,14 +111,14 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         final List<RecoveryState> shuffle = new ArrayList<>(recoveryStates);
         Randomness.shuffle(shuffle);
-        shardRecoveryStates.put("index", shuffle);
+        shardRecoveryInfos.put("index", shuffle.stream().map(state -> new ShardRecoveryInfo(state, null)).toList());
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(
             totalShards,
             successfulShards,
             failedShards,
-            shardRecoveryStates,
+            shardRecoveryInfos,
             shardFailures
         );
         // Stop any timers that are running, so the time() captured when building the table matches that asserted below:

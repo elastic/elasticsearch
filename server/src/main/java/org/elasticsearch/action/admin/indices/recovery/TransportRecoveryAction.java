@@ -25,6 +25,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.PendingRecoverySnapshot;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -41,10 +43,15 @@ import java.util.Map;
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState, Void> {
+public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
+    RecoveryRequest,
+    RecoveryResponse,
+    ShardRecoveryInfo,
+    PendingRecoverySnapshot> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
+    private final ThrottlingRecoveryService throttlingRecoveryService;
 
     @Inject
     public TransportRecoveryAction(
@@ -53,7 +60,8 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         IndicesService indicesService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ThrottlingRecoveryService throttlingRecoveryService
     ) {
         super(
             RecoveryAction.NAME,
@@ -66,27 +74,29 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         );
         this.indicesService = indicesService;
         this.projectResolver = projectResolver;
+        this.throttlingRecoveryService = throttlingRecoveryService;
     }
 
     @Override
-    protected RecoveryState readShardResult(StreamInput in) throws IOException {
-        return RecoveryState.readRecoveryState(in);
+    protected ShardRecoveryInfo readShardResult(StreamInput in) throws IOException {
+        return new ShardRecoveryInfo(in);
     }
 
     @Override
-    protected ResponseFactory<RecoveryResponse, RecoveryState> getResponseFactory(RecoveryRequest request, ClusterState clusterState) {
+    protected ResponseFactory<RecoveryResponse, ShardRecoveryInfo> getResponseFactory(RecoveryRequest request, ClusterState clusterState) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
-            Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
-            for (RecoveryState recoveryState : responses) {
-                if (recoveryState == null) {
+            Map<String, List<ShardRecoveryInfo>> shardResponses = new HashMap<>();
+            for (ShardRecoveryInfo recoveryInfo : responses) {
+                if (recoveryInfo == null) {
                     continue;
                 }
+                final RecoveryState recoveryState = recoveryInfo.recoveryState();
                 String indexName = recoveryState.getShardId().getIndexName();
                 if (shardResponses.containsKey(indexName) == false) {
                     shardResponses.put(indexName, new ArrayList<>());
                 }
                 if (request.activeOnly() == false || isActive(recoveryState)) {
-                    shardResponses.get(indexName).add(recoveryState);
+                    shardResponses.get(indexName).add(recoveryInfo);
                 }
             }
             return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
@@ -109,15 +119,21 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         RecoveryRequest request,
         ShardRouting shardRouting,
         Task task,
-        Void nodeContext,
-        ActionListener<RecoveryState> listener
+        PendingRecoverySnapshot nodeContext,
+        ActionListener<ShardRecoveryInfo> listener
     ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            return indexShard.recoveryState();
+            assert shardRouting.allocationId() != null;
+            return new ShardRecoveryInfo(indexShard.recoveryState(), nodeContext.gateFor(shardRouting.allocationId().getId()));
         });
+    }
+
+    @Override
+    protected PendingRecoverySnapshot createNodeContext() {
+        return throttlingRecoveryService.pendingRecoveries();
     }
 
     @Override

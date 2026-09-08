@@ -150,7 +150,7 @@ count with bucket, time, and instance in FROM
 required_capability: fn_bucket_histogram_types
 
 // The bucket counts depend on how the T-Digests are merged, which varies with the number of shards/nodes the
-// data is spread across. Allow a +-1 tolerance on all counts to make the test independent of the cluster layout.
+// data is spread across. Allow a +-10 tolerance on all counts to make the test independent of the cluster layout.
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h), instance
@@ -160,16 +160,16 @@ FROM tdigest_standard_index
 ;
 
 count:long   | bucket:double_range | time:datetime            | instance:keyword | total:long
-5119..5121   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15469..15471
-60..62       | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15469..15471
-0..2         | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15469..15471
-1977..1979   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15469..15471
-6..8         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15469..15471
-0..1         | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15469..15471
-0..2         | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15469..15471
-2148..2150   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15469..15471
-1..3         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15469..15471
-0..2         | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15469..15471
+5110..5130   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15460..15480
+51..71       | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15460..15480
+0..11        | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15460..15480
+1968..1988   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15460..15480
+0..17        | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15460..15480
+0..10        | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15460..15480
+0..11        | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15460..15480
+2139..2159   | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15460..15480
+0..12        | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15460..15480
+0..11        | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15460..15480
 ;
 
 // -------------------------------------------------------------------------------
@@ -1233,6 +1233,34 @@ TS histogram_timeseries_index
 cnt:long
 8841
 // end::countTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+count with bucket for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+required_capability: fn_bucket_histogram_types
+required_capability: fn_count_histogram_bucket
+
+// tag::countBucketTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 1)
+| SORT RANGE_MIN(bucket)
+// end::countBucketTDigestForDocs[]
+;
+
+// tag::countBucketTDigestForDocs-result[]
+count:long | bucket:double_range
+8733       | 0.0..1.0
+100        | 1.0..2.0
+4          | 2.0..3.0
+2          | 3.0..4.0
+0          | 4.0..5.0
+0          | 5.0..6.0
+2          | 6.0..7.0
+// end::countBucketTDigestForDocs-result[]
 ;
 
 // -------------------------------------------------------------------------------

@@ -1363,4 +1363,63 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEqualsPercent(result1, result2, 0.15f);
     }
 
+    public void testMatrixMultiply() {
+        int m = randomIntBetween(2, 1024);
+        int k = randomIntBetween(2, 1024);
+        int n = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(m * k);
+        float[] b = VectorTestUtils.randomFloatVector(k * n);
+
+        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+
+        float[] scalar = defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        assertArrayEquals(expected, scalar, 1e-3f);
+        float[] panama = panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n);
+        assertArrayEquals(expected, panama, 1e-3f);
+    }
+
+    private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
+        float[] c = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            int aBase = i * k;
+            int cBase = i * n;
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testMatrixMultiplyTA() {
+        int m = randomIntBetween(2, 1024);
+        int k = randomIntBetween(2, 1024);
+        int n = randomIntBetween(2, 1024);
+
+        float[] a = VectorTestUtils.randomFloatVector(m * k);
+        float[] b = VectorTestUtils.randomFloatVector(m * n);
+
+        float[] expected = basicMatrixMultiplyTA(a, b, m, k, n);
+
+        float[] scalar = defaultedProvider.getVectorUtilSupport().matrixMultiplyTA(a, b, m, k, n);
+        assertArrayEquals(expected, scalar, 1e-3f);
+        float[] panama = panamaProvider.getVectorUtilSupport().matrixMultiplyTA(a, b, m, k, n);
+        assertArrayEquals(expected, panama, 1e-3f);
+    }
+
+    private static float[] basicMatrixMultiplyTA(float[] aT, float[] b, int m, int k, int n) {
+        float[] c = new float[k * n];
+        for (int l = 0; l < m; l++) {
+            int aBase = l * k;
+            int bBase = l * n;
+            for (int i = 0; i < k; i++) {
+                for (int d = 0; d < n; d++) {
+                    c[i * n + d] = Math.fma(aT[aBase + i], b[bBase + d], c[i * n + d]);
+                }
+            }
+        }
+        return c;
+    }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Multi-node end-to-end guard for H4 (elastic/elasticsearch#150920): {@code COUNT(partition_column)} over a
@@ -159,6 +161,72 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
             List<List<Object>> rows = getValuesList(response);
             assertThat("COUNT(*) returns a single row", rows.size(), equalTo(1));
             assertThat("COUNT(*) counts all 5 rows across both partitions", ((Number) rows.getFirst().getFirst()).longValue(), equalTo(5L));
+        }
+    }
+
+    /**
+     * Dedicated schema parquet first, then a recursive glob. FFW omitted knobs keep declaration order so
+     * {@code my_schema.parquet} is the donor; its extra column is present and the glob files still contribute
+     * rows (null-filled for the column they do not store).
+     */
+    public void testSchemaFileThenGlobFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("schema_then_glob_parquet");
+        writeFfwSchemaAndEventParquet(root);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/my_schema.parquet," + StoragePath.fileUri(root) + "/events/**/*.parquet";
+        assertFfwSchemaFileAndGlobQuery("schema_then_glob_parquet", uri, Map.of("schema_resolution", "first_file_wins"));
+    }
+
+    /**
+     * Recursive glob first, schema parquet last, {@code list}+{@code desc}: the last named file is the FFW
+     * donor and the glob files still contribute rows.
+     */
+    public void testGlobThenSchemaFileListDescFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("glob_then_schema_parquet");
+        writeFfwSchemaAndEventParquet(root);
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/events/**/*.parquet," + StoragePath.fileUri(root) + "/my_schema.parquet";
+        assertFfwSchemaFileAndGlobQuery(
+            "glob_then_schema_parquet",
+            uri,
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "list", "file_order", "desc")
+        );
+    }
+
+    private static void writeFfwSchemaAndEventParquet(Path root) throws Exception {
+        Files.createDirectories(root.resolve("events").resolve("2024"));
+        writeParquet(
+            root.resolve("my_schema.parquet"),
+            "message test { required int32 id; optional binary extra (UTF8); }",
+            0,
+            1024,
+            (g, i) -> {}
+        );
+        writeParquet(
+            root.resolve("events").resolve("2024").resolve("a.parquet"),
+            "message test { required int32 id; }",
+            1,
+            1024,
+            (g, i) -> g.add("id", 1)
+        );
+        writeParquet(
+            root.resolve("events").resolve("2024").resolve("z.parquet"),
+            "message test { required int32 id; }",
+            1,
+            1024,
+            (g, i) -> g.add("id", 2)
+        );
+    }
+
+    private void assertFfwSchemaFileAndGlobQuery(String dataset, String uri, Map<String, Object> settings) throws Exception {
+        registerDataset(dataset, uri, settings);
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra, id | SORT id"))) {
+            List<String> names = response.columns().stream().map(ColumnInfoImpl::name).toList();
+            assertThat("dedicated schema file contributes the extra column", names, hasItem("extra"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("glob files are still read", rows.size(), equalTo(2));
+            assertThat(rows.get(0).get(1), equalTo(1));
+            assertThat(rows.get(1).get(1), equalTo(2));
         }
     }
 }

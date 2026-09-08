@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
@@ -437,12 +439,16 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Prunes a {@link Highlight} to the ON fields whose generated {@code <prefix><field>} column is used downstream.
-     * This is the first change that lets a HIGHLIGHT carry every text/keyword column ({@code ON *}, or the literal /
-     * KQL / QSTR fallback), so without it a {@code KEEP highlight_x} would still extract and highlight every string
-     * column at runtime. The field list and generated attributes are aligned 1:1, so both are filtered by the same
-     * surviving positions. If none of the generated columns is used, the whole node is removed: HIGHLIGHT never filters
-     * rows, so its child is a drop-in replacement.
+     * Prunes a {@link Highlight} to the ON fields whose generated {@code <prefix><field>} column is used downstream,
+     * plus any ON field the query still translates against. This is the first change that lets a HIGHLIGHT carry every
+     * text/keyword column ({@code ON *}, or the literal / KQL / QSTR fallback), so without it a {@code KEEP highlight_x}
+     * would still extract and highlight every string column at runtime. The field list and generated attributes stay
+     * aligned 1:1. If none of the generated columns is used, the whole node is removed: HIGHLIGHT never filters rows,
+     * so its child is a drop-in replacement.
+     * <p>
+     * A literal query is applied to whatever ON fields remain, so unused ones can go. {@code QSTR} / {@code KQL} can
+     * name arbitrary fields with {@code field:term}, and {@code MATCH(a)} still queries {@code a} even when
+     * {@code highlight_a} is unused: those ON fields have to stay or Lucene rejects them as not searchable.
      */
     private static LogicalPlan pruneUnusedHighlight(Highlight highlight, AttributeSet.Builder used, Holder<Boolean> recheck) {
         List<Integer> retained = retainedGeneratedIndices(highlight.generatedAttributes(), used);
@@ -458,11 +464,26 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             return highlight.child();
         }
 
-        List<NamedExpression> prunedFields = new ArrayList<>(retained.size());
-        List<Attribute> prunedGeneratedFields = new ArrayList<>(retained.size());
-        for (int i : retained) {
-            prunedFields.add(highlight.fields().get(i));
-            prunedGeneratedFields.add(highlight.generatedAttributes().get(i));
+        Set<String> required = HighlightSupport.fieldsRequiredForTranslation(highlight.query());
+        if (required == null) {
+            // QSTR/KQL (or an unrecognised shape) can name any ON field; dropping one fails at runtime.
+            return highlight;
+        }
+
+        List<NamedExpression> prunedFields = new ArrayList<>();
+        List<Attribute> prunedGeneratedFields = new ArrayList<>();
+        for (int i = 0; i < highlight.fields().size(); i++) {
+            NamedExpression field = highlight.fields().get(i);
+            Attribute generated = highlight.generatedAttributes().get(i);
+            // Keep a column if it is still read downstream, or if the query translates against its ON field.
+            if (used.contains(generated) || required.contains(field.name())) {
+                prunedFields.add(field);
+                prunedGeneratedFields.add(generated);
+            }
+        }
+        if (prunedGeneratedFields.size() == highlight.generatedAttributes().size()) {
+            // The required ON fields brought every column back; nothing to prune.
+            return highlight;
         }
         return highlight.withPrunedFields(prunedFields, prunedGeneratedFields);
     }

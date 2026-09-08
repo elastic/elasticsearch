@@ -68,6 +68,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  *       differences). Only checked while the per-iteration <em>determinism gate</em> is open.</li>
  * </ol>
  *
+ * <p>When both sides throw, the shared failure is not treated as a test failure: this suite's job
+ * is to find index-mode divergences. Bugs that reproduce on both modes belong in other suites
+ * (e.g. {@code GenerativeIT} or unit tests). The pipeline step still stops so later commands are
+ * not built on a failed query.
+ *
  * <p>The determinism gate closes when a row-truncating or non-deterministic command appears in
  * the pipeline, or when either side returns exactly 1 000 rows (the implicit {@code LIMIT 1000}
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
@@ -199,6 +204,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     // Per-iteration candidate state. Reset in runCommand when prevRef == null (the source command).
     private QueryExecuted candidatePreviousResult;
     private boolean determinismGateOpen;
+
+    /**
+     * Set by {@link #compareSides} when both reference and candidate threw. The base-class
+     * {@code checkPipelineException} would otherwise fail the suite on the shared error; we
+     * suppress that because matching failures are not a mode divergence.
+     */
+    private boolean bothSidesThrew;
 
     /** Number of pipeline steps where the determinism gate was open and value comparison was attempted. */
     private int valueComparedSteps;
@@ -392,6 +404,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         return errors;
     }
 
+    /**
+     * Shared failures (both modes threw) are out of scope for this differential suite — see class
+     * javadoc. One-sided throws still go through the usual allowed-error checks (including
+     * {@link #ALLOWED_MODE_DIFFERENCE_SUBSTRINGS}).
+     */
+    @Override
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (bothSidesThrew) {
+            return;
+        }
+        super.checkPipelineException(query, previousCommands, currentSchema);
+    }
+
     // -----------------------------------------------------------------------------------------
     // Generator hooks
     // -----------------------------------------------------------------------------------------
@@ -417,6 +446,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             candidatePreviousResult = null;
             determinismGateOpen = true;
         }
+        bothSidesThrew = false;
 
         // Determine the reference and candidate command strings.
         Object mirror = current.context().get(DualModeFromGenerator.MIRROR_COMMAND);
@@ -578,6 +608,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private void compareSides(CommandGenerator.CommandDescription current, QueryExecuted ref, QueryExecuted cand, boolean deterministic) {
         boolean refThrew = ref.exception() != null;
         boolean candThrew = cand.exception() != null;
+        bothSidesThrew = refThrew && candThrew;
 
         // 1. Failure parity
         if (refThrew != candThrew) {

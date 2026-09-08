@@ -318,7 +318,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 }
 
                 perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, estimate.shardHeapEstimate() + indexHeap, Long::sum);
-                perNodeHostedShardsHeapUsage.merge(nodeId, estimate.shardHeapEstimate(), Long::sum);
+                perNodeHostedShardsHeapUsage.merge(nodeId, estimate.shardHeapEstimate() + indexHeap, Long::sum);
             }
         }
 
@@ -349,7 +349,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                     lessThanOrEqualTo(indexAndShardOnly + miscNodeUsage + getLastMaxTotalPostingsInMemoryBytes(service))
                 )
             );
-            // The hosted-shards-only estimate excludes index-level mapping size and the node-base/merge/indexing-ops overheads,
+            // The hosted-shards-only estimate excludes the node-base/merge/indexing-ops overheads,
             // see EstimatedHeapUsageBuilder#getHeapEstimate.
             assertThat(
                 "Hosted shards heap usage for node "
@@ -399,16 +399,18 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
         final var estimates = estimateHeapUsageIncludingPostings(service, metricsWithWrongReporter);
-        final long deltaForShard = estimates.shardHeapEstimate() + estimates.indexHeapEstimate() - metricsWithWrongReporter
+        // total memory difference between nodes should be shard estimate and index estimate, less the postings estimate that they share
+        final long totalDeltaForShard = estimates.shardHeapEstimate() + estimates.indexHeapEstimate() - metricsWithWrongReporter
             .getPostingsInMemoryBytes();
         assertThat(
             perNode.get(onlyShard.currentNodeId()).totalHeapUsage() - perNode.get(nodeWithoutShard.getId()).totalHeapUsage(),
-            equalTo(deltaForShard)
+            equalTo(totalDeltaForShard)
         );
-        // The difference for the hosted-shards estimate should be just the size of the shard (no index metadata)
+        // hosted-shards difference between nodes should be shard estimate and index estimate
+        final long hostedDeltaForShard = estimates.shardHeapEstimate() + estimates.indexHeapEstimate();
         assertThat(
             perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage() - perNode.get(nodeWithoutShard.getId()).hostedShardsHeapUsage(),
-            equalTo(estimates.shardHeapEstimate())
+            equalTo(hostedDeltaForShard)
         );
     }
 
@@ -543,19 +545,17 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // Node 0 heap estimate should have increased
         // Note that hollow shards can reduce the initial estimate, but we don't test this here
-        long node0EstimateAfterUpdate;
+        long node0EstimateAfterUpdate, node0HostedShardsAfterUpdate;
         {
             final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
             compareAgainstSumOfIndividualShards(service, clusterState1);
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             node0EstimateAfterUpdate = perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage();
+            node0HostedShardsAfterUpdate = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
             assertThat(node0EstimateAfterUpdate, greaterThan(node0EstimateBeforeUpdate));
+            assertThat(node0HostedShardsAfterUpdate, greaterThan(node0HostedShardsBeforeUpdate));
             // PostingsMemorySize is the max across all nodes, so node1's estimate should have increased by that amount
             assertThat(perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage(), equalTo(node1EstimateBeforeUpdate + node0PostingsSize));
-            assertThat(
-                perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(),
-                equalTo(node0HostedShardsBeforeUpdate + node0PostingsSize)
-            );
             // hosted shards estimate doesn't take the maximized postings value, it should be unchanged on node 1
             assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsBeforeUpdate));
         }

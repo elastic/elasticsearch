@@ -217,7 +217,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         @Override
         public void scheduleNow(Runnable task) {
             if (task.toString().contains("processPendingDeletes[")) {
-                logger.debug("--> dropping {} to avoid wall-clock shard-lock wait on DTQ", task);
+                logger.debug("--> dropping {} to avoid possible deadlock", task);
                 return;
             }
             super.scheduleNow(task);

@@ -242,19 +242,11 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testEmptyVectorArrayIsRejected() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.startArray("field").endArray()))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field [field] of type [rank_vectors] requires at least one vector; use null to indicate a missing value")
-        );
-    }
-
-    public void testEmptyVectorArrayIsRejectedWhenDimsAreDynamic() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors")));
+        // covers both the static-dims path and the dynamic-dims path (dims inferred from the first document)
+        XContentBuilder mapping = randomBoolean()
+            ? fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3))
+            : fieldMapping(b -> b.field("type", "rank_vectors"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startArray("field").endArray()))

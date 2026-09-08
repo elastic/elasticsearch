@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Implements source filtering based on a list of included and excluded fields.  To use,
@@ -52,14 +51,14 @@ public final class SourceFilter {
      * @param excludes  an array of fields to exclude (may be null)
      */
     public SourceFilter(String[] includes, String[] excludes) {
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includes = normalizeFilters(includes);
+        this.excludes = normalizeFilters(excludes);
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = (CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*")))
-            && Arrays.stream(this.includes).noneMatch(SourceFilter::hasStandaloneBackslashPathSegment)
-            && Arrays.stream(this.excludes).noneMatch(SourceFilter::hasStandaloneBackslashPathSegment);
+        this.canFilterBytes = Arrays.stream(this.excludes).noneMatch(field -> field.contains("*"))
+            && Arrays.stream(this.includes).noneMatch(field -> field.contains("\\."))
+            && Arrays.stream(this.excludes).noneMatch(field -> field.contains("\\."));
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
@@ -165,8 +164,8 @@ public final class SourceFilter {
         }
         final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
             null,
-            normalizeFiltersForByteFiltering(includes),
-            normalizeFiltersForByteFiltering(excludes),
+            Set.copyOf(Arrays.asList(includes)),
+            Set.copyOf(Arrays.asList(excludes)),
             true
         );
         return in -> {
@@ -189,23 +188,35 @@ public final class SourceFilter {
         };
     }
 
-    private static Set<String> normalizeFiltersForByteFiltering(String[] filters) {
-        return Arrays.stream(filters).map(filter -> filter.replace("\\.", ".")).collect(Collectors.toUnmodifiableSet());
+    private static String[] normalizeFilters(String[] filters) {
+        if (filters == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        return Arrays.stream(filters).map(SourceFilter::normalizeFilter).toArray(String[]::new);
     }
 
     /**
-     * {@link org.elasticsearch.xcontent.support.filtering.FilterPath} interprets {@code \.} as an escaped dot, so it cannot
-     * distinguish that from a path separator after a field named {@code \}. Use map filtering for this ambiguous case.
+     * Normalize escaped dots once so map filtering, byte filtering and path checks use the same patterns. Preserve
+     * standalone backslash segments and runs of literal backslashes. Patterns that still contain {@code \.} use map
+     * filtering because {@link org.elasticsearch.xcontent.support.filtering.FilterPath} would interpret it as an escaped dot.
      */
-    private static boolean hasStandaloneBackslashPathSegment(String filter) {
+    private static String normalizeFilter(String filter) {
+        if (filter.contains("\\.") == false) {
+            return filter;
+        }
+        StringBuilder normalized = new StringBuilder(filter.length());
         for (int i = 0; i < filter.length(); i++) {
             if (filter.charAt(i) == '\\'
-                && (i == 0 || filter.charAt(i - 1) == '.')
-                && (i == filter.length() - 1 || filter.charAt(i + 1) == '.')) {
-                return true;
+                && i > 0
+                && filter.charAt(i - 1) != '.'
+                && filter.charAt(i - 1) != '\\'
+                && i + 1 < filter.length()
+                && filter.charAt(i + 1) == '.') {
+                continue;
             }
+            normalized.append(filter.charAt(i));
         }
-        return false;
+        return normalized.toString();
     }
 
     public boolean excludesAll() {

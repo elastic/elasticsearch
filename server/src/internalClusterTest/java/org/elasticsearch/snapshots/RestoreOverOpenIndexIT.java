@@ -818,4 +818,42 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             );
         }
     }
+
+    /**
+     * Concurrent restores of the same open index: while one restore-over is in flight, a second one submitted through the real master path
+     * must be rejected by {@link RestoreService}'s own guard against overlapping restores of the same index, leaving the first restore
+     * untouched. (The node-side transition's robustness to overlapping transitions that deliberately bypass this guard is covered
+     * separately by {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}.)
+     */
+    public void testRestoreOverOpenIndexRejectedWhileAnotherRestoreOverIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedIndex();
+
+        // block the first restore's recovery so its RestoreInProgress entry and restoring shard persist while the second is submitted
+        blockNodeOnAnyFiles(REPOSITORY_NAME, dataNode);
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> first = restoreOverOpenIndexFuture();
+        try {
+            waitForBlock(dataNode, REPOSITORY_NAME);
+            final String historyUuidAfterFirst = historyUuid();
+            assertThat("the first restore-over must publish before its recovery blocks", historyUuidAfterFirst, notNullValue());
+
+            final PlainActionFuture<RestoreService.RestoreCompletionResponse> second = restoreOverOpenIndexFuture();
+            final SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> second.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(e.getMessage(), containsString("already being restored"));
+
+            assertThat(
+                "the rejected second restore must not disturb the in-flight first restore",
+                historyUuid(),
+                equalTo(historyUuidAfterFirst)
+            );
+        } finally {
+            unblockAllDataNodes(REPOSITORY_NAME);
+        }
+
+        safeGet(first);
+        awaitRestoreCompleted();
+        assertThat(historyUuid(), notNullValue());
+    }
 }

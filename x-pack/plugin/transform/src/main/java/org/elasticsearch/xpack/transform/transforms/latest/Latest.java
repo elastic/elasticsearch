@@ -22,7 +22,9 @@ import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
@@ -47,10 +49,16 @@ public class Latest extends AbstractCompositeAggFunction {
     private static final String TOP_HITS_AGGREGATION_NAME = "_top_hits";
 
     private final LatestConfig config;
+    private final SettingsConfig settings;
 
     public Latest(LatestConfig config) {
+        this(config, SettingsConfig.EMPTY);
+    }
+
+    public Latest(LatestConfig config, SettingsConfig settings) {
         super(createCompositeAggregation(config));
         this.config = config;
+        this.settings = settings;
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(LatestConfig config) {
@@ -71,7 +79,21 @@ public class Latest extends AbstractCompositeAggFunction {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        return new LatestChangeCollector(synchronizationField, config.getUniqueKey());
+        return new LatestChangeCollector(synchronizationField, config.getUniqueKey(), useBoundedChangeDetection(synchronizationField));
+    }
+
+    /**
+     * The two-phase change detection (gh#90643) re-scans all history for changed keys, which is only necessary when the
+     * sort field can diverge from the sync field. Restricting change detection to the current checkpoint window keeps
+     * cold/frozen tiers out of every checkpoint search (gh#157716), but is only safe when the sort field is the sync field
+     * (they move together by definition). Mirrors {@code align_checkpoints}: the bounded optimization is on by default and
+     * only applies when its precondition holds; an operator can disable it to force the two-phase behavior everywhere.
+     */
+    private boolean useBoundedChangeDetection(String synchronizationField) {
+        if (TransformEffectiveSettings.isAlignChangeDetectionDisabled(settings)) {
+            return false;
+        }
+        return synchronizationField.equals(config.getSort());
     }
 
     private static Map<String, Object> convertBucketToDocument(

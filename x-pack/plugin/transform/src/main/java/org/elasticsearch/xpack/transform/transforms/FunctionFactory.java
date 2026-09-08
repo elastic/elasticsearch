@@ -33,7 +33,7 @@ public final class FunctionFactory {
                 config.getSource().getScriptBasedRuntimeMappings().keySet()
             );
         } else if (config.getLatestConfig() != null) {
-            return new Latest(config.getLatestConfig());
+            return new Latest(config.getLatestConfig(), config.getSettings());
         } else {
             throw new IllegalArgumentException("unknown transform function");
         }

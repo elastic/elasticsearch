@@ -47,6 +47,7 @@ public final class TransformField {
     public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
     public static final ParseField UNATTENDED = new ParseField("unattended");
+    public static final ParseField ALIGN_CHANGE_DETECTION = new ParseField("align_change_detection");
 
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");

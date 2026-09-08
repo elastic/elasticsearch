@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 157716
+pr: 158436
+summary: Align latest change detection
+type: bug

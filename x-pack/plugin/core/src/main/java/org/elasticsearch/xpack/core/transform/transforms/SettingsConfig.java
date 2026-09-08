@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +32,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class SettingsConfig implements Writeable, ToXContentObject {
 
-    public static final SettingsConfig EMPTY = new SettingsConfig(null, null, null, null, null, null, null, (Integer) null);
+    public static final SettingsConfig EMPTY = new SettingsConfig(null, null, null, null, null, null, null, null, (Integer) null);
+
+    static final TransportVersion TRANSFORM_ALIGN_CHANGE_DETECTION = TransportVersion.fromName("transform_align_change_detection");
 
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
@@ -46,6 +49,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
     private static final int DEFAULT_NUM_FAILURE_RETRIES = -2;
     private static final int DEFAULT_UNATTENDED = -1;
+    private static final int DEFAULT_ALIGN_CHANGE_DETECTION = -1;
 
     private static ConstructingObjectParser<SettingsConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<SettingsConfig, Void> parser = new ConstructingObjectParser<>(
@@ -59,7 +63,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 (Integer) args[4],
                 (Integer) args[5],
                 (Integer) args[6],
-                (Integer) args[7]
+                (Integer) args[7],
+                (Integer) args[8]
             )
         );
         parser.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_PAGE_SEARCH_SIZE, TransformField.MAX_PAGE_SEARCH_SIZE);
@@ -100,6 +105,13 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             TransformField.UNATTENDED,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        parser.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_ALIGN_CHANGE_DETECTION : p.booleanValue() ? 1 : 0,
+            TransformField.ALIGN_CHANGE_DETECTION,
+            ValueType.BOOLEAN_OR_NULL
+        );
         return parser;
     }
 
@@ -111,6 +123,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer deduceMappings;
     private final Integer numFailureRetries;
     private final Integer unattended;
+    private final Integer alignChangeDetection;
 
     public SettingsConfig(
         Integer maxPageSearchSize,
@@ -125,16 +138,42 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this(
             maxPageSearchSize,
             docsPerSecond,
+            datesAsEpochMillis,
+            alignCheckpoints,
+            usePit,
+            deduceMappings,
+            numFailureRetries,
+            unattended,
+            null
+        );
+    }
+
+    public SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Boolean datesAsEpochMillis,
+        Boolean alignCheckpoints,
+        Boolean usePit,
+        Boolean deduceMappings,
+        Integer numFailureRetries,
+        Boolean unattended,
+        Boolean alignChangeDetection
+    ) {
+        this(
+            maxPageSearchSize,
+            docsPerSecond,
             datesAsEpochMillis == null ? null : datesAsEpochMillis ? 1 : 0,
             alignCheckpoints == null ? null : alignCheckpoints ? 1 : 0,
             usePit == null ? null : usePit ? 1 : 0,
             deduceMappings == null ? null : deduceMappings ? 1 : 0,
             numFailureRetries,
-            unattended == null ? null : unattended ? 1 : 0
+            unattended == null ? null : unattended ? 1 : 0,
+            alignChangeDetection == null ? null : alignChangeDetection ? 1 : 0
         );
     }
 
-    private SettingsConfig(
+    // package-private so tests can reconstruct with the exact tri-state raw values (e.g. for version-dependent serialization)
+    SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
         Integer datesAsEpochMillis,
@@ -142,7 +181,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         Integer usePit,
         Integer deduceMappings,
         Integer numFailureRetries,
-        Integer unattended
+        Integer unattended,
+        Integer alignChangeDetection
     ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
@@ -152,6 +192,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.deduceMappings = deduceMappings;
         this.numFailureRetries = numFailureRetries;
         this.unattended = unattended;
+        this.alignChangeDetection = alignChangeDetection;
     }
 
     public SettingsConfig(final StreamInput in) throws IOException {
@@ -164,6 +205,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         deduceMappings = in.readOptionalInt();
         numFailureRetries = in.readOptionalInt();
         unattended = in.readOptionalInt();
+        alignChangeDetection = in.getTransportVersion().supports(TRANSFORM_ALIGN_CHANGE_DETECTION) ? in.readOptionalInt() : null;
     }
 
     public Integer getMaxPageSearchSize() {
@@ -222,6 +264,14 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return unattended;
     }
 
+    Boolean getAlignChangeDetection() {
+        return alignChangeDetection != null ? (alignChangeDetection > 0) || (alignChangeDetection == DEFAULT_ALIGN_CHANGE_DETECTION) : null;
+    }
+
+    Integer getAlignChangeDetectionForUpdate() {
+        return alignChangeDetection;
+    }
+
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > MultiBucketConsumerService.DEFAULT_MAX_BUCKETS)) {
             validationException = addValidationError(
@@ -268,6 +318,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(deduceMappings);
         out.writeOptionalInt(numFailureRetries);
         out.writeOptionalInt(unattended);
+        if (out.getTransportVersion().supports(TRANSFORM_ALIGN_CHANGE_DETECTION)) {
+            out.writeOptionalInt(alignChangeDetection);
+        }
     }
 
     @Override
@@ -298,6 +351,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         if (unattended != null && (unattended.equals(DEFAULT_UNATTENDED) == false)) {
             builder.field(TransformField.UNATTENDED.getPreferredName(), unattended > 0 ? true : false);
         }
+        if (alignChangeDetection != null && (alignChangeDetection.equals(DEFAULT_ALIGN_CHANGE_DETECTION) == false)) {
+            builder.field(TransformField.ALIGN_CHANGE_DETECTION.getPreferredName(), alignChangeDetection > 0 ? true : false);
+        }
         builder.endObject();
         return builder;
     }
@@ -319,7 +375,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             && Objects.equals(usePit, that.usePit)
             && Objects.equals(deduceMappings, that.deduceMappings)
             && Objects.equals(numFailureRetries, that.numFailureRetries)
-            && Objects.equals(unattended, that.unattended);
+            && Objects.equals(unattended, that.unattended)
+            && Objects.equals(alignChangeDetection, that.alignChangeDetection);
     }
 
     @Override
@@ -332,7 +389,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             usePit,
             deduceMappings,
             numFailureRetries,
-            unattended
+            unattended,
+            alignChangeDetection
         );
     }
 
@@ -354,6 +412,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         private Integer deduceMappings;
         private Integer numFailureRetries;
         private Integer unattended;
+        private Integer alignChangeDetection;
 
         /**
          * Default builder
@@ -374,6 +433,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             this.deduceMappings = base.deduceMappings;
             this.numFailureRetries = base.numFailureRetries;
             this.unattended = base.unattended;
+            this.alignChangeDetection = base.alignChangeDetection;
         }
 
         /**
@@ -483,6 +543,19 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
 
         /**
+         * Whether continuous {@code latest} change detection may be restricted to the current checkpoint's time window.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param alignChangeDetection true to allow bounded (checkpoint-window) latest change detection.
+         * @return the {@link Builder} with alignChangeDetection set.
+         */
+        public Builder setAlignChangeDetection(Boolean alignChangeDetection) {
+            this.alignChangeDetection = alignChangeDetection == null ? DEFAULT_ALIGN_CHANGE_DETECTION : alignChangeDetection ? 1 : 0;
+            return this;
+        }
+
+        /**
          * Update settings according to given settings config.
          *
          * @param update update settings
@@ -525,6 +598,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             if (update.getUnattendedForUpdate() != null) {
                 this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
             }
+            if (update.getAlignChangeDetectionForUpdate() != null) {
+                this.alignChangeDetection = update.getAlignChangeDetectionForUpdate().equals(DEFAULT_ALIGN_CHANGE_DETECTION)
+                    ? null
+                    : update.getAlignChangeDetectionForUpdate();
+            }
             return this;
         }
 
@@ -537,7 +615,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                 usePit,
                 deduceMappings,
                 numFailureRetries,
-                unattended
+                unattended,
+                alignChangeDetection
             );
         }
     }

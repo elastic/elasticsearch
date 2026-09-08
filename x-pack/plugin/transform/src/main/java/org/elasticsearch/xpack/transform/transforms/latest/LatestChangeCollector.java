@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -34,8 +35,17 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * {@link Function.ChangeCollector} implementation for the latest function.
- * Uses a two-phase approach to correctly handle the case where the sort field and sync.time.field
- * don't increase monotonically together (gh#90643).
+ * <p>
+ * By default it uses a two-phase approach to correctly handle the case where the sort field and
+ * sync.time.field don't increase monotonically together (gh#90643): phase 1 finds the changed
+ * unique keys, phase 2 re-evaluates those keys over all history so {@code top_hits} picks the true
+ * highest-sort document.
+ * <p>
+ * When {@code boundedChangeDetection} is set, it instead limits change detection to the current
+ * checkpoint's sync-time window (single phase, the pre-gh#90643 behavior). That is correct whenever
+ * the sort field cannot diverge from the sync field (e.g. {@code latest.sort == sync.time.field}),
+ * and it avoids re-scanning old data — which on multi-tier sources means cold/frozen searchable
+ * snapshots are no longer searched every checkpoint (gh#157716).
  */
 class LatestChangeCollector implements Function.ChangeCollector {
 
@@ -43,13 +53,19 @@ class LatestChangeCollector implements Function.ChangeCollector {
 
     private final String synchronizationField;
     private final List<String> uniqueKey;
+    private final boolean boundedChangeDetection;
     private final CompositeAggregationBuilder compositeAggregation;
     private final Map<String, Set<String>> changedKeyValues;
     private final Set<String> fieldsWithNullValues;
 
     LatestChangeCollector(String synchronizationField, List<String> uniqueKey) {
+        this(synchronizationField, uniqueKey, false);
+    }
+
+    LatestChangeCollector(String synchronizationField, List<String> uniqueKey, boolean boundedChangeDetection) {
         this.synchronizationField = Objects.requireNonNull(synchronizationField);
         this.uniqueKey = Objects.requireNonNull(uniqueKey);
+        this.boundedChangeDetection = boundedChangeDetection;
         this.compositeAggregation = createCompositeAggregation(uniqueKey);
         this.changedKeyValues = new HashMap<>();
         for (String field : uniqueKey) {
@@ -113,9 +129,22 @@ class LatestChangeCollector implements Function.ChangeCollector {
      * unique keys. The indexer applies sync_field &lt; nextCheckpoint separately, so the main
      * query sees ALL historical data for those keys and top_hits correctly picks the document
      * with the highest sort field value.
+     * <p>
+     * In {@code boundedChangeDetection} mode there is no phase 1; the filter is instead the
+     * {@code [lastCheckpoint, nextCheckpoint)} sync-time window, so only documents from the current
+     * checkpoint are considered and old (cold/frozen) data is not re-scanned.
      */
     @Override
     public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
+        if (boundedChangeDetection) {
+            // Only documents created in the current checkpoint window can influence the result, because the sort field
+            // cannot reach a higher value outside this window without the sync field also being outside it.
+            return QueryBuilders.rangeQuery(synchronizationField)
+                .gte(lastCheckpoint.getTimeUpperBound())
+                .lt(nextCheckpoint.getTimeUpperBound())
+                .format("epoch_millis");
+        }
+
         if (uniqueKey.size() == 1) {
             String field = uniqueKey.get(0);
             return buildFieldFilter(field, changedKeyValues.get(field), fieldsWithNullValues.contains(field));
@@ -165,7 +194,9 @@ class LatestChangeCollector implements Function.ChangeCollector {
 
     @Override
     public boolean queryForChanges() {
-        return true;
+        // The two-phase approach needs a dedicated IDENTIFY_CHANGES search to collect changed keys;
+        // the bounded (single-phase) approach applies its window directly in buildFilterQuery.
+        return boundedChangeDetection == false;
     }
 
     private void clearCollectedKeys() {

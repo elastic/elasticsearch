@@ -83,7 +83,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             instance.getFrequency(),
             instance.getSyncConfig(),
             instance.getDescription(),
-            instance.getSettings(),
+            instance.getSettings() == null ? null : SettingsConfigTests.mutateForVersion(instance.getSettings(), version),
             instance.getMetadata(),
             instance.getRetentionPolicyConfig(),
             version.supports(TransformConfig.TRANSFORM_FORCE_REKEYING) && instance.isForceRekeying()
@@ -201,6 +201,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             .setDeduceMappings(true)
             .setNumFailureRetries(10)
             .setUnattended(true)
+            .setAlignChangeDetection(false)
             .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));

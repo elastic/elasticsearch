@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -44,6 +45,25 @@ public class LatestChangeCollectorTests extends ESTestCase {
     public void testQueryForChanges() {
         LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"));
         assertTrue(changeCollector.queryForChanges());
+    }
+
+    public void testBoundedChangeDetectionDoesNotQueryForChanges() {
+        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"), true);
+        // With bounded change detection there is no separate IDENTIFY_CHANGES phase; the window is applied in buildFilterQuery.
+        assertFalse(changeCollector.queryForChanges());
+    }
+
+    public void testBoundedChangeDetectionBuildsSyncWindowRange() {
+        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"), true);
+
+        QueryBuilder filterQuery = changeCollector.buildFilterQuery(CHECKPOINT_OLD, CHECKPOINT_NEW);
+        assertThat(filterQuery, instanceOf(RangeQueryBuilder.class));
+        RangeQueryBuilder rangeQuery = (RangeQueryBuilder) filterQuery;
+        assertThat(rangeQuery.fieldName(), is(equalTo("timestamp")));
+        assertThat(rangeQuery.from(), is(equalTo(CHECKPOINT_OLD.getTimeUpperBound())));
+        assertThat(rangeQuery.to(), is(equalTo(CHECKPOINT_NEW.getTimeUpperBound())));
+        assertThat(rangeQuery.includeLower(), is(true));
+        assertThat(rangeQuery.includeUpper(), is(false));
     }
 
     public void testIsOptimized() {

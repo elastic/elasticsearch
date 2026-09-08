@@ -923,11 +923,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // background read finishes or fails. Operator hold: released from the returned operator's
         // close() via {@code operatorHold}, so a fast-failing first producer cannot return the
         // storage lease before later {@code get()} calls during pipeline construction.
-        operatorRefCount.incrementAndGet();
-        operatorRefCount.incrementAndGet();
-        Releasable operatorHold = Releasables.releaseOnce(this::releaseOperator);
-        boolean producerStarted = false;
+        // After startXxx returns, that path owns the producer hold (including noFurtherCandidates
+        // already having released it). Until then, this method still owns both holds.
+        Releasable operatorHold = null;
+        boolean refsTaken = false;
+        boolean producerOwnsHold = false;
+        boolean succeeded = false;
         try {
+            operatorRefCount.addAndGet(2);
+            refsTaken = true;
+            operatorHold = Releasables.releaseOnce(this::releaseOperator);
             long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
             driverContext.addAsyncAction();
@@ -971,15 +976,36 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext);
                 }
             }
-            producerStarted = true;
+            producerOwnsHold = true;
 
-            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, scheme, formatName, operatorHold);
-        } catch (Exception e) {
-            operatorHold.close();
-            if (producerStarted == false) {
-                releaseOperator();
+            SourceOperator operator = new AsyncExternalSourceOperator(
+                buffer,
+                driverContext,
+                externalSourceMetrics,
+                scheme,
+                formatName,
+                operatorHold
+            );
+            succeeded = true;
+            return operator;
+        } finally {
+            if (succeeded == false) {
+                if (operatorHold != null) {
+                    try {
+                        operatorHold.close();
+                    } finally {
+                        if (producerOwnsHold == false) {
+                            releaseOperator();
+                        }
+                    }
+                } else if (refsTaken) {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        releaseOperator();
+                    }
+                }
             }
-            throw e;
         }
     }
 

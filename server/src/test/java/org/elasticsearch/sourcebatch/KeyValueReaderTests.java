@@ -47,13 +47,25 @@ public class KeyValueReaderTests extends ESTestCase {
         assertFalse(kv.next());
     }
 
-    public void testSingleFloatEntry() throws IOException {
-        // 1.5 is exactly representable as float so the encoder chooses FLOAT over DOUBLE
+    public void testJsonFloatingPointLiteralEncodesAsDouble() throws IOException {
+        // JSON floating-point literals are parsed as DOUBLE; width is preserved from the parser.
         KeyValueReader kv = new KeyValueReader(kvPayload("{\"pi\": 1.5}"));
         assertTrue(kv.next());
         assertEquals("pi", kv.key());
+        assertEquals(SourceValueType.DOUBLE, kv.type());
+        assertEquals(1.5, kv.doubleValue(), 0.0);
+        assertFalse(kv.next());
+    }
+
+    public void testSingleFloatEntry() {
+        KeyValueWriter writer = KeyValueWriter.forObjectPayload();
+        writer.writeFloatField("f", 3.14f);
+
+        KeyValueReader kv = new KeyValueReader(writer.toBytes());
+        assertTrue(kv.next());
+        assertEquals("f", kv.key());
         assertEquals(SourceValueType.FLOAT, kv.type());
-        assertEquals(1.5f, kv.floatValue(), 0.0f);
+        assertEquals(3.14f, kv.floatValue(), 0.0f);
         assertFalse(kv.next());
     }
 
@@ -68,7 +80,6 @@ public class KeyValueReaderTests extends ESTestCase {
     }
 
     public void testSingleDoubleEntry() throws IOException {
-        // 3.14 is not exactly representable as float so the encoder chooses DOUBLE
         KeyValueReader kv = new KeyValueReader(kvPayload("{\"d\": 3.14}"));
         assertTrue(kv.next());
         assertEquals("d", kv.key());

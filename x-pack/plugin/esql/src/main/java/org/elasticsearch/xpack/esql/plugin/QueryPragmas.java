@@ -139,8 +139,8 @@ public final class QueryPragmas implements Writeable {
      * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
      * are checked separately because each runs through the compute service independently. Where {@link #MAX_QUERY_BRANCHES} limits how many
      * branches there are in total, this limits how deeply those unions nest: each nested union becomes a coordinator merge segment that is
-     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying under
-     * {@link #MAX_QUERY_BRANCHES}.
+     * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
+     * under {@link #MAX_QUERY_BRANCHES}.
      */
     public static final Setting<Integer> MAX_QUERY_BRANCH_LEVELS = Setting.intSetting("max_query_branch_levels", 10, 1);
 
@@ -209,6 +209,11 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
+     */
+    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -235,7 +240,9 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
-        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        KNN_RUNTIME_FIELD
+
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -443,6 +450,13 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public boolean knnRuntimeField() {
+        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

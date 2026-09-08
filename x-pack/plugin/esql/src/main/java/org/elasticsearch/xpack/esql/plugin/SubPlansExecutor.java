@@ -65,6 +65,8 @@ final class SubPlansExecutor {
     private final FoldContext foldContext;
     private final EsqlExecutionInfo execInfo;
     private final Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses;
+    @Nullable
+    private final Runnable warnIndexCoordinatorOnce;
     private final QueryPragmas queryPragmas;
     /**
      * Rollback ledger for phase 1: every {@link MergeContext} whose {@link ExchangeSourceHandler} has been registered with the
@@ -100,6 +102,34 @@ final class SubPlansExecutor {
         EsqlExecutionInfo execInfo,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
     ) {
+        this(
+            computeService,
+            exchangeService,
+            searchExecutor,
+            sessionId,
+            rootTask,
+            flags,
+            configuration,
+            foldContext,
+            execInfo,
+            initialClusterStatuses,
+            null
+        );
+    }
+
+    SubPlansExecutor(
+        ComputeService computeService,
+        ExchangeService exchangeService,
+        Executor searchExecutor,
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        Runnable warnIndexCoordinatorOnce
+    ) {
         this.computeService = computeService;
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
@@ -111,6 +141,7 @@ final class SubPlansExecutor {
         this.foldContext = foldContext;
         this.execInfo = execInfo;
         this.initialClusterStatuses = initialClusterStatuses;
+        this.warnIndexCoordinatorOnce = warnIndexCoordinatorOnce;
         this.queryPragmas = configuration.pragmas();
     }
 
@@ -801,23 +832,42 @@ final class SubPlansExecutor {
         }
         try {
             Supplier<ExchangeSink> exchangeSinkSupplier = parentSink.attach();
-            computeService.executePlan(
-                parentSink.sessionId,
-                rootTask,
-                flags,
-                leafContext.plan,
-                configuration,
-                foldContext,
-                execInfo,
-                leafContext.path,
-                ActionListener.wrap(
-                    result -> settleLeafAndRefill(scheduledLeaf, result.completionInfo(), null, onDoneOnce),
-                    e -> settleLeafAndRefill(scheduledLeaf, null, e, onDoneOnce)
-                ),
-                exchangeSinkSupplier,
-                initialClusterStatuses,
-                configuration.profile() ? new PlanTimeProfile() : null
+            ActionListener<Result> listener = ActionListener.wrap(
+                result -> settleLeafAndRefill(scheduledLeaf, result.completionInfo(), null, onDoneOnce),
+                e -> settleLeafAndRefill(scheduledLeaf, null, e, onDoneOnce)
             );
+            if (warnIndexCoordinatorOnce == null) {
+                computeService.executePlan(
+                    parentSink.sessionId,
+                    rootTask,
+                    flags,
+                    leafContext.plan,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    leafContext.path,
+                    listener,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    configuration.profile() ? new PlanTimeProfile() : null
+                );
+            } else {
+                computeService.executePlan(
+                    parentSink.sessionId,
+                    rootTask,
+                    flags,
+                    leafContext.plan,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    leafContext.path,
+                    listener,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    configuration.profile() ? new PlanTimeProfile() : null,
+                    warnIndexCoordinatorOnce
+                );
+            }
         } catch (Exception e) {
             settleLeafAndRefill(scheduledLeaf, null, e, onDoneOnce);
         }

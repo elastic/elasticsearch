@@ -1795,11 +1795,74 @@ Infinity      | 2024-05-10T01:00:00.000Z | qa
 Infinity      | 2024-05-10T01:00:00.000Z | staging
 ;
 
+// Scope guard: +Inf values crossing the pipe into a native ES|QL STATS SUM are propagated by the strict ES|QL sum
+// aggregator (which has no finite-number check), yielding +Inf rather than being dropped.
+nonfinite_crosses_pipe_into_strict_stats_sum
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) * Inf)
+| STATS s = SUM(result);
+
+s:double
+Infinity
+;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PromQL across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient
-// aggregator path (max / min), gated on the promql_non_finite_math capability. Native ES|QL STATS aggregations remain
-// strict (finite-only).
+// aggregator path (sum / avg / max / min), gated on the promql_non_finite_math capability. Native ES|QL STATS
+// aggregations remain strict (finite-only).
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Prometheus avg propagates non-finite: avg over three +Inf series is +Inf.
+nonfinite_avg_propagates_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus sum propagates non-finite: summing three +Inf series is +Inf.
+nonfinite_sum_propagates_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus sum over a set containing NaN is NaN.
+nonfinite_sum_propagates_nan
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum(sum by (cluster) (network.cost) * NaN));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// Grouped sum keeps a non-finite series per group rather than dropping it.
+nonfinite_sum_by_cluster_propagates_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(sum by (cluster) (sum by (cluster) (network.cost) * Inf)) | SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+Infinity      | 2024-05-10T01:00:00.000Z | prod
+Infinity      | 2024-05-10T01:00:00.000Z | qa
+Infinity      | 2024-05-10T01:00:00.000Z | staging
+;
 
 // Prometheus max treats -Inf as an ordinary (smallest) value, so max over an all-(-Inf) set is -Inf.
 nonfinite_max_all_negative_infinity

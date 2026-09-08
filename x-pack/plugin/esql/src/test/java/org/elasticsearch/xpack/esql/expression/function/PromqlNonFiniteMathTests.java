@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
@@ -32,6 +33,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -230,6 +233,21 @@ public class PromqlNonFiniteMathTests extends ESTestCase {
 
     private static Div div(double lhs, double rhs) {
         return new Div(Source.EMPTY, Literal.fromDouble(Source.EMPTY, lhs), Literal.fromDouble(Source.EMPTY, rhs), null, true);
+    }
+
+    /**
+     * A histogram holding no observations has {@code sum = 0} and {@code count = 0}, and PromQL reports the resulting
+     * {@code 0 / 0} as {@code NaN}, keeping the series. Dividing strictly rejects a zero divisor and drops it, so the
+     * average of a histogram must be built from the non-finite-preserving division.
+     */
+    public void testHistogramAverageOfAnEmptyHistogramYieldsNaN() {
+        Expression histogram = EsqlTestUtils.fieldAttribute("histogram", DataType.EXPONENTIAL_HISTOGRAM);
+        Expression timestamp = EsqlTestUtils.fieldAttribute("@timestamp", DataType.DATETIME);
+        Expression average = new AvgOverTime(Source.EMPTY, histogram, null, timestamp).surrogate();
+        assertThat(average, instanceOf(Div.class));
+
+        Expression zero = Literal.fromDouble(Source.EMPTY, 0.0);
+        assertFoldsToNaN(average.replaceChildren(List.of(zero, zero)));
     }
 
     private static Log log2(Expression value) {

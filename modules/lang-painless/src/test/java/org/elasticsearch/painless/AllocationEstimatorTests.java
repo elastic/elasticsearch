@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -149,5 +150,34 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, resource));
         PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
+    }
+
+    public void testEstimatorInNonAllowlistedClassCharged() {
+        // The estimator class is referenced only by the @allocates annotation, never allowlisted. This is the shape every
+        // x-pack module estimator has.
+        assertEquals(5 * 8L, allocatedBytes("new AllocationEstimatorTestObject().externallyEstimated(5); return \"x\";"));
+    }
+
+    public void testEstimatorClassIsLinkableButNotVisibleToScripts() {
+        // The pre-check emits an INVOKESTATIC naming the estimator's class, and the generated script's loader resolves that
+        // name through the lookup. A plugin's estimator class lives in the plugin's loader, which is not the generated
+        // class's parent, so it must be registered here or the script fails to link with NoClassDefFoundError. A unit test
+        // cannot reproduce that failure -- one flat classpath means the parent resolves everything -- so assert the
+        // registration itself.
+        PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
+            scriptContexts().get(PainlessTestScript.CONTEXT),
+            new HashMap<>(),
+            new HashMap<>()
+        );
+        String estimatorClass = AllocationExternalEstimators.class.getName();
+
+        assertNotNull("estimator class must be resolvable by the generated script's loader", lookup.javaClassNameToClass(estimatorClass));
+
+        // ... and gains no script-visible surface by being registered.
+        assertFalse(lookup.isValidCanonicalClassName(estimatorClass));
+        assertFalse(lookup.isValidCanonicalClassName("AllocationExternalEstimators"));
+        assertNull(lookup.canonicalTypeNameToType(estimatorClass));
+        assertNull("no PainlessClass means no callable members", lookup.lookupPainlessClass(AllocationExternalEstimators.class));
+        assertFalse(lookup.getClasses().stream().anyMatch(c -> c == AllocationExternalEstimators.class));
     }
 }

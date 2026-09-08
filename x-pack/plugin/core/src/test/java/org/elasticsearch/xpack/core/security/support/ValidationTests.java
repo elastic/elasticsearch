@@ -391,11 +391,10 @@ public class ValidationTests extends ESTestCase {
         final int max = UserManagedServiceAccounts.MAX_ROLES;
         assertThat(UserManagedServiceAccounts.validateRoles(List.of()), nullValue());
         assertThat(UserManagedServiceAccounts.validateRoles(roleNames(max)), nullValue());
-        // The account document holds distinct names, so a repeated one costs nothing
-        assertThat(UserManagedServiceAccounts.validateRoles(Collections.nCopies(max + 1, "role-a")), nullValue());
 
+        final List<String> tooMany = randomBoolean() ? roleNames(max + 1) : Collections.nCopies(max + 1, "role-a");
         assertThat(
-            UserManagedServiceAccounts.validateRoles(roleNames(max + 1)).toString(),
+            UserManagedServiceAccounts.validateRoles(tooMany).toString(),
             equalTo("a service account may not have more than " + max + " roles, but [" + (max + 1) + "] were given")
         );
     }

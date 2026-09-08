@@ -305,13 +305,12 @@ public final class Validation {
         }
 
         /**
-         * Caps how many roles one account may hold. Distinct names are counted, since that is what the account
-         * document stores and so what an authentication has to resolve.
+         * Caps how many role names one request may list. Length is counted, not distinct names, so a
+         * repeated role still costs a slot.
          */
         public static Error validateRoles(Collection<String> roles) {
-            final long distinct = roles.stream().distinct().count();
-            if (distinct > MAX_ROLES) {
-                return new Error("a service account may not have more than " + MAX_ROLES + " roles, but [" + distinct + "] were given");
+            if (roles.size() > MAX_ROLES) {
+                return new Error("a service account may not have more than " + MAX_ROLES + " roles, but [" + roles.size() + "] were given");
             }
             return null;
         }

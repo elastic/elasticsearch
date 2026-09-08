@@ -163,12 +163,12 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         }
     }
 
-    public void testTooManyRolesAreRejectedButDuplicatesDoNotCount() {
+    public void testTooManyRolesAreRejectedIncludingDuplicates() {
         final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
         assertThat(newRequestWithRoles(roleNames(max)).validate(), nullValue());
-        assertThat(newRequestWithRoles(Collections.nCopies(max + 1, "role-a")).validate(), nullValue());
 
-        final ActionRequestValidationException e = newRequestWithRoles(roleNames(max + 1)).validate();
+        final List<String> tooMany = randomBoolean() ? roleNames(max + 1) : Collections.nCopies(max + 1, "role-a");
+        final ActionRequestValidationException e = newRequestWithRoles(tooMany).validate();
         assertThat(e, notNullValue());
         assertThat(
             e.validationErrors(),

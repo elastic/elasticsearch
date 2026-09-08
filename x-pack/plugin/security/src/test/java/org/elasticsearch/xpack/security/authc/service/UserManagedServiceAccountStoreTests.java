@@ -64,6 +64,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -329,8 +330,11 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
         final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
+        final List<String> tooMany = randomBoolean()
+            ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
+            : Collections.nCopies(max + 1, "role-a");
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList(), true, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, tooMany, true, RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(

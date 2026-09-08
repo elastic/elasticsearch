@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -27,18 +29,7 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class DataSourceUsageAccumulator {
 
-    // ---- scheme vocabulary (closed set, mirrors ExternalSourceMetrics.canonicalScheme) ----
-
-    public static final int SCHEME_S3 = 0;
-    public static final int SCHEME_GCS = 1;
-    public static final int SCHEME_AZURE = 2;
-    public static final int SCHEME_HTTP = 3;
-    public static final int SCHEME_FILE = 4;
-    public static final int SCHEME_UNKNOWN = 5;
-    public static final int SCHEME_COUNT = 6;
-    public static final List<String> SCHEME_NAMES = List.of("s3", "gcs", "azure", "http", "file", "unknown");
-    /** Set form of {@link #SCHEME_NAMES}, used by {@code ExternalSourceMetrics} to clamp before calling {@link #schemeIndex}. */
-    public static final Set<String> SCHEME_NAMES_SET = Set.copyOf(SCHEME_NAMES);
+    private static final int TYPE_COUNT = Type.values().length;
 
     // ---- outcome vocabulary ----
 
@@ -47,6 +38,20 @@ public final class DataSourceUsageAccumulator {
     public static final int OUTCOME_CANCELLED = 2;
     public static final int OUTCOME_COUNT = 3;
     public static final List<String> OUTCOME_NAMES = List.of("success", "failure", "cancelled");
+
+    // ---- config-change vocabulary (kind × op) ----
+
+    public static final int KIND_DATASOURCE = 0;
+    public static final int KIND_DATASET = 1;
+    public static final int KIND_COUNT = 2;
+    public static final List<String> KIND_NAMES = List.of("datasources", "datasets");
+
+    public static final int OP_CREATED = 0;
+    public static final int OP_UPDATED = 1;
+    public static final int OP_DELETED = 2;
+    public static final int OP_REJECTED = 3;
+    public static final int OP_COUNT = 4;
+    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
 
     // ---- bucket definitions (10 buckets each, matching ThresholdBucketer conventions) ----
 
@@ -89,12 +94,12 @@ public final class DataSourceUsageAccumulator {
         assert COUNT_SUFFIXES.size() == BUCKET_COUNT : "COUNT_SUFFIXES size mismatch";
     }
 
-    // ---- per-scheme counters ----
+    // ---- per-type counters (indexed by {@link Type#ordinal()}) ----
 
-    private final LongAdder[] storageRequests = adders(SCHEME_COUNT);
-    private final LongAdder[] storageBytesRead = adders(SCHEME_COUNT);
-    private final LongAdder[] storageErrors = adders(SCHEME_COUNT);
-    private final LongAdder[] storageThrottled = adders(SCHEME_COUNT);
+    private final LongAdder[] storageRequests = adders(TYPE_COUNT);
+    private final LongAdder[] storageBytesRead = adders(TYPE_COUNT);
+    private final LongAdder[] storageErrors = adders(TYPE_COUNT);
+    private final LongAdder[] storageThrottled = adders(TYPE_COUNT);
 
     // ---- unattributed counters ----
 
@@ -110,6 +115,13 @@ public final class DataSourceUsageAccumulator {
 
     private final LongAdder[] queries = adders(OUTCOME_COUNT);
 
+    private final LongAdder[][] configChanges = new LongAdder[KIND_COUNT][];
+    {
+        for (int k = 0; k < KIND_COUNT; k++) {
+            configChanges[k] = adders(OP_COUNT);
+        }
+    }
+
     // ---- histogram buckets (no attribute dimension for phone-home) ----
 
     private final LongAdder[] storageRequestDuration = adders(BUCKET_COUNT);
@@ -124,9 +136,8 @@ public final class DataSourceUsageAccumulator {
 
     // ---- recording methods (called from ExternalSourceMetrics with already-canonicalised values) ----
 
-    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
-    public void recordRequest(String canonicalScheme, long durationMillis, long bytes) {
-        int si = schemeIndex(canonicalScheme);
+    public void recordRequest(Type type, long durationMillis, long bytes) {
+        int si = index(type);
         storageRequests[si].increment();
         if (bytes > 0) {
             storageBytesRead[si].add(bytes);
@@ -138,14 +149,12 @@ public final class DataSourceUsageAccumulator {
         storageRetries.increment();
     }
 
-    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
-    public void recordError(String canonicalScheme) {
-        storageErrors[schemeIndex(canonicalScheme)].increment();
+    public void recordError(Type type) {
+        storageErrors[index(type)].increment();
     }
 
-    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
-    public void recordThrottled(String canonicalScheme) {
-        storageThrottled[schemeIndex(canonicalScheme)].increment();
+    public void recordThrottled(Type type) {
+        storageThrottled[index(type)].increment();
     }
 
     public void recordReadStall(long millis) {
@@ -197,30 +206,30 @@ public final class DataSourceUsageAccumulator {
         breakerTripped.increment();
     }
 
+    /**
+     * @param kind {@code datasources} or {@code datasets}
+     * @param op {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     */
+    public void recordConfigChange(String kind, String op) {
+        configChanges[kindIndex(kind)][opIndex(op)].increment();
+    }
+
     // ---- snapshot accessors (read by the stats/conversion layer) ----
 
-    /** @param schemeIndex one of the {@code SCHEME_*} constants */
-    public long storageRequests(int schemeIndex) {
-        checkSchemeIndex(schemeIndex);
-        return storageRequests[schemeIndex].sum();
+    public long storageRequests(Type type) {
+        return storageRequests[index(type)].sum();
     }
 
-    /** @param schemeIndex one of the {@code SCHEME_*} constants */
-    public long storageBytesRead(int schemeIndex) {
-        checkSchemeIndex(schemeIndex);
-        return storageBytesRead[schemeIndex].sum();
+    public long storageBytesRead(Type type) {
+        return storageBytesRead[index(type)].sum();
     }
 
-    /** @param schemeIndex one of the {@code SCHEME_*} constants */
-    public long storageErrors(int schemeIndex) {
-        checkSchemeIndex(schemeIndex);
-        return storageErrors[schemeIndex].sum();
+    public long storageErrors(Type type) {
+        return storageErrors[index(type)].sum();
     }
 
-    /** @param schemeIndex one of the {@code SCHEME_*} constants */
-    public long storageThrottled(int schemeIndex) {
-        checkSchemeIndex(schemeIndex);
-        return storageThrottled[schemeIndex].sum();
+    public long storageThrottled(Type type) {
+        return storageThrottled[index(type)].sum();
     }
 
     public long storageRetries() {
@@ -255,6 +264,13 @@ public final class DataSourceUsageAccumulator {
 
     public long breakerTripped() {
         return breakerTripped.sum();
+    }
+
+    /** @param kindIndex one of the {@code KIND_*} constants; @param opIndex one of the {@code OP_*} constants */
+    public long configChanges(int kindIndex, int opIndex) {
+        checkKindIndex(kindIndex);
+        checkOpIndex(opIndex);
+        return configChanges[kindIndex][opIndex].sum();
     }
 
     public long storageRequestDuration(int bucket) {
@@ -304,15 +320,25 @@ public final class DataSourceUsageAccumulator {
 
     // ---- internal helpers ----
 
-    static int schemeIndex(String canonicalScheme) {
-        return switch (canonicalScheme) {
-            case "s3" -> SCHEME_S3;
-            case "gcs" -> SCHEME_GCS;
-            case "azure" -> SCHEME_AZURE;
-            case "http" -> SCHEME_HTTP;
-            case "file" -> SCHEME_FILE;
-            case "unknown" -> SCHEME_UNKNOWN;
-            default -> throw new IllegalArgumentException("unexpected canonical scheme: " + canonicalScheme);
+    private static int index(Type type) {
+        return Objects.requireNonNull(type, "type").ordinal();
+    }
+
+    static int kindIndex(String kind) {
+        return switch (kind) {
+            case "datasource", "datasources" -> KIND_DATASOURCE;
+            case "dataset", "datasets" -> KIND_DATASET;
+            default -> throw new IllegalArgumentException("unexpected kind: " + kind);
+        };
+    }
+
+    static int opIndex(String op) {
+        return switch (op) {
+            case "created" -> OP_CREATED;
+            case "updated" -> OP_UPDATED;
+            case "deleted" -> OP_DELETED;
+            case "rejected" -> OP_REJECTED;
+            default -> throw new IllegalArgumentException("unexpected op: " + op);
         };
     }
 
@@ -353,11 +379,17 @@ public final class DataSourceUsageAccumulator {
         return arr;
     }
 
-    private static void checkSchemeIndex(int schemeIndex) {
-        if (schemeIndex < 0 || schemeIndex >= SCHEME_COUNT) {
+    private static void checkKindIndex(int kindIndex) {
+        if (kindIndex < 0 || kindIndex >= KIND_COUNT) {
             throw new IllegalArgumentException(
-                "schemeIndex out of range: " + schemeIndex + "; use SCHEME_* constants (0.." + (SCHEME_COUNT - 1) + ")"
+                "kindIndex out of range: " + kindIndex + "; use KIND_* constants (0.." + (KIND_COUNT - 1) + ")"
             );
+        }
+    }
+
+    private static void checkOpIndex(int opIndex) {
+        if (opIndex < 0 || opIndex >= OP_COUNT) {
+            throw new IllegalArgumentException("opIndex out of range: " + opIndex + "; use OP_* constants (0.." + (OP_COUNT - 1) + ")");
         }
     }
 

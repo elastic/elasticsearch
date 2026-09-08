@@ -266,9 +266,28 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(measurements(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
     }
 
+    public void testRecordConfigChangeCreatedHasNoReason() {
+        metrics.recordConfigChange("datasource", "created", "s3", null);
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);
+        assertThat(m.getLong(), equalTo(1L));
+        assertThat(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE), equalTo("datasource"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("created"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(m.attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo(false));
+    }
+
+    public void testRecordConfigChangeRejectedCarriesReason() {
+        metrics.recordConfigChange("dataset", "rejected", "unknown", "validation");
+        Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);
+        assertThat(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE), equalTo("dataset"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("rejected"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("unknown"));
+        assertThat(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo("validation"));
+    }
+
     public void testCanonicalSchemeFoldsProviderAliases() {
         // The raw StoragePath scheme is what storage providers register; fold the aliases so one provider
-        // is one metric series (s3a/s3n->s3, gs->gcs, wasb/wasbs->azure, https->http).
+        // is one metric series (s3a/s3n->s3, gs->gcs, wasb/wasbs->azure, https->http, file->local).
         assertThat(ExternalSourceMetrics.canonicalScheme("s3"), equalTo("s3"));
         assertThat(ExternalSourceMetrics.canonicalScheme("s3a"), equalTo("s3"));
         assertThat(ExternalSourceMetrics.canonicalScheme("s3n"), equalTo("s3"));
@@ -277,10 +296,10 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(ExternalSourceMetrics.canonicalScheme("wasbs"), equalTo("azure"));
         assertThat(ExternalSourceMetrics.canonicalScheme("http"), equalTo("http"));
         assertThat(ExternalSourceMetrics.canonicalScheme("https"), equalTo("http"));
-        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("file"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("local"));
         assertThat(ExternalSourceMetrics.canonicalScheme("S3A"), equalTo("s3"));
-        // Unknown schemes pass through lower-cased; null is mapped to a stable sentinel.
-        assertThat(ExternalSourceMetrics.canonicalScheme("ftp"), equalTo("ftp"));
+        // Unknown schemes clamp to the closed unknown token; null is the same sentinel.
+        assertThat(ExternalSourceMetrics.canonicalScheme("ftp"), equalTo("unknown"));
         assertThat(ExternalSourceMetrics.canonicalScheme(null), equalTo("unknown"));
     }
 

@@ -408,7 +408,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
      *
      * <p>APM inventory gauges, phone-home inventory keys, and the query-path format dimension land
      * in #1866 / #1868 and are not on this branch. This test asserts the surfaces that exist:
-     * CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on scheme {@code file}, and
+     * CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on scheme {@code local}, and
      * that the coordinator registry resolves the same object as {@code csv}.
      */
     public void testInferredCompoundExtensionDatasetIsQueryable() throws Exception {
@@ -441,8 +441,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
         assertThat(
-            "parse.rows.total must fire for the local file scheme",
-            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "file"),
+            "parse.rows.total must fire for the local scheme",
+            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
             equalTo(1L)
         );
 

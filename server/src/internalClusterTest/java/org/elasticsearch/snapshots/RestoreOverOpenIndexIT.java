@@ -501,6 +501,39 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         assertThat("the un-renamed source index must not be restored over", historyUuid(INDEX_NAME), nullValue());
     }
 
+    /**
+     * Restoring over an open index whose primary is currently {@link ShardRoutingState#UNASSIGNED} must still work. The operation replaces
+     * the destination's routing outright, so a non-STARTED destination is not a special case. The destination is left unassigned here by
+     * stopping the only data node (the index stays open, just red). The restore is published against that unassigned destination, and a
+     * fresh data node then lets the restored shards allocate and recover from the snapshot.
+     */
+    public void testRestoreOverOpenIndexWhosePrimaryIsUnassigned() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final int docCount = createRepositoryAndSnapshottedIndex();
+
+        // stop the only data node so the open destination's primary becomes UNASSIGNED (the index stays open, just red)
+        internalCluster().stopNode(dataNode);
+        assertBusy(() -> assertThat(primaryShardRouting().state(), equalTo(ShardRoutingState.UNASSIGNED)));
+
+        // publish the restore-over while the destination is unassigned; this master-side update needs no data node
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(INDEX_NAME).restoreOverExisting(true),
+            future
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+
+        // a fresh data node lets the restoring shards allocate and recover from the snapshot
+        internalCluster().startDataOnlyNode();
+        awaitRestoreCompleted();
+
+        assertThat("restore over an unassigned destination must still assign a history UUID", historyUuid(), notNullValue());
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);
+    }
+
     private int createRepositoryAndSnapshottedIndex() throws Exception {
         // Randomize the replica count within what the running cluster can allocate, so that across CI seeds the restore-over-open operation
         // is exercised against different copy layouts. The operation is expected to be routing-state-agnostic, and randomizing here guards

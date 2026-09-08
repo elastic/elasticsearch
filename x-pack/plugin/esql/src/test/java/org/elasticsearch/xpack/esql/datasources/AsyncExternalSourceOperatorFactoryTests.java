@@ -499,6 +499,37 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * {@code openNextMultiFile} must call the length overload, including listed size {@code 0}.
+     * A row-count-only assertion would pass on the path-only constructor.
+     */
+    public void testOpenNextMultiFileSeedsListedSizeIncludingEmpty() throws Exception {
+        StoragePath sized = StoragePath.of("s3://bucket/data/f1.parquet");
+        StoragePath empty = StoragePath.of("s3://bucket/data/empty.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(sized, 100, Instant.EPOCH), new StorageEntry(empty, 0, Instant.EPOCH)),
+            "s3://bucket/data/*.parquet"
+        );
+        RecordingMultiFileStorageProvider storageProvider = new RecordingMultiFileStorageProvider();
+        drainMultiFileOperator(storageProvider, fileList, sized);
+        assertEquals(
+            List.of(
+                new RecordingMultiFileStorageProvider.Call(sized, 100L, null),
+                new RecordingMultiFileStorageProvider.Call(empty, 0L, null)
+            ),
+            storageProvider.calls
+        );
+    }
+
+    public void testOpenNextMultiFileSeedsMtimeWhenKnown() throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        Instant mtime = Instant.ofEpochMilli(1_700_000_000_000L);
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, mtime)), "s3://bucket/data/*.parquet");
+        RecordingMultiFileStorageProvider storageProvider = new RecordingMultiFileStorageProvider();
+        drainMultiFileOperator(storageProvider, fileList, path);
+        assertEquals(List.of(new RecordingMultiFileStorageProvider.Call(path, 100L, mtime)), storageProvider.calls);
+    }
+
+    /**
      * Collision regression (the {@code date=<one-day>} shape). A Hive partition key {@code year}
      * shadows a same-named physical column, so the unified attributes are [id, value, year] with
      * {@code year} the appended partition column, while the file-backed {@link ColumnMapping} is
@@ -3595,6 +3626,42 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     // ===== Helpers =====
 
+    private static void drainMultiFileOperator(StorageProvider storageProvider, FileList fileList, StoragePath path) {
+        FormatReader formatReader = new PageCountingFormatReader(new AtomicInteger());
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).build();
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     private static CloseableIterator<Page> emptyIterator() {
         return new CloseableIterator<>() {
             @Override
@@ -3794,6 +3861,30 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static class RecordingMultiFileStorageProvider extends StubMultiFileStorageProvider {
+        record Call(StoragePath path, Long length, Instant lastModified) {}
+
+        final List<Call> calls = new ArrayList<>();
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            calls.add(new Call(path, null, null));
+            return super.newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            calls.add(new Call(path, length, null));
+            return super.newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            calls.add(new Call(path, length, lastModified));
+            return super.newObject(path, length, lastModified);
+        }
     }
 
     private static class StubMultiFileStorageProvider implements StorageProvider {

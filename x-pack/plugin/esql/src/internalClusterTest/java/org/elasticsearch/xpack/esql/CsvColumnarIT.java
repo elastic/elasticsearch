@@ -603,7 +603,7 @@ public class CsvColumnarIT extends CsvIT {
      *   <li>Honours the {@code skip_columnar:} preamble directive to silence individual tests.</li>
      * </ul>
      */
-    private static final class ColumnarStrategy implements IndexLoadStrategy {
+    static final class ColumnarStrategy implements IndexLoadStrategy {
 
         private final Settings extraSettings;
 

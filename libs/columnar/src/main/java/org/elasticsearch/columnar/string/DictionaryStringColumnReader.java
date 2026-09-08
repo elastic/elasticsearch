@@ -222,6 +222,49 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return best < 0 ? null : termAt(best, dst);
     }
 
+    /**
+     * How many values the column's vocabulary names: its terms, and the values that escaped them.
+     *
+     * <p>A column has one of these for its whole life, so a consumer that resolves it does so once for the segment
+     * however many pages it reads. That is the point of it: a page-local dictionary has to be rebuilt, and everything
+     * derived from it recomputed, for every page, because each page's is a different one.
+     */
+    public int vocabularySize() {
+        return dictionarySize + Math.toIntExact(escapeCount);
+    }
+
+    /**
+     * Reads the vocabulary into {@code into}, which must hold {@link #vocabularySize} entries. The terms come first,
+     * in term order, and the values that escaped them follow in the order they were written - so a term keeps the
+     * ordinal it has in the column, and an escape takes one past the last of them.
+     *
+     * <p>The escapes are the whole of what makes this more than the dictionary. A value that escaped is named by no
+     * term, and naming it here is what lets every value of the column index one vector.
+     */
+    public void readVocabulary(BytesRef[] into) throws IOException {
+        for (int i = 0; i < dictionarySize; i++) {
+            termAt(i + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, into[i]);
+        }
+        for (int i = 0; i < escapeCount; i++) {
+            escapes.get(i, into[dictionarySize + i]);
+        }
+    }
+
+    /**
+     * Where the value at {@code valueAddress} sits in {@link #readVocabulary}, or -1 when the slot is null and names
+     * nothing at all.
+     */
+    public int vocabularyOrdinalAt(long valueAddress) throws IOException {
+        final int ordinal = ordinalAt(valueAddress);
+        if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+            return -1;
+        }
+        if (ordinal == escapeOrdinal) {
+            return dictionarySize + Math.toIntExact(escapeRankOf(valueAddress));
+        }
+        return ordinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+    }
+
     /** The value behind the escape marker at {@code valueAddress}, for a consumer that took ordinals. */
     public BytesRef resolveEscape(long valueAddress, BytesRef dst) throws IOException {
         escapes.get(escapeRankOf(valueAddress), dst);

@@ -1,0 +1,80 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0"; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.junit.BeforeClass;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * {@link CsvColumnarIT} with the ColumNAR codec on, so the values are read out of a real column rather than out of
+ * the doc-values format the index mode alone leaves in place.
+ *
+ * <p>The distinction matters more than it looks. Columnar <em>index mode</em> settles how a field is mapped; the
+ * columnar <em>codec</em> settles how its doc values are written, and only with both does a keyword become a
+ * {@code BINARY_COLUMNAR_PAYLOAD} field backed by a string column. Without the codec none of the column's own read
+ * paths are reached at all - not the page reader that grouping goes through, not the ordinals a page is handed over
+ * as, not the extremes taken from them. This runs the whole spec suite over columns so that they are.
+ */
+public class CsvColumnarCodecIT extends CsvColumnarIT {
+
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s", shuffle = false)
+    public static List<Object[]> readScriptSpec() throws Exception {
+        return new ArrayList<>(CsvColumnarIT.readScriptSpec());
+    }
+
+    /**
+     * Replaces the strategy the superclass installed with one that turns the codec on as well. JUnit runs a
+     * superclass {@code @BeforeClass} first, so this lands after {@link CsvColumnarIT#installColumnarStrategy()}.
+     */
+    @BeforeClass
+    public static void installColumnarCodecStrategy() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        indexLoadStrategy = new ColumnarStrategy(
+            Settings.builder().put(modeSettings()).put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true).build()
+        );
+    }
+
+    public CsvColumnarCodecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions
+    ) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
+    }
+}

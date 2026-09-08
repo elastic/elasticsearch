@@ -2309,6 +2309,50 @@ w_avg_1:double |w_avg_2:double |avg:double
 2.0            | 2.0           | 2.0
 ;
 
+weightedAvgConstantFieldAndWeight
+required_capability: agg_weighted_avg
+FROM employees | STATS w = WEIGHTED_AVG(3, 2)
+;
+w:double
+3.0
+;
+
+weightedAvgConstantField
+required_capability: agg_weighted_avg
+FROM employees | STATS w = WEIGHTED_AVG(2, salary)
+;
+w:double
+2.0
+;
+
+weightedAvgConstantWeight
+required_capability: agg_weighted_avg
+FROM employees | STATS w = ROUND(WEIGHTED_AVG(salary, 2))
+;
+w:double
+48249.0
+;
+
+weightedAvgConstantFieldGrouping
+required_capability: agg_weighted_avg
+FROM employees | STATS w = WEIGHTED_AVG(2, salary) BY gender | SORT gender
+;
+w:double | gender:keyword
+2.0      | F
+2.0      | M
+2.0      | null
+;
+
+weightedAvgConstantWeightGrouping
+required_capability: agg_weighted_avg
+FROM employees | STATS w = ROUND(WEIGHTED_AVG(salary, 2)) BY gender | SORT gender
+;
+w:double | gender:keyword
+50491.0  | F
+46861.0  | M
+48761.0  | null
+;
+
 weightedAvgBothConstantsMvWarning
 required_capability: agg_weighted_avg
 row v = [1, 2, 3], w = [1, 2, 3]
@@ -4848,4 +4892,28 @@ gender:keyword | v:integer
 F              | 1
 M              | 1
 null           | 1
+;
+
+valuesConstantFromRow
+required_capability: aggs_more_inputs_via_eval
+ROW x = 5
+| STATS VALUES(x)
+;
+
+VALUES(x):integer
+5
+;
+
+valuesConstantFromEvalGrouping
+required_capability: aggs_more_inputs_via_eval
+FROM employees
+| EVAL x = 5
+| STATS VALUES(x) BY gender
+| SORT gender
+;
+
+VALUES(x):integer | gender:keyword
+5                 | F
+5                 | M
+5                 | null
 ;

@@ -645,3 +645,13 @@ FROM employees | STATS a = TOP(salary, 2, "asc", null)
 a:null
 null
 ;
+
+constantFieldWithAttributeOutputField
+required_capability: aggs_more_inputs_via_eval
+ROW field = 5
+| STATS t = TOP(5, 1, "ASC", field)
+;
+
+t:integer
+5
+;

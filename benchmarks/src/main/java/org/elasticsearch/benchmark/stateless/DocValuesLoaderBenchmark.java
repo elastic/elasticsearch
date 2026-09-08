@@ -24,7 +24,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -116,7 +116,7 @@ public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
     protected IndexWriterConfig indexWriterConfig() {
         DocValuesFormat dvFormat = indexSort ? DocValuesFormat.forName("ES95TSDB") : DocValuesFormat.forName("Lucene90");
         IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(new Elasticsearch93Lucene104Codec() {
+        iwc.setCodec(new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dvFormat;

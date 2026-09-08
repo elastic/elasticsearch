@@ -133,7 +133,7 @@ public final class ExternalSourceMetrics {
     public static final String CONFIG_CHANGES_TOTAL = "es.esql.datasources.config.changes.total";
 
     /**
-     * Storage type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
+     * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
      * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
      * {@code local}, {@code unknown}.
      */
@@ -144,12 +144,6 @@ public final class ExternalSourceMetrics {
      * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
      */
     public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
-
-    /**
-     * Configuration-inventory / CRUD type dimension: {@code s3}, {@code gcs}, {@code azure},
-     * {@code http}, {@code local}, {@code unknown}. Distinct from {@link #SCHEME_ATTRIBUTE}.
-     */
-    public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
     /** CRUD object kind: {@code datasource} or {@code dataset}. */
     public static final String KIND_ATTRIBUTE = "es_datasource_kind";

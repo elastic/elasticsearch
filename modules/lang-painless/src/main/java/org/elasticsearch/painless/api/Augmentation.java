@@ -1535,34 +1535,41 @@ public class Augmentation {
 
     // CharSequence augmentation
 
-    private static <T> T limitedStringOp(CharSequence receiver, Pattern pattern, int limitFactor, Function<CharSequence, T> op) {
-        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new ReadLimitedCharSequence(receiver, limitFactor);
-        try {
-            return op.apply(input);
-        } catch (ReadLimitedCharSequence.LimitExceededException e) {
-            final int maxStringOutput = 64;
-            final String dots = "...";
-            String stringOutput = receiver.length() <= maxStringOutput
-                ? receiver.toString()
-                : receiver.subSequence(0, maxStringOutput - dots.length()) + dots;
-            throw new CircuitBreakingException(
-                "[scripting] Regular expression considered too many characters, "
-                    + (pattern != null ? "pattern: [" + pattern.pattern() + "], " : "")
-                    + "limit factor: ["
-                    + limitFactor
-                    + "], "
-                    + "char limit: ["
-                    + e.readLimit()
-                    + "], "
-                    + "wrapped: ["
-                    + stringOutput
-                    + "]"
-                    + ", this limit can be changed by changed by the ["
-                    + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
-                    + "] setting",
-                CircuitBreaker.Durability.TRANSIENT
-            );
-        }
+    private static CharSequence wrapRegexReceiver(CharSequence receiver, Pattern pattern, int limitFactor) {
+        // often, the default LimitExceededException is thrown in a place that doesn't know how to handle it.
+        // so ensure we always throw CircuitBreakingException instead of the limit exception
+        return limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new ReadLimitedCharSequence(receiver, limitFactor) {
+            @Override
+            protected RuntimeException createLimitException() {
+                return limitExceeded(readLimit, receiver, pattern, limitFactor);
+            }
+        };
+    }
+
+    private static CircuitBreakingException limitExceeded(int readLimit, CharSequence receiver, Pattern pattern, int limitFactor) {
+        final int maxStringOutput = 64;
+        final String dots = "...";
+        String stringOutput = receiver.length() <= maxStringOutput
+            ? receiver.toString()
+            : receiver.subSequence(0, maxStringOutput - dots.length()) + dots;
+
+        return new CircuitBreakingException(
+            "[scripting] Regular expression considered too many characters, "
+                + (pattern != null ? "pattern: [" + pattern.pattern() + "], " : "")
+                + "limit factor: ["
+                + limitFactor
+                + "], "
+                + "char limit: ["
+                + readLimit
+                + "], "
+                + "wrapped: ["
+                + stringOutput
+                + "]"
+                + ", this limit can be changed by changed by the ["
+                + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
+                + "] setting",
+            CircuitBreaker.Durability.TRANSIENT
+        );
     }
 
     /**
@@ -1585,7 +1592,7 @@ public class Augmentation {
         Pattern pattern,
         Function<Matcher, String> replacementBuilder
     ) {
-        Matcher m = limitedStringOp(receiver, pattern, limitFactor, pattern::matcher);
+        Matcher m = pattern.matcher(wrapRegexReceiver(receiver, pattern, limitFactor));
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
@@ -1618,7 +1625,7 @@ public class Augmentation {
         Pattern pattern,
         Function<Matcher, String> replacementBuilder
     ) {
-        Matcher m = limitedStringOp(receiver, pattern, limitFactor, pattern::matcher);
+        Matcher m = pattern.matcher(wrapRegexReceiver(receiver, pattern, limitFactor));
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
@@ -1999,19 +2006,19 @@ public class Augmentation {
 
     // Regular Expression Pattern augmentations with limit factor injected
     public static String[] split(Pattern receiver, int limitFactor, CharSequence input) {
-        return limitedStringOp(input, receiver, limitFactor, receiver::split);
+        return receiver.split(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     public static String[] split(Pattern receiver, int limitFactor, CharSequence input, int limit) {
-        return limitedStringOp(input, receiver, limitFactor, i -> receiver.split(i, limit));
+        return receiver.split(wrapRegexReceiver(input, receiver, limitFactor), limit);
     }
 
     public static Stream<String> splitAsStream(Pattern receiver, int limitFactor, CharSequence input) {
-        return limitedStringOp(input, receiver, limitFactor, receiver::splitAsStream);
+        return receiver.splitAsStream(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     public static Matcher matcher(Pattern receiver, int limitFactor, CharSequence input) {
-        return limitedStringOp(input, receiver, limitFactor, receiver::matcher);
+        return receiver.matcher(wrapRegexReceiver(input, receiver, limitFactor));
     }
 
     /**

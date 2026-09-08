@@ -15,9 +15,9 @@ package org.elasticsearch.common.text;
  */
 public class ReadLimitedCharSequence implements CharSequence {
     private final CharSequence wrapped;
-    private final int readLimitFactor;
-    private final int readLimit;
-    private int currentRead;
+    protected final int readLimitFactor;
+    protected final int readLimit;
+    protected int currentRead;
 
     public ReadLimitedCharSequence(CharSequence wrapped, int readLimitFactor) {
         if (readLimitFactor <= 0) throw new IllegalArgumentException("readLimitFactor must be greater than 0");
@@ -41,6 +41,10 @@ public class ReadLimitedCharSequence implements CharSequence {
         }
     }
 
+    protected RuntimeException createLimitException() {
+        return new LimitExceededException(readLimit);
+    }
+
     @Override
     public int length() {
         return wrapped.length();
@@ -49,7 +53,7 @@ public class ReadLimitedCharSequence implements CharSequence {
     @Override
     public char charAt(int index) {
         if (++currentRead > readLimit) {
-            throw new LimitExceededException(readLimit);
+            throw createLimitException();
         }
         return wrapped.charAt(index);
     }

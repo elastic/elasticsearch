@@ -192,6 +192,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             }
         }
         validateCredentials(errors);
+        validateSettings(errors);
     }
 
     /**
@@ -209,6 +210,9 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
 
     /** Subclass hook for datasource-specific credential validation. */
     protected void validateCredentials(ValidationException errors) {}
+
+    /** Subclass hook for datasource-specific non-credential setting validation. */
+    protected void validateSettings(ValidationException errors) {}
 
     /**
      * Returns true when the configuration carries a <em>complete</em> static credential. The exact required field

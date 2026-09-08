@@ -43,6 +43,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 
 /**
  * The term and prefix queries driven through a real {@link IndexSearcher} over a ColumNAR-coded index, so
@@ -105,7 +106,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         writer.flush();
                     }
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -148,7 +149,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         doc.add(new NumericDocValuesField("other", d));
                         if (holdsTheField) {
                             final String value = TERMS[(segment + d) % TERMS.length];
-                            doc.add(new Field(FIELD, new BytesRef(value), type));
+                            doc.add(new Field(FIELD, stringPayload(value), type));
                             values.add(value);
                         } else {
                             values.add(null);
@@ -232,7 +233,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                             writer.flush();
                         }
                         final Document doc = new Document();
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                         writer.addDocument(doc);
                     }
                     writer.forceMerge(1);
@@ -288,7 +289,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                         writer.flush();
                     }
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     doc.add(new NumericDocValuesField("order", terms.indexOf(value)));
                     writer.addDocument(doc);
                 }
@@ -335,7 +336,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, new BytesRef(value), type));
+                    doc.add(new Field(FIELD, stringPayload(value), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -373,7 +374,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int d = 0; d < 200; d++) {
                     final Document doc = new Document();
-                    doc.add(new Field("other", new BytesRef("v" + d), type));
+                    doc.add(new Field("other", stringPayload("v" + d), type));
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);
@@ -414,7 +415,7 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
                     }
                     final Document doc = new Document();
                     if (value != null) {
-                        doc.add(new Field(FIELD, new BytesRef(value), type));
+                        doc.add(new Field(FIELD, stringPayload(value), type));
                     }
                     writer.addDocument(doc);
                 }

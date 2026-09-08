@@ -525,9 +525,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Types retryable S3 statuses before resolution code can erase the vendor status inside an
-     * {@link IOException}. The returned exception is both the HTTP 503 surfaced to the caller and
-     * the marker consumed by the storage retry policy.
+     * Types retryable S3 statuses and SDK transport failures (no HTTP response) before resolution
+     * code can erase them inside an {@link IOException}. The returned exception is both the HTTP 503
+     * surfaced to the caller and the marker consumed by the storage retry policy.
      */
     private static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
@@ -545,6 +545,15 @@ public class S3StorageProvider implements StorageProvider {
                 "S3 store unavailable resolving [{}] (HTTP {})",
                 path,
                 s3.statusCode()
+            );
+        }
+        if (S3StorageObject.isSdkClientTransportFailure(cause)) {
+            return new ExternalUnavailableException(
+                false,
+                cause,
+                "S3 store unavailable resolving [{}]: {}",
+                path,
+                S3FailureDetail.of(cause)
             );
         }
         return null;

@@ -138,8 +138,9 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
     public void testMergeWithSegmentsMissingTheField() throws IOException {
         final List<String> values = new ArrayList<>();
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
-                .setMergePolicy(new LogDocMergePolicy());
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(
+                ColumnarTestUtils.columnarCodecForField(FIELD, ColumnarFieldType.STRING)
+            ).setMergePolicy(new LogDocMergePolicy());
             final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int segment = 0; segment < 6; segment++) {
@@ -279,9 +280,9 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
         final List<String> terms = Arrays.asList(TERMS);
         final List<String> values = values(between(600, 2000), d -> TERMS[(d * 7 + 3) % TERMS.length]);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.columnarCodecForField(FIELD))
-                .setMergePolicy(new LogDocMergePolicy())
-                .setIndexSort(new Sort(new SortField("order", SortField.Type.LONG)));
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(
+                ColumnarTestUtils.columnarCodecForField(FIELD, ColumnarFieldType.STRING)
+            ).setMergePolicy(new LogDocMergePolicy()).setIndexSort(new Sort(new SortField("order", SortField.Type.LONG)));
             final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 int written = 0;

@@ -80,9 +80,9 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * {@link #tryReserve} plus a one-shot {@link AdmitHold} so the footer estimate is dropped
-     * when the first real buffer is allocated (or when the prefetch future settles if I/O never
-     * allocated). Returns {@code null} when admission refuses.
+     * {@link #tryReserve} plus an {@link AdmitHold} so the footer estimate is swapped for
+     * actual buffer sizes as they allocate, and leftover estimate is dropped when the prefetch
+     * future settles. Returns {@code null} when admission refuses.
      */
     @Nullable
     AdmitHold tryAdmit(long bytes, boolean lookahead) {
@@ -96,8 +96,8 @@ final class ParquetIoWatermark {
      * Unconditional charge used for buffers that must exist (sliding window at open, actual
      * coalesced {@code DirectReadBuffer} size). Admission of look-ahead happens in
      * {@link #tryReserve}. When a prefetch already {@link #tryAdmit}ted a footer estimate,
-     * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that hold on the first alloc so
-     * {@code used} tracks retained arrays rather than estimate plus actual.
+     * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that many estimate bytes on
+     * each alloc so in-flight sibling GETs keep their hold until they allocate.
      */
     void forceAdd(long bytes) {
         if (bytes < 0L) {
@@ -137,8 +137,9 @@ final class ParquetIoWatermark {
     /**
      * Factory that charges this watermark with the actual allocated length beside the REQUEST
      * breaker, and releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
-     * {@link #tryAdmit} estimate dropped on the first successful alloc so in-flight GETs are
-     * not counted twice. A later {@link AdmitHold#drop()} is a no-op once that happened.
+     * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
+     * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
+     * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
      */
     DirectBufferFactory accountingFactory(CircuitBreaker breaker, @Nullable AdmitHold admitHold) {
         DirectBufferFactory inner = DirectBufferFactory.forBreaker(breaker);
@@ -148,7 +149,7 @@ final class ParquetIoWatermark {
             try {
                 wrapped = account(allocated, len);
                 if (admitHold != null) {
-                    admitHold.drop();
+                    admitHold.drop(len);
                 }
                 return wrapped;
             } catch (Throwable t) {
@@ -194,24 +195,41 @@ final class ParquetIoWatermark {
     }
 
     /**
-     * Footer-estimate reservation that is released exactly once: on first buffer alloc, or when
-     * the prefetch future completes if I/O never allocated.
+     * Footer-estimate reservation released as real buffers allocate ({@link #drop(long)}) and
+     * cleared when the prefetch future settles ({@link #drop()}).
      */
     static final class AdmitHold {
         private final ParquetIoWatermark watermark;
-        private final long bytes;
-        private final AtomicBoolean dropped;
+        private final AtomicLong remaining;
 
         private AdmitHold(ParquetIoWatermark watermark, long bytes) {
             this.watermark = watermark;
-            this.bytes = bytes;
-            this.dropped = new AtomicBoolean(bytes <= 0L);
+            this.remaining = new AtomicLong(Math.max(0L, bytes));
+        }
+
+        /**
+         * Drops up to {@code bytes} of leftover estimate, swapping that slice for a retained
+         * array charged by {@link #forceAdd}. Sibling in-flight ranges keep their estimate.
+         */
+        void drop(long bytes) {
+            if (bytes <= 0L) {
+                return;
+            }
+            while (true) {
+                long current = remaining.get();
+                if (current <= 0L) {
+                    return;
+                }
+                long release = Math.min(current, bytes);
+                if (remaining.compareAndSet(current, current - release)) {
+                    watermark.release(release);
+                    return;
+                }
+            }
         }
 
         void drop() {
-            if (dropped.compareAndSet(false, true)) {
-                watermark.release(bytes);
-            }
+            drop(Long.MAX_VALUE);
         }
     }
 }

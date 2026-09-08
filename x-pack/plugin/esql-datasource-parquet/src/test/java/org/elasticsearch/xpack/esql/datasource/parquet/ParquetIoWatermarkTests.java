@@ -94,6 +94,24 @@ public class ParquetIoWatermarkTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
     }
 
+    public void testAdmitHoldDropsPerAllocKeepsInFlightEstimate() throws Exception {
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1024);
+        ParquetIoWatermark.AdmitHold hold = watermark.tryAdmit(152, false);
+        assertNotNull(hold);
+        DirectBufferFactory factory = watermark.accountingFactory(breaker, hold);
+        DirectReadBuffer first = factory.allocate(10);
+        assertEquals("first alloc must not drop the rest of the in-flight group", 152, watermark.used());
+        DirectReadBuffer second = factory.allocate(10);
+        assertEquals(152, watermark.used());
+        hold.drop();
+        assertEquals("leftover estimate released; retained arrays remain", 20, watermark.used());
+        first.close();
+        second.close();
+        assertEquals(0, watermark.used());
+        assertEquals(0, breaker.getUsed());
+    }
+
     public void testTryReserveRetriesWhenReleaseLandsOverLimit() {
         ParquetIoWatermark watermark = new ParquetIoWatermark(10);
         assertTrue(watermark.tryReserve(50, false));

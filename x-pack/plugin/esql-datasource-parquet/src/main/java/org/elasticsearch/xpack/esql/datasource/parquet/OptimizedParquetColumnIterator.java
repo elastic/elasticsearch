@@ -540,10 +540,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * would exceed {@code heap / 8}; an empty queue may take one node-wide overshoot so the
      * scan cannot stall. Stops early when no more surviving row groups remain. Breaker
      * accounting for the prefetched bytes happens inside {@code readBytesAsync}. Actual
-     * {@code DirectReadBuffer} sizes are charged to the watermark at alloc; the
-     * {@link ParquetIoWatermark.AdmitHold} estimate is dropped then (or when the future settles
-     * if I/O never allocated). If a prefetch trips the breaker it surfaces as a failed future
-     * and {@link #takePendingPrefetch} falls back to breaker-accounted sync I/O for that row group.
+     * {@code DirectReadBuffer} sizes are charged to the watermark at alloc; each alloc drops
+     * that many leftover {@link ParquetIoWatermark.AdmitHold} estimate bytes so sibling in-flight
+     * GETs stay charged. Leftover estimate is dropped when the future settles. If a prefetch
+     * trips the breaker it surfaces as a failed future and {@link #takePendingPrefetch} falls
+     * back to breaker-accounted sync I/O for that row group.
      */
     private void fillPrefetchQueue(int fromOrdinal) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();

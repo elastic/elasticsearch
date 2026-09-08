@@ -501,3 +501,6 @@ tests:
 - class: org.elasticsearch.common.logging.DeprecationLoggerTests
   method: testMultipleSlowLoggersUseSingleLog4jLogger
   issue: https://github.com/elastic/elasticsearch/issues/158695
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
+  method: testFold {TestCase=<long unicode TEXT>}
+  issue: https://github.com/elastic/elasticsearch/issues/158699

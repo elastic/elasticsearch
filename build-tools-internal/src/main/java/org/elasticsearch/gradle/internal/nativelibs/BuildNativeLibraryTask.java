@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
@@ -23,6 +24,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -57,6 +59,7 @@ import javax.inject.Inject;
  * {@link #getCollect()} then gathers. In {@code host} mode the command runs directly and is expected
  * to write where it belongs, so there is usually nothing to gather.
  */
+@CacheableTask
 public abstract class BuildNativeLibraryTask extends DefaultTask {
 
     private static final Logger LOGGER = Logging.getLogger(BuildNativeLibraryTask.class);
@@ -65,6 +68,15 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     static final String PUBLISHED_MODE = "artifactory";
     public static final String DOCKER_MODE = "docker";
     public static final String HOST_MODE = "host";
+
+    public BuildNativeLibraryTask() {
+        // A host build uses whichever compiler is on the machine, which no input describes, so its
+        // result must not be handed to anyone else.
+        // Reached through Task, which returns the public TaskOutputs; DefaultTask narrows the same
+        // method to an internal type.
+        Task self = this;
+        self.getOutputs().doNotCacheIf("a host build depends on the local compiler", task -> HOST_MODE.equals(getMode().get()));
+    }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -80,10 +92,25 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
 
     /**
      * Build mode: {@code docker} (run the build inside the toolchain container) or {@code host}
-     * (run it directly).
+     * (run it directly). Not an input: see {@link #getCachedArtifactKind()}.
+     */
+    @Internal
+    public abstract Property<String> getMode();
+
+    /**
+     * What the output contains. The sibling {@link #getMode()} defines how the output is obtained,
+     * which is not the right information for caching. A downloaded artifact and a cross-compiled artifact
+     * are both "complete" and we want them to share a build cache entry.
+     * This lets a CI container build populate the cache that a developer's plain build reads from.
+     *
+     * <p>A {@code host} build holds one platform only, so it is a different kind of output and must
+     * never be served in place of a complete one. It is excluded from caching altogether (see the
+     * {@code doNotCacheIf} below), and kept under a distinct key here so it cannot collide.
      */
     @Input
-    public abstract Property<String> getMode();
+    String getCachedArtifactKind() {
+        return HOST_MODE.equals(getMode().get()) ? "single-platform" : "all-platforms";
+    }
 
     /** Toolchain image used in {@code docker} mode. */
     @Input
@@ -93,8 +120,12 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     @Input
     public abstract ListProperty<String> getDockerCommand();
 
-    /** Command run on the host in {@code host} mode, relative to {@link #getNativeDir()}. */
-    @Input
+    /**
+     * Command run on the host in {@code host} mode, relative to {@link #getNativeDir()}. Not an input:
+     * host builds are not cached, so it does not need to be one (and besides it carries the absolute
+     * output directory, which would tie the cache key to one checkout path).
+     */
+    @Internal
     public abstract ListProperty<String> getHostCommand();
 
     /**
@@ -144,6 +175,20 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
      */
     @Internal
     public abstract Property<Boolean> getOffline();
+
+    /**
+     * Whether this run uploads the artifact it produces. This is a {@code @Input} because
+     * restoring outputs from the cache skips the action, and the artifact upload happens
+     * inside the task action. Runs that upload the artifact need to be keyed differently
+     * from runs that only produce the artifact locally. This way a task that uploads is never
+     * skipped in favour a tasks that did not upload, because their cache entries will differ.
+     *
+     * <p>Security note: this records the presence of a credential, not its value.
+     */
+    @Input
+    boolean getPublishesArtifact() {
+        return getArtifactRepositoryUrl().isPresent() && getPublishApiKey().isPresent() && HOST_MODE.equals(getMode().get()) == false;
+    }
 
     @OutputDirectory
     public abstract DirectoryProperty getOutputDir();

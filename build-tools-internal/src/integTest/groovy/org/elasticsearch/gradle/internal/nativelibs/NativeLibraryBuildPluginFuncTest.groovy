@@ -227,6 +227,40 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         result.output.contains("'docker' mode")
     }
 
+    def "is restored from the build cache after a clean, without contacting the repository"() {
+        given:
+        useRepositoryServing { exchange ->
+            respond(exchange, 200, publishedArchive())
+        }
+        gradleRunner("buildNativeLibrary", "--build-cache").build()
+        file("build/native-libs").deleteDir()
+
+        when:
+        // --offline would fail the task if it downloaded again, so passing proves it did not.
+        def result = gradleRunner("buildNativeLibrary", "--build-cache", "--offline").build()
+
+        then:
+        result.task(":buildNativeLibrary").outcome == TaskOutcome.FROM_CACHE
+        file("build/native-libs/${PLATFORM}/libtest.so").text.trim() == "from-repository"
+    }
+
+    def "a host build is not cached, since it depends on the local compiler"() {
+        given:
+        useRepositoryServing { exchange ->
+            respond(exchange, 404, new byte[0])
+        }
+        gradleRunner("buildNativeLibrary", "--build-cache").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+        file("build/native-libs").deleteDir()
+
+        when:
+        def result = gradleRunner("buildNativeLibrary", "--build-cache")
+            .withEnvironment(["TEST_NATIVE_BUILD": "host"])
+            .build()
+
+        then:
+        result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+    }
+
     def "another project consuming the library receives it, without declaring a task dependency"() {
         given:
         addConsumingProject()

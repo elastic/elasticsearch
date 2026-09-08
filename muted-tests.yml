@@ -767,3 +767,5 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJobInSharedIndexUpdatesMapping
   issue: https://github.com/elastic/elasticsearch/issues/158637
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlPlanBinaryOperatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/158607

@@ -45,15 +45,18 @@ import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -447,6 +450,11 @@ public class StatelessPrimaryRelocationSourceService {
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
+                    final var blobStoreCacheDirectory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
+                    final var latestCommit = latestBcc.lastCompoundCommit();
+                    final Map<String, BlobFileRanges> blobFileRanges = new HashMap<>(blobStoreCacheDirectory.getCurrentMetadata());
+                    blobFileRanges.keySet().retainAll(latestCommit.commitFiles().keySet());
+
                     parentClient.execute(
                         TransportStatelessPrimaryRelocationHandoffAction.TYPE,
                         new TransportStatelessPrimaryRelocationHandoffAction.HandoffRequest(
@@ -465,7 +473,8 @@ public class StatelessPrimaryRelocationSourceService {
                                 otherBlobFiles,
                                 hasRecentIdLookup,
                                 lastCommitBlobs,
-                                lastCommitIsHollow
+                                lastCommitIsHollow,
+                                blobFileRanges
                             )
                         ),
                         finalHandoffListener

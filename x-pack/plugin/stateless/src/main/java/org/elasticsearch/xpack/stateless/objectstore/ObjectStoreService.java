@@ -1103,6 +1103,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         @Nullable StatelessCommitService.SourceBlobsInfo blobsInfo,
         ActionListener<IndexingShardState> listener
     ) {
+        readIndexingShardState(
+            directory,
+            context,
+            shardContainer,
+            primaryTerm,
+            threadPool,
+            useReplicatedRanges,
+            bccHeaderReadExecutor,
+            readSingleBlobIfHollow,
+            blobsInfo,
+            Map.of(),
+            listener
+        );
+    }
+
+    public static void readIndexingShardState(
+        BlobStoreCacheDirectory directory,
+        IOContext context,
+        BlobContainer shardContainer,
+        long primaryTerm,
+        ThreadPool threadPool,
+        boolean useReplicatedRanges,
+        Executor bccHeaderReadExecutor,
+        boolean readSingleBlobIfHollow,
+        @Nullable StatelessCommitService.SourceBlobsInfo blobsInfo,
+        Map<String, BlobFileRanges> blobFileRanges,
+        ActionListener<IndexingShardState> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         final ActionListener<Tuple<BatchedCompoundCommit, Set<BlobFile>>> blobsListener = listener.delegateFailureAndWrap(
@@ -1152,27 +1180,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
                     });
                 } else {
-                    Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
-
-                    readReferencedCompoundCommitsUsingCache(
-                        latestBcc.lastCompoundCommit().commitFiles(),
-                        latestBcc,
-                        directory,
-                        context,
-                        bccHeaderReadExecutor,
-                        referencedCompoundCommit -> {
-                            blobFileRanges.putAll(
-                                computeBlobFileRanges(
-                                    useReplicatedRanges,
-                                    referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
-                                    referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
-                                    referencedCompoundCommit.referencedInternalFiles()
-                                )
-                            );
-                        },
-                        (blobFile, bccSize) -> {},
-                        l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges))
-                    );
+                    if (!blobFileRanges.isEmpty()) {
+                        ActionListener.completeWith(l, () -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges));
+                    } else {
+                        final Map<String, BlobFileRanges> computedBlobFileRanges = new ConcurrentHashMap<>();
+                        readReferencedCompoundCommitsUsingCache(
+                            latestBcc.lastCompoundCommit().commitFiles(),
+                            latestBcc,
+                            directory,
+                            context,
+                            bccHeaderReadExecutor,
+                            referencedCompoundCommit -> {
+                                computedBlobFileRanges.putAll(
+                                    computeBlobFileRanges(
+                                        useReplicatedRanges,
+                                        referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                        referencedCompoundCommit.referencedInternalFiles()
+                                    )
+                                );
+                            },
+                            (blobFile, bccSize) -> {},
+                            l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, computedBlobFileRanges))
+                        );
+                    }
                 }
             }
         );

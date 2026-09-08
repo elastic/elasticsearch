@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -55,6 +56,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
 
     private static final TransportVersion STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS = TransportVersion.fromName(
         "stateless_primary_handoff_latest_blobs"
+    );
+    private static final TransportVersion STATELESS_PRIMARY_HANDOFF_BLOB_FILE_RANGES = TransportVersion.fromName(
+        "stateless_primary_handoff_blob_file_ranges"
     );
 
     /// Legacy name from before the transport action split for backward compatibility.
@@ -159,6 +163,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
         @Nullable
         private final Set<BlobFile> lastCommitBlobs;
         private final boolean lastCommitIsHollow;
+        private final Map<String, BlobFileRanges> blobFileRanges;
 
         Request(
             long recoveryId,
@@ -170,7 +175,8 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             Set<BlobFile> otherBlobFiles,
             boolean hasRecentIdLookup,
             Set<BlobFile> lastCommitBlobs,
-            boolean lastCommitIsHollow
+            boolean lastCommitIsHollow,
+            Map<String, BlobFileRanges> blobFileRanges
         ) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
@@ -182,6 +188,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             this.hasRecentIdLookup = hasRecentIdLookup;
             this.lastCommitBlobs = lastCommitBlobs;
             this.lastCommitIsHollow = lastCommitIsHollow;
+            this.blobFileRanges = blobFileRanges;
         }
 
         Request(StreamInput in) throws IOException {
@@ -198,6 +205,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                 ? in.readCollectionAsImmutableSet(BlobFile::new)
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
+            blobFileRanges = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILE_RANGES)
+                ? in.readMap(StreamInput::readString, BlobFileRanges::new)
+                : Map.of();
         }
 
         @Override
@@ -218,6 +228,9 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)) {
                 out.writeCollection(lastCommitBlobs);
                 out.writeBoolean(lastCommitIsHollow);
+            }
+            if (out.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_BLOB_FILE_RANGES)) {
+                out.writeMap(blobFileRanges, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
         }
 
@@ -266,7 +279,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
                     otherBlobFiles
                 );
             }
-            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup);
+            return new RecoveryInfoFromSource(sourceBlobsInfo, lastCommitBlobs, lastCommitIsHollow, hasRecentIdLookup, blobFileRanges);
         }
     }
 }

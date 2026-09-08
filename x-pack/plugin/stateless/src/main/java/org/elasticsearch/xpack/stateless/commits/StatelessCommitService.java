@@ -1296,7 +1296,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable SourceBlobsInfo sourceBlobsInfo,
         Set<BlobFile> lastCommitBlobs,
         boolean lastCommitIsHollow,
-        boolean hasRecentIdLookup
+        boolean hasRecentIdLookup,
+        Map<String, BlobFileRanges> blobFileRanges
     ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}

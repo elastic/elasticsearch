@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -294,7 +295,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_nj_skip",
         "epoch_ovf_nj_fail",
         "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
+        "employees_ndjson_absent_warn",
+        "drift_pq_type_ffw",
+        "widen_pq_type_ffw"
     );
 
     /**
@@ -6156,5 +6159,72 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredUnsignedLongReadsFromNdjson() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
+    }
+
+    public void testFirstFileWinsWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_type_ffw", dir);
+
+        // The anchor pins x to int32, which cannot represent part-b's int64, so part-b's x is read as null: the
+        // dataset the query sees holds 1, 2, null, null. Every form of every aggregate must answer over that.
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+    }
+
+    public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putFirstFileWinsGlob("widen_pq_type_ffw", dir);
+
+        // The anchor pins x to int64, which part-b's int32 widens into, so nothing is discarded and both forms
+        // answer over all four values. This is the near neighbour of the divergent case that must stay green.
+        assertThat(firstRowOf("FROM widen_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(-10L)));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(firstRowOf("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10L, 20L, 4L)));
+        // A detection that keys on "the types differ" rather than "the anchor cannot represent the file's type"
+        // would drop this to a scan.
+        assertThat(documentsReadBy("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    private long documentsReadBy(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return response.documentsFound();
+        }
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir) {
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    dataset,
+                    "local_ds",
+                    StoragePath.fileUri(dir) + "/*.parquet",
+                    Map.of("format", "parquet", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+                )
+            )
+        );
+    }
+
+    private List<Object> firstRowOf(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.isEmpty(), equalTo(false));
+            return rows.get(0);
+        }
     }
 }

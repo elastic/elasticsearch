@@ -421,6 +421,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * FIRST_FILE_WINS reads every file with the anchor schema. A file whose column type the anchor cannot
+     * represent has that column returned as null, so the fold must mark the whole column stat family
+     * unservable (extrema and counts). A file whose type widens into the anchor is kept by the read, so
+     * its statistics must stay foldable.
+     */
+    public void testFfwAggregateMarksUnrepresentableColumnUnservableAndKeepsWidening() {
+        Map<String, Object> drift = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
+            ),
+            false
+        );
+        assertNotNull(drift);
+        assertNull(drift.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(drift.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, drift.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, drift.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(drift.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(drift.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) drift.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+
+        Map<String, Object> widen = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///widen/part-a.parquet", DataType.LONG, -10L, 20L),
+                fileWithColumn("file:///widen/part-b.parquet", DataType.INTEGER, 1L, 2L)
+            ),
+            false
+        );
+        assertNotNull(widen);
+        assertEquals(-10L, widen.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(20L, widen.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(4L, ((Number) widen.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertEquals(0L, ((Number) widen.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
+        assertNull(widen.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(widen.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(4L, ((Number) widen.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /**
      * The UNION_BY_NAME reconciliation aggregate must safe-miss a text-format column that a widening pin retyped. Its
      * cached per-file stats were harvested at the narrower read type (a solo narrow read shares the read-schema-blind
      * cache entry), so under {@code null_field} the pinned column's extrema are poisoned and its value/null counts
@@ -3829,6 +3869,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static SourceMetadata fileWithColumn(String location, DataType type, long min, long max) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("x"), min);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("x"), max);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        return new SimpleSourceMetadata(List.of(attr("x", type)), "parquet", location, null, null, stats, null);
     }
 
     private static int[] identityIndex(int size) {

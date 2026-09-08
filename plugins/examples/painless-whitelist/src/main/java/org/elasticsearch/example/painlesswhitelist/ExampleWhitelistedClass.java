@@ -45,6 +45,11 @@ public class ExampleWhitelistedClass {
         return Integer.parseInt(x);
     }
 
+    // example allocating method, whose cost is estimated by ExampleAllocationEstimators
+    public String repeat(int count) {
+        return "x".repeat(Math.max(0, count));
+    }
+
     // example method to attach annotations in whitelist
     public void annotate() {
         // some logic here

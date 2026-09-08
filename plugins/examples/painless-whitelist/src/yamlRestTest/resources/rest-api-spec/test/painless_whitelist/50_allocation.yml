@@ -1,0 +1,57 @@
+# Example test for an allowlisted method whose allocation is estimated by a class this plugin owns.
+#
+# The pre-check emits a call naming that estimator class, and the generated script is loaded by Painless, not by this
+# plugin. So the script only links if Painless was told to make the estimator reachable. Running this at all is the
+# assertion: without that, every script calling repeat fails to link.
+
+"allocation estimated by a plugin's own class":
+- do:
+    index:
+      index: test
+      id: "1"
+      body: { "num1": 3 }
+- do:
+    indices.refresh: {}
+
+- do:
+    search:
+      rest_total_hits_as_int: true
+      index: test
+      body:
+        query:
+          match_all: {}
+        script_fields:
+          repeated:
+            script:
+              source: "new ExampleWhitelistedClass(1, 2).repeat((int)doc['num1'][0])"
+              lang: painless
+
+- match: { hits.total: 1 }
+- match: { hits.hits.0.fields.repeated.0: "xxx" }
+
+---
+"estimator class is not visible to scripts":
+# Each yaml test starts from a clean cluster, so this one indexes its own document rather than reusing the one above.
+- do:
+    index:
+      index: test
+      id: "1"
+      body: { "num1": 3 }
+- do:
+    indices.refresh: {}
+
+# Same request shape as the passing test above, so the same allowlist is in play and the only thing that can fail is
+# naming the estimator class.
+- do:
+    catch: bad_request
+    search:
+      rest_total_hits_as_int: true
+      index: test
+      body:
+        query:
+          match_all: {}
+        script_fields:
+          nope:
+            script:
+              source: "return ExampleAllocationEstimators.repeatBytes(null, 1)"
+              lang: painless

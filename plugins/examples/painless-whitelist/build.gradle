@@ -26,4 +26,6 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
+  // Emits the allocation pre-checks, so the @allocates estimator in this plugin is actually linked and called.
+  systemProperty 'es.painless.allocation_metrics.enabled', 'true'
 }

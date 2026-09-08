@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Reading a page of values for a consumer that groups over them. Whichever shape the page comes back in,
@@ -66,6 +67,36 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             docValues[d] = new BytesRef(terms[d % terms.length]);
         }
         assertPages(docValues, DictionaryPolicy.NONE, Shape.ORDINALS);
+    }
+
+    /**
+     * What the column tells a page about naming its values. The survey counts the runs it walks, so a column whose
+     * every value differs from the one before it has nothing for a page to collapse and is read without hashing
+     * anything, while one whose equal values arrive together is named as before. A column written under no policy
+     * was never surveyed and leaves the page to decide.
+     */
+    public void testAColumnSaysWhetherNamingItsValuesPays() throws IOException {
+        final BytesRef[] distinct = new BytesRef[between(500, 2000)];
+        for (int d = 0; d < distinct.length; d++) {
+            distinct[d] = new BytesRef("id-" + d);
+        }
+        assertNaming(distinct, ROOMY, false);
+        assertNaming(distinct, DictionaryPolicy.NONE, true);
+
+        // Too many terms for a dictionary to cover, but each of them in a run, which is what an index sort on the
+        // field produces and the shape a page names most profitably.
+        final BytesRef[] clustered = new BytesRef[distinct.length * 2];
+        for (int d = 0; d < clustered.length; d++) {
+            clustered[d] = distinct[d / 2];
+        }
+        assertNaming(clustered, ROOMY, true);
+    }
+
+    private void assertNaming(BytesRef[] docValues, DictionaryPolicy policy, boolean worthNaming) throws IOException {
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+            assertThat(metadata, instanceOf(StringColumnMetadata.Plain.class));
+            assertEquals("worth naming", worthNaming, ((StringColumnMetadata.Plain) metadata).valuesWorthNaming());
+        });
     }
 
     /**

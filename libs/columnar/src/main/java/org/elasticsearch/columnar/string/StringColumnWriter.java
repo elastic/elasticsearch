@@ -146,6 +146,12 @@ public final class StringColumnWriter {
 
         // Set false the moment a value is seen out of order; nothing after that can restore it.
         boolean sorted = true;
+        // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
+        // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
+        // nothing where every value differs from the one before it. The stream finds those runs anyway while
+        // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
+        // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
+        final boolean valuesWorthNaming;
         final ValueStream.Metadata written;
         final MonotonicWriter.Table valueAddresses;
         final MonotonicWriter.Table nullSlotTable;
@@ -200,11 +206,22 @@ public final class StringColumnWriter {
                 }
             }
             written = stream.finish();
+            valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
             valueAddresses = slots.finish(valueAddress, data);
             nullSlotTable = nullSlots.finish(data);
         }
         return withSummary(
-            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, numNullSlots, valueAddresses, nullSlotTable, written, sorted),
+            StringColumnMetadata.plain(
+                iterator,
+                numDocsWithField,
+                numValues,
+                numNullSlots,
+                valueAddresses,
+                nullSlotTable,
+                written,
+                sorted,
+                valuesWorthNaming
+            ),
             surveyed,
             numValues,
             valuesPerBlock,

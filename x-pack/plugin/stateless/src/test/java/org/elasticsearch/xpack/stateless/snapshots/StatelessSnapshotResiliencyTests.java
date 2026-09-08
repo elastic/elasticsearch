@@ -214,6 +214,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             return new StatelessDeterministicThreadPool(runnableWrapper);
         }
 
+        @Override
+        public void scheduleNow(Runnable task) {
+            if (task.toString().contains("processPendingDeletes[")) {
+               logger.debug("--> dropping {} to avoid wall-clock shard-lock wait on DTQ", task);
+                return;
+            }
+            super.scheduleNow(task);
+        }
+
         private class StatelessDeterministicThreadPool extends DeterministicThreadPool {
 
             protected StatelessDeterministicThreadPool(Function<Runnable, Runnable> runnableWrapper) {

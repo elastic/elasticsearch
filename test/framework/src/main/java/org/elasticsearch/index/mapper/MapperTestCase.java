@@ -434,16 +434,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 // being detected as malformed by the field mapper, so skip them here.
                 continue;
             }
-            DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 example.mapping.accept(b);
                 b.field("ignore_malformed", true);
-            }));
+            };
+            DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(mapping));
             ParsedDocument doc = mapper.parse(source(b -> {
                 b.field("field");
                 example.value.accept(b);
             }));
             FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
             assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
+            // Malformed values must also round-trip correctly through synthetic source.
+            assertSyntheticSource(new SyntheticSourceExample(example.value, example.value, mapping), true);
         }
     }
 

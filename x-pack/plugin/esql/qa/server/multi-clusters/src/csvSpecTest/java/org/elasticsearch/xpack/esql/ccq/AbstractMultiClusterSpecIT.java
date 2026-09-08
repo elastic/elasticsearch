@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -171,6 +172,26 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // #152845 fixed the flag propagation, exposing that CCS LOOKUP JOIN after STATS is unsupported.
         "Lookup join before and after stats by"
     );
+
+    /**
+     * The suite starts loading data and running queries as soon as the local node's own HTTP is up, but the cross-cluster
+     * connection to the remote is established asynchronously. Because these suites run with
+     * {@code skip_unavailable=true}, a query issued before the remote has connected silently skips it and fails. So we
+     * must wait until the remote cluster is ready before starting the test suite.
+     */
+    @Override
+    protected void ensureRemoteClustersConnected() throws Exception {
+        // /_remote/info must go to the local (coordinating) cluster only. The shared client() mirrors non-query requests to
+        // the remote too, whose nodes lack the remote_cluster_client role and reject it, so build a throwaway local client.
+        // connected==true is the meaningful signal (num_nodes_connected is capped by connections_per_cluster=1, not node count).
+        HttpHost[] localHosts = parseClusterHosts(localCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        try (RestClient localClient = super.buildClient(restAdminSettings(), localHosts)) {
+            assertBusy(() -> {
+                var remoteInfo = assertOKAndCreateObjectPath(localClient.performRequest(new Request("GET", "/_remote/info")));
+                assertEquals(Boolean.TRUE, remoteInfo.evaluate(Clusters.REMOTE_CLUSTER_NAME + ".connected"));
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {

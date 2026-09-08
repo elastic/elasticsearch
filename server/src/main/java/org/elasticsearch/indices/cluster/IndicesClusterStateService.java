@@ -75,6 +75,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
@@ -429,7 +430,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
-            client.executeLocally(
+            client.execute(
                 GlobalCheckpointSyncAction.TYPE,
                 new GlobalCheckpointSyncAction.Request(shardId),
                 ActionListener.wrap(r -> {}, e -> {
@@ -979,7 +980,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
-        DiscoveryNode sourceNode,
+        @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
         long delayMillis,
@@ -1311,7 +1312,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // package-private for testing
     synchronized void handleRecoveryFailure(
         ShardRouting shardRouting,
-        RecoveryListener.FailureStrategy failureStrategy,
+        FailureStrategy failureStrategy,
         long primaryTerm,
         Exception failure
     ) {

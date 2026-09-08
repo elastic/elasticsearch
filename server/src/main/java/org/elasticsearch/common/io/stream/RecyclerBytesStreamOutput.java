@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CODE_POINT_BYTES;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 
 /**
@@ -403,6 +406,59 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeGenericString(String value) throws IOException {
         writeByte((byte) 0);
         writeString(value);
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
+        if (text.hasBytes()) {
+            super.writeText(text);
+            return;
+        }
+        final String str = text.string();
+        final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(str, 0, str.length());
+        final int currentOffset = this.currentOffset;
+        if (Integer.BYTES + byteLength <= maxOffset - currentOffset) {
+            final byte[] currentBufferPool = this.currentBufferPool;
+            ByteUtils.writeIntBE(byteLength, currentBufferPool, currentOffset);
+            final int end = UnicodeUtil.UTF16toUTF8(str, 0, str.length(), currentBufferPool, currentOffset + Integer.BYTES);
+            assert end == currentOffset + Integer.BYTES + byteLength : end + " vs " + currentOffset + " plus " + byteLength;
+            this.currentOffset = end;
+        } else {
+            writeTextWithBoundsChecks(str, byteLength);
+        }
+    }
+
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeTextWithBoundsChecks(String str, int byteLength) throws IOException {
+        writeInt(byteLength);
+        final long startPosition = position();
+        // a code point that straddles the end of a page is encoded here first and then written across the boundary one byte at a time
+        final byte[] straddlingCodePoint = new byte[MAX_CODE_POINT_BYTES];
+        final int charCount = str.length();
+        int i = 0;
+        while (i < charCount) {
+            final byte[] currentBufferPool = this.currentBufferPool;
+            final int currentOffset = this.currentOffset;
+            // no char needs more than MAX_CHAR_BYTES, including the pair of chars making up a supplementary code point
+            int chunkChars = Math.min((this.maxOffset - currentOffset) / MAX_CHAR_BYTES, charCount - i);
+            if (0 < chunkChars && i + chunkChars < charCount && Character.isHighSurrogate(str.charAt(i + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next step, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            if (0 < chunkChars) {
+                this.currentOffset = UnicodeUtil.UTF16toUTF8(str, i, chunkChars, currentBufferPool, currentOffset);
+                i += chunkChars;
+            } else {
+                // too little of the page left to fit another char, so this code point straddles the boundary
+                final int chars = Character.charCount(str.codePointAt(i));
+                final int length = UnicodeUtil.UTF16toUTF8(str, i, chars, straddlingCodePoint, 0);
+                for (int b = 0; b < length; b++) {
+                    writeByte(straddlingCodePoint[b]);
+                }
+                i += chars;
+            }
+        }
+        assert position() - startPosition == byteLength : position() - startPosition + " bytes written but expected " + byteLength;
     }
 
     @Override

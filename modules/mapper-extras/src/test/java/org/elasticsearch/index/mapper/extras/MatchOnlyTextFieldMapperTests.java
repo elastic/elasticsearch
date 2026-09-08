@@ -102,6 +102,25 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * than the empty source that a plain stored-source loader returns for nested child doc IDs.
      */
     public void testPhraseQueryInsideNestedObject() throws IOException {
+        assertNestedPhraseQueries(false, "the quick brown fox", "the slow lazy dog", "quick brown");
+    }
+
+    /**
+     * Reproduces #156803: the per-query cached source-loader leaf shares forward-only child iterators across searches, so the
+     * second search re-reads the segment at a LOWER nested-child doc id and threw "Cannot find object path for document" before
+     * the fix in NestedDocuments.findObjectPath. The first phrase matches the child at the higher doc id, advancing the shared
+     * iterators past the lower one; both docs must land in one segment for the leaf to be shared, hence the force-merge.
+     */
+    public void testPhraseQueryInsideNestedObjectBackwardDocAccess() throws IOException {
+        assertNestedPhraseQueries(true, "the slow lazy dog", "the quick brown fox", "quick brown", "lazy dog");
+    }
+
+    /**
+     * Indexes two root documents, each with one nested child holding the given text, then runs each phrase query against
+     * children.text on one shared SearchExecutionContext and asserts exactly one hit per phrase.
+     */
+    private void assertNestedPhraseQueries(boolean forceMerge, String firstChildText, String secondChildText, String... phrases)
+        throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("children");
             b.field("type", "nested");
@@ -111,45 +130,33 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-
-            // First root document: has a nested child containing the target phrase.
-            ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
-                b.startArray("children");
-                b.startObject().field("text", "the quick brown fox").endObject();
-                b.endArray();
-            }));
-            iw.addDocuments(doc1.docs());
-
-            // Second root document: nested child does not contain the target phrase.
-            ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
-                b.startArray("children");
-                b.startObject().field("text", "the slow lazy dog").endObject();
-                b.endArray();
-            }));
-            iw.addDocuments(doc2.docs());
-
-            iw.close();
-
-            try (
-                DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
-                    DirectoryReader.open(directory),
-                    new ShardId(mapperService.index(), 0)
-                )
-            ) {
-                // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
-                // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
-                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader, false));
+        withLuceneIndex(mapperService, iw -> {
+            for (String childText : new String[] { firstChildText, secondChildText }) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+                    b.startArray("children");
+                    b.startObject().field("text", childText).endObject();
+                    b.endArray();
+                }));
+                iw.addDocuments(doc.docs());
+            }
+            if (forceMerge) {
+                iw.forceMerge(1);
+            }
+        }, reader -> {
+            DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId(mapperService.index(), 0));
+            // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
+            // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(wrapped, false));
+            for (String phrase : phrases) {
                 NestedQueryBuilder query = new NestedQueryBuilder(
                     "children",
-                    new MatchPhraseQueryBuilder("children.text", "quick brown"),
+                    new MatchPhraseQueryBuilder("children.text", phrase),
                     ScoreMode.None
                 );
                 TopDocs docs = context.searcher().search(query.toQuery(context), 10);
-                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat("phrase [" + phrase + "]", docs.totalHits.value(), equalTo(1L));
             }
-        }
+        });
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
@@ -760,6 +767,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 

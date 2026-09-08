@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
+import java.util.EnumSet;
+
 /**
  * Golden tests for PromQL to ESQL plan translation.
  */
@@ -151,6 +153,54 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL limitk support", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
         assumeTrue("requires fix for topk over aggregated vectors", EsqlCapabilities.Cap.FIX_PROMQL_TOPK_OVER_AGGREGATE.isEnabled());
         builder("PROMQL index=k8s step=1h result=(limitk(2, sum by (pod) (network.bytes_in)))").expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    // Grouping on a derived label materializes it as a concrete column and pins where the relabel derivation sits relative
+    // to the outer aggregate (columns-only identity out of by(dst)). Uses the flat-dimension k8s index so the source label
+    // being read is materialized as a supported column - a passthrough dimension is unsupported in this static analyzer.
+    public void testSumByDerivedLabel() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        builder("""
+            PROMQL index=k8s step=1h result=(
+              sum by (tier) (label_replace(network.bytes_in, "tier", "$1", "region", "(.+)"))
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    // A destination that overwrites a stored dimension: the derived column shadows the stored pod in the header and the
+    // enclosing by(pod) groups on the derived value, while the derivation falls back to the stored pod on no-match.
+    // Uses the flat-dimension k8s index (rather than the labels.* passthrough index) so the stored dimension being
+    // overwritten is materialized as a supported column - a passthrough dimension is unsupported in this static analyzer.
+    public void testLabelReplaceOverwritesStoredLabel() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        builder("""
+            PROMQL index=k8s step=1h result=(
+              sum by (pod) (label_replace(network.bytes_in, "pod", "p-$1", "pod", "(.+)"))
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
+            .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .expectationChangesAt(PACK_DIMS_AGG)
+            .run();
+    }
+
+    // No-match preserves the existing destination: the outer COALESCE falls back to the stored pod rather than "".
+    // Uses the flat-dimension k8s index so the preserved stored destination is materialized as a supported column.
+    public void testLabelReplaceNoMatchPreservesExisting() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        builder("""
+            PROMQL index=k8s step=1h result=(
+              sum by (pod) (label_replace(network.bytes_in, "pod", "x", "region", "nomatch"))
+            )""").stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+            .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
             .run();

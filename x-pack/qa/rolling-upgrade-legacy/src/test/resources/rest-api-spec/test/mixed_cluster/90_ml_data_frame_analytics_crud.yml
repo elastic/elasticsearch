@@ -1,24 +1,14 @@
 setup:
   # Rolling upgrades can leave analytics tasks in a failed state when nodes restart
   # mid-run. Force-stop clears failed tasks so subsequent tests can start/stop cleanly.
+  # Wildcard + allow_no_match accepts both a successful stop (jobs exist) and no match
+  # (old_cluster phase skipped on smart-retry). catch: missing wrongly requires 404 when stop succeeds.
   - do:
-      catch: missing
       ml.stop_data_frame_analytics:
-        id: "old_cluster_outlier_detection_job"
+        id: "old_cluster_*"
         force: true
         allow_no_match: true
-  - do:
-      catch: missing
-      ml.stop_data_frame_analytics:
-        id: "old_cluster_regression_job"
-        force: true
-        allow_no_match: true
-  - do:
-      catch: missing
-      ml.stop_data_frame_analytics:
-        id: "old_cluster_classification_job"
-        force: true
-        allow_no_match: true
+  - match: { stopped: true }
 
 ---
 "Get old outlier_detection job":

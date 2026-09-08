@@ -132,7 +132,7 @@ public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentF
     public long ramBytesUsed() {
         long size = BASE_RAM_BYTES_USED;
         size += RamUsageEstimator.sizeOf(alias);
-        size += RamUsageEstimator.sizeOfObject(filter);
+        size += RamUsageEstimates.safeSizeOfObject(filter);
         size += RamUsageEstimator.sizeOf(indexRouting);
         size += RamUsageEstimator.sizeOf(searchRouting);
         size += ramBytesUsedBySearchRoutingValues(searchRoutingValues);

@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.SecureString;
@@ -221,7 +222,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     @Override
     public long ramBytesUsed() {
         long size = BASE_RAM_BYTES_USED;
-        size += RamUsageEstimator.sizeOfObject(id);
+        size += RamUsageEstimates.safeSizeOfObject(id);
         size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
         size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
         size += templates.ramBytesUsed();

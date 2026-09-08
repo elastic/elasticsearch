@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,9 +20,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -53,6 +56,25 @@ public class RamUsageEstimatesTests extends ESTestCase {
         TimeValue timeValue = new TimeValue(1, TimeUnit.DAYS);
         assertThat(RamUsageEstimates.shallowSizeOfShallowComplete(byteSizeValue), equalTo(RamUsageEstimator.shallowSizeOf(byteSizeValue)));
         assertThat(RamUsageEstimates.shallowSizeOfShallowComplete(timeValue), equalTo(RamUsageEstimator.shallowSizeOf(timeValue)));
+    }
+
+    public void testSafeSizeOfObjectKnownTypes() {
+        assertThat(RamUsageEstimates.safeSizeOfObject(null), is(0L));
+        assertThat(RamUsageEstimates.safeSizeOfObject("abc"), equalTo(RamUsageEstimator.sizeOf("abc")));
+        assertThat(RamUsageEstimates.safeSizeOfObject(1), equalTo(RamUsageEstimator.sizeOf(1)));
+        assertThat(RamUsageEstimates.safeSizeOfObject(1L), equalTo(RamUsageEstimator.sizeOf(1L)));
+        Accountable accountable = () -> 64L;
+        assertThat(RamUsageEstimates.safeSizeOfObject(accountable), equalTo(64L));
+        assertTrue(RamUsageEstimates.objectSizeCanBeEstimatedAccurately("abc"));
+        assertTrue(RamUsageEstimates.objectSizeCanBeEstimatedAccurately(accountable));
+        assertTrue(RamUsageEstimates.objectSizeCanBeEstimatedAccurately(Map.of("k", "v")));
+        assertFalse(RamUsageEstimates.objectSizeCanBeEstimatedAccurately(new Object()));
+        assertFalse(RamUsageEstimates.objectSizeCanBeEstimatedAccurately(TimeValue.timeValueDays(1)));
+    }
+
+    public void testSafeSizeOfObjectRejectsUnknownTypes() {
+        AssertionError error = expectThrows(AssertionError.class, () -> RamUsageEstimates.safeSizeOfObject(new Object()));
+        assertThat(error.getMessage(), containsString("java.lang.Object"));
     }
 
     public void testSizeOfShallowCompleteValue() {

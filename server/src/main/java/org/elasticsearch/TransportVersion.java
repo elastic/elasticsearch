@@ -438,15 +438,12 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * Returns an estimated heap footprint for this transport version instance, including any linked
-     * {@link #nextPatchVersion()} chain.
+     * Returns an estimated heap footprint for this transport version instance.
+     * {@link #nextPatchVersion()} links are shared singletons from the global version table and are not counted as uniquely
+     * retained heap.
      */
     public long ramBytesUsed() {
-        long size = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(name);
-        if (nextPatchVersion != null) {
-            size += nextPatchVersion.ramBytesUsed();
-        }
-        return RamUsageEstimator.alignObjectSize(size);
+        return RamUsageEstimator.alignObjectSize(BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(name));
     }
 
     /**

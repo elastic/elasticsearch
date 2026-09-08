@@ -17,6 +17,7 @@ import com.carrotsearch.hppc.procedures.ObjectProcedure;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -135,7 +136,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
     /**
      * Estimates heap used by this map's open-hash structure ({@code keys}/{@code values} arrays) and retained entries.
-     * Keys and values are sized with {@link RamUsageEstimator#sizeOfObject(Object)}, which recursively uses
+     * Keys and values are sized with {@link RamUsageEstimates#safeSizeOfObject(Object)}, which recursively uses
      * {@link Accountable#ramBytesUsed()} when a value implements {@link Accountable}.
      * <p>
      * Unlike {@link RamUsageEstimator#sizeOfMap(Map)}, this does not attribute heap to ephemeral {@link Map.Entry}
@@ -143,12 +144,12 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
      */
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(RamUsageEstimator::sizeOfObject);
+        return ramBytesUsed(RamUsageEstimates::safeSizeOfObject);
     }
 
     /**
      * Like {@link #ramBytesUsed()}, but sizes each non-null value with {@code valueBytes} instead of
-     * {@link RamUsageEstimator#sizeOfObject(Object)}.
+     * {@link RamUsageEstimates#safeSizeOfObject(Object)}.
      */
     public long ramBytesUsed(ToLongFunction<? super VType> valueBytes) {
         long size = BASE_RAM_BYTES_USED;
@@ -161,7 +162,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             size += RamUsageEstimator.shallowSizeOf(entrySet);
         }
         for (ObjectObjectCursor<KType, VType> cursor : map) {
-            size += RamUsageEstimator.sizeOfObject(cursor.key);
+            size += RamUsageEstimates.safeSizeOfObject(cursor.key);
             if (cursor.value != null) {
                 size += valueBytes.applyAsLong(cursor.value);
             }

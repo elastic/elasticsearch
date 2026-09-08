@@ -188,7 +188,7 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
      * (served from the schema-cache stats, no S3 scan) before dataset B is queried. Without it,
      * dataset B returning 7 could be a cold scan that happened to race ahead of A's cache harvest.
      */
-    public void testSchemaAndListingCacheIsolatedByEndpoint() throws IOException {
+    public void testSchemaAndListingCacheIsolatedByEndpoint() throws Exception {
         long countA = count("FROM " + DATASET_A + " | STATS count = COUNT(*)");
         assertEquals(ROWS_A, countA);
 

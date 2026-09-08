@@ -141,31 +141,68 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Reproduces the exact repro from elastic/esql-planning#1028: a field that is a scalar in some sampled
-     * records and a JSON object in others must resolve to exactly one shape (mirroring core ES dynamic
-     * mapping's first-writer-wins), never both a scalar attribute and its object's nested children. Here the
-     * scalar shape is observed first, so the later object record's shape is ignored for schema purposes (the
-     * decoder applies {@code ErrorPolicy} to the actual conflicting value at read time).
+     * A dot is a literal character in a column name, so a scalar {@code user} and an object {@code user} are not the
+     * same field: the object flattens to {@code user.id}/{@code user.tier} and coexists with the scalar. Both are
+     * nullable because neither shape appears in every record.
      */
-    public void testScalarThenObjectConflictResolvesToScalarShape() throws IOException {
-        check("""
-            {"event":1,"user":"alice"}
-            {"event":2,"user":{"id":"bob","tier":"gold"}}
-            {"event":3,"user":"carol"}
-            """, field("event", DataType.INTEGER), field("user", DataType.KEYWORD, true));
+    public void testScalarAndObjectCoexist() throws IOException {
+        check(
+            """
+                {"event":1,"user":"alice"}
+                {"event":2,"user":{"id":"bob","tier":"gold"}}
+                {"event":3,"user":"carol"}
+                """,
+            field("event", DataType.INTEGER),
+            field("user", DataType.KEYWORD, true),
+            field("user.id", DataType.KEYWORD, true),
+            field("user.tier", DataType.KEYWORD, true)
+        );
     }
 
     /**
-     * Mirror of {@link #testScalarThenObjectConflictResolvesToScalarShape}: when the object shape is observed
-     * first, a later scalar value for the same field name must not resurrect a duplicate scalar attribute
-     * alongside the already-committed nested children.
+     * Shape order does not matter: object first still coexists with the later scalar. {@code user} precedes its dotted
+     * siblings because the object record already claimed that name as a node, and the scalar observed later fills that
+     * same slot rather than appending a new one.
      */
-    public void testObjectThenScalarConflictResolvesToObjectShape() throws IOException {
+    public void testObjectAndScalarCoexist() throws IOException {
+        check(
+            """
+                {"event":1,"user":{"id":"bob","tier":"gold"}}
+                {"event":2,"user":"alice"}
+                {"event":3,"user":{"id":"carol","tier":"silver"}}
+                """,
+            field("event", DataType.INTEGER),
+            field("user", DataType.KEYWORD, true),
+            field("user.id", DataType.KEYWORD, true),
+            field("user.tier", DataType.KEYWORD, true)
+        );
+    }
+
+    /** Both spellings of a dotted column ({@code "user.id"} flat and {@code {"user":{"id":...}}} nested) are one column. */
+    public void testDottedKeyAndNestedObjectAreOneColumn() throws IOException {
         check("""
-            {"event":1,"user":{"id":"bob","tier":"gold"}}
-            {"event":2,"user":"alice"}
-            {"event":3,"user":{"id":"carol","tier":"silver"}}
-            """, field("event", DataType.INTEGER), field("user.id", DataType.KEYWORD, true), field("user.tier", DataType.KEYWORD, true));
+            {"user.id":"alice"}
+            {"user":{"id":"bob"}}
+            """, field("user.id", DataType.KEYWORD));
+    }
+
+    /**
+     * An empty field name is a legal JSON name, so it is an ordinary segment: it composes to a column name with an
+     * empty segment, and the flat spelling of that name unifies onto the same column the way any dotted name does.
+     * {@link NdJsonIngestParityTests} pins that these columns are then actually filled.
+     */
+    public void testEmptyFieldNameIsAnOrdinarySegment() throws IOException {
+        check("""
+            {"a":{"":1},"b":{"":{"c":2}},"keep":3}
+            """, field("a.", DataType.INTEGER), field("b..c", DataType.INTEGER), field("keep", DataType.INTEGER));
+        check("""
+            {"":1,"x":2}
+            """, field("", DataType.INTEGER), field("x", DataType.INTEGER));
+        // The flat spelling of the same column, so one column rather than two attributes with one name.
+        check("""
+            {"a":{"":1}}
+            {"a.":2}
+            """, field("a.", DataType.INTEGER));
     }
 
     public void testDateTime() throws Exception {
@@ -211,6 +248,22 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     public void testConstraintViolationOnRecordOpeningTokenSkippedDuringInference() throws IOException {
         String ndjson = "{\"name\": \"John\", \"age\": 30}\n" + "1".repeat(1200) + "\n{\"name\": \"Jane\", \"age\": 25}\n";
         check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
+    }
+
+    /**
+     * A bare JSON number on its own line must not cause the following record to be dropped from the
+     * inference sample (elastic/esql-planning#1731). The record after the bare number is the only
+     * one that carries {@code email}, so if it is silently skipped the inferred schema omits it.
+     * <p>
+     * The bug: {@code nextToken()} succeeds (returning {@code VALUE_NUMBER_INT}), then
+     * {@code inferObjectSchema} throws because the token is not {@code START_OBJECT}. By that point
+     * Jackson has consumed the line terminator as a lookahead byte, leaving the parser positioned at
+     * the start of the following record. The old {@code moveToNextLine} call then scanned forward and
+     * consumed the following record through its own terminator, silently dropping it.
+     */
+    public void testBareNumberDropsSelfDuringInference() throws IOException {
+        String ndjson = "{\"name\":\"John\"}\n42\n{\"email\":\"jane@x.com\"}\n";
+        check(ndjson, field("name", DataType.KEYWORD, true), field("email", DataType.KEYWORD, true));
     }
 
     /** The same skip for the name-length limit, which trips in a different scanner call than the number limit. */
@@ -424,33 +477,6 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * A field seen first as a scalar and later as an object keeps the scalar shape, and the object's
-     * children are not emitted alongside it. The contract being asserted is not "whatever the walk
-     * happens to produce" — it is that exactly one shape reaches the schema, because emitting both a
-     * scalar {@code a} and a nested {@code a.b} for one name is elastic/esql-planning#1028. The
-     * conflicting value is the decoder's problem at read time, under the error policy.
-     * <p>
-     * The field is nullable even though it appears in every record, and that is right rather than an
-     * artefact: the ignored shape cannot produce a scalar for this column, so under a lenient error
-     * policy that row is null (under the default it fails the read). "May be null" is a true statement
-     * about the column, so the expectation says so.
-     */
-    public void testFieldSeenAsScalarThenObjectKeepsTheScalarAndEmitsNoChildren() throws IOException {
-        check("""
-            {"a": 1}
-            {"a": {"b": 2}}
-            """, field("a", DataType.INTEGER, true));
-    }
-
-    /** The mirror: object first wins, and no scalar attribute appears for the parent name. */
-    public void testFieldSeenAsObjectThenScalarKeepsTheObjectAndEmitsNoScalar() throws IOException {
-        check("""
-            {"a": {"b": 2}}
-            {"a": 1}
-            """, field("a.b", DataType.INTEGER, true));
-    }
-
-    /**
      * Inference reads a bounded sample, so a value past that bound cannot change the answer. Asserted
      * because it is a real limit users hit — a conflicting value deep in a large file leaves the column
      * typed from the sample alone — not because the loop happens to stop there.
@@ -470,26 +496,6 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"v": 1}
             {"v": "not a number"}
             """, field("v", DataType.KEYWORD));
-    }
-
-    /**
-     * First-writer-wins has to hold for every scalar kind, not just the ones that happened to get a
-     * test. An object seen first keeps its children whether the conflicting scalar is a float or a
-     * boolean, and neither emits a scalar attribute for the parent name alongside them
-     * (elastic/esql-planning#1028).
-     */
-    public void testObjectShapeWinsOverALaterFloat() throws IOException {
-        check("""
-            {"a": {"b": 2}}
-            {"a": 1.5}
-            """, field("a.b", DataType.INTEGER, true));
-    }
-
-    public void testObjectShapeWinsOverALaterBoolean() throws IOException {
-        check("""
-            {"a": {"b": 2}}
-            {"a": true}
-            """, field("a.b", DataType.INTEGER, true));
     }
 
     private void check(String ndjson, Attribute... expected) throws IOException {

@@ -67,6 +67,7 @@ public final class DataSourceModule implements Closeable {
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
+    private final DecompressionCodecRegistry codecRegistry;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -118,7 +119,8 @@ public final class DataSourceModule implements Closeable {
             environment,
             resourceWatcherService,
             meterRegistry,
-            LocalFileAccess.UNRESTRICTED
+            LocalFileAccess.UNRESTRICTED,
+            null
         );
     }
 
@@ -135,6 +137,43 @@ public final class DataSourceModule implements Closeable {
         @Nullable ResourceWatcherService resourceWatcherService,
         @Nullable MeterRegistry meterRegistry,
         LocalFileAccess localFileAccess
+    ) {
+        this(
+            dataSourcePlugins,
+            capabilities,
+            settings,
+            blockFactory,
+            executor,
+            credentials,
+            managedIdentityEnabled,
+            threadPool,
+            environment,
+            resourceWatcherService,
+            meterRegistry,
+            localFileAccess,
+            null
+        );
+    }
+
+    /**
+     * @param splitDiscoveryExecutor dedicated pool for Phase-2 split discovery (production:
+     *                             {@code esql_external_io}). {@code null} falls back to {@code executor}
+     *                             (the SPI/GENERIC pool, or {@code DIRECT} in short test constructors).
+     */
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        BooleanSupplier managedIdentityEnabled,
+        @Nullable ThreadPool threadPool,
+        @Nullable Environment environment,
+        @Nullable ResourceWatcherService resourceWatcherService,
+        @Nullable MeterRegistry meterRegistry,
+        LocalFileAccess localFileAccess,
+        @Nullable ExecutorService splitDiscoveryExecutor
     ) {
         this.capabilities = capabilities;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
@@ -154,13 +193,13 @@ public final class DataSourceModule implements Closeable {
             effectiveLocalFileAccess
         );
 
-        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        this.codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
             for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
-                codecRegistry.register(codec);
+                this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -296,7 +335,7 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry,
             codecRegistry,
             settings,
-            executor,
+            splitDiscoveryExecutor != null ? splitDiscoveryExecutor : executor,
             blockFactory,
             effectiveLocalFileAccess,
             externalSourceMetrics
@@ -346,6 +385,10 @@ public final class DataSourceModule implements Closeable {
     /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
+    }
+
+    public DecompressionCodecRegistry codecRegistry() {
+        return codecRegistry;
     }
 
     /**

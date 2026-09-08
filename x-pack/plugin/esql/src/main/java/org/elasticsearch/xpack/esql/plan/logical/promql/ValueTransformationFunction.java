@@ -60,4 +60,9 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     public FunctionType functionType() {
         return FunctionType.VALUE_TRANSFORMATION;
     }
+
+    @Override
+    public boolean isIdentityTransparent() {
+        return true;
+    }
 }

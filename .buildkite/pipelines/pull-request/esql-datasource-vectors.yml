@@ -9,11 +9,20 @@
 # Why this is free. Nothing under .buildkite/pipelines/pull-request/ declares depends_on -- measured
 # across all 58 step files, parsing each and looking for the KEY rather than grepping the string,
 # which otherwise matches this very comment -- so every PR step runs concurrently and the clock is the
-# MAX over steps, not the sum. The three latest passed builds put the critical path at 35-52 minutes
-# (part-5 51.7, pr-upgrade-part-2 38.2, rhel-8 destructiveDistroTest.archives 35.4). It is the FLOOR
-# that matters, not the ceiling: a step is free only while it finishes inside the shortest build, so
-# 35 is the number these four are sized against, and the 45-minute timeout below is deliberately above
-# it so a step that has started extending the build fails rather than hides.
+# MAX over steps, not the sum. It is the FLOOR that matters, not the ceiling: a step is free only
+# while it finishes inside the SHORTEST build, and across the three latest passed builds that floor is
+# 35 minutes (the ceiling is 52).
+#
+# These four have run on real CI once, at the 346-vector tier, in build 178084: parquet 17.3 minutes,
+# orc 17.9, text 27.2, ndjson 28.6, against part-5 at 47.1 and part-2 at 46.9 in the same build. Taken
+# from the commit-status transitions rather than from a stopwatch -- Buildkite posts a second
+# `pending` when a job starts, so last-pending to terminal is the step's wall. Scaled to the case
+# counts this tree registers, the same rates give text 28.7 and ndjson 26.0, still inside both the
+# 45-minute bound below and the 35-minute floor.
+#
+# Do not size this against the EC2 numbers quoted further down. Those are suite time on a 48-vCPU box
+# and exclude gradle configure, cluster start and fixture generation; they run about 40% of the CI
+# step wall, so they are a floor for the step's cost and not the step's cost.
 #
 # Why four steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
 # shared @ClassRule per suite. maxParallelForks is pinned to 1 because every vector suite's cluster
@@ -41,6 +50,16 @@
 # NO -Dbuild.snapshot=false. The vector tasks are `enabled = buildParams.snapshotBuild`, so a
 # release build silently disables them and the step goes green having executed nothing -- the one
 # outcome worse than red.
+#
+# diskType is NOT optional next to an n4 machine type, and leaving it off is why these steps did not
+# run for seven builds. They were moved to n4-custom-32-98304 on the argument that it is what the
+# other PR steps use -- true of the machineType line, and the diskType line beside it was not copied.
+# Of the 26 files here that ask for n4-custom-32-98304, 25 pair it with hyperdisk-balanced and this
+# was the twenty-sixth. The symptom is silent: Buildkite posts one `pending` commit status per job
+# and then nothing, no second `pending` for running and no terminal state, so `gh pr checks` shows
+# `pending` indefinitely and the build finishes around the jobs. Thirteen siblings declare the disk
+# and nothing else, twelve add preemptible + spotZones; this takes the first shape, because a
+# 45-minute step is long enough to lose real work to a preemption.
 steps:
   - group: esql-datasource-vectors
     steps:
@@ -61,6 +80,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       # Parquet alone. Measured, it is the CHEAPEST per case of the four at 98ms, not the dearest as
@@ -73,6 +93,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
@@ -97,6 +118,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: "orc / vector selection"
@@ -106,4 +128,5 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk

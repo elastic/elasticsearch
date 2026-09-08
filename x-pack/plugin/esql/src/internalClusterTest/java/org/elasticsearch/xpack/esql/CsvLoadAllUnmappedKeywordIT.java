@@ -82,7 +82,11 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         "WHERE",
         "SORT",
         "LIMIT",
-        "STATS"
+        "STATS",
+        "INLINE STATS",
+        "FORK",
+        "ENRICH",
+        "LOOKUP JOIN"
     );
 
     private static final Pattern PIPE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(\\w+)");

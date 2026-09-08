@@ -89,6 +89,15 @@ public final class KeywordValues {
     }
 
     /**
+     * @return an empty string. A term query on {@code ""} rewrites to {@code BinaryDocValuesLengthQuery}, a path
+     *         that is distinct from all non-empty terms. Scenarios that include empty strings alongside nulls
+     *         verify the codec keeps them apart: {@code [null]} and {@code [""]} must match disjoint doc sets.
+     */
+    public static String emptyString() {
+        return "";
+    }
+
+    /**
      * @return a value chosen from any of the generators above, mixing shapes within one corpus.
      */
     public static String any() {

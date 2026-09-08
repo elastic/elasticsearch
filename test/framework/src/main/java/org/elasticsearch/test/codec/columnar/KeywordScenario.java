@@ -114,6 +114,21 @@ public final class KeywordScenario {
         return new KeywordScenario("long_values", () -> build(doc -> distinct(randomList(1, 2, KeywordValues::longValue))));
     }
 
+    /**
+     * Indexes empty strings alongside nulls and regular values. A term query on {@code ""} rewrites to
+     * {@code BinaryDocValuesLengthQuery}, which is a distinct execution path from non-empty terms; including
+     * nulls in the same corpus verifies the codec keeps a null slot and an empty value apart.
+     */
+    public static KeywordScenario emptyStrings() {
+        return new KeywordScenario("empty_strings", () -> build(doc -> switch (randomInt(3)) {
+            case 0 -> List.of(KeywordValues.emptyString());
+            case 1 -> null;
+            case 2 -> List.of(KeywordValues.emptyString(), KeywordValues.themed());
+            case 3 -> List.of(KeywordValues.themed());
+            default -> throw new AssertionError("unreachable");
+        }));
+    }
+
     public static KeywordScenario randomizedMixed() {
         return new KeywordScenario("randomized_mixed", () -> build(doc -> switch (randomInt(6)) {
             case 0 -> null;

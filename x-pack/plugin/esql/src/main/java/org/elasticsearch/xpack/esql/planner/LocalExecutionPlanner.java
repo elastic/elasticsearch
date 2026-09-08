@@ -613,6 +613,8 @@ public class LocalExecutionPlanner {
         // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
         // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
         // per-row inference failure.
+        // A single batch size applies to every per-field operator this command builds.
+        int batchSize = inferenceService.inferenceSettings().denseVectorBatchSize();
         PhysicalOperation operation = source;
         for (int i = 0; i < fields.size(); i++) {
             ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
@@ -630,6 +632,7 @@ public class LocalExecutionPlanner {
                     inferenceId,
                     inputEvaluatorFactory,
                     inputType,
+                    batchSize,
                     denseVector.timeout(),
                     denseVector.source(),
                     true
@@ -638,6 +641,7 @@ public class LocalExecutionPlanner {
                     inferenceService,
                     inferenceId,
                     inputEvaluatorFactory,
+                    batchSize,
                     denseVector.timeout(),
                     denseVector.source(),
                     true

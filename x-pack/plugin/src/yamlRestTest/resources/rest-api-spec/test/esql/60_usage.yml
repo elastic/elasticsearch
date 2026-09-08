@@ -534,6 +534,7 @@ took:
   - exists: esql.datasources.storage.requests.total.azure
   - exists: esql.datasources.storage.requests.total.http
   - exists: esql.datasources.storage.requests.total.local
+  - is_false: esql.datasources.storage.requests.total.file
   - exists: esql.datasources.storage.requests.total.unknown
   - exists: esql.datasources.storage.bytes_read.total.s3
   - exists: esql.datasources.storage.errors.total.s3

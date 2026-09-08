@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
@@ -85,19 +85,13 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
 
         counters.inc("datasources.config.datasources.count", dsMetadata.dataSources().size());
         for (DataSource ds : dsMetadata.dataSources().values()) {
-            counters.inc(
-                "datasources.config.datasources.by_type."
-                    + DataSourceTelemetryVocabulary.byKeySegment(DataSourceTelemetryVocabulary.TYPE_DIMENSION, ds.type()),
-                1
-            );
+            counters.inc("datasources.config.datasources.by_type." + Type.fromTypeId(ds.type()).key(), 1);
         }
 
         counters.inc("datasources.config.datasets.count", datasetMetadata.datasets().size());
         datasetMetadata.datasets().values().forEach(dataset -> {
             DataSource parent = dsMetadata.get(dataset.dataSource().getName());
-            String type = parent != null
-                ? DataSourceTelemetryVocabulary.byKeySegment(DataSourceTelemetryVocabulary.TYPE_DIMENSION, parent.type())
-                : DataSourceTelemetryVocabulary.Type.UNKNOWN.key();
+            String type = parent != null ? Type.fromTypeId(parent.type()).key() : Type.UNKNOWN.key();
             counters.inc("datasources.config.datasets.by_datasource_type." + type, 1);
         });
     }

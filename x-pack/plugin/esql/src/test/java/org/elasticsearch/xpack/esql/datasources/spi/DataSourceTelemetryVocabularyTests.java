@@ -16,8 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.TYPE_DIMENSION;
-import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.byKeySegment;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataSourceTelemetryVocabularyTests extends ESTestCase {
@@ -68,24 +66,15 @@ public class DataSourceTelemetryVocabularyTests extends ESTestCase {
         assertSame(Type.UNKNOWN, Type.fromScheme(""));
     }
 
-    public void testByKeySegmentTypeDimension() {
-        assertThat(byKeySegment(TYPE_DIMENSION, "local"), equalTo("local"));
-        assertThat(byKeySegment(TYPE_DIMENSION, "file"), equalTo("unknown"));
-        assertThat(byKeySegment(TYPE_DIMENSION, "S3"), equalTo("s3"));
-        assertThat(byKeySegment(TYPE_DIMENSION, null), equalTo("unknown"));
-        expectThrows(IllegalArgumentException.class, () -> byKeySegment("format", "csv"));
-        expectThrows(IllegalArgumentException.class, () -> byKeySegment(null, "s3"));
-    }
-
     /**
      * For every plugin-registered validator type {@code t} with declared scheme {@code s},
      * {@link Type#fromScheme(String) fromScheme(s)} equals {@link Type#fromTypeId(String) fromTypeId(t)}.
      * This is the regression pin for folding {@code file} → {@code local}.
      * <p>
      * Cloud plugins are not on this unit-test classpath (their SDKs jar-hell with esql tests), so the
-     * type/scheme pairs are the {@code FileDataSourceValidator} constructor arguments from
-     * {@code S3DataSourcePlugin}, {@code GcsDataSourcePlugin}, {@code AzureDataSourcePlugin} and
-     * {@code HttpDataSourcePlugin}. {@link HttpDataSourcePlugin} is on the classpath and is asserted live.
+     * type/scheme pairs here are the {@code FileDataSourceValidator} constructor arguments from each
+     * plugin. S3, GCS and Azure pin this against the live plugin in their own tests.
+     * {@link HttpDataSourcePlugin} is on the classpath and is asserted live below.
      */
     public void testSchemeFoldAgreesWithTypeId() {
         List<FileDataSourceValidator> validators = List.of(

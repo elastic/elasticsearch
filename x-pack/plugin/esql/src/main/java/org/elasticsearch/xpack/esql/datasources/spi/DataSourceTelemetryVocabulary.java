@@ -23,9 +23,6 @@ import java.util.Set;
  */
 public final class DataSourceTelemetryVocabulary {
 
-    /** Phone-home / APM dimension name for {@link Type}. */
-    public static final String TYPE_DIMENSION = "type";
-
     private DataSourceTelemetryVocabulary() {}
 
     /**
@@ -99,18 +96,5 @@ public final class DataSourceTelemetryVocabulary {
             Type type = BY_SCHEME.get(scheme.toLowerCase(Locale.ROOT));
             return type != null ? type : UNKNOWN;
         }
-    }
-
-    /**
-     * Clamped phone-home key segment for {@code dim}. {@code value} is interpreted as a type-id when
-     * {@code dim} is {@link #TYPE_DIMENSION}; URI schemes belong in {@link Type#fromScheme(String)}.
-     *
-     * @throws IllegalArgumentException if {@code dim} is not a vocabulary dimension
-     */
-    public static String byKeySegment(String dim, String value) {
-        if (TYPE_DIMENSION.equals(dim)) {
-            return Type.fromTypeId(value).key();
-        }
-        throw new IllegalArgumentException("unknown telemetry dimension [" + dim + "]");
     }
 }

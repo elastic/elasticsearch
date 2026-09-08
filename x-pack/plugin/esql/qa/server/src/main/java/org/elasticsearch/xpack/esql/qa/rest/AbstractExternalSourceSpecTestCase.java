@@ -687,7 +687,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * configuration the engine ran and the name misreported, but a configuration the name claims and
      * nothing ever applied.
      *
-     * <p>The declaration already makes this argument for the sibling value -- {@code
+     * <p>Nothing is lost by dropping them, which is the part worth being sure of before filtering
+     * anything. The dimension exists to reach the resolver's LISTING path rather than a direct get --
+     * that is what {@code pathShaped}'s javadoc says and what the cited defects are about. A glob
+     * layout's resource is already {@code dir/*.format}, so the {@code exact} vector on a multifile or
+     * hive case ALREADY resolves through listing. The {@code glob} vector was not adding a code path
+     * there; it was adding a second name for the one the exact vector already runs.
+     *
+     * <p>The declaration makes the same argument for the sibling value -- {@code
      * dimension.path_shape.rule.comma_list} says a one-element comma list is indistinguishable from
      * exact -- so this is that rule extended from a value to a value-and-case pair, which no per-value
      * grammar can express.

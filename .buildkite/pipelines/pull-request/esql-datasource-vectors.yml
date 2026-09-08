@@ -9,16 +9,21 @@
 # Why this is free. Nothing under .buildkite/pipelines/pull-request/ declares depends_on -- measured
 # across all 58 step files, parsing each and looking for the KEY rather than grepping the string,
 # which otherwise matches this very comment -- so every PR step runs concurrently and the clock is the
-# MAX over steps, not the sum. The three latest passed builds put the critical path at 40-56 minutes
-# (part-5 55.7, bwc-snapshots Part 3 54.1, part-2 40.3). A step finishing well inside that adds
-# nothing to how long a PR takes. Four more steps against ~57 is about 7% more machine time.
+# MAX over steps, not the sum. The three latest passed builds put the critical path at 35-52 minutes
+# (part-5 51.7, pr-upgrade-part-2 38.2, rhel-8 destructiveDistroTest.archives 35.4). It is the FLOOR
+# that matters, not the ceiling: a step is free only while it finishes inside the shortest build, so
+# 35 is the number these four are sized against, and the 45-minute timeout below is deliberately above
+# it so a step that has started extending the build fails rather than hides.
 #
 # Why four steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
 # shared @ClassRule per suite. maxParallelForks is pinned to 1 because every vector suite's cluster
 # is declared shared(true), which the test framework rejects alongside parallel forks -- so slicing
 # across steps is the only parallelism available, and it is what keeps the slowest step under the
-# window. Not a matrix: the four differ in more than a task name, and the measured per-case cost
-# differs by 3.6x between the text formats and the rest, so they are not interchangeable entries.
+# window. Not a matrix: the four differ in more than a task name, and the measured per-case cost spans
+# 2.2x across them -- parquet 98ms, orc 155ms, text 154ms, ndjson 217ms -- so they are not
+# interchangeable entries. Note the ordering, because an earlier version of this comment had it
+# backwards: the text formats are in the MIDDLE. Parquet is the cheapest per case and ndjson the
+# dearest.
 #
 # Why not on `check`. `check` is reached by checkPart1..6, which IS the critical path. Putting the
 # crossing there would add it to the longest step instead of running beside it.
@@ -39,8 +44,15 @@ steps:
   - group: esql-datasource-vectors
     steps:
       # csv and tsv share a module: there is no :esql-datasource-tsv project, so one JVM carries both
-      # formats. The largest of the three, and the one carrying the text-dialect clusters -- escaped
-      # mode against a semicolon that appears inside data, plain, brackets, gzip.
+      # formats. Most CASES of the four -- 6,761 against ndjson's 4,834 -- though not the longest step,
+      # because ndjson costs more per case. This is the step carrying the text-dialect clusters:
+      # escaped mode against a semicolon that appears inside data, plain, brackets, gzip.
+      #
+      # It also carries the reopened path_shape=glob cell: 364 cases, and lopsided 336 to 28 in tsv's
+      # favour. Not an accident of sampling -- employees_no_mv is unpadded on tsv and is the most-routed
+      # template in the corpus, while csv pads it and so takes trim_spaces, which is a format-specific
+      # key and cannot be registered under a `?` glob. On csv almost every other routed standalone
+      # template declares a format key of its own, so what is left there is small.
       - label: "text / vector selection"
         command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-csv:qa:vectorSpecCiTests
         timeout_in_minutes: 45
@@ -50,8 +62,9 @@ steps:
           machineType: n4-custom-32-98304
           buildDirectory: /dev/shm/bk
 
-      # Parquet alone: the highest per-case cost of the columnar formats, and the pushdown paths that
-      # a glob disables are reached here and nowhere cheaper.
+      # Parquet alone. Measured, it is the CHEAPEST per case of the four at 98ms, not the dearest as
+      # this comment used to say -- but it is where the pushdown paths a glob disables are reached, and
+      # those are reached nowhere cheaper.
       - label: "parquet / vector selection"
         command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-parquet:qa:vectorSpecCiTests
         timeout_in_minutes: 45
@@ -62,10 +75,15 @@ steps:
           buildDirectory: /dev/shm/bk
 
       # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
-      # neither would fill a step; measured, each suite is over half an hour on its own (ndjson 35.6
-      # min, orc 31.9), so one step running both serially would be ~68 minutes -- past this file's own
-      # 45-minute bound and past the whole build's critical path. Steps are concurrent, so splitting
-      # costs one more agent and nothing in wall clock.
+      # neither would fill a step, then split on a measurement of 35.6 and 31.9 minutes that a later
+      # run does not reproduce: on a 48-vCPU box the CI tier is 19.2 minutes for ndjson and 11.9 for
+      # orc, so a shared step would be about 31 and would fit inside the 45-minute bound.
+      #
+      # They stay split anyway, and not out of inertia. A shared step at 31 minutes has already spent
+      # most of its margin against the 35-minute critical-path floor, so the first dimension added to
+      # the contract would push it past the point where it is free -- and the bound is there to catch
+      # exactly that. Steps are concurrent, so splitting costs one more agent and nothing in wall
+      # clock, which makes the cheap option also the one with room in it.
       - label: "ndjson / vector selection"
         command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql-datasource-ndjson:qa:vectorSpecCiTests
         timeout_in_minutes: 45

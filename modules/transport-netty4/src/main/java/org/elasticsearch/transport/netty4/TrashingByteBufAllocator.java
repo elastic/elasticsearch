@@ -13,13 +13,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 
-import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * A plain heap buffer is handed out wrapped in a {@link CompositeByteBuf} holding it as its only component, not for
+ * composition, but because that is the only public netty buffer which owns a reference count while taking its storage
+ * from a buffer we supply. It gives us {@code deallocate()}, which netty calls exactly once, on the CAS that drops the
+ * reference count to zero, and which is the only safe point at which to zero the content.
+ */
 class TrashingByteBufAllocator extends NettyAllocator.NoDirectBuffers {
 
-    static int DEFAULT_MAX_COMPONENTS = 16;
+    static final int DEFAULT_MAX_COMPONENTS = 16;
 
     TrashingByteBufAllocator(ByteBufAllocator delegate) {
         super(delegate);
@@ -37,212 +41,85 @@ class TrashingByteBufAllocator extends NettyAllocator.NoDirectBuffers {
 
     @Override
     public ByteBuf heapBuffer() {
-        return new TrashingByteBuf(super.heapBuffer());
+        return new TrashingByteBuf(this, super.heapBuffer());
     }
 
     @Override
     public ByteBuf heapBuffer(int initialCapacity) {
-        return new TrashingByteBuf(super.heapBuffer(initialCapacity));
+        return new TrashingByteBuf(this, super.heapBuffer(initialCapacity));
     }
 
     @Override
     public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
-        return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
+        return new TrashingByteBuf(this, super.heapBuffer(initialCapacity, maxCapacity));
     }
 
     @Override
     public CompositeByteBuf compositeHeapBuffer() {
-        return new TrashingCompositeByteBuf(this, false, DEFAULT_MAX_COMPONENTS);
+        return new TrashingCompositeByteBuf(this, DEFAULT_MAX_COMPONENTS);
     }
 
     @Override
     public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
-        return new TrashingCompositeByteBuf(this, false, maxNumComponents);
+        return new TrashingCompositeByteBuf(this, maxNumComponents);
     }
 
-    interface Trashable {
+    abstract static class SlicingCompositeByteBuf extends CompositeByteBuf {
 
-        void maybeTrash();
-    }
-
-    static class TrashingByteBuf extends WrappedByteBuf implements Trashable {
-
-        private final AtomicBoolean trashed = new AtomicBoolean();
-
-        protected TrashingByteBuf(ByteBuf buf) {
-            super(buf);
+        SlicingCompositeByteBuf(ByteBufAllocator alloc, int maxNumComponents) {
+            super(alloc, false, maxNumComponents);
         }
 
-        static TrashingByteBuf newBuf(ByteBuf buf) {
-            return new TrashingByteBuf(buf);
-        }
-
-        @Override
-        public void maybeTrash() {
-            maybeTrash(1);
-        }
-
-        private void maybeTrash(int decrement) {
-            if (refCnt() == decrement && decrement > 0 && trashed.compareAndSet(false, true)) {
-                // see [NOTE on racy trashContent() calls]
-                trashContent();
-            }
-        }
-
-        @Override
-        public boolean release() {
-            maybeTrash(1);
-            return super.release();
-        }
-
-        @Override
-        public boolean release(int decrement) {
-            maybeTrash(decrement);
-            return super.release(decrement);
-        }
-
-        // [NOTE on racy trashContent() calls]: We trash the buffer content _before_ reducing the ref
-        // count to zero, which looks racy because in principle a concurrent caller could come along
-        // and successfully retain() this buffer to keep it alive after it's been trashed. Such a
-        // caller would sometimes get an IllegalReferenceCountException ofc but that's something it
-        // could handle - see for instance org.elasticsearch.transport.netty4.Netty4Utils.ByteBufRefCounted.tryIncRef.
-        // Yet in practice this should never happen, we only ever retain() these buffers while we
-        // know them to be alive (i.e. via RefCounted#mustIncRef or its moral equivalents) so it'd
-        // be a bug for a caller to retain() a buffer whose ref count is heading to zero and whose
-        // contents we've already decided to trash.
-        private void trashContent() {
-            trashBuffer(buf);
-        }
-
-        @Override
-        public ByteBuf order(ByteOrder endianness) {
-            return newBuf(super.order(endianness));
-        }
-
-        @Override
-        public ByteBuf asReadOnly() {
-            return newBuf(super.asReadOnly());
-        }
-
-        @Override
-        public ByteBuf readBytes(int length) {
-            return newBuf(super.readBytes(length));
-        }
-
-        @Override
-        public ByteBuf readSlice(int length) {
-            return newBuf(super.readSlice(length));
-        }
-
-        @Override
-        public ByteBuf readRetainedSlice(int length) {
-            return new TrashingByteSlice(super.readRetainedSlice(length), this);
-        }
-
-        @Override
-        public ByteBuf copy() {
-            return newBuf(super.copy());
-        }
-
-        @Override
-        public ByteBuf copy(int index, int length) {
-            return newBuf(super.copy(index, length));
-        }
-
-        @Override
-        public ByteBuf slice() {
-            return newBuf(super.slice());
-        }
-
-        @Override
-        public ByteBuf slice(int index, int length) {
-            return newBuf(super.slice(index, length));
-        }
-
-        @Override
-        public ByteBuf duplicate() {
-            return newBuf(super.duplicate());
+        protected final void wrapSingleComponent(ByteBuf buf) {
+            maxCapacity(buf.maxCapacity());
+            var readerIndex = buf.readerIndex();
+            var writerIndex = buf.writerIndex();
+            addComponent(false, buf.setIndex(0, buf.capacity()));
+            setIndex(readerIndex, writerIndex);
         }
 
         @Override
         public ByteBuf retainedSlice() {
-            return new TrashingByteSlice(super.retainedSlice(), this);
+            return retainedSlice(readerIndex(), readableBytes());
         }
 
         @Override
         public ByteBuf retainedSlice(int index, int length) {
-            return new TrashingByteSlice(super.retainedSlice(index, length), this);
+            return new RetainedSlice(slice(index, length).retain());
         }
 
         @Override
         public ByteBuf retainedDuplicate() {
-            return new TrashingByteSlice(super.retainedDuplicate(), this);
+            return new RetainedSlice(duplicate().retain());
         }
     }
 
-    static class TrashingByteSlice extends WrappedByteBuf implements Trashable {
+    static final class RetainedSlice extends SlicingCompositeByteBuf {
 
-        private final Trashable parent;
-
-        TrashingByteSlice(ByteBuf buf, Trashable parent) {
-            super(buf);
-            this.parent = parent;
-        }
-
-        @Override
-        public void maybeTrash() {
-            maybeTrash(1);
-        }
-
-        private void maybeTrash(int decrement) {
-            if (refCnt() == decrement && decrement > 0) {
-                parent.maybeTrash();
-            }
-        }
-
-        @Override
-        public boolean release() {
-            maybeTrash(1);
-            return super.release();
-        }
-
-        @Override
-        public boolean release(int decrement) {
-            maybeTrash(decrement);
-            return super.release(decrement);
-        }
-
-        @Override
-        public ByteBuf readRetainedSlice(int length) {
-            return new TrashingByteSlice(super.readRetainedSlice(length), this);
-        }
-
-        @Override
-        public ByteBuf retainedSlice() {
-            return new TrashingByteSlice(super.retainedSlice(), this);
-        }
-
-        @Override
-        public ByteBuf retainedSlice(int index, int length) {
-            return new TrashingByteSlice(super.retainedSlice(index, length), this);
-        }
-
-        @Override
-        public ByteBuf retainedDuplicate() {
-            return new TrashingByteSlice(super.retainedDuplicate(), this);
+        RetainedSlice(ByteBuf derived) {
+            super(derived.alloc(), 1);
+            wrapSingleComponent(derived);
         }
     }
 
-    static class TrashingCompositeByteBuf extends CompositeByteBuf {
+    static class TrashingCompositeByteBuf extends SlicingCompositeByteBuf {
 
-        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
-            super(alloc, direct, maxNumComponents);
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, int maxNumComponents) {
+            super(alloc, maxNumComponents);
         }
 
         @Override
-        protected void deallocate() {
+        protected final void deallocate() {
             trashBuffer(this);
             super.deallocate();
+        }
+    }
+
+    static final class TrashingByteBuf extends TrashingCompositeByteBuf {
+
+        TrashingByteBuf(ByteBufAllocator alloc, ByteBuf buf) {
+            super(alloc, 1);
+            wrapSingleComponent(buf);
         }
     }
 }

@@ -904,8 +904,8 @@ public class AzureBlobStore implements BlobStore {
                     );
                 }
             });
-        }).subscribeOn(Schedulers.elastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when
-                                              // we read the input stream (i.e. when it's rate limited)
+        }).subscribeOn(Schedulers.boundedElastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when
+                                                     // we read the input stream (i.e. when it's rate limited)
     }
 
     /**
@@ -1034,7 +1034,7 @@ public class AzureBlobStore implements BlobStore {
                 }
             });
             // subscribe on a different scheduler to avoid blocking the network io threads when reading bytes from disk
-        }).subscribeOn(Schedulers.elastic());
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     /**

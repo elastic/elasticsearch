@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -142,8 +144,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_crud", "emp_dep");
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep");
+    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_crud", "emp_dep", "emp_iae");
+    private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
 
     @After
     public void cleanup() throws Exception {
@@ -613,6 +615,63 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     .setPersistentSettings(Settings.builder().putNull(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey()).build())
             );
         }
+    }
+
+    /**
+     * {@link org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator} throws leftover
+     * {@link IllegalArgumentException}, not {@link org.elasticsearch.common.ValidationException}.
+     * After the dedicated IAE subtypes, that path must still be {@code validation}.
+     */
+    public void testConfigChangesRecordLeftoverIaeAsValidation() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part.csv"), "emp_no:integer\n1\n");
+        String resource = dir.resolve("part.csv").toUri().toString();
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_iae", "test", null, new HashMap<>())
+            )
+        );
+
+        long rejectedBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED)
+        );
+        resetAllMeters();
+        Map<String, DatasetFieldMapping> properties = Map.of("loc", new DatasetFieldMapping("geo_point", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        expectThrows(
+            Exception.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "emp_iae",
+                    "ds_iae",
+                    resource,
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            ).actionGet(TIMEOUT)
+        );
+        collectAllMeters();
+        assertThat(
+            "phone-home leftover IAE is validation",
+            clusterTotal(a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED))
+                - rejectedBefore,
+            equalTo(1L)
+        );
+        assertThat(
+            "APM leftover IAE is validation",
+            counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .anyMatch(
+                    m -> "rejected".equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE))
+                        && "dataset".equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE))
+                        && "validation".equals(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE))
+                ),
+            equalTo(true)
+        );
     }
 
     /** Delete-with-dependents is the CAS path that used to swamp datasource {@code rejected} as {@code other}. */

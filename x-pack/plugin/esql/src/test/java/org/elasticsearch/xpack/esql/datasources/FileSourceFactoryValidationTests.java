@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -121,6 +122,16 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
 
     public void testExclusionConfigKeysMatchConstants() {
         assertConfigKeysMatchConstants(ExclusionConfig.class, ExclusionConfig.CONFIG_KEYS);
+    }
+
+    public void testCoordinatorKeysIncludesAllFileOrderConfigKeys() {
+        for (String key : FileOrderConfig.CONFIG_KEYS) {
+            assertTrue("FileOrderConfig key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testFileOrderConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(FileOrderConfig.class, FileOrderConfig.CONFIG_KEYS);
     }
 
     /**

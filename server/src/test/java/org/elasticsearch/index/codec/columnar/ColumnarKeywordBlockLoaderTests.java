@@ -305,6 +305,67 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A page whose documents repeat, which a lookup or a top-n asks for. The column resolves a page's ranks through one
+     * iterator, which is only required not to be moved backwards, so a document asked for twice is a position it
+     * already holds. Over a sparse column, where that iterator carries a position rather than being the doc id itself.
+     */
+    public void testRepeatedDocumentsInAPage() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        for (int d = 0; d < docs.length; d++) {
+            // Every third document has no value at all, so the column is sparse and its iterator carries a position
+            // rather than being its own doc id. Only documents that do have one are asked for below.
+            docs[d] = d % 3 == 1 ? null : new String[] { "term-" + (d % 7) };
+        }
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    if (slots != null) {
+                        doc.add(new Field(FIELD, encode(slots), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final var loader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader(FIELD, BinaryDocValuesFormat.COLUMNAR_PAYLOAD);
+                // Each document that has a value, twice, in order: ascending, but never advancing between the pair.
+                final java.util.List<Integer> present = new java.util.ArrayList<>();
+                for (int d = 0; d < docs.length; d++) {
+                    if (docs[d] != null) {
+                        present.add(d);
+                        present.add(d);
+                    }
+                }
+                final int[] wanted = present.stream().mapToInt(Integer::intValue).toArray();
+                final BlockLoader.Docs repeated = new BlockLoader.Docs() {
+                    @Override
+                    public int count() {
+                        return wanted.length;
+                    }
+
+                    @Override
+                    public int get(int i) {
+                        return wanted[i];
+                    }
+
+                    @Override
+                    public boolean mayContainDuplicates() {
+                        return true;
+                    }
+                };
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), repeated, 0, false);
+                assertEquals("positions", wanted.length, block.size());
+                for (int i = 0; i < wanted.length; i++) {
+                    assertEquals("position " + i + " (doc " + wanted[i] + ")", new BytesRef(docs[wanted[i]][0]), block.get(i));
+                }
+            }
+        }
+    }
+
     private static BlockLoader.Docs docs(int from, int count) {
         return new BlockLoader.Docs() {
             @Override

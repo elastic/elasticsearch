@@ -195,12 +195,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
     /**
      * The extreme value, decided over ordinals. The dictionary is in term order, so the largest ordinal a document
-     * holds names its largest value and the smallest its smallest - the terms are never read to find out, and only the
+     * holds names its largest value and the smallest its smallest — the terms are never read to find out, and only the
      * one that wins is resolved.
      *
-     * <p>Two ordinals are not terms and neither can be compared as one. A null is no value, so it is passed over. An
-     * escaped value sorts wherever its bytes do, which its ordinal - one past every term - does not say, so a document
-     * holding one is decided by comparing bytes after all.
+     * <p>Two slots do not order that way. A null is no value, so it is passed over. An escaped value sorts wherever its
+     * bytes do, which its ordinal — one past every term — does not say, so a document holding one is decided by
+     * comparing bytes after all.
      */
     @Override
     public BytesRef extreme(int rank, boolean max, BytesRef dst) throws IOException {

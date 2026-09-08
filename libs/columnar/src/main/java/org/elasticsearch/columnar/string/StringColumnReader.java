@@ -554,7 +554,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Hands {@code count} resolved ranks to the sink, in whichever form the column's values take. */
     protected abstract boolean appendPage(int count, StringBlockSink sink) throws IOException;
 
-    /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     /**
      * Opens a page's dictionary for at most {@code slots} entries found by their bytes, which is what
      * {@link #pageSlotFor} then finds them by.
@@ -613,6 +612,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             );
     }
 
+    /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     protected void appendToPage(int slot, BytesRef value) {
         if (pageBytes.length < pageBytesLength + value.length) {
             pageBytes = ArrayUtil.grow(pageBytes, pageBytesLength + value.length);

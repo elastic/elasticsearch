@@ -134,6 +134,10 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
          * <p>The column declines a page covering a document it has no value for, since a page has no way to say which
          * one; the payload path below then reads them, as it does for a segment that arrives as an overlay rather than
          * as a column.
+         *
+         * <p>A document may repeat within a page, which a lookup or a top-n asks for. The iterator a page resolves its
+         * ranks through is only required not to be moved backwards, so asking it twice for the same document is a
+         * position it already holds.
          */
         @Override
         public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)

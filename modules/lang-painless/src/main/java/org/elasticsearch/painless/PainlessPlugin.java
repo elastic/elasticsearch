@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
@@ -49,6 +50,25 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private volatile Map<ScriptContext<?>, List<Whitelist>> whitelists;
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
+
+    /**
+     * Populated in {@link #createComponents}, the first hook handed a {@code MeterRegistry}. The engine is built earlier,
+     * in {@link #getScriptEngine}, so it takes this holder's {@code get} and reads through it on every compile.
+     */
+    private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
+
+    /**
+     * Enables per-execution allocation metrics, off by default. A system property rather than a {@link Setting} so it can be
+     * withdrawn later: a released {@code NodeScope} setting cannot be, since a node that no longer registers the key refuses
+     * to start with it in {@code elasticsearch.yml}. Serverless sets it; stateful leaves it off.
+     */
+    public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
+
+    /**
+     * Read at construction: whether to record is settled long before there is anything to record into. Anything but
+     * {@code true} or {@code false} is an error.
+     */
+    private final boolean allocationMetricsEnabled = Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
 
     public static List<Whitelist> baseWhiteList() {
         return List.of(
@@ -93,12 +113,16 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
+        painlessScriptEngine.set(
+            new PainlessScriptEngine(settings, contextsWithWhitelists, allocationMetrics::get, allocationMetricsEnabled)
+        );
         return painlessScriptEngine.get();
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        allocationMetrics.set(new AllocationMetrics(services.telemetryProvider().getMeterRegistry()));
+
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());

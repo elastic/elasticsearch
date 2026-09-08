@@ -67,6 +67,23 @@ count:long | bucket:keyword
 10         | lang=__HIVE_DEFAULT_PARTITION__
 ;
 
+// A filter on the template-derived column must prune the five non-matching Parquet files before scanning. The
+// retained FilterExec still evaluates the predicate after the source, so the result count alone would pass even
+// without pruning; documents_found distinguishes that failure (100 rows emitted) from the pruned scan (17).
+templateDerivedPartitionColumnPrunesFiles
+required_capability: dataset_in_from_command
+dataset: employees_hive_template_pruned: "{{employees_hive}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
+
+FROM employees_hive_template_pruned
+| WHERE bucket == "lang=3"
+| STATS count = COUNT(*);
+
+documents_found: 17
+
+count:long
+17
+;
+
 // ---------------------------------------------------------------------------------------------------------
 // Silent column substitution on a colliding layout: the directory key `languages` is also a real column inside the
 // parquet files. The path-derived value wins and the physical column is hidden (Spark/DuckDB semantics), and the

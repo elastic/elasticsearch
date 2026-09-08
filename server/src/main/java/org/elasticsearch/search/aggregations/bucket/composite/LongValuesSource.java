@@ -261,7 +261,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            // Number fields with index_terms=true use inverted index and PointsSortedDocsProducer needs bkd tree / points.
+            // If index_terms=true, we need to bail here, otherwise composite agg always return zero buckets.
+            || fieldType.indexType().hasPoints() == false
+            || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

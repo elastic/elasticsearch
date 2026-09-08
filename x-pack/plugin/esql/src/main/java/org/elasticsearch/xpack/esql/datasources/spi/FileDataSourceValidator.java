@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplitProvider;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.HashMap;
@@ -91,6 +92,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         fields.addAll(ErrorPolicy.CONFIG_KEYS);
         fields.addAll(PartitionConfig.CONFIG_KEYS);
         fields.addAll(ExclusionConfig.CONFIG_KEYS);
+        fields.addAll(FileOrderConfig.CONFIG_KEYS);
         fields.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_DATASET_KEYS = Set.copyOf(fields);
     }
@@ -297,12 +299,36 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
         }
+        // file_sort_by + file_order: FFW-only, unknown values named. Same parser the query path uses so PUT and WITH
+        // cannot diverge. Either key alone is legal under FFW (the other defaults).
+        validate(() -> FileOrderConfig.validate(settings), errors);
         Object targetSplitSize = settings.get(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
         if (targetSplitSize != null) {
             String trimmedSplitSize = targetSplitSize.toString().trim();
             if (trimmedSplitSize.isEmpty() == false) {
                 validate(() -> FileSplitProvider.validateTargetSplitSize(trimmedSplitSize), errors);
             }
+        }
+        int errorsBeforeProbeKeys = errors.validationErrors().size();
+        Object splitProbeWindow = settings.get(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW);
+        if (splitProbeWindow != null) {
+            String trimmedProbeWindow = splitProbeWindow.toString().trim();
+            if (trimmedProbeWindow.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateSplitProbeWindow(trimmedProbeWindow), errors);
+            }
+        }
+        Object maxSplitProbes = settings.get(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES);
+        if (maxSplitProbes != null) {
+            String trimmedMaxProbes = maxSplitProbes.toString().trim();
+            if (trimmedMaxProbes.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateMaxSplitProbes(trimmedMaxProbes), errors);
+            }
+        }
+        // The two probe keys form one read budget, so the pair is checked against its own effective values
+        // (defaulting whichever is absent) rather than by either key's parser. Only once both parse: a malformed
+        // value is already reported above, and re-parsing it here would report it twice.
+        if (errors.validationErrors().size() == errorsBeforeProbeKeys) {
+            validate(() -> FileSplitProvider.validateProbeBudget(settings), errors);
         }
 
         // Normalize the format selector before raw storage so the representation in cluster state
@@ -476,19 +502,36 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * extension maps to no registered format. Handles compound extensions (e.g. {@code data.csv.gz})
      * by stripping a known compression suffix and resolving the inner extension, mirroring the
      * runtime resolution in {@code FormatReaderRegistry}.
+     *
+     * <p>Uses {@link StoragePath} for URI parsing to avoid diverging from the read path's own URI
+     * model. A bare authority with no path component (e.g. {@code s3://my.bucket}) returns an empty
+     * object name and resolves to {@code null}, consistent with {@link StoragePath#objectName()}.
+     *
+     * <p>Extension extraction delegates to
+     * {@link org.elasticsearch.xpack.esql.datasources.FormatNameResolver#extractCleanExtension},
+     * which is scheme-aware: for {@code http}/{@code https} it uses {@link StoragePath#objectName()}
+     * to obtain the path without any query string or fragment before the last-dot scan, so presigned
+     * URLs with dotted queries (e.g. {@code ?v=1.2}) do not mislead the extension lookup.
      */
     @Nullable
     private String formatFromExtension(String resource) {
-        String objectName = extractObjectName(resource);
-        if (objectName == null) {
+        StoragePath sp;
+        try {
+            sp = StoragePath.of(resource);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        String objectName = sp.objectName();
+        if (objectName.isEmpty()) {
             return null;
         }
 
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot == objectName.length() - 1) {
+        String rawExt = FormatNameResolver.extractCleanExtension(objectName);
+        if (rawExt == null) {
             return null;
         }
-        String ext = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
+        String ext = "." + rawExt;
+
         String format = formatConfigKeyResolver.formatForExtension(ext);
         if (format != null) {
             return format;
@@ -498,40 +541,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // is a known compression suffix (e.g. .gz, .zst). This mirrors the read-path
         // behavior in DecompressionCodecRegistry/FormatReaderRegistry.
         if (compressionExtensions.contains(ext)) {
-            String inner = objectName.substring(0, lastDot);
-            int innerDot = inner.lastIndexOf('.');
-            if (innerDot >= 0 && innerDot < inner.length() - 1) {
-                String innerExt = inner.substring(innerDot).toLowerCase(Locale.ROOT);
-                return formatConfigKeyResolver.formatForExtension(innerExt);
+            String inner = objectName.substring(0, objectName.lastIndexOf('.'));
+            String innerRawExt = FormatNameResolver.extractCleanExtension(inner);
+            if (innerRawExt != null) {
+                return formatConfigKeyResolver.formatForExtension("." + innerRawExt);
             }
         }
         return null;
-    }
-
-    /** Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query or fragment. */
-    @Nullable
-    private static String extractObjectName(String resource) {
-        int schemeEnd = resource.indexOf("://");
-        if (schemeEnd < 0) {
-            return null;
-        }
-        String afterScheme = resource.substring(schemeEnd + 3);
-        int firstSlash = afterScheme.indexOf('/');
-        String path;
-        if (firstSlash < 0) {
-            path = afterScheme;
-        } else {
-            path = afterScheme.substring(firstSlash + 1);
-        }
-        int qMark = path.indexOf('?');
-        if (qMark >= 0) {
-            path = path.substring(0, qMark);
-        }
-        int hash = path.indexOf('#');
-        if (hash >= 0) {
-            path = path.substring(0, hash);
-        }
-        return path;
     }
 
     private void validateResource(String resource, ValidationException errors) {
@@ -552,7 +568,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemeMatch == false) {
             StringBuilder sb = new StringBuilder("[");
             boolean first = true;
-            for (String s : supportedSchemes) {
+            for (String s : new TreeSet<>(supportedSchemes)) {
                 if (first == false) {
                     sb.append(", ");
                 }

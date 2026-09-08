@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -474,6 +475,10 @@ public class S3StorageProvider implements StorageProvider {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
             throw new IOException("Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint(), e);
         }
     }
@@ -487,6 +492,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalUnavailableException unavailable = mapResolveFailure(path, e);
+            if (unavailable != null) {
+                throw unavailable;
+            }
             throw new IOException(
                 "Failed to check existence of "
                     + path
@@ -496,6 +505,41 @@ public class S3StorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    /**
+     * Types retryable S3 statuses and SDK transport failures (no HTTP response) before resolution
+     * code can erase them inside an {@link IOException}. The returned exception is both the HTTP 503
+     * surfaced to the caller and the marker consumed by the storage retry policy.
+     */
+    private static ExternalUnavailableException mapResolveFailure(StoragePath path, Exception cause) {
+        if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            long retryAfterMs = 0L;
+            if (throttling && s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
+            return new ExternalUnavailableException(
+                throttling,
+                retryAfterMs,
+                cause,
+                "S3 store unavailable resolving [{}] (HTTP {})",
+                path,
+                s3.statusCode()
+            );
+        }
+        if (S3StorageObject.isSdkClientTransportFailure(cause)) {
+            return new ExternalUnavailableException(
+                false,
+                cause,
+                "S3 store unavailable resolving [{}]: {}",
+                path,
+                S3FailureDetail.of(cause)
+            );
+        }
+        return null;
     }
 
     @Override
@@ -627,6 +671,10 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalUnavailableException unavailable = mapResolveFailure(baseDirectory, e);
+                if (unavailable != null) {
+                    throw unavailable;
+                }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
                     ? "Access denied listing objects in bucket ["
                         + bucket

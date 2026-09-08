@@ -276,39 +276,6 @@ public interface BlockLoader {
     }
 
     /**
-     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
-     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
-     * when a skipper is available for the field.
-     * <p>
-     * The returned iterator shares internal block-decoding state with the reader that produced it.
-     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
-     * exclusive ownership of that shared state.
-     * <p>
-     * The default implementation returns {@code null}, indicating no optimized iterator is available.
-     */
-    interface OptionalNumericRangeReader {
-        /**
-         * Returns a {@link DocIdSetIterator} matching documents whose numeric value falls in
-         * {@code [lowerValue, upperValue]}, or {@code null} if this optimization is not supported.
-         *
-         * <p>Implementations should return a {@link TwoPhaseIterator} (wrapped via
-         * {@link TwoPhaseIterator#asDocIdSetIterator}) with a cheap {@code approximation} and a
-         * {@code matches()} that confirms one doc is in range. Override {@link TwoPhaseIterator#intoBitSet}
-         * to bulk-collect the matching window in one shot and {@link TwoPhaseIterator#docIDRunEnd} for
-         * the run of consecutive matches; both are overridable since Lucene 10.5 (apache/lucene#16177).
-         * Bounding {@code intoBitSet} by {@code upTo} is what lets ESQL {@code DataPartitioning.DOC}
-         * slices avoid over-scanning past their window.
-         *
-         * <p>Note: these overrides are reached only after a consumer recovers the two-phase via
-         * {@link TwoPhaseIterator#unwrap} (e.g. {@code ConstantScoreScorerSupplier.fromIterator}); calling
-         * them on the returned {@link DocIdSetIterator} wrapper hits the default per-doc path instead.
-         */
-        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
-            return null;
-        }
-    }
-
-    /**
      * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
      * <p>
      * Implementations may return {@code null} if they are unable to load the requested values,

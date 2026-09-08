@@ -100,6 +100,8 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
         }
 
+        instance.restoreOverExisting(randomBoolean());
+
         return instance;
     }
 

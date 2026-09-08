@@ -222,7 +222,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
      * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
      * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
-     * assertions; this test fixes only the deterministic fan-out policy.
+     * assertions; this test fixes only the deterministic fan-out policy. Request count follows
+     * {@link CoalescedRangeReader#MAX_MERGED_RANGE_BYTES} (two 5 MiB chunks per 10 MiB GET).
      */
     public void testCappedRequestWaveFanOutPolicy() {
         BlockMetaData block = createCappedRequestWaveBlock();
@@ -235,13 +236,16 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
         );
 
-        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        long packedBytes = 5L * 1024 * 1024;
+        int chunksPerRequest = (int) (CoalescedRangeReader.MAX_MERGED_RANGE_BYTES / packedBytes);
+        int expectedRequests = 30 / chunksPerRequest;
+        assertEquals("30 contiguous 5 MiB chunks must pack to the merge cap", expectedRequests, requests.size());
         int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
         assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
-        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals("initial queue-wide request fan-out", initialDepth * expectedRequests, initialDepth * requests.size());
         assertEquals(
             "adaptive maximum queue-wide request fan-out",
-            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * expectedRequests,
             OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
         );
     }
@@ -437,6 +441,54 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertEquals("stall-growth wish stays at max depth", 8, opi.prefetchDepth());
             assertEquals("queued occupancy follows the byte cap, not the wish", 2, opi.pendingPrefetchCount());
             assertEquals("admitted bytes should match the injected 2-group budget", bytesTwo, opi.queuedPrefetchBytes());
+        }
+    }
+
+    /**
+     * Empty-queue overrun of a group larger than the node watermark is one slot for the process,
+     * not one per iterator. {@link OptimizedParquetColumnIterator#MAX_QUEUED_PREFETCH_BYTES} stays
+     * the local anti-runaway and is not retuned to the 10 MiB GET size.
+     */
+    public void testWatermarkEmptyQueueOverrunIsNodeWide() throws Exception {
+        byte[] parquetData = smallInt64MultiRowGroupFile();
+        FormatReadContext ctx = FormatReadContext.of(null, 1024);
+        ParquetIoWatermark probe = new ParquetIoWatermark(Long.MAX_VALUE / 8);
+        long oneIteratorUsed;
+        try (
+            CloseableIterator<Page> measured = new ParquetFormatReader(blockFactory, true).withIoWatermark(probe)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) measured;
+            oneIteratorUsed = probe.used();
+            assertTrue("probe iterator must queue the current group", opi.pendingPrefetchCount() >= 1);
+            assertTrue(oneIteratorUsed > 0);
+        }
+        // Cap at what one iterator already retains (window + metadata + one group). A second
+        // iterator may forceAdd its window past the cap; empty-queue prefetch must not take a
+        // second overshoot.
+        ParquetIoWatermark watermark = new ParquetIoWatermark(oneIteratorUsed);
+        try (
+            CloseableIterator<Page> first = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx);
+            CloseableIterator<Page> second = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi1 = (OptimizedParquetColumnIterator) first;
+            OptimizedParquetColumnIterator opi2 = (OptimizedParquetColumnIterator) second;
+            growPrefetchDepth(opi1, 3);
+            growPrefetchDepth(opi2, 3);
+            opi1.fillLookaheadPrefetches();
+            opi2.fillLookaheadPrefetches();
+            int combined = opi1.pendingPrefetchCount() + opi2.pendingPrefetchCount();
+            assertEquals("empty-queue overrun stays one node, not one per iterator: " + combined, 1, combined);
+            assertEquals(32_000_000L, OptimizedParquetColumnIterator.MAX_QUEUED_PREFETCH_BYTES);
+        }
+        try (
+            CloseableIterator<Page> next = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+                .read(new CountingStorageObject(parquetData, asyncIoExecutor), ctx)
+        ) {
+            OptimizedParquetColumnIterator opi = (OptimizedParquetColumnIterator) next;
+            assertEquals("release on close allows the next iterator", 1, opi.pendingPrefetchCount());
         }
     }
 

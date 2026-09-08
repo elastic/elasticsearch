@@ -1,4 +1,4 @@
-area: "Columnar, ES|QL, ES|QL"
+area: ES|QL
 issues: []
 pr: 158738
 summary: Fold null args to null-propagating functions

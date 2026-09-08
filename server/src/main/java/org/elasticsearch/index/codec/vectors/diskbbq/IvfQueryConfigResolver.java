@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when enabled,
- * else mapping defaults, with query-time oversample override.
+ * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when
+ * {@code auto_calibrate} is enabled, else mapping defaults, with query-time oversample override.
+ * Preconditioning is the exception — it always follows the segment, see
+ * {@link #mappingDefaults(FieldInfo, CalibrationAwareReader)}.
  */
 public class IvfQueryConfigResolver {
 
@@ -61,43 +63,54 @@ public class IvfQueryConfigResolver {
     }
 
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
-        IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, leafReader) : mappingDefaults();
+        CalibrationAwareReader reader = calibrationAwareReader(fieldInfo, leafReader);
+        IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, reader) : mappingDefaults(fieldInfo, reader);
         return IvfSegmentConfig.withEffectiveRescoreOversample(raw, queryOversample, mappingRescoreOversample);
     }
 
-    private IvfSegmentConfig mappingDefaults() {
+    /**
+     * Mapping-driven config, except for preconditioning. Preconditioning is a physical property of the
+     * segment — a preconditioned segment stores transformed vectors and can only be scored with a
+     * transformed query — so it is read back from the segment whenever the reader exposes it, even with
+     * {@code auto_calibrate} disabled. Otherwise segments that merge-calibration preconditioned while the
+     * setting was on would be scored with an untransformed query once the mapping turns it off.
+     */
+    private IvfSegmentConfig mappingDefaults(FieldInfo fieldInfo, @Nullable CalibrationAwareReader reader) {
         return new IvfSegmentConfig(
             CentroidIndexFormat.FLAT,
             new IvfSegmentConfig.OsqConfig(QuantEncoding.fromBits((byte) quantBits)),
-            mappingUsePrecondition,
+            reader == null ? mappingUsePrecondition : reader.shouldPrecondition(fieldInfo),
             Float.NaN
         );
     }
 
-    private IvfSegmentConfig resolveCalibrated(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
+    private IvfSegmentConfig resolveCalibrated(FieldInfo fieldInfo, @Nullable CalibrationAwareReader reader) {
+        if (reader == null) {
+            return mappingDefaults(fieldInfo, null);
+        }
+        QuantEncoding quantEncoding = reader.getQuantEncoding(fieldInfo);
+        if (quantEncoding == null) {
+            return mappingDefaults(fieldInfo, reader);
+        }
+        return new IvfSegmentConfig(
+            CentroidIndexFormat.FLAT,
+            new IvfSegmentConfig.OsqConfig(quantEncoding),
+            reader.shouldPrecondition(fieldInfo),
+            reader.getOversampleFactor(fieldInfo)
+        );
+    }
+
+    @Nullable
+    private static CalibrationAwareReader calibrationAwareReader(FieldInfo fieldInfo, LeafReader leafReader) {
         SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leafReader);
         if (segmentReader == null) {
-            return mappingDefaults();
+            return null;
         }
         KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
             vectorsReader = perField.getFieldReader(fieldInfo.name);
         }
-        if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-            QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
-            if (quantEncoding == null) {
-                return mappingDefaults();
-            }
-            float oversampleFactor = calibrationAwareReader.getOversampleFactor(fieldInfo);
-            boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-            return new IvfSegmentConfig(
-                CentroidIndexFormat.FLAT,
-                new IvfSegmentConfig.OsqConfig(quantEncoding),
-                precondition,
-                oversampleFactor
-            );
-        }
-        return mappingDefaults();
+        return vectorsReader instanceof CalibrationAwareReader calibrationAwareReader ? calibrationAwareReader : null;
     }
 
     @Override

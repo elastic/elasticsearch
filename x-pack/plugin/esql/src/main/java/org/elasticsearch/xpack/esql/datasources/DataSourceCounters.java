@@ -53,6 +53,17 @@ public final class DataSourceCounters {
         counters.inc("datasources.reader.pool.rejected.total", acc.readerPoolRejected());
         counters.inc("datasources.breaker.tripped.total", acc.breakerTripped());
 
+        // ---- config-change counters (kind × op) ----
+        for (int k = 0; k < DataSourceUsageAccumulator.KIND_COUNT; k++) {
+            String kind = DataSourceUsageAccumulator.KIND_NAMES.get(k);
+            for (int o = 0; o < DataSourceUsageAccumulator.OP_COUNT; o++) {
+                counters.inc(
+                    "datasources.config." + kind + ".changes.by_op." + DataSourceUsageAccumulator.OP_NAMES.get(o),
+                    acc.configChanges(k, o)
+                );
+            }
+        }
+
         // ---- per-outcome query counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.OUTCOME_COUNT; i++) {
             counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));

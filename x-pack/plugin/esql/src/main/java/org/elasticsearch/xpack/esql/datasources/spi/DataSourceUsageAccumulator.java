@@ -39,6 +39,20 @@ public final class DataSourceUsageAccumulator {
     public static final int OUTCOME_COUNT = 3;
     public static final List<String> OUTCOME_NAMES = List.of("success", "failure", "cancelled");
 
+    // ---- config-change vocabulary (kind × op) ----
+
+    public static final int KIND_DATASOURCE = 0;
+    public static final int KIND_DATASET = 1;
+    public static final int KIND_COUNT = 2;
+    public static final List<String> KIND_NAMES = List.of("datasources", "datasets");
+
+    public static final int OP_CREATED = 0;
+    public static final int OP_UPDATED = 1;
+    public static final int OP_DELETED = 2;
+    public static final int OP_REJECTED = 3;
+    public static final int OP_COUNT = 4;
+    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
+
     // ---- bucket definitions (10 buckets each, matching ThresholdBucketer conventions) ----
 
     /** Time ladder (ms), mirrors TookMetrics thresholds. */
@@ -100,6 +114,13 @@ public final class DataSourceUsageAccumulator {
     // ---- per-outcome query counter ----
 
     private final LongAdder[] queries = adders(OUTCOME_COUNT);
+
+    private final LongAdder[][] configChanges = new LongAdder[KIND_COUNT][];
+    {
+        for (int k = 0; k < KIND_COUNT; k++) {
+            configChanges[k] = adders(OP_COUNT);
+        }
+    }
 
     // ---- histogram buckets (no attribute dimension for phone-home) ----
 
@@ -185,6 +206,14 @@ public final class DataSourceUsageAccumulator {
         breakerTripped.increment();
     }
 
+    /**
+     * @param kind {@code datasources} or {@code datasets}
+     * @param op {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     */
+    public void recordConfigChange(String kind, String op) {
+        configChanges[kindIndex(kind)][opIndex(op)].increment();
+    }
+
     // ---- snapshot accessors (read by the stats/conversion layer) ----
 
     public long storageRequests(Type type) {
@@ -235,6 +264,13 @@ public final class DataSourceUsageAccumulator {
 
     public long breakerTripped() {
         return breakerTripped.sum();
+    }
+
+    /** @param kindIndex one of the {@code KIND_*} constants; @param opIndex one of the {@code OP_*} constants */
+    public long configChanges(int kindIndex, int opIndex) {
+        checkKindIndex(kindIndex);
+        checkOpIndex(opIndex);
+        return configChanges[kindIndex][opIndex].sum();
     }
 
     public long storageRequestDuration(int bucket) {
@@ -288,6 +324,24 @@ public final class DataSourceUsageAccumulator {
         return Objects.requireNonNull(type, "type").ordinal();
     }
 
+    static int kindIndex(String kind) {
+        return switch (kind) {
+            case "datasource", "datasources" -> KIND_DATASOURCE;
+            case "dataset", "datasets" -> KIND_DATASET;
+            default -> throw new IllegalArgumentException("unexpected kind: " + kind);
+        };
+    }
+
+    static int opIndex(String op) {
+        return switch (op) {
+            case "created" -> OP_CREATED;
+            case "updated" -> OP_UPDATED;
+            case "deleted" -> OP_DELETED;
+            case "rejected" -> OP_REJECTED;
+            default -> throw new IllegalArgumentException("unexpected op: " + op);
+        };
+    }
+
     static int outcomeIndex(String outcome) {
         return switch (outcome) {
             case "success" -> OUTCOME_SUCCESS;
@@ -323,6 +377,20 @@ public final class DataSourceUsageAccumulator {
             arr[i] = new LongAdder();
         }
         return arr;
+    }
+
+    private static void checkKindIndex(int kindIndex) {
+        if (kindIndex < 0 || kindIndex >= KIND_COUNT) {
+            throw new IllegalArgumentException(
+                "kindIndex out of range: " + kindIndex + "; use KIND_* constants (0.." + (KIND_COUNT - 1) + ")"
+            );
+        }
+    }
+
+    private static void checkOpIndex(int opIndex) {
+        if (opIndex < 0 || opIndex >= OP_COUNT) {
+            throw new IllegalArgumentException("opIndex out of range: " + opIndex + "; use OP_* constants (0.." + (OP_COUNT - 1) + ")");
+        }
     }
 
     private static void checkOutcomeIndex(int outcomeIndex) {

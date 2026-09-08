@@ -1672,6 +1672,13 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCE_INVENTORY_MARGINALS,
 
         /**
+         * Does the usage information for ESQL contain datasource/dataset CRUD change counters
+         * ({@code datasources.config.datasources.changes.by_op.*} and
+         * {@code datasources.config.datasets.changes.by_op.*})?
+         */
+        USAGE_CONTAINS_DATASOURCE_CONFIG_CHANGES,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,

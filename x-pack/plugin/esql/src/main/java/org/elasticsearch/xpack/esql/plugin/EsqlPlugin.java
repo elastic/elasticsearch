@@ -588,7 +588,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
 
-        DataSourceService dataSourceService = new DataSourceService(services.clusterService(), crudValidators, encryptionService);
+        DataSourceService dataSourceService = new DataSourceService(
+            services.clusterService(),
+            crudValidators,
+            encryptionService,
+            dataSourceModule.externalSourceMetrics()
+        );
         DataSourceInventoryCounters inventoryCounters = new DataSourceInventoryCounters(dataSourceService, dataSourceModule);
         DataSourceInventoryMetrics inventoryMetrics = new DataSourceInventoryMetrics(
             services.telemetryProvider().getMeterRegistry(),
@@ -629,7 +634,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             new ViewService(services.clusterService(), parser),
             dataSourceService,
-            new DatasetService(services.clusterService(), crudValidators),
+            new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)

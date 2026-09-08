@@ -195,9 +195,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     @Override
     public int hashCode() {
-        // NB: the hashcode is currently used for key generation so
-        // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children());
+        return super.hashCode();
     }
 
     @Override

@@ -36,6 +36,10 @@ import java.util.Map;
  * <p>Names and attribute maps are interned node-wide, so shards of one index and indices of one data stream share them. Whole
  * {@link FieldInfo} instances are shared as well when the segment's directory is a {@link FieldInfoCachingDirectory}, which
  * holds them for a single shard: field numbers are assigned per IndexWriter and form part of the identity.
+ *
+ * <p>Selected by {@link ElasticsearchFieldInfosFormat}. Directories are only wrapped when
+ * {@link FieldInfoCachingDirectory#FEATURE_FLAG} is enabled, and tooling paths such as snapshot inspection or checkindex do not
+ * wrap them at all, so those reads share names and attribute maps but retain no whole instances.
  */
 public final class CachingFieldInfosFormat extends FieldInfosFormat {
 

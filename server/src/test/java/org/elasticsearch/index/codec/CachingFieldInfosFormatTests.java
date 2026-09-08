@@ -147,7 +147,7 @@ public class CachingFieldInfosFormatTests extends ESTestCase {
     public void testAttributesMapSharedAcrossDirectories() throws Exception {
         // Across two Directories (simulating two shards of the same data stream), the per-Directory FieldInfo cache produces
         // distinct FieldInfo instances per shard (field numbering is per-IndexWriter), but the attributes Map MUST still be
-        // shared by reference because it is interned node-wide via DeduplicatingFieldInfosFormat#internStringStringMap.
+        // shared by reference because it is interned node-wide.
         try (Directory rawA = newDirectory(); Directory rawB = newDirectory()) {
             FieldInfoCachingDirectory wrappedA = new FieldInfoCachingDirectory(rawA);
             FieldInfoCachingDirectory wrappedB = new FieldInfoCachingDirectory(rawB);

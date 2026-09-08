@@ -122,6 +122,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
+    public void testValidateDatasourceRejectsInvalidAddressingStyle() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("access_key", "ak", "secret_key", "sk", "addressing_style", "ftp_style"))
+        );
+        assertThat(e.getMessage(), containsString("Unsupported addressing_style value [ftp_style]"));
+    }
+
     public void testValidateDatasourceAuthCaseInsensitive() {
         var result = validator.validateDatasource(Map.of("auth", "ANONYMOUS"));
         assertEquals("anonymous", result.get("auth").nonSecretValue());  // case-insensitive fields normalized to lowercase

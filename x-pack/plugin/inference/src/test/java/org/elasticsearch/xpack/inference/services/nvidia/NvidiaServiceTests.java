@@ -676,6 +676,19 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
         );
     }
 
+    public void testUpdateModelWithEmbeddingDetails_DimensionsNotSetYet() throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            // nvidia does not take dimensions in the config, so it stays null until the first
+            // embedding response comes back
+            var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel("url", "secret", "model", null, null, null, null, null);
+
+            var updated = service.updateModelWithEmbeddingDetails(model, 1024);
+
+            assertThat(((NvidiaEmbeddingsModel) updated).getServiceSettings().dimensions(), is(1024));
+        }
+    }
+
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(300));

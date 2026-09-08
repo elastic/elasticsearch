@@ -175,10 +175,6 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
-            if (similarityToUse.equals(similarityFromModel) && embeddingSize == serviceSettings.dimensions()) {
-                // Avoid creating a new model if similarity and embedding size are unchanged
-                return model;
-            }
             var updatedServiceSettings = new NvidiaEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
                 serviceSettings.uri(),
@@ -187,6 +183,12 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
                 serviceSettings.maxInputTokens(),
                 serviceSettings.rateLimitSettings()
             );
+
+            // Avoid creating a new model if nothing changed. Comparing the settings is safe when
+            // dimensions is still null, which it is until the first embedding response arrives.
+            if (updatedServiceSettings.equals(serviceSettings)) {
+                return model;
+            }
 
             return new NvidiaEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {

@@ -1067,6 +1067,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with session id");
     }
 
+    public static void throwUnsupportedNonStreamingChatCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "non-streaming unified completion");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }

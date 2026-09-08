@@ -408,6 +408,55 @@ public class SenderServiceTests extends ESTestCase {
         }
     }
 
+    public void testNonStreamingNotSupportedByDefault() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(UnifiedCompletionRequestBody.of(messages), false);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            var exception = assertThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("The test service service does not support non-streaming unified completion"));
+        }
+    }
+
+    public void testNonStreamingSucceedsWhenServiceSupportsNonStreaming() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty()) {
+            @Override
+            public boolean supportsNonStreamingChatCompletion() {
+                return true;
+            }
+
+            @Override
+            protected void doUnifiedCompletionInfer(
+                Model model,
+                UnifiedChatInput inputs,
+                TimeValue timeout,
+                ActionListener<InferenceServiceResults> listener
+            ) {
+                assertFalse(inputs.stream());
+                listener.onResponse(mock(InferenceServiceResults.class));
+            }
+        };
+
+        try (service) {
+            var messages = List.of(new Message(new ContentString("test"), "user", null, null));
+            var request = new UnifiedCompletionRequest(UnifiedCompletionRequestBody.of(messages), false);
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.unifiedCompletionInfer(mock(Model.class), request, TIMEOUT, listener);
+
+            assertNotNull(listener.actionGet(TIMEOUT));
+        }
+    }
+
     public static Sender createMockSender() {
         return mock(Sender.class);
     }

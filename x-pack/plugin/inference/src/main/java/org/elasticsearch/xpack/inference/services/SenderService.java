@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInf
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedCacheControlUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedNonStreamingChatCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedSessionIdUnifiedCompletionOperation;
 
@@ -261,6 +262,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             }
             if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
+            }
+            if (request.stream() == false && supportsNonStreamingChatCompletion() == false) {
+                throwUnsupportedNonStreamingChatCompletionOperation(name());
             }
             doUnifiedCompletionInfer(model, new UnifiedChatInput(request), resolvedInferenceTimeout, listener);
         } catch (Exception e) {

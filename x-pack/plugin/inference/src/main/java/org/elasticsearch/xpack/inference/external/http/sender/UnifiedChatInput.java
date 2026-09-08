@@ -26,7 +26,8 @@ import java.util.Objects;
  * The main difference between this class and {@link CompletionInput} is this should only be used for
  * {@link TaskType#COMPLETION} originating through the
  * {@link InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}
- * code path. These are requests sent to the API with the <code>_stream</code> route and {@link TaskType#CHAT_COMPLETION}.
+ * code path. These are requests sent to the API for {@link TaskType#CHAT_COMPLETION}, on either the <code>_stream</code> route or the
+ * non-streaming one; {@link #stream()} records which.
  */
 public class UnifiedChatInput extends InferenceInputs {
 

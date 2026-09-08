@@ -308,6 +308,31 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(add.dataType(), folded.dataType());
     }
 
+    // COALESCE over exclusively null arguments is itself always null, but it reports UNKNOWN
+    // nullability, which propagates upwards and hides the null from any parent. DATE_EXTRACT's
+    // evaluator switches on the field type and has no NULL branch, so an unfolded parent throws.
+    public void testNullPropagatingFunctionOverNullTypedCoalesceIsFolded() {
+        Coalesce coalesce = new Coalesce(EMPTY, NULL, List.of(NULL));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, Literal.keyword(EMPTY, "year"), coalesce, TEST_CFG)));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCaseIsFolded() {
+        Case caseExpr = new Case(EMPTY, TRUE, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), caseExpr, TEST_CFG)));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedMvUnionIsFolded() {
+        MvUnion union = new MvUnion(EMPTY, NULL, NULL);
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), union, TEST_CFG)));
+    }
+
+    // Only the parent needs folding: COALESCE evaluates a null result perfectly well on its own,
+    // and replacing it with a literal would drop the evaluator its own tests expect.
+    public void testNullTypedCoalesceIsNotFoldedItself() {
+        Coalesce coalesce = new Coalesce(EMPTY, NULL, List.of(NULL));
+        assertEquals(coalesce, foldNull(coalesce));
+    }
+
     private void assertNullLiteral(Expression expression) {
         assertNull(as(expression, Literal.class).value());
     }

@@ -348,7 +348,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("get an unknown dataset", "resource_not_found_exception"),
         entry("delete an unknown dataset", "resource_not_found_exception"),
         entry("query an unknown dataset", "verification_exception"),
-        entry("put data source with an unknown type", "illegal_argument_exception"),
+        entry("put data source with an unknown type", "unknown_data_source_type_exception"),
         entry("put data source with no type", "illegal_argument_exception"),
         entry("put s3 data source with an unknown setting", "validation_exception"),
         entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),

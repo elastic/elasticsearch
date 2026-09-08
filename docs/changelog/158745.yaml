@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 158745
-summary: Do not reverse crlf
+summary: When reversing strings, treat Carriage Return Line Feed as a single control character, in line with UTF guidelines
 type: bug

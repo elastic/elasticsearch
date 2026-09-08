@@ -207,7 +207,9 @@ public class ServiceAccountService {
     }
 
     /**
-     * Creates the account, or replaces an existing one of the same name wholesale.
+     * Creates the account, or replaces an existing one of the same name wholesale. Creating an account of a name that
+     * still has leftover tokens is refused: those tokens would otherwise start authenticating again. Replacing an
+     * account that is already present is allowed even when tokens exist, because those tokens already belong to it.
      */
     public void putUserManagedAccount(
         ServiceAccountId accountId,
@@ -220,7 +222,25 @@ public class ServiceAccountService {
             listener.onFailure(new IllegalStateException(USER_MANAGED_ACCOUNTS_UNAVAILABLE_MESSAGE));
             return;
         }
-        userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, listener);
+        userManagedServiceAccountStore.getByPrincipal(accountId.asPrincipal(), listener.delegateFailureAndWrap((delegate, account) -> {
+            if (account != null) {
+                userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, delegate);
+                return;
+            }
+            indexServiceAccountTokenStore.hasTokensFor(accountId, delegate.delegateFailureAndWrap((inner, hasTokens) -> {
+                if (hasTokens) {
+                    inner.onFailure(
+                        new IllegalArgumentException(
+                            "cannot create service account ["
+                                + accountId
+                                + "] because it has leftover service tokens; delete the tokens first"
+                        )
+                    );
+                } else {
+                    userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, inner);
+                }
+            }));
+        }));
     }
 
     /**
@@ -249,9 +269,9 @@ public class ServiceAccountService {
     }
 
     /**
-     * A surviving token cannot authenticate once its account is gone, but recreating an account of the same name would
-     * bring it back to life, which is what the token check refuses rather than any live credential. It is not atomic
-     * with the delete: a token created in between survives, leaving the state {@code force} produces deliberately.
+     * A surviving token cannot authenticate once its account is gone, and creating an account of the same name is
+     * refused while those leftovers remain. It is not atomic with the delete: a token created in between survives,
+     * leaving the state {@code force} produces deliberately.
      */
     public void deleteUserManagedAccount(
         ServiceAccountId accountId,

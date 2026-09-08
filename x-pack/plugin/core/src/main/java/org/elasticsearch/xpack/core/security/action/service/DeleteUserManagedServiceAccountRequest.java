@@ -34,7 +34,7 @@ public class DeleteUserManagedServiceAccountRequest extends UntypedActionRequest
     /**
      * @param force When false, the default, deleting an account that still has service tokens is refused. When true
      *              the account is deleted and its tokens are left in place: they cannot authenticate while no account
-     *              of that name exists, but creating one again later revives them.
+     *              of that name exists, and creating one again is refused until those tokens are deleted.
      */
     public DeleteUserManagedServiceAccountRequest(
         String namespace,

@@ -214,6 +214,26 @@ teardown:
       security.authenticate: {}
 
   - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "enabled": true
+          }
+  - match: { "error.type": "illegal_argument_exception" }
+  - match: { "error.reason": "cannot create service account [apps/worker_1] because it has leftover service tokens; delete the tokens first" }
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+  - is_true: found
+
+  - do:
       security.put_user_managed_service_account:
         namespace: apps
         service: worker_1
@@ -225,10 +245,10 @@ teardown:
   - match: { created: true }
 
   - do:
+      catch: unauthorized
       headers:
         Authorization: Bearer ${user_managed_service_token}
       security.authenticate: {}
-  - match: { username: "apps/worker_1" }
 
   - do:
       security.create_service_token:

@@ -214,7 +214,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
         );
     }
 
-    public void testForceDeleteLeavesTokensThatARecreatedAccountRevives() {
+    public void testForceDeleteLeavesTokensThatBlockRecreate() {
         putAccount(MONITOR_ROLE);
         final SecureString oldBearer = createToken("token-delete-recreate");
         authenticate(oldBearer.toString());
@@ -242,16 +242,15 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
         assertThat(deleteResponse.found(), is(true));
         assertAuthenticationFails(oldBearer.toString());
 
-        final PutUserManagedServiceAccountResponse recreateResponse = securityAdminClient().execute(
-            PutUserManagedServiceAccountAction.INSTANCE,
-            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(MONITOR_ROLE), true)
-        ).actionGet();
-        assertThat(recreateResponse.created(), is(true));
-
-        authenticate(oldBearer.toString());
-
-        final SecureString newBearer = createToken("token-after-recreate");
-        authenticate(newBearer.toString());
+        final IllegalArgumentException recreateException = expectThrows(
+            IllegalArgumentException.class,
+            () -> securityAdminClient().execute(
+                PutUserManagedServiceAccountAction.INSTANCE,
+                new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(MONITOR_ROLE), true)
+            ).actionGet()
+        );
+        assertThat(recreateException.getMessage(), containsString("because it has leftover service tokens; delete the tokens first"));
+        assertAuthenticationFails(oldBearer.toString());
     }
 
     public void testDeletingAnAccountThatWasNotThereReportsNotFound() {

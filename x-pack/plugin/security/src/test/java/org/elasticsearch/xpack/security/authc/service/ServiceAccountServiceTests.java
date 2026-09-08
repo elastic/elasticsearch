@@ -854,23 +854,51 @@ public class ServiceAccountServiceTests extends ESTestCase {
         verify(userManagedServiceAccountStore, never()).getByPrincipal(any(), any());
     }
 
-    public void testPutUserManagedAccountDelegatesToTheAccountStore() {
+    public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenCreatingWithNoLeftoverTokens() {
+        stubHasTokensFor(false);
         final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
         final boolean enabled = randomBoolean();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final UserManagedServiceAccountStore.PutResult result = randomFrom(UserManagedServiceAccountStore.PutResult.values());
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<UserManagedServiceAccountStore.PutResult> listener = (ActionListener<
-                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[4];
-            listener.onResponse(result);
-            return null;
-        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any());
+        stubPutAccount(UserManagedServiceAccountStore.PutResult.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
         serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, refreshPolicy, future);
-        assertThat(future.actionGet(), is(result));
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
+        verify(indexServiceAccountTokenStore).hasTokensFor(eq(USER_MANAGED_ACCOUNT_ID), any());
         verify(userManagedServiceAccountStore).putAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(roles), eq(enabled), eq(refreshPolicy), any());
+    }
+
+    public void testPutUserManagedAccountDelegatesToTheAccountStoreWhenReplacingAnExistingAccount() {
+        stubUserManagedAccount(new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("old_role"), true));
+        stubHasTokensFor(true);
+        final List<String> roles = randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8));
+        final boolean enabled = randomBoolean();
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        stubPutAccount(UserManagedServiceAccountStore.PutResult.UPDATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, roles, enabled, refreshPolicy, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+        verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
+        verify(userManagedServiceAccountStore).putAccount(eq(USER_MANAGED_ACCOUNT_ID), eq(roles), eq(enabled), eq(refreshPolicy), any());
+    }
+
+    public void testPutUserManagedAccountIsRefusedWhenLeftoverTokensExist() {
+        stubHasTokensFor(true);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        serviceAccountService.putUserManagedAccount(USER_MANAGED_ACCOUNT_ID, List.of("a_role"), true, RefreshPolicy.NONE, future);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot create service account ["
+                    + USER_MANAGED_ACCOUNT_ID
+                    + "] because it has leftover service tokens; delete the tokens first"
+            )
+        );
+        verify(userManagedServiceAccountStore, never()).putAccount(any(), any(), anyBoolean(), any(), any());
     }
 
     public void testPutUserManagedAccountFailsWhereTheAccountStoreIsNotConfigured() {
@@ -1159,6 +1187,16 @@ public class ServiceAccountServiceTests extends ESTestCase {
             listener.onResponse(hasTokens);
             return null;
         }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
+    }
+
+    private void stubPutAccount(UserManagedServiceAccountStore.PutResult result) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UserManagedServiceAccountStore.PutResult> listener = (ActionListener<
+                UserManagedServiceAccountStore.PutResult>) invocation.getArguments()[4];
+            listener.onResponse(result);
+            return null;
+        }).when(userManagedServiceAccountStore).putAccount(any(), any(), anyBoolean(), any(), any());
     }
 
     private void stubDeleteAccount(boolean found) {

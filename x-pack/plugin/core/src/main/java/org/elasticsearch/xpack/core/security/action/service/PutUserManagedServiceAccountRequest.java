@@ -26,9 +26,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Creates a user-managed service account, or replaces an existing one of the same name wholesale. A replacement is
- * not a partial update: an account whose {@code enabled} was set to false and is then written again without the field
- * comes back enabled, because the default applies to every write rather than only to the first.
+ * Creates a user-managed service account, or replaces an existing one of the same name wholesale. Creating an account
+ * of a name that still has leftover tokens is refused. A replacement is not a partial update: an account whose
+ * {@code enabled} was set to false and is then written again without the field comes back enabled, because the default
+ * applies to every write rather than only to the first.
  */
 public class PutUserManagedServiceAccountRequest extends UntypedActionRequest {
 

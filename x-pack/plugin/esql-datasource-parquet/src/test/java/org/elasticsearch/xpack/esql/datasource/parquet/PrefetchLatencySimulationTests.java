@@ -222,7 +222,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
      * scheduling model with 20 row groups, ten 50 ms requests per group, 10 ms decode, and a
      * 16-request provider limit reduced modeled elapsed time from 1010 ms at depth 1 to 660 ms at
      * depth 3 (at 50 slots: 1010 ms to 370 ms). Those measurements are evidence, not wall-clock
-     * assertions; this test fixes only the deterministic fan-out policy.
+     * assertions; this test fixes only the deterministic fan-out policy. Request count follows
+     * {@link CoalescedRangeReader#MAX_MERGED_RANGE_BYTES} (two 5 MiB chunks per 10 MiB GET).
      */
     public void testCappedRequestWaveFanOutPolicy() {
         BlockMetaData block = createCappedRequestWaveBlock();
@@ -235,13 +236,16 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP
         );
 
-        assertEquals("30 contiguous 5 MiB chunks must form ten capped requests", 10, requests.size());
+        long packedBytes = 5L * 1024 * 1024;
+        int chunksPerRequest = (int) (CoalescedRangeReader.MAX_MERGED_RANGE_BYTES / packedBytes);
+        int expectedRequests = 30 / chunksPerRequest;
+        assertEquals("30 contiguous 5 MiB chunks must pack to the merge cap", expectedRequests, requests.size());
         int initialDepth = OptimizedParquetColumnIterator.computePrefetchDepth(List.of(block), projectedColumns);
         assertEquals("the >32 MB projected footprint retains the measured depth-three floor", 3, initialDepth);
-        assertEquals("initial queue-wide request fan-out", 30, initialDepth * requests.size());
+        assertEquals("initial queue-wide request fan-out", initialDepth * expectedRequests, initialDepth * requests.size());
         assertEquals(
             "adaptive maximum queue-wide request fan-out",
-            80,
+            OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * expectedRequests,
             OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH * requests.size()
         );
     }

@@ -220,6 +220,29 @@ public class BuildNativeLibraryTaskTests {
     }
 
     /**
+     * A cached all-platforms entry is trusted to mean the artifact for that hash is published, so the
+     * one kind of build that uploads nothing has to be recognised and kept out of the cache.
+     */
+    @Test
+    public void testOnlyADockerBuildWithoutACredentialUploadsNothing() {
+        assertTrue(taskFor(BuildNativeLibraryTask.DOCKER_MODE, null).buildsWithoutPublishing());
+        assertFalse(taskFor(BuildNativeLibraryTask.DOCKER_MODE, "a-credential").buildsWithoutPublishing());
+        // Takes the published artifact rather than building, so there is nothing it could fail to upload.
+        assertFalse(taskFor(BuildNativeLibraryTask.PUBLISHED_MODE, null).buildsWithoutPublishing());
+        // Never publishable, and excluded from the cache for depending on the local compiler instead.
+        assertFalse(taskFor(BuildNativeLibraryTask.HOST_MODE, null).buildsWithoutPublishing());
+    }
+
+    private BuildNativeLibraryTask taskFor(String mode, String credential) {
+        var created = project.getTasks().create("build-" + mode + "-" + (credential == null ? "anonymous" : "keyed"), BuildNativeLibraryTask.class);
+        created.getMode().set(mode);
+        if (credential != null) {
+            created.getPublishApiKey().set(credential);
+        }
+        return created;
+    }
+
+    /**
      * Publishing compares artifacts by content, so packing the same content twice has to give the same
      * bytes, whenever and on whichever machine it runs.
      */

@@ -89,6 +89,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         // method to an internal type.
         Task self = this;
         self.getOutputs().doNotCacheIf("a host build depends on the local compiler", task -> HOST_MODE.equals(getMode().get()));
+        self.getOutputs().doNotCacheIf("this build uploads nothing, so its output is not published", task -> buildsWithoutPublishing());
     }
 
     @InputFiles
@@ -116,9 +117,11 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
      * are both "complete" and we want them to share a build cache entry.
      * This lets a CI container build populate the cache that a developer's plain build reads from.
      *
-     * <p>A {@code host} build holds one platform only, so it is a different kind of output and must
-     * never be served in place of a complete one. It is excluded from caching altogether (see the
-     * {@code doNotCacheIf} below), and kept under a distinct key here so it cannot collide.
+     * <p>Every cached {@code all-platforms} entry carries a guarantee: the artifact for that hash is
+     * published, because whoever produced the entry either downloaded the artifact or uploaded it.
+     * A run holding a credential can therefore accept such an entry and skip its own upload, since
+     * there is nothing left to upload. {@link #buildsWithoutPublishing()} keeps the one kind of build
+     * that would break the guarantee out of the cache.
      */
     @Input
     String getCachedArtifactKind() {
@@ -190,17 +193,14 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     public abstract Property<Boolean> getOffline();
 
     /**
-     * Whether this run uploads the artifact it produces. This is a {@code @Input} because
-     * restoring outputs from the cache skips the action, and the artifact upload happens
-     * inside the task action. Runs that upload the artifact need to be keyed differently
-     * from runs that only produce the artifact locally. This way a task that uploads is never
-     * skipped in favour a tasks that did not upload, because their cache entries will differ.
+     * Whether this run builds the library but uploads nothing, which is what a {@code docker} build
+     * without a credential does. Such an output must stay out of the build cache: see
+     * {@link #getCachedArtifactKind()} for the guarantee that depends on it.
      *
-     * <p>Security note: this records the presence of a credential, not its value.
+     * <p>Security note: this reads the presence of a credential, never its value.
      */
-    @Input
-    boolean getPublishesArtifact() {
-        return getArtifactRepositoryUrl().isPresent() && getPublishApiKey().isPresent() && HOST_MODE.equals(getMode().get()) == false;
+    boolean buildsWithoutPublishing() {
+        return DOCKER_MODE.equals(getMode().get()) && getPublishApiKey().isPresent() == false;
     }
 
     @OutputDirectory

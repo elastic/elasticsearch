@@ -37,7 +37,7 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.logging.LogManager;
@@ -639,8 +639,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     public void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequestBody request,
-        boolean stream,
+        UnifiedCompletionRequest request,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {

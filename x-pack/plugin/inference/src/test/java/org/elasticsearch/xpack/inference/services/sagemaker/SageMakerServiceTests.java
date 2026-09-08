@@ -31,6 +31,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -462,8 +463,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public void testUnifiedInferWithWrongModel() {
         sageMakerService.unifiedCompletionInfer(
             mockUnsupportedModel(),
-            randomUnifiedCompletionRequest(),
-            true,
+            UnifiedCompletionRequest.streaming(randomUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertUnsupportedModel()
         );
@@ -478,8 +478,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
-            true,
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -501,8 +500,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
-            true,
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoSuccessListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -532,8 +530,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
-            true,
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoSuccessListener(e -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));

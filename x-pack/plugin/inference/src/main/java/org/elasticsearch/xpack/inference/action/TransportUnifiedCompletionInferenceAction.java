@@ -89,7 +89,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             );
             return;
         }
-        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.isStreaming(), request.getTimeout(), listener);
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), request.getTimeout(), listener);
     }
 
     @Override

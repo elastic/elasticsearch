@@ -32,7 +32,7 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -237,8 +237,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequestBody request,
-        boolean stream,
+        UnifiedCompletionRequest request,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -252,7 +251,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             var sageMakerModel = (SageMakerModel) model;
             var regionAndSecrets = regionAndSecrets(sageMakerModel);
             var schema = schemas.streamSchemaFor(sageMakerModel);
-            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request);
+            var sagemakerRequest = schema.chatCompletionStreamRequest(sageMakerModel, request.body());
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,

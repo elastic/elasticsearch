@@ -422,9 +422,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             return null;
         }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
-            listenerAction.accept(ans.getArgument(4));
+            listenerAction.accept(ans.getArgument(3));
             return null;
-        }).when(service).unifiedCompletionInfer(any(), any(), anyBoolean(), any(), any());
+        }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;

@@ -33,7 +33,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.TopNProvider;
-import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -128,8 +128,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public void unifiedCompletionInfer(
             Model model,
-            UnifiedCompletionRequestBody request,
-            boolean stream,
+            UnifiedCompletionRequest request,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {

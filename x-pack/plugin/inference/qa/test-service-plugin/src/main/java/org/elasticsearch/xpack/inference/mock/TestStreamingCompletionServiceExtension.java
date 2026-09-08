@@ -29,6 +29,7 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -162,8 +163,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public void unifiedCompletionInfer(
             Model model,
-            UnifiedCompletionRequestBody request,
-            boolean stream,
+            UnifiedCompletionRequest request,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
@@ -172,7 +172,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(stream ? makeUnifiedResults(request) : makeNonStreamingUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(
+                    request.stream() ? makeUnifiedResults(request.body()) : makeNonStreamingUnifiedResults(request.body())
+                );
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),

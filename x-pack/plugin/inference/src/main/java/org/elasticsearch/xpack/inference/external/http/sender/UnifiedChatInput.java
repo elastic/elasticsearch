@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -24,7 +25,7 @@ import java.util.Objects;
  * This class encapsulates the unified request.
  * The main difference between this class and {@link CompletionInput} is this should only be used for
  * {@link TaskType#COMPLETION} originating through the
- * {@link InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequestBody, boolean, TimeValue, ActionListener)}
+ * {@link InferenceService#unifiedCompletionInfer(Model, UnifiedCompletionRequest, TimeValue, ActionListener)}
  * code path. These are requests sent to the API with the <code>_stream</code> route and {@link TaskType#CHAT_COMPLETION}.
  */
 public class UnifiedChatInput extends InferenceInputs {
@@ -32,6 +33,10 @@ public class UnifiedChatInput extends InferenceInputs {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedChatInput.class);
 
     private final UnifiedCompletionRequestBody request;
+
+    public UnifiedChatInput(UnifiedCompletionRequest request) {
+        this(request.body(), request.stream());
+    }
 
     public UnifiedChatInput(UnifiedCompletionRequestBody request, boolean stream) {
         super(stream);

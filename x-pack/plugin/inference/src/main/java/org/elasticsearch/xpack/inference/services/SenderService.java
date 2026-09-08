@@ -29,7 +29,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -246,23 +246,23 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequestBody request,
-        boolean stream,
+        UnifiedCompletionRequest request,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
-            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+            var body = request.body();
+            if (supportsChatCompletionReasoning() == false && body.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionCacheControl() == false && request.containsChatCompletionCacheControl()) {
+            if (supportsChatCompletionCacheControl() == false && body.containsChatCompletionCacheControl()) {
                 throwUnsupportedCacheControlUnifiedCompletionOperation(name());
             }
-            if (supportsChatCompletionSessionId() == false && request.containsSessionId()) {
+            if (supportsChatCompletionSessionId() == false && body.containsSessionId()) {
                 throwUnsupportedSessionIdUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, stream), resolvedInferenceTimeout, listener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request), resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

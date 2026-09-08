@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
@@ -36,15 +37,17 @@ import static org.mockito.MockitoAnnotations.openMocks;
 
 public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTestCase {
 
-    private static final UnifiedCompletionRequestBody EXPECTED_REQUEST = new UnifiedCompletionRequestBody(
-        List.of(new Message(new ContentString("how big"), "user", null, null)),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
+    private static final UnifiedCompletionRequest EXPECTED_REQUEST = UnifiedCompletionRequest.streaming(
+        new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("how big"), "user", null, null)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        )
     );
     private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
 
@@ -70,7 +73,7 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     public void testValidate_ServiceThrowsException() {
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
-            .unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
+            .unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
@@ -120,10 +123,10 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(4);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(result);
             return null;
-        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
+        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
@@ -134,16 +137,16 @@ public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTest
 
     private void mockFailureResponseFromService(Exception exception) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(4);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onFailure(exception);
             return null;
-        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
+        }).when(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
     private void verifyCallToService() {
-        verify(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(true), eq(TIMEOUT), any());
+        verify(mockInferenceService).unifiedCompletionInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
     }
 }

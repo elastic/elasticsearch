@@ -530,13 +530,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Stats partial / file-count flag tests =====
 
     /**
-     * Invariant: every schema-resolution mode marks stats as partial when at least one file
-     * lacks statistics. {@code STATS_PARTIAL} is what tells downstream operators that aggregated
-     * stats are incomplete and must not be trusted for shortcuts like {@code canSkipSplitDiscovery}.
-     * Parameterized over {@link #MULTI_FILE_STRATEGIES} so any future {@code SchemaResolution}
-     * value inherits the invariant by construction.
-     */
-    /**
      * A comma-separated list may name the same file twice, and the scan reads it twice -- glob expansion
      * preserves duplicates and FileSplitProvider enumerates by listing position. The reconciliation-rail
      * aggregate must fold by position too, or warm serves a deduplicated undercount against a cold scan of
@@ -585,6 +578,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(agg.get(SourceStatisticsSerializer.columnMaxKey("val")), equalTo(9L));
     }
 
+    /**
+     * Invariant: every schema-resolution mode marks stats as partial when at least one file
+     * lacks statistics. {@code STATS_PARTIAL} is what tells downstream operators that aggregated
+     * stats are incomplete and must not be trusted for shortcuts like {@code canSkipSplitDiscovery}.
+     * Parameterized over {@link #MULTI_FILE_STRATEGIES} so any future {@code SchemaResolution}
+     * value inherits the invariant by construction.
+     */
     public void testMultiFileStatsPartialFlagPerStrategy() throws Exception {
         List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
 

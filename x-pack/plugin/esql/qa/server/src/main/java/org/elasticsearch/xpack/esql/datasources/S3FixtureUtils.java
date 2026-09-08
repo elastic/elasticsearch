@@ -54,7 +54,6 @@ public final class S3FixtureUtils {
     // TODO: drop this S3 fixture logging
     // TODO: ... along with unsupportedOperations,
     // TODO: ...along with AbstractExternalSourceSpecTestCase#checkForUnsupportedOperations & co. -- we're not testing a S3 implementation
-    /** Thread-safe list of S3 request logs */
     /**
      * Whether S3 requests are recorded at all. OFF unless a suite asks for it.
      *

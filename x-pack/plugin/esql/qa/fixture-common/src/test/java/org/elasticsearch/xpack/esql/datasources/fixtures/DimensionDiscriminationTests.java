@@ -158,7 +158,6 @@ public class DimensionDiscriminationTests extends ESTestCase {
         assertEquals("inferred is the baseline", "inferred", dimensions.defaultValue("schema_mode", "csv"));
     }
 
-    /** Read from the contract: the gate that guards copies caught this list being one of them. */
     /**
      * Every cell a seam can express must be carried by at least one vector.
      *

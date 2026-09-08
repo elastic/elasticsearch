@@ -11,7 +11,8 @@
 # which otherwise matches this very comment -- so every PR step runs concurrently and the clock is the
 # MAX over steps, not the sum. It is the FLOOR that matters, not the ceiling: a step is free only
 # while it finishes inside the SHORTEST build, and across the three latest passed builds that floor is
-# 35 minutes (the ceiling is 52).
+# 36 minutes -- the shortest full build across the ten most recently merged pull requests. A ceiling is
+# not the relevant number and the sample for one is too small to quote: the same ten span 36 to 68.
 #
 # Measured at this tier on real CI, over the two builds that have run it: text 19.8-20.5 minutes,
 # ndjson 17.5-19.6, orc 10.8-11.2, parquet 8.3-11.0, against part-5 at 43.5 and part-2 at 41.4. Taken
@@ -26,7 +27,8 @@
 # and ndjson 28.6 at the 346-vector tier. Two things moved at once -- the crossing lost 1,741 cases to
 # pathShapeCannotCarry and the agent changed to n4 with a hyperdisk -- so this is not a like-for-like
 # comparison and the split between the two causes is not measured. What it does settle is the only
-# question this file needs answered: the longest of the four is 20.5 against a 35-minute floor.
+# question this file needs answered: the longest of the four is about 20 minutes against a floor of 36,
+# which is the shortest full build across the ten most recently merged pull requests.
 #
 # The EC2 numbers quoted further down are from a different machine and measure a different thing --
 # suite time on a 48-vCPU box, excluding gradle configure, cluster start and fixture generation. They
@@ -113,7 +115,7 @@ steps:
       # would fit inside the 45-minute bound.
       #
       # They stay split anyway, and not out of inertia. A shared step at 30 minutes has spent most of
-      # its margin against the 35-minute critical-path floor, so the first dimension added to the
+      # its margin against the 36-minute critical-path floor, so the first dimension added to the
       # contract would push it past the point where it is free -- and the bound is there to catch
       # exactly that. Steps are concurrent, so splitting costs one more agent and nothing in wall
       # clock, which makes the cheap option also the one with room in it.

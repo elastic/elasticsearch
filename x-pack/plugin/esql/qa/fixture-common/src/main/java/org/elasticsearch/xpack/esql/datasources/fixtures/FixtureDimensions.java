@@ -139,12 +139,6 @@ public final class FixtureDimensions {
     static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
 
     /**
-     * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
-     * classpath touches this class -- including code that never asks for a dimension -- so a missing or
-     * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
-     * the declaration is read when it is wanted, and the failure names the caller that wanted it.
-     */
-    /**
      * How a dimension's value is made real. Public because a test that repeats the list drifts from the
      * parser that enforces it, and then agrees with itself while both are wrong.
      *
@@ -154,6 +148,12 @@ public final class FixtureDimensions {
      */
     public static final Set<String> BINDS = Set.of("fixture", "resolver", "directive", "pragma", "backend", "cluster", "cluster_setting");
 
+    /**
+     * Lazy, deliberately. An eager static field runs {@link #load()} the moment anything on the
+     * classpath touches this class -- including code that never asks for a dimension -- so a missing or
+     * malformed resource becomes an ExceptionInInitializerError in an unrelated suite. Deferring it means
+     * the declaration is read when it is wanted, and the failure names the caller that wanted it.
+     */
     private static final class Holder {
         private static final FixtureDimensions INSTANCE = load();
     }
@@ -474,15 +474,6 @@ public final class FixtureDimensions {
     }
 
     /**
-     * The constant {@code WITH} settings a vector pins: every directive-bound slot sitting off its
-     * declared default and expressible as a constant.
-     *
-     * <p>Slots at their default are omitted -- omission IS the default, so an all-defaults vector
-     * produces no settings and reads byte-identically to a suite that never heard of vectors. Derived
-     * slots are absent too; a caller that wants those has to supply them from the dataset, and
-     * {@link #derivedFrom} names what it needs.
-     */
-    /**
      * The cluster settings the running vector pins, keyed by their settings-API key.
      *
      * <p>Only slots off their format's default appear. The cluster already sits at the default, so an
@@ -504,6 +495,15 @@ public final class FixtureDimensions {
         return out;
     }
 
+    /**
+     * The constant {@code WITH} settings a vector pins: every directive-bound slot sitting off its
+     * declared default and expressible as a constant.
+     *
+     * <p>Slots at their default are omitted -- omission IS the default, so an all-defaults vector
+     * produces no settings and reads byte-identically to a suite that never heard of vectors. Derived
+     * slots are absent too; a caller that wants those has to supply them from the dataset, and
+     * {@link #derivedFrom} names what it needs.
+     */
     public Map<String, String> directiveSettings(Map<String, String> vector) {
         Map<String, String> out = new LinkedHashMap<>();
         for (Map.Entry<String, String> slot : vector.entrySet()) {
@@ -1138,7 +1138,6 @@ public final class FixtureDimensions {
         return out;
     }
 
-    /** The formats a group can be exercised on: the intersection of its members' applicability. */
     /**
      * Emits whatever the clique crossing left uncovered, so every legal t-way COMBINATION is exercised.
      *
@@ -1337,13 +1336,10 @@ public final class FixtureDimensions {
     }
 
     /**
-     * Dimensions whose value is written INTO the bytes, so a variant of them is a separate file tree.
+     * The slots whose value changes the BYTES, so a vector pinning one reads a separately rendered tree.
      *
      * <p>{@code text_codec} is fixture-bound too but is not here: compressed variants are produced at
      * fixture-load time from whatever tree already exists, so a codec needs no directory of its own.
-     */
-    /**
-     * The slots whose value changes the BYTES, so a vector pinning one reads a separately rendered tree.
      *
      * <p>Public because {@code AbstractExternalSourceSpecTestCase.vectorFixturesBase} needs exactly this
      * list to build the path it reads from, and it previously kept its own copy. Two lists that must
@@ -1453,7 +1449,6 @@ public final class FixtureDimensions {
         return out;
     }
 
-    /** Whether one off-default slot can be made real by any of the seams on offer. */
     /**
      * Whether a seam in {@code seams} can express this cell.
      *

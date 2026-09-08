@@ -511,11 +511,6 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
-     * A checkpoint on the size of the universe, not an invariant: every dimension added to the contract
-     * moves this number, and moving it is how a coverage change announces itself in the diff. Update it
-     * when the contract changed on purpose; investigate when it moved and nothing was meant to.
-     */
-    /**
      * The pull-request battery's size, per format, measured rather than argued.
      *
      * <p>Pinned because the number is the whole constraint. The tier exists to fit inside a build that
@@ -751,6 +746,11 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat("a format-scoped dimension's key must be on format_specific_keys", missing, empty());
     }
 
+    /**
+     * A checkpoint on the size of the universe, not an invariant: every dimension added to the contract
+     * moves this number, and moving it is how a coverage change announces itself in the diff. Update it
+     * when the contract changed on purpose; investigate when it moved and nothing was meant to.
+     */
     public void testTheVectorUniverseSizeIsPinned() {
         int[] seen = { 0 };
         FixtureDimensions.get().forEachVector(v -> seen[0]++);
@@ -875,7 +875,6 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("gap:"));
     }
 
-    /** Declaring the baseline missing cannot be true -- every vector carries the default. */
     /**
      * A whitespace-only value is refused rather than silently emptied.
      *

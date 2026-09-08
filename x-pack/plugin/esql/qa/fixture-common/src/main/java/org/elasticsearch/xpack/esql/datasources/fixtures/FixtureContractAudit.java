@@ -200,7 +200,6 @@ public final class FixtureContractAudit {
         );
     }
 
-    /** The seam that can make this cell real, or null when none can. */
     /**
      * The seam that can make this cell real, or null when none can.
      *

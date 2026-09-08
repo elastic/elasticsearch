@@ -52,8 +52,8 @@ public final class FixtureExclusions {
         RULE
     }
 
-    /** One exclusion: which suite, which case, what kind, and the reason in full. */
     /**
+     * One exclusion: which suite, which case, what kind, and the reason in full.
      * @param vectorSlots the {@code dimension.value} slots a vector must ALL carry for this to apply,
      *                    comma-separated, or null for every vector.
      */

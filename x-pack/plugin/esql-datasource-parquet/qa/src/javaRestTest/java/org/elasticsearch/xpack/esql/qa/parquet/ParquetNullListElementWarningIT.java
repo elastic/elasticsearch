@@ -80,7 +80,6 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     private static final String DATASET = "null_list_elem_s3";
     private static final String BLOB_KEY = WAREHOUSE + "/standalone/null_list_elements.parquet";
 
-    /** Every external distribution mode {@code QueryPragmas#EXTERNAL_DISTRIBUTION} accepts. */
     /**
      * Read from the contract. This was the third copy of the same list, all three missing
      * weighted_round_robin -- the mode that needs more than one node to mean anything.

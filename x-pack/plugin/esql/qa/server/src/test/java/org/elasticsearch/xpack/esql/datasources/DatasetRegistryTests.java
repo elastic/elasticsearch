@@ -172,11 +172,6 @@ public class DatasetRegistryTests extends ESTestCase {
     }
 
     /**
-     * {@code declaresSetting} must not see a same-named key nested inside the declared schema. A declared column may be
-     * NAMED after a setting, and a text match would treat that as the setting being set — which is how the
-     * trim-spaces injection would silently stop firing and read the column-aligned fixtures untrimmed.
-     */
-    /**
      * The value, not merely the presence. Two settings can be alternative spellings of one concern --
      * hive_partitioning and partition_detection are -- and whether they collide depends on which value
      * was pinned: PartitionConfig rejects hive_partitioning=false beside a non-none detection, and accepts
@@ -193,6 +188,11 @@ public class DatasetRegistryTests extends ESTestCase {
         assertNull(DatasetRegistry.declaredSetting(null, "hive_partitioning"));
     }
 
+    /**
+     * {@code declaresSetting} must not see a same-named key nested inside the declared schema. A declared column may be
+     * NAMED after a setting, and a text match would treat that as the setting being set — which is how the
+     * trim-spaces injection would silently stop firing and read the column-aligned fixtures untrimmed.
+     */
     public void testDeclaresSettingIgnoresASameNamedDeclaredColumn() {
         assertTrue(DatasetRegistry.declaresSetting("{\"trim_spaces\": false}", "trim_spaces"));
         assertFalse(DatasetRegistry.declaresSetting(null, "trim_spaces"));

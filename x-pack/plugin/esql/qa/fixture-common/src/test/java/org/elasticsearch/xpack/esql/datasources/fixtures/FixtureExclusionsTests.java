@@ -40,12 +40,6 @@ public class FixtureExclusionsTests extends ESTestCase {
     }
 
     /**
-     * Every suite an exclusion names must be one the declaration recognises. Reads the declaration rather
-     * than restating it: this test previously carried its own five-token list and a second test carried an
-     * eight-token one, so three registries disagreed about which suites exist -- the duplicate-registry
-     * failure this whole declaration exists to remove, reproduced inside its own tests.
-     */
-    /**
      * The reason the key carries a spec segment. 24 case names are duplicated across spec files (48
      * instances), so a lookup on the bare name would apply an exclusion declared against one spec to an
      * identically-named case in another -- silently, and looking exactly like a working exclusion.
@@ -62,6 +56,12 @@ public class FixtureExclusionsTests extends ESTestCase {
         assertThat(exclusions.find("orc", "csv-multifile-temporal", "temporalWidensToMinMax"), nullValue());
     }
 
+    /**
+     * Every suite an exclusion names must be one the declaration recognises. Reads the declaration rather
+     * than restating it: this test previously carried its own five-token list and a second test carried an
+     * eight-token one, so three registries disagreed about which suites exist -- the duplicate-registry
+     * failure this whole declaration exists to remove, reproduced inside its own tests.
+     */
     public void testSuitesAreNamedByTheirFormatToken() {
         FixtureExclusions exclusions = FixtureExclusions.get();
         for (String suite : exclusions.suites()) {

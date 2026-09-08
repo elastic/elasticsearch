@@ -2845,12 +2845,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
-     */
-    /**
      * Formats whose readers emit blocks in the FILE's own types (self-typed / columnar) rather than parsing text into
      * whatever type the schema requests. For these, a declared retype only works when the reader can coerce the
      * physical type into the declared one at decode time ({@link DeclaredTypeCoercions#supports}); any other pair
@@ -3021,6 +3015,12 @@ public class ExternalSourceResolver {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
     }
 
+    /**
+     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
+     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
+     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
+     * inferred stats/sourceMetadata and the per-file column mappings.
+     */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
         DatasetMapping declaredMapping

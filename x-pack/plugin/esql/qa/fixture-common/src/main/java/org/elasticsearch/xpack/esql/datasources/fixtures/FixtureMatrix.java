@@ -270,19 +270,6 @@ public final class FixtureMatrix {
     }
 
     /**
-     * The multi-value dialect the fixtures behind a template were WRITTEN in.
-     *
-     * <p>Resolved from the declaration rather than guessed: a standalone template is its own dataset, a
-     * layout derived from a dataset inherits that dataset's dialect, and a layout assembled from its own
-     * authored source files carries {@code none} -- those sources are bracket-free, which
-     * checkFixtureDialect pins.
-     *
-     * <p>Per-source rather than per-suite on purpose. A single spec file can read one bracket-written
-     * dataset and one bracket-free one, so a suite-wide setting would misread one of them; and injecting
-     * {@code brackets} everywhere would retire the coverage of {@code none}, which is the default real
-     * users get.
-     */
-    /**
      * The dataset a template's bytes come from, or null when the layout is assembled from its own
      * authored sources rather than derived from a dataset.
      *
@@ -340,6 +327,19 @@ public final class FixtureMatrix {
         return Boolean.parseBoolean(declared);
     }
 
+    /**
+     * The multi-value dialect the fixtures behind a template were WRITTEN in.
+     *
+     * <p>Resolved from the declaration rather than guessed: a standalone template is its own dataset, a
+     * layout derived from a dataset inherits that dataset's dialect, and a layout assembled from its own
+     * authored source files carries {@code none} -- those sources are bracket-free, which
+     * checkFixtureDialect pins.
+     *
+     * <p>Per-source rather than per-suite on purpose. A single spec file can read one bracket-written
+     * dataset and one bracket-free one, so a suite-wide setting would misread one of them; and injecting
+     * {@code brackets} everywhere would retire the coverage of {@code none}, which is the default real
+     * users get.
+     */
     public String writeDialectForTemplate(String templateName) {
         String dataset = datasetForTemplate(templateName);
         if (dataset == null) {
@@ -359,15 +359,6 @@ public final class FixtureMatrix {
         return declared.trim();
     }
 
-    /**
-     * Spec files a suite must NOT load even though its patterns match them, as declared in
-     * {@code suite.<token>.specs.exclude}.
-     *
-     * <p>Deliberately rare -- one entry today. It exists because a glob cannot know that a spec belongs to
-     * a different suite, and the alternative was what this replaced: registering all 43 ClickBench cases in
-     * three suites and calling assumeFalse on every one, a skip that no gate could see and no report could
-     * count.
-     */
     /**
      * Text codecs as FILE EXTENSIONS, optionally dropping the ones only valid on snapshot builds.
      *
@@ -403,6 +394,15 @@ public final class FixtureMatrix {
         return splitList(value);
     }
 
+    /**
+     * Spec files a suite must NOT load even though its patterns match them, as declared in
+     * {@code suite.<token>.specs.exclude}.
+     *
+     * <p>Deliberately rare -- one entry today. It exists because a glob cannot know that a spec belongs to
+     * a different suite, and the alternative was what this replaced: registering all 43 ClickBench cases in
+     * three suites and calling assumeFalse on every one, a skip that no gate could see and no report could
+     * count.
+     */
     public Set<String> excludedSpecs(String suiteToken) {
         String value = declaration.getProperty("suite." + exclusionSource(suiteToken) + ".specs.exclude");
         if (value == null || value.isBlank()) {
@@ -419,15 +419,6 @@ public final class FixtureMatrix {
         return Arrays.stream(value.split(",")).map(String::trim).filter(t -> t.isEmpty() == false).collect(Collectors.toUnmodifiableSet());
     }
 
-    /**
-     * The csv-spec patterns a suite loads, as declared in {@code suite.<token>.specs}.
-     *
-     * <p>Declared once because there are two consumers: the suite's {@code ParametersFactory}, and the
-     * coverage gate that asks whether a declared cell has a reader. While the lists lived in the suites,
-     * the gate could only approximate them by scanning directories, and a spec sitting in a scanned
-     * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
-     * for hive_shadow while zero shadow cases ran on any CSV suite.
-     */
     /**
      * The suite whose exclusions this one also applies, or the token itself when it inherits none.
      *
@@ -524,6 +515,15 @@ public final class FixtureMatrix {
         return parsed;
     }
 
+    /**
+     * The csv-spec patterns a suite loads, as declared in {@code suite.<token>.specs}.
+     *
+     * <p>Declared once because there are two consumers: the suite's {@code ParametersFactory}, and the
+     * coverage gate that asks whether a declared cell has a reader. While the lists lived in the suites,
+     * the gate could only approximate them by scanning directories, and a spec sitting in a scanned
+     * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
+     * for hive_shadow while zero shadow cases ran on any CSV suite.
+     */
     public List<String> specPatterns(String suiteToken) {
         List<String> patterns = specPatterns.get(suiteToken);
         if (patterns == null) {
@@ -546,7 +546,6 @@ public final class FixtureMatrix {
         return layouts;
     }
 
-    /** The layout named by a template's suffix, falling back to {@link #STANDALONE}. */
     /**
      * The column this layout derives from the path, or null when it derives none.
      *
@@ -560,6 +559,7 @@ public final class FixtureMatrix {
         return declared == null ? null : declared.trim();
     }
 
+    /** The layout named by a template's suffix, falling back to {@link #STANDALONE}. */
     public Layout layoutFor(String templateName) {
         for (Layout layout : layouts) {
             if (layout.isStandalone() == false && templateName.endsWith(layout.suffix())) {

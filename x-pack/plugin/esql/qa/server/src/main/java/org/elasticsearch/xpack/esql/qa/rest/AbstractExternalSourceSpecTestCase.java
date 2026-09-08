@@ -106,9 +106,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private static final int DEFAULT_MAX_CASES = 20_000;
 
-    /** Pattern to match template placeholders like {{employees}} */
     /**
-     * The one {@code {{template}}} grammar. There were two regexes for this, disagreeing on case --
+     * The one {@code {{template}}} grammar, matching a placeholder like <code>{{employees}}</code>. There
+     * were two regexes for this, disagreeing on case --
      * {@code \\w+} accepted uppercase and {@code [a-z0-9_]+} did not -- so a template name would
      * eventually have resolved on one path and silently not on the other.
      */
@@ -162,13 +162,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Load csv-spec files matching the given patterns and cross-product each test with all storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 7 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend).
-     */
-    /**
      * Loads the csv-spec files declared for a suite in {@code suite.<token>.specs}, rather than a list
-     * written out here.
+     * written out here, and crosses each case with every storage backend. Returns parameter arrays for a
+     * {@code @ParametersFactory} constructor of 7 arguments: (fileName, groupName, testName, lineNumber,
+     * testCase, instructions, storageBackend).
      *
      * <p>The declaration has two consumers -- this method and the coverage gate that asks whether a
      * declared fixture cell has a reader. While the list lived in the suite, the gate could only
@@ -231,13 +228,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Load csv-spec files and cross-product each test with all formats and storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
-     */
-    /**
      * Codec-fanned variant of {@link #readExternalSpecTestsForSuite}: the spec list comes from
-     * {@code suite.<token>.specs} rather than from a list written at the call site.
+     * {@code suite.<token>.specs} rather than from a list written at the call site, and each case is
+     * crossed with every format as well as every storage backend. Returns parameter arrays for a
+     * {@code @ParametersFactory} constructor of 8 arguments: (fileName, groupName, testName, lineNumber,
+     * testCase, instructions, format, storageBackend).
      *
      * <p>Without this the compressed suites could not read the declaration at all, so the declaration and
      * the suite drifted -- the declaration claimed twelve specs for ndjson-compressed while the suite
@@ -560,18 +555,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Whether the vector's dialect cannot carry the data this case reads.
-     *
-     * <p>A bracket cell holds commas and brackets need quoting, so a dataset declared unrepresentable in
-     * a dialect has no bytes in that dialect anywhere -- and the layouts derived from it (multifile,
-     * hive, split) do not either. Registering such a pair announces a dialect over bytes never written
-     * in it, which is the misbind this contract exists to prevent; here the crossing would manufacture it.
-     *
-     * <p>Counted rather than silent: a combination that cannot exist has to be distinguishable from one
-     * nobody thought of.
-     */
-    /**
      * Whether a vector that changes the BYTES can carry this case at all.
+     *
+     * <p>The dialect axis is the one that can be unrepresentable outright: a bracket cell holds commas and
+     * brackets need quoting, so a dataset declared unrepresentable in a dialect has no bytes in it anywhere
+     * -- and neither do the layouts derived from it. Counted rather than silent, because a combination that
+     * cannot exist has to be distinguishable from one nobody thought of.
      *
      * <p>One check for every such slot, not one per slot. Only STANDALONE is redirected to the per-vector
      * tree, so a case reading any other layout gets the SHARED bytes while its name announces something
@@ -657,25 +646,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Whether a glob vector would ask for a dataset the CRUD validator will refuse to register.
-     *
-     * <p>elastic/esql-planning#1841: {@code FileDataSourceValidator.extractObjectName} truncates an object
-     * key at the first {@code ?}, applying URL query-string semantics to a storage key, which deletes the
-     * extension before format inference runs. The refusal only fires when a FORMAT-SPECIFIC setting is
-     * present -- with none, no format has to be resolved and the same glob registers fine.
-     *
-     * <p>So this asks per case, rather than blocking the cell per format. A dataset picks up a
-     * format-specific key three ways: its own directive declares one, the vector injects one, or the
-     * harness adds one because the authored rows are padded ({@code trim_spaces}) or carry bracket
-     * multi-values ({@code multi_value_syntax}). Ask all three.
-     *
-     * <p>This replaced a blanket {@code bug:} absence on csv and tsv, which was true only because the
-     * harness used to inject {@code trim_spaces} into every text dataset. Once that became data-driven,
-     * five of the ten routed datasets carry no format-specific key at all and their glob cell is real
-     * coverage; blocking the whole cell would now discard it. Deleting this filter is the verification
-     * when #1841 is fixed.
-     */
-    /**
      * Whether the vector's {@code path_shape} would change nothing about how this case's sources resolve.
      *
      * <p>{@code pathShaped} rewrites a name into a {@code ?} wildcard, and {@code resolveTemplatePath}
@@ -717,6 +687,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return true;
     }
 
+    /**
+     * Whether a glob vector would ask for a dataset the CRUD validator will refuse to register.
+     *
+     * <p>elastic/esql-planning#1841: {@code FileDataSourceValidator.extractObjectName} truncates an object
+     * key at the first {@code ?}, applying URL query-string semantics to a storage key, which deletes the
+     * extension before format inference runs. The refusal only fires when a FORMAT-SPECIFIC setting is
+     * present -- with none, no format has to be resolved and the same glob registers fine.
+     *
+     * <p>So this asks per case, rather than blocking the cell per format. A dataset picks up a
+     * format-specific key three ways: its own directive declares one, the vector injects one, or the
+     * harness adds one because the authored rows are padded ({@code trim_spaces}) or carry bracket
+     * multi-values ({@code multi_value_syntax}). Ask all three.
+     *
+     * <p>This replaced a blanket {@code bug:} absence on csv and tsv, which was true only because the
+     * harness used to inject {@code trim_spaces} into every text dataset. Once that became data-driven,
+     * five of the ten routed datasets carry no format-specific key at all and their glob cell is real
+     * coverage; blocking the whole cell would now discard it. Deleting this filter is the verification
+     * when #1841 is fixed.
+     */
     static boolean globCannotCarryAFormatKey(
         FixtureDimensions dimensions,
         Object[] baseTest,

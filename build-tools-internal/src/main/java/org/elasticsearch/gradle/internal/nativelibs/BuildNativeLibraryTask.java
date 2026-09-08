@@ -42,10 +42,15 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.inject.Inject;
 
@@ -68,6 +73,14 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     static final String PUBLISHED_MODE = "artifactory";
     public static final String DOCKER_MODE = "docker";
     public static final String HOST_MODE = "host";
+
+    /**
+     * Timestamp recorded for every entry of a published archive, standing in for the clock so that the
+     * same content always packs to the same bytes. Kept well inside the MS-DOS range a zip stores
+     * natively: outside it, the time is additionally written as UTC, converted using the machine's own
+     * timezone, and the bytes would then depend on where the build ran.
+     */
+    private static final LocalDateTime FIXED_ENTRY_TIME = LocalDateTime.of(2000, 1, 1, 0, 0, 0);
 
     public BuildNativeLibraryTask() {
         // A host build uses whichever compiler is on the machine, which no input describes, so its
@@ -271,7 +284,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     private void publish(File outputDir) {
         String hash = sourceHash();
         String name = getArtifactName().get();
-        byte[] archive = pack(outputDir);
+        byte[] archive = pack(outputDir, getTemporaryDir().toPath().resolve("to-publish.zip"));
 
         NativeArtifactRepository repository = repository();
         repository.publish(name, hash, archive, getPublishApiKey().get());
@@ -300,17 +313,26 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         });
     }
 
-    /** Packs the built platform layout for publishing */
-    private byte[] pack(File outputDir) {
-        Path archive = getTemporaryDir().toPath().resolve("to-publish.zip");
+    /**
+     * Packs the built platform layout for publishing */
+    static byte[] pack(File outputDir, Path archive) {
         try {
             Files.deleteIfExists(archive);
-            try (var out = new java.util.zip.ZipOutputStream(Files.newOutputStream(archive)); var paths = Files.walk(outputDir.toPath())) {
-                for (Path path : paths.filter(Files::isRegularFile).sorted().toList()) {
-                    out.putNextEntry(
-                        new java.util.zip.ZipEntry(outputDir.toPath().relativize(path).toString().replace(File.separatorChar, '/'))
-                    );
-                    Files.copy(path, out);
+            // Keyed by entry name so the order follows the names in the archive rather than the walk.
+            Map<String, Path> entries = new TreeMap<>();
+            try (var paths = Files.walk(outputDir.toPath())) {
+                for (Path path : paths.filter(Files::isRegularFile).toList()) {
+                    entries.put(NativeSourceHash.relativePath(outputDir, path.toFile()), path);
+                }
+            }
+            try (var out = new ZipOutputStream(Files.newOutputStream(archive))) {
+                for (Map.Entry<String, Path> entry : entries.entrySet()) {
+                    ZipEntry zipEntry = new ZipEntry(entry.getKey());
+                    // comparison is by content, so anything extra from the sources
+                    // (e.g. time) needs to be fixed.
+                    zipEntry.setTimeLocal(FIXED_ENTRY_TIME);
+                    out.putNextEntry(zipEntry);
+                    Files.copy(entry.getValue(), out);
                     out.closeEntry();
                 }
             }

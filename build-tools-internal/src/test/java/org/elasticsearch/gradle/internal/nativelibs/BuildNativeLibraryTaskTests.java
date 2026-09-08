@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.TimeZone;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -215,5 +217,33 @@ public class BuildNativeLibraryTaskTests {
         Files.writeString(source, "updated-binary");
         BuildNativeLibraryTask.copyBuildOutput(source, dest);
         assertEquals("updated-binary", Files.readString(dest));
+    }
+
+    /**
+     * Publishing compares artifacts by content, so packing the same content twice has to give the same
+     * bytes, whenever and on whichever machine it runs.
+     */
+    @Test
+    public void testTheSameContentAlwaysPacksToTheSameBytes() throws Exception {
+        File outputDir = temporaryFolder.newFolder("native-libs");
+        Path platform = outputDir.toPath().resolve("linux-x64");
+        Files.createDirectories(platform);
+        Files.writeString(platform.resolve("libtest.so"), "binary-content");
+
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            byte[] first = BuildNativeLibraryTask.pack(outputDir, temporaryFolder.getRoot().toPath().resolve("first.zip"));
+
+            // A zip records times to the nearest two seconds, so a clock reading only shows up as a
+            // difference once more than that has passed.
+            Thread.sleep(2_100);
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"));
+            byte[] second = BuildNativeLibraryTask.pack(outputDir, temporaryFolder.getRoot().toPath().resolve("second.zip"));
+
+            assertArrayEquals(first, second);
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 }

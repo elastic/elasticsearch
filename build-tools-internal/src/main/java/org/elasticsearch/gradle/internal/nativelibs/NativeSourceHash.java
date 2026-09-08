@@ -62,7 +62,7 @@ final class NativeSourceHash {
      * The path of {@code file} below {@code sourceRoot}, joined with {@code /} so that a Windows
      * checkout digests the same paths as a Linux one.
      */
-    private static String relativePath(File sourceRoot, File file) {
+    static String relativePath(File sourceRoot, File file) {
         Path root = sourceRoot.toPath().toAbsolutePath().normalize();
         Path relative = root.relativize(file.toPath().toAbsolutePath().normalize());
         return StreamSupport.stream(relative.spliterator(), false).map(Path::toString).collect(Collectors.joining("/"));

@@ -426,7 +426,9 @@ Because federated data does not live in {{es}}, the system discovers schemas bef
 When a dataset spans multiple files, the files might have different schemas. Set `schema_resolution` in the dataset's `settings` object to choose a strategy:
 
 - `union_by_name` (default): Merges schemas from all files by column name. Columns that exist in some files but not others are filled with nulls. Types are widened where possible: when two files define the same column with incompatible types, the column type defaults to `keyword`. If you want type conflicts to produce an error, use `strict` instead. This is safer when files can vary, at the cost of reading and merging more file metadata.
-- `first_file_wins`: After files are discovered, they are ordered and the schema is taken from **the first file in that order**. Later files are assumed to match. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions. Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. Those settings are rejected on `union_by_name` and `strict`.
+- `first_file_wins`: After files are discovered, they are ordered and the schema is taken from **the first file in that order**. Later files are assumed to match. This is typically faster, but schema differences in later files can cause query errors or values to be read under the wrong assumptions.
+Use [`file_sort_by`](#first-file-wins-file-order) and [`file_order`](#first-file-wins-file-order) to choose that first file. {applies_to}`stack: experimental 9.6+`
+Those settings are rejected on `union_by_name` and `strict`.
 - `strict`: Requires every file to have the same schema, apart from nullability, and returns an error when they differ. Use this when schema drift must fail explicitly.
 
 ### First-file-wins file order

@@ -93,13 +93,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
         var timer = InferenceTimer.start();
 
-        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
-        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, request.getContext().productSolution());
-        restoreHeaderIfMissing(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, request.getContext().productFeature());
-        restoreHeaderIfMissing(
-            InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-            request.getContext().interactionId()
-        );
+        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
+        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, request.getContext().productSolution());
+        putIfAbsent(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, request.getContext().productFeature());
+        putIfAbsent(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, request.getContext().interactionId());
 
         var productContext = InferenceProductContext.create(threadPool.getThreadContext());
 
@@ -138,7 +135,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
      * Restores an attribution header into the thread context after {@code stashWithOrigin} has cleared it.
      * An existing header takes precedence so an HTTP caller is not overwritten by a programmatic one.
      */
-    private void restoreHeaderIfMissing(String header, String value) {
+    private void putIfAbsent(String header, String value) {
         var threadContext = threadPool.getThreadContext();
         if (Strings.isNullOrEmpty(value) == false && threadContext.getHeader(header) == null) {
             threadContext.putHeader(header, value);

@@ -22,7 +22,15 @@ package org.elasticsearch.columnar.string;
  */
 final class FsstBlockCodecBuilder {
 
-    private int maxSymbolLength = FsstSymbolTable.MAX_SYMBOL_LENGTH;
+    /**
+     * Default maximum symbol length. Capped at 4 rather than {@link FsstSymbolTable#MAX_SYMBOL_LENGTH}
+     * because each extra extension step is an O(block size) scan; 4-byte symbols cover the most
+     * frequent patterns in structured text (URL prefixes, log tokens) while keeping training cost
+     * proportional to two extension steps per candidate instead of six.
+     */
+    private static final int DEFAULT_MAX_SYMBOL_LENGTH = 4;
+
+    private int maxSymbolLength = DEFAULT_MAX_SYMBOL_LENGTH;
 
     FsstBlockCodecBuilder() {}
 

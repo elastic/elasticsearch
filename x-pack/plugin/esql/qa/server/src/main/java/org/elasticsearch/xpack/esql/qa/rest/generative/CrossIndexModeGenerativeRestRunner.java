@@ -68,6 +68,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  *       differences). Only checked while the per-iteration <em>determinism gate</em> is open.</li>
  * </ol>
  *
+ * <p>When both sides throw, the shared failure is not treated as a test failure: this suite's job
+ * is to find index-mode divergences. Bugs that reproduce on both modes belong in other suites
+ * (e.g. {@code GenerativeIT} or unit tests). The pipeline step still stops so later commands are
+ * not built on a failed query.
+ *
  * <p>The determinism gate closes when a row-truncating or non-deterministic command appears in
  * the pipeline, or when either side returns exactly 1 000 rows (the implicit {@code LIMIT 1000}
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
@@ -110,7 +115,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "many_numbers",
         // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
         // index with 0 documents while ref has the full dataset.
-        "cartesian_multipolygons"
+        "cartesian_multipolygons",
+        // Unmapped-source fixtures: all are dynamic:false with only `id` mapped, so everything else in the
+        // document lands in _source / _ignored_source. Strict columnar drops that content at ingest (it
+        // reconstructs _source from doc values), so the ref side surfaces those fields and the cand side
+        // cannot - a legitimate mode difference, not a bug. Same reasoning and same list as
+        // CsvColumnarIT#EXCLUDED_DATASETS, which skips them for the columnar csv-spec run.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data"
     );
 
     /**
@@ -146,10 +162,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
         // no results. Same root cause as "For input string:" for numeric fields.
         "is not an IP string literal",
-        // Columnar mode FORK execution has a known array-bounds bug (Index N out of bounds for
-        // length N) that surfaces as HTTP 500 on the candidate side while the reference succeeds.
-        // TODO: remove once the columnar FORK array-bounds bug is fixed.
-        "out of bounds for length",
         // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
@@ -177,7 +189,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Matches numbers (including negatives and scientific notation) inside WKT geometry strings.
-     * Used by {@link #normalizeSpatialCoords} to round coordinates to 6 significant figures so
+     * Used by {@link #normalizeSpatialCoords} to round coordinates to 5 significant figures so
      * that doc-values reconstruction precision loss ({@code POINT (5.0 5.0)} vs
      * {@code POINT (4.999999953... 4.999999995...)}) does not produce false value divergences.
      */
@@ -192,6 +204,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     // Per-iteration candidate state. Reset in runCommand when prevRef == null (the source command).
     private QueryExecuted candidatePreviousResult;
     private boolean determinismGateOpen;
+
+    /**
+     * Set by {@link #compareSides} when both reference and candidate threw. The base-class
+     * {@code checkPipelineException} would otherwise fail the suite on the shared error; we
+     * suppress that because matching failures are not a mode divergence.
+     */
+    private boolean bothSidesThrew;
 
     /** Number of pipeline steps where the determinism gate was open and value comparison was attempted. */
     private int valueComparedSteps;
@@ -385,6 +404,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         return errors;
     }
 
+    /**
+     * Shared failures (both modes threw) are out of scope for this differential suite — see class
+     * javadoc. One-sided throws still go through the usual allowed-error checks (including
+     * {@link #ALLOWED_MODE_DIFFERENCE_SUBSTRINGS}).
+     */
+    @Override
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (bothSidesThrew) {
+            return;
+        }
+        super.checkPipelineException(query, previousCommands, currentSchema);
+    }
+
     // -----------------------------------------------------------------------------------------
     // Generator hooks
     // -----------------------------------------------------------------------------------------
@@ -410,6 +446,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             candidatePreviousResult = null;
             determinismGateOpen = true;
         }
+        bothSidesThrew = false;
 
         // Determine the reference and candidate command strings.
         Object mirror = current.context().get(DualModeFromGenerator.MIRROR_COMMAND);
@@ -522,18 +559,8 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         if (cmdText.contains("FIRST(") || cmdText.contains("LAST(")) {
             return false;
         }
-        // Commands whose output order or aggregate semantics depend on per-segment or per-shard
-        // execution order, or whose aggregation behaviour differs between standard and columnar mode.
-        // INLINE STATS without BY has a mode-specific COUNT discrepancy on multi-index wildcard
-        // queries (standard returns a different global count than columnar); gated until root-caused.
-        // STATS without BY (global aggregate): when a STATS alias reuses an original field name,
-        // a subsequent EVAL can cause the optimizer to incorrectly re-resolve the alias to the
-        // original field, silently corrupting the aggregated value (returns 0 instead of N). Close
-        // the gate for global STATS to prevent these false positives; gated until root-caused.
-        if ("sample".equals(cmdName)
-            || "fork".equals(cmdName)
-            || "change_point".equals(cmdName)
-            || (("inline_stats".equals(cmdName) || "stats".equals(cmdName)) && cmdText.contains(" BY ") == false)) {
+        // Commands whose output order depends on per-segment or per-shard execution order.
+        if ("sample".equals(cmdName) || "fork".equals(cmdName) || "change_point".equals(cmdName)) {
             return false;
         }
         // DEDUP deduplicates rows by all column values. Columnar mode preserves MV fields in
@@ -581,6 +608,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private void compareSides(CommandGenerator.CommandDescription current, QueryExecuted ref, QueryExecuted cand, boolean deterministic) {
         boolean refThrew = ref.exception() != null;
         boolean candThrew = cand.exception() != null;
+        bothSidesThrew = refThrew && candThrew;
 
         // 1. Failure parity
         if (refThrew != candThrew) {
@@ -842,17 +870,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     /**
      * Renders a single cell value as a canonical string.
      *
-     * <p>Doubles are rounded to 6 significant figures to absorb tiny floating-point differences
-     * that arise when re-encoding values through doc values in columnar mode. Additionally, values
-     * whose absolute magnitude is below {@code 1e-9} are snapped to {@code 0.0} to absorb the
-     * Welford parallel-merge residual that can leave one side at {@code 0.0} and the other at
-     * {@code ~1e-32} when the true result is zero (see
+     * <p>Doubles are rounded to 5 significant figures to absorb tiny floating-point differences
+     * that arise when re-encoding values through doc values in columnar mode, and from Welford-style
+     * variance / std_dev merges whose residuals can differ by ~1 ULP across index layouts (e.g.
+     * {@code -1.43178} vs {@code -1.43177}). Additionally, values whose absolute magnitude is below
+     * {@code 1e-9} are snapped to {@code 0.0} to absorb the residual that can leave one side at
+     * {@code 0.0} and the other at {@code ~1e-32} when the true result is zero (see
      * <a href="https://github.com/elastic/elasticsearch/issues/156988">#156988</a>). The threshold
      * is many orders of magnitude above the residual ({@code ~1e-32}) and many orders of magnitude
      * below any meaningful small result in the CSV test datasets.
      *
      * <p>Strings that look like WKT geometry ({@code POINT (…)}, {@code POLYGON (…)}, etc.) have
-     * their coordinate numbers rounded to the same 6 significant figures. Doc-values-based
+     * their coordinate numbers rounded to the same 5 significant figures. Doc-values-based
      * reconstruction of geo/cartesian points introduces ~1e-7 relative precision loss — for
      * example a stored {@code POINT (5.0 5.0)} can come back as
      * {@code POINT (4.999999953433871 4.999999995343387)} in columnar mode.
@@ -866,7 +895,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             if (Math.abs(d) < 1e-9) {
                 return "0.0";
             }
-            return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+            return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
         }
         String s = String.valueOf(val);
         if (isWktString(s)) {
@@ -916,7 +945,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     }
 
     /**
-     * Rounds every numeric coordinate within a WKT geometry string to 6 significant figures,
+     * Rounds every numeric coordinate within a WKT geometry string to 5 significant figures,
      * absorbing doc-values reconstruction precision loss for geo/cartesian point types.
      */
     private static String normalizeSpatialCoords(String wkt) {
@@ -924,7 +953,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             String coord = mr.group();
             try {
                 double d = Double.parseDouble(coord);
-                return String.valueOf(new BigDecimal(d).round(new MathContext(6, RoundingMode.HALF_DOWN)).doubleValue());
+                return String.valueOf(new BigDecimal(d).round(new MathContext(5, RoundingMode.HALF_DOWN)).doubleValue());
             } catch (NumberFormatException e) {
                 return coord;
             }

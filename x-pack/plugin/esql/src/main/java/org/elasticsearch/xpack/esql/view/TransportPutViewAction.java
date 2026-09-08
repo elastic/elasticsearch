@@ -53,6 +53,10 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProje
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        if (SystemViews.isSystemView(request.view().name())) {
+            listener.onFailure(new IllegalArgumentException("system view [" + request.view().name() + "] cannot be updated"));
+            return;
+        }
         viewService.putView(state.projectId(), request, listener);
     }
 

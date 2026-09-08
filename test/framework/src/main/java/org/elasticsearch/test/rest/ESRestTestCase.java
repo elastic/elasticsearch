@@ -1369,6 +1369,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     @SuppressWarnings("unchecked")
                     Map<String, String> viewMap = (Map<String, String>) view;
                     String viewName = viewMap.get("name");
+                    if (isSystemView(viewName)) {
+                        continue;
+                    }
                     assertAcked(
                         "Failed to delete view [" + viewName + ']',
                         cleanupClient().performRequest(new Request("DELETE", "_query/view/" + viewName))
@@ -1380,6 +1383,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Whether the given view is a system view that is managed by the cluster and cannot be deleted.
+     */
+    private static boolean isSystemView(String viewName) {
+        return ".ml-anomalies".equals(viewName);
     }
 
     protected void wipeSearchableSnapshotsIndices() throws IOException {

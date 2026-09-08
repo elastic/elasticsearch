@@ -1942,7 +1942,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat(views.getFirst().get("name"), equalTo("view-user2"));
         }
         {
-            var resp = getView("test-admin");
+            var resp = getView("test-admin", "*", "-.ml-anomalies");
             assertOK(resp);
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");

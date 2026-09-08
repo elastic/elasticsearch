@@ -370,7 +370,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         }
 
         try (EsqlQueryResponse resp = runQuery("""
-            FROM *,(FROM *:* metadata _index) metadata _index
+            FROM *,-.ml-anomalies,(FROM *:*,*:-.ml-anomalies metadata _index) metadata _index
             | STATS c = count(*) by _index
             | SORT _index
             """, randomBoolean())) {

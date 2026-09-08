@@ -1,0 +1,19 @@
+// Tests for the .ml-anomalies view.
+
+Get anomalies
+required_capability: ml_anomalies
+
+FROM .ml-anomalies
+| WHERE job_id == "response_code_rates"
+| WHERE is_interim == false
+| STATS max_score = MAX(score)
+        WHERE result_type == "record"
+  BY timestamp = BUCKET(timestamp, 600s)
+| WHERE max_score > 0
+| SORT max_score DESC NULLS LAST
+;
+
+max_score:double | timestamp:datetime
+95.68498         | 2026-08-29T10:00:00.000Z
+3.556297         | 2026-08-26T09:00:00.000Z
+;

@@ -888,6 +888,51 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
+    // --- Glob metacharacter and object-key special-character tests ---
+    // '?' is a first-class glob metacharacter (StoragePath.GLOB_METACHARACTERS). Every object matched by
+    // "day?.csv" ends in ".csv", so the format is inferable from the pattern's own extension. The validator
+    // must not apply URL query-string semantics (truncation at '?') to object-store paths.
+
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlob() {
+        // '?' is a glob metacharacter; every object this pattern matches ends in .csv.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorInfersFormatThroughQuestionMarkGlobCompoundExtension() {
+        // '?' glob + compound extension (.csv.gz): outer ext .gz triggers compression fallback,
+        // inner ext .csv resolves the format. A naive strip at '?' would yield "day" (no extension).
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day?.csv.gz", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorInfersFormatThroughStarGlob() {
+        // '*' glob: same extension guarantee, same fix must not regress it.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/logs/day*.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorHashInObjectKeyInfersFormat() {
+        // '#' is a legal object-store key character; it must not be treated as a URI fragment delimiter.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/report#1.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorVersionIdQueryStringInfersFormat() {
+        // '?' after the extension (e.g. S3 versionId URLs) must not break format inference.
+        // FormatNameResolverTests pins this shape as supported at query time; CRUD must agree.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/file.csv?versionId=abc", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorFormatFlipEdgeCaseDocumented() {
+        // An S3 key literally named "data.parquet?x=.csv": last extension is ".csv", so the validator
+        // resolves format=csv and accepts CSV settings. Pre-fix this was rejected (ext ".parquet" maps
+        // to no format in this test resolver); after fix it is accepted because the last dot wins.
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {
         // Nine schemes declared out of order. Set.of salts its iteration per JVM run; over nine elements the sorted
         // arrangement is not among the orderings it can produce, so with the renderer's sort removed this fails every
@@ -913,5 +958,4 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             )
         );
     }
-
 }

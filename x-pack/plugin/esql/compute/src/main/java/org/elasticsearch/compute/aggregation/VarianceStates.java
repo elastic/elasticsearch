@@ -24,14 +24,20 @@ public final class VarianceStates {
 
         private final WelfordAlgorithm welfordAlgorithm;
         private final boolean stdDev;
+        /**
+         * When {@code true}, a non-finite intermediate ({@code m2} is {@code NaN}/{@code ±Inf}) yields {@code NaN}
+         * instead of {@code null}, matching Prometheus. Set only by the PromQL translation; native ES|QL stays strict.
+         */
+        private final boolean allowNonFinite;
 
-        SingleState(boolean stdDev) {
-            this(0, 0, 0, stdDev);
+        SingleState(boolean stdDev, boolean allowNonFinite) {
+            this(0, 0, 0, stdDev, allowNonFinite);
         }
 
-        SingleState(double mean, double m2, long count, boolean stdDev) {
+        SingleState(double mean, double m2, long count, boolean stdDev, boolean allowNonFinite) {
             this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
             this.stdDev = stdDev;
+            this.allowNonFinite = allowNonFinite;
         }
 
         public void add(long value) {
@@ -81,8 +87,14 @@ public final class VarianceStates {
         public Block evaluateFinal(DriverContext driverContext) {
             final long count = count();
             final double m2 = m2();
-            if (count == 0 || Double.isFinite(m2) == false) {
+            if (count == 0) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
+            }
+            if (Double.isFinite(m2) == false) {
+                // Prometheus reports a non-finite aggregation as NaN; strict ES|QL rejects it to null.
+                return allowNonFinite
+                    ? driverContext.blockFactory().newConstantDoubleBlockWith(Double.NaN, 1)
+                    : driverContext.blockFactory().newConstantNullBlock(1);
             }
             return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(), 1);
         }
@@ -93,11 +105,17 @@ public final class VarianceStates {
         private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
         private final boolean stdDev;
+        /**
+         * When {@code true}, a non-finite intermediate ({@code m2} is {@code NaN}/{@code ±Inf}) yields {@code NaN}
+         * instead of {@code null}, matching Prometheus. Set only by the PromQL translation; native ES|QL stays strict.
+         */
+        private final boolean allowNonFinite;
 
-        GroupingState(BigArrays bigArrays, boolean stdDev) {
+        GroupingState(BigArrays bigArrays, boolean stdDev, boolean allowNonFinite) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
             this.stdDev = stdDev;
+            this.allowNonFinite = allowNonFinite;
         }
 
         WelfordAlgorithm getOrNull(int position) {
@@ -189,8 +207,15 @@ public final class VarianceStates {
                     if (st != null) {
                         final var m2 = st.m2();
                         final var count = st.count();
-                        if (count == 0 || Double.isFinite(m2) == false) {
+                        if (count == 0) {
                             builder.appendNull();
+                        } else if (Double.isFinite(m2) == false) {
+                            // Prometheus reports a non-finite aggregation as NaN; strict ES|QL rejects it to null.
+                            if (allowNonFinite) {
+                                builder.appendDouble(Double.NaN);
+                            } else {
+                                builder.appendNull();
+                            }
                         } else {
                             builder.appendDouble(st.evaluate(stdDev));
                         }

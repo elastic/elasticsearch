@@ -16,7 +16,19 @@ import java.io.IOException;
 public class VarianceSerializationTests extends AbstractExpressionSerializationTests<Variance> {
     @Override
     protected Variance createTestInstance() {
-        return new Variance(randomSource(), randomChild(), randomChild(), randomChild());
+        return new Variance(randomSource(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * {@code createTestInstance} randomizes the non-finite flag, so a single generic round-trip only exercises one of
+     * the two forms; this covers both.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        Variance lenient = new Variance(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(lenient).allowNonFinite());
+
+        Variance strict = new Variance(randomSource(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override

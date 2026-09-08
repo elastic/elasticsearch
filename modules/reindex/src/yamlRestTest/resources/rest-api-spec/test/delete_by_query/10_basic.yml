@@ -97,9 +97,8 @@
         index: test
         body:
           settings:
-            # Keep this on a single un-replicated shard: a replica that peer-recovers after
-            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
-            # which would make the newer version searchable and hide the expected conflict.
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
             index.number_of_replicas: 0
             index.number_of_shards: 1
@@ -154,9 +153,8 @@
         index: test
         body:
           settings:
-            # Keep this on a single un-replicated shard: a replica that peer-recovers after
-            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
-            # which would make the newer version searchable and hide the expected conflict.
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
             index.number_of_replicas: 0
             index.number_of_shards: 1
@@ -210,9 +208,8 @@
         index: test
         body:
           settings:
-            # Keep this on a single un-replicated shard: a replica that peer-recovers after
-            # the second index op refreshes ("post_recovery") regardless of refresh_interval,
-            # which would make the newer version searchable and hide the expected conflict.
+            # Keep this on a single un-replicated shard. The test depends on knowing the exact state the shard (that we
+            # refresh it, update it, and then don't refresh it), and a second shard complicates things.
             index.refresh_interval: -1
             index.number_of_replicas: 0
             index.number_of_shards: 1

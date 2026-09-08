@@ -216,10 +216,11 @@ public class ExternalSourceResolver {
     private final NoticeBuffer pendingShadowWarnings = new NoticeBuffer();
 
     /**
-     * A resolved source's {@link SourceMetadata#warnings()}, buffered for the completion-time attach alongside
-     * {@link #pendingShadowWarnings} but counted separately: a wide glob resolves one metadata per file, and a per-file
-     * notice must not multiply into hundreds of headers, nor spend the shadow channel's room. Filled on both the cold
-     * and the cache-hit path so the same query warns identically on every run.
+     * A resolved source's {@link SourceMetadata#warnings()}, and the once-per-path {@link FormatReader#configWarnings()},
+     * buffered for the completion-time attach alongside {@link #pendingShadowWarnings} but counted separately: a wide
+     * glob resolves one metadata per file, and a per-file notice must not multiply into hundreds of headers, nor spend
+     * the shadow channel's room. Filled on both the cold and the cache-hit path so the same query warns identically on
+     * every run.
      */
     private final NoticeBuffer pendingMetadataWarnings = new NoticeBuffer();
 
@@ -571,6 +572,27 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Configure-time notices ({@link FormatReader#configWarnings()}) describe the dataset's options, not a file, so they
+     * are raised once per path here, where every rail passes. Per-file metadata cannot carry them: the strict
+     * declared-schema rail reads no file. The lookup is a registry lookup plus option parsing, no I/O. A path no
+     * format claims yet (a bare glob without {@code format}) is skipped; the rail that resolves it from a listed file
+     * fails with its own message if it cannot. Runs inside {@link #resolveSource}'s try so a setting the reader rejects
+     * takes the same listener path, and status mapping, as a rejection from {@code FileSourceFactory.validateConfig}.
+     */
+    private void bufferConfigWarnings(String path, Map<String, Object> config) {
+        int comma = path.indexOf(',');
+        String anchor = comma >= 0 ? path.substring(0, comma) : path;
+        FormatReader reader;
+        try {
+            reader = FormatNameResolver.resolveReader(config, StoragePath.of(anchor).objectName(), dataSourceModule.formatReaderRegistry());
+        } catch (IllegalArgumentException e) {
+            LOGGER.trace(() -> "no format claims [" + anchor + "] before listing; configure-time notices are skipped", e);
+            return;
+        }
+        pendingMetadataWarnings.addAll(reader.withConfig(config).configWarnings());
+    }
+
+    /**
      * Maps a resolution failure to the exception the caller should propagate. Applies the same policy as
      * {@link ExternalFailures#classify} — I/O faults are client-class (400), invariant breaks are server-class (500) —
      * but additionally recovers buried exceptions from transparent wrappers (e.g. the schema cache's
@@ -692,6 +714,7 @@ public class ExternalSourceResolver {
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
+            bufferConfigWarnings(path, config);
             resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
         } catch (Exception e) {
             listener.onFailure(e);

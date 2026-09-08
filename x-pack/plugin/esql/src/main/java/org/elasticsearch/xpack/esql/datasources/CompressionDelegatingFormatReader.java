@@ -81,6 +81,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public List<String> configWarnings() {
+        return inner.configWarnings();
+    }
+
+    @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         FormatReader filtered = inner.withPushedFilter(pushedFilter);
         return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec);

@@ -351,17 +351,22 @@ public class CsvModeReadTests extends ESTestCase {
      * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted, which hands the
      * escape char to Jackson and drops the C-style decode. The data scan can't catch this (Jackson rewrites
      * {@code \N} to {@code N} before the sample exists), so the notice is decided when the config is parsed and
-     * surfaced with the metadata, never as a header on this thread.
+     * exposed as {@link CsvFormatReader#configWarnings()} for the resolver to raise once per path. It is about the
+     * options, not a file, so it stays off per-file metadata; and it is never a header on this thread.
      */
     public void testEscapedPlusQuoteWarnsDecodeDisabled() throws IOException {
         CsvFormatReader reader = tsvReader(Map.of("mode", "escaped", "quote", "\""));
         StorageObject object = new InMemoryStorageObject("a:keyword\tb:keyword\nx\ty\n".getBytes(StandardCharsets.UTF_8));
 
-        List<String> warnings = reader.metadata(object).warnings();
-
+        List<String> configWarnings = reader.configWarnings();
         assertTrue(
-            "expected a config-time decode-disabled warning, got: " + warnings,
-            warnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
+            "expected a config-time decode-disabled warning, got: " + configWarnings,
+            configWarnings.stream().anyMatch(w -> w.contains("disables the escaped-mode decode"))
+        );
+        List<String> fileWarnings = reader.metadata(object).warnings();
+        assertTrue(
+            "a file's metadata must not repeat the dataset-level notice, got: " + fileWarnings,
+            fileWarnings.stream().noneMatch(w -> w.contains("disables the escaped-mode decode"))
         );
         assertTrue("the notice must never land on this thread's response headers", drainWarnings().isEmpty());
     }

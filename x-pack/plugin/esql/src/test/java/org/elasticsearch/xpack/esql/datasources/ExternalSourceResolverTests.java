@@ -237,6 +237,50 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return future.actionGet();
     }
 
+    /**
+     * Configure-time notices belong to the dataset's options, not to a file, and the strict declared-schema rail reads
+     * no file at all; they are raised once per path in {@code resolveNextPath} so every rail delivers them, and the
+     * inferred rail, which reads metadata per file, delivers them exactly once too.
+     */
+    public void testConfigWarningsDeliveredOncePerPathOnEveryRail() throws Exception {
+        String file = "s3://bucket/data/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("integer", null));
+        DatasetMapping strict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
+        PlainActionFuture<ExternalSourceResolution> strictFuture = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, strict),
+            null,
+            strictFuture
+        );
+        assertEquals("strict reads no file, the notice must still arrive", List.of(notice), strictFuture.actionGet().warnings());
+
+        PlainActionFuture<ExternalSourceResolution> inferredFuture = new PlainActionFuture<>();
+        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), inferredFuture);
+        assertEquals(
+            "inferred reads metadata per file, the notice must arrive once",
+            List.of(notice),
+            inferredFuture.actionGet().warnings()
+        );
+    }
+
     // ===== FIRST_FILE_WINS tests (current behavior) =====
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -73,6 +75,39 @@ public class ExternalSourceResolutionWarningsIT extends AbstractExternalDataSour
         );
 
         assertThat(warningsOf("FROM " + dataset + " | KEEP note"), hasItem(containsString("disables the escaped-mode decode")));
+    }
+
+    /**
+     * A strict declared-schema dataset reads no file at resolve time, so a notice that only rode per-file metadata
+     * never reached it; the config notice is raised once per path instead, on the cold run and again on the warm one.
+     */
+    public void testEscapedModeQuoteOverrideWarningReachesClientForStrictDataset() throws Exception {
+        Path dir = createTempDir().resolve("escaped_quote_strict");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("a.csv"), "id,note\n1,x\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("b.csv"), "id,note\n2,y\n", StandardCharsets.UTF_8);
+        Map<String, Object> settings = Map.of("mode", "escaped", "quote", "\"");
+        String single = registerStrictDataset(
+            "escaped_quote_strict_file",
+            StoragePath.fileUri(dir.resolve("a.csv")),
+            idAndNote(),
+            settings
+        );
+        String glob = registerStrictDataset("escaped_quote_strict_glob", StoragePath.fileUri(dir) + "/*.csv", idAndNote(), settings);
+
+        String notice = "disables the escaped-mode decode";
+        for (String dataset : List.of(single, glob)) {
+            String query = "FROM " + dataset + " | KEEP note";
+            assertThat(dataset + " cold", warningsOf(query), hasItem(containsString(notice)));
+            assertThat(dataset + " warm", warningsOf(query), hasItem(containsString(notice)));
+        }
+    }
+
+    private static LinkedHashMap<String, DatasetFieldMapping> idAndNote() {
+        LinkedHashMap<String, DatasetFieldMapping> columns = new LinkedHashMap<>();
+        columns.put("id", new DatasetFieldMapping("integer", null));
+        columns.put("note", new DatasetFieldMapping("keyword", null));
+        return columns;
     }
 
     public void testFileExclusionWarningReachesClient() throws Exception {

@@ -1194,9 +1194,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public List<String> configWarnings() {
+        return configWarnings;
+    }
+
+    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<String> warnings = new ArrayList<>();
-        warnings.addAll(configWarnings);
         List<Attribute> schema = readSchema(object, warnings::add);
         String location = object.path().toString();
         // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).

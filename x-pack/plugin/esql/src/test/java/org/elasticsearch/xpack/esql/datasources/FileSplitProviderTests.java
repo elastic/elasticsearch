@@ -1050,11 +1050,15 @@ public class FileSplitProviderTests extends ESTestCase {
     public void testProbeConcurrencyIsClampedToBlobStoreConcurrency() {
         assertEquals(4, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 4).build()));
         int ceiling = FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
-        assertEquals(ceiling, probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build()));
-        assertEquals(
-            FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
-            probeConcurrencyFor(Settings.builder().put("esql.external.max_concurrent_requests", 200).build())
-        );
+        Settings atCeiling = Settings.builder().put("esql.external.max_concurrent_requests", ceiling).build();
+        int blobAtCeiling = ExternalSourceSettings.blobStoreConcurrency(atCeiling);
+        assertEquals(Math.min(ceiling, blobAtCeiling), probeConcurrencyFor(atCeiling));
+        Settings aboveCeiling = Settings.builder().put("esql.external.max_concurrent_requests", 200).build();
+        int blobAbove = ExternalSourceSettings.blobStoreConcurrency(aboveCeiling);
+        int expectedProbe = blobAbove > 0
+            ? Math.min(FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY, blobAbove)
+            : FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY;
+        assertEquals(expectedProbe, probeConcurrencyFor(aboveCeiling));
         assertEquals(
             "permit limiting disabled must not disable concurrency",
             FileSplitProvider.MAX_PARALLEL_SPLIT_DISCOVERY,
@@ -1137,7 +1141,12 @@ public class FileSplitProviderTests extends ESTestCase {
         boolean expectAbovePinningCap
     ) throws Exception {
         Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 32).build();
-        CountDownLatch started = new CountDownLatch(awaitStarted);
+        int concurrency = ExternalSourceSettings.blobStoreConcurrency(settings);
+        if (expectAbovePinningCap) {
+            assumeTrue("native Parquet s3 peak>16 needs a heap that allows more than 16 GET slots", concurrency > 16);
+        }
+        int waitFor = concurrency > 0 ? Math.min(awaitStarted, concurrency) : awaitStarted;
+        CountDownLatch started = new CountDownLatch(waitFor);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger inFlight = new AtomicInteger();
         AtomicInteger peak = new AtomicInteger();
@@ -5230,6 +5239,107 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
         assertThat(got, instanceOf(RangeStorageObject.class));
         verify(storage).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_partitionSizeAndMtimeSeedsFullFileObject() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        long mtime = 1_700_000_000_000L;
+        Instant modified = Instant.ofEpochMilli(mtime);
+        when(storage.newObject(path, 2000L, modified)).thenReturn(delegate);
+        FileSplit split = new FileSplit(
+            "file",
+            path,
+            0,
+            512L,
+            ".ndjson",
+            Map.of(),
+            Map.of(FileMetadataColumns.SIZE, 2000L, FileMetadataColumns.MODIFIED, mtime)
+        );
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        verify(storage).newObject(path, 2000L, modified);
+        verify(storage, never()).newObject(path, 512L, modified);
+        verify(storage, never()).newObject(eq(path), eq(512L));
+        verify(storage, never()).newObject(eq(path), eq(2000L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_partitionSizeIsFullFileNotSpan() {
+        StoragePath path = StoragePath.of("file:///tmp/x.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 10, 10L, ".ndjson", Map.of(), Map.of(FileMetadataColumns.SIZE, 2000L));
+        StorageObject got = FileSplitProvider.storageObjectForSplit(storage, split);
+        assertThat(got, instanceOf(RangeStorageObject.class));
+        RangeStorageObject range = (RangeStorageObject) got;
+        assertEquals(10, range.offset());
+        assertEquals(10L, range.length());
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_zeroListedSizeIsKnownEmpty() {
+        StoragePath path = StoragePath.of("file:///tmp/empty.ndjson");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 0L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 0, 0L, ".ndjson", Map.of(), Map.of(FileMetadataColumns.SIZE, 0L));
+        FileSplitProvider.storageObjectForSplit(storage, split);
+        verify(storage).newObject(path, 0L);
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testNewObjectForFile_returnsFullFileNotRangeWrapper() {
+        StoragePath path = StoragePath.of("file:///tmp/x.csv");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        FileSplit split = new FileSplit("file", path, 10, 10L, ".csv", Map.of(), Map.of(FileMetadataColumns.SIZE, 2000L));
+        StorageObject got = FileSplitProvider.newObjectForFile(storage, split);
+        assertSame(delegate, got);
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(eq(path), eq(10L));
+        verify(storage, never()).newObject(path);
+    }
+
+    public void testStorageObjectForSplit_fileLengthKeySeedsWithoutPartitionSize() {
+        StoragePath path = StoragePath.of("file:///tmp/x.parquet");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        when(storage.newObject(path, 2000L)).thenReturn(delegate);
+        Map<String, Object> cfg = Map.of(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(2000L));
+        FileSplit split = new FileSplit("file", path, 0, 512L, ".parquet", cfg, Map.of());
+        FileSplitProvider.storageObjectForSplit(storage, split);
+        verify(storage).newObject(path, 2000L);
+        verify(storage, never()).newObject(path);
+        verify(storage, never()).newObject(eq(path), eq(512L));
+    }
+
+    public void testNewObjectForFile_fileLengthKeyAndMtimeUsesThreeArg() {
+        StoragePath path = StoragePath.of("file:///tmp/x.parquet");
+        StorageObject delegate = mock(StorageObject.class);
+        StorageProvider storage = mock(StorageProvider.class);
+        long mtime = 1_700_000_000_000L;
+        Instant modified = Instant.ofEpochMilli(mtime);
+        when(storage.newObject(path, 2000L, modified)).thenReturn(delegate);
+        FileSplit split = new FileSplit(
+            "file",
+            path,
+            0,
+            512L,
+            ".parquet",
+            Map.of(FileSplitProvider.FILE_LENGTH_KEY, Long.toString(2000L)),
+            Map.of(FileMetadataColumns.MODIFIED, mtime)
+        );
+        StorageObject got = FileSplitProvider.newObjectForFile(storage, split);
+        assertSame(delegate, got);
+        verify(storage).newObject(path, 2000L, modified);
+        verify(storage, never()).newObject(eq(path), eq(2000L));
+        verify(storage, never()).newObject(path);
     }
 
     /**

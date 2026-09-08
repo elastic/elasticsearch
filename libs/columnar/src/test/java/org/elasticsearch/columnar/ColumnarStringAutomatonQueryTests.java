@@ -145,8 +145,9 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     public void testMatchesThroughAnOverlaidColumn() throws IOException {
         final List<String> values = values(between(400, 1200), d -> d % 5 == 0 ? "alpine-" + d : TERMS[d % TERMS.length]);
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();
@@ -177,8 +178,9 @@ public class ColumnarStringAutomatonQueryTests extends ESTestCase {
     /** Every pattern, against the documents running Lucene's automaton for it over the values would find. */
     private void assertPatterns(List<String> values) throws IOException {
         try (Directory dir = newDirectory()) {
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            final FieldType type = columnarBinaryFieldType();
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (String value : values) {
                     final Document doc = new Document();

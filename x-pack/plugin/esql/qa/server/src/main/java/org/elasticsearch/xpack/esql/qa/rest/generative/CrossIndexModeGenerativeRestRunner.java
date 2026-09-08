@@ -162,11 +162,6 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
         // no results. Same root cause as "For input string:" for numeric fields.
         "is not an IP string literal",
-        // DateExtract.resolveType incorrectly handles null field types (server-side bug). Produces
-        // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
-        // expression. Affects both modes equally but can surface as partial results on one side
-        // only due to shard-level execution order differences.
-        "Unsupported field type [NULL]",
         // USER_AGENT / REPLACE can produce a NullPointerException ("Cannot invoke
         // String.isEmpty() because this.pattern is null") when applied to certain field
         // combinations. Server-side bug; both modes are equally affected but shard-level execution

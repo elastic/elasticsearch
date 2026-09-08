@@ -148,7 +148,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && isExcludeSourceVectors;
+            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && (context.isSourceStored() || context.isSourceColumnarStored());
             return new RankVectorsFieldMapper(
                 leafName(),
                 new RankVectorsFieldType(

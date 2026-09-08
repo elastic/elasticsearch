@@ -36,6 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
@@ -94,6 +95,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
@@ -442,6 +444,29 @@ public class WildcardFieldMapper extends FieldMapper {
                 getNgramTokens(tokens, sequence.toString());
             }
             return tokens.isEmpty() && (numWildcardChars == 0 || numWildcardStrings > 0);
+        }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            Automaton automaton = automatonSupplier.get();
+            if (Operations.isTotal(automaton)) {
+                return existsQuery(context);
+            }
+            // No ngram acceleration is possible for an opaque union automaton, so use existsQuery
+            // as the approximation and let the doc-values scan do the real filtering.
+            return BinaryDvConfirmedQuery.fromAutomaton(
+                existsQuery(context),
+                name(),
+                automatonSupplier,
+                description,
+                arrayOrderBinaryDocValues
+            );
         }
 
         @Override

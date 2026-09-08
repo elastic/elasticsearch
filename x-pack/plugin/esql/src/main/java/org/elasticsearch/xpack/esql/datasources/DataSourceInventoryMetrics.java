@@ -18,10 +18,11 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
- * Master-gated APM gauges for the configuration inventory. The supplier returns {@code null}
- * when this node is not master so non-masters emit no series.
+ * Master-gated APM gauges for the configuration inventory. The supplier returns an empty
+ * collection when this node is not master so non-masters emit no series.
  */
 public final class DataSourceInventoryMetrics {
 
@@ -52,25 +53,23 @@ public final class DataSourceInventoryMetrics {
         );
     }
 
-    @Nullable
     private Collection<LongWithAttributes> datasourceObservations() {
         try {
             ProjectMetadata project = projectIfMaster();
-            return project == null ? null : inventory.datasourceObservations(project);
+            return project == null ? List.of() : inventory.datasourceObservations(project);
         } catch (Exception e) {
             logger.trace("telemetry: datasource inventory gauge failed", e);
-            return null;
+            return List.of();
         }
     }
 
-    @Nullable
     private Collection<LongWithAttributes> datasetObservations() {
         try {
             ProjectMetadata project = projectIfMaster();
-            return project == null ? null : inventory.datasetObservations(project);
+            return project == null ? List.of() : inventory.datasetObservations(project);
         } catch (Exception e) {
             logger.trace("telemetry: dataset inventory gauge failed", e);
-            return null;
+            return List.of();
         }
     }
 

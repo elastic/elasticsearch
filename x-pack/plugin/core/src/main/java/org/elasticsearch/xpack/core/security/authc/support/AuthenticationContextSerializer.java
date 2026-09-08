@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.core.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.concurrent.ExecutionException;
 
 /**
  * A class from reading/writing {@link org.elasticsearch.xpack.core.security.authc.Authentication} objects to/from a
@@ -26,6 +30,24 @@ import java.util.Base64;
 public class AuthenticationContextSerializer {
 
     private static final Logger logger = LogManager.getLogger(AuthenticationContextSerializer.class);
+
+    /**
+     * Decoded authentications, keyed by the header they were decoded from.
+     *
+     * <p>Every inbound request decodes its own copy of an immutable value, and each copy lives
+     * until that request completes. A node serving many concurrent requests from a handful of
+     * clients therefore holds many identical copies: on one serverless index node, 14,151 copies
+     * across seven principals, retaining 176MB. An API key is the expensive case, because it
+     * carries its role descriptors inline in metadata.
+     *
+     * <p>Bounded so a burst of distinct principals cannot grow it without limit, and expiring so a
+     * decoded form does not outlive interest in it. Entries are only ever a deserialisation of a
+     * header the caller already supplied, so this changes what is allocated, not what is trusted.
+     */
+    private static final Cache<String, Authentication> decodedAuthentications = CacheBuilder.<String, Authentication>builder()
+        .setMaximumWeight(1000)
+        .setExpireAfterAccess(TimeValue.timeValueMinutes(5))
+        .build();
 
     private final String contextKey;
 
@@ -61,6 +83,21 @@ public class AuthenticationContextSerializer {
     }
 
     public static Authentication decode(String header) throws IOException {
+        try {
+            return decodedAuthentications.computeIfAbsent(header, AuthenticationContextSerializer::deserialize);
+        } catch (ExecutionException e) {
+            final Throwable cause = e.getCause();
+            if (cause instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException(cause);
+        }
+    }
+
+    private static Authentication deserialize(String header) throws IOException {
         try {
             byte[] bytes = Base64.getDecoder().decode(header);
             StreamInput input = StreamInput.wrap(bytes);

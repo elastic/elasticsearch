@@ -2112,6 +2112,14 @@ public class VerifierTests extends ESTestCase {
                    (eval t = null)
             | where match(t, "cat")
             """);
+        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
+        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+        fullText().error("""
+            from test
+            | fork (eval t = null)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("Column [t] has conflicting data types in FORK branches: [TEXT] and [NULL]"));
         // a null assignment the branch then shadows is not what the branch outputs, so the exemption must not apply
         fullText().error("""
             from test
@@ -2259,11 +2267,18 @@ public class VerifierTests extends ESTestCase {
      * The exemption is per full-text function, not per condition: an index-backed search sharing a WHERE with a
      * runtime one still cannot be pushed to Lucene from above a pipeline breaker, so it must keep failing.
      * <p>
-     * {@code Failure} equality is keyed on the node, so the single reported failure is whichever function the
-     * condition is walked into first. Naming the runtime function first therefore makes these assertions
-     * discriminating: they only hold once it stops failing and the index-backed one behind it is what surfaces.
+     * {@code Failure} equality is keyed on the node, so only one failure is reported for the condition - whichever
+     * function it is walked into first. With the same function on both sides the two messages are identical, so that
+     * case shows the query is rejected but not by which leg; the cases pairing different function types name the
+     * index-backed one, and hold only once the runtime one stops failing.
      */
     public void testMixedRuntimeAndIndexedFullTextRejectedAfterLimit() {
+        // the plainest form of the mixed condition: the same function on a runtime column and on an indexed field
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match(title, \"dog\")",
+            containsString("[MATCH] function cannot be used after LIMIT")
+        );
+        // the same with differing function types, which pins *which* of the two is rejected
         fullText().error(
             "from test | eval t = to_text(concat(title, body)) | limit 10 | where match(t, \"cat\") or match_phrase(title, \"dog\")",
             containsString("[MatchPhrase] function cannot be used after LIMIT")

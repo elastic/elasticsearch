@@ -15,6 +15,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -957,6 +958,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static void performPostFeaturesReset(RestClient restClient) throws IOException {
         final var request = new Request(HttpPost.METHOD_NAME, "/_features/_reset");
         request.addParameter("error_trace", "true");
+        request.addParameter("master_timeout", "90s");
+        // encryption-at-rest periodic CI can exceed the 30s default master timeout during full-suite test cleanup
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(
+                    RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueSeconds(120).millis())).build()
+                )
+                .build()
+        );
         assertOK(restClient.performRequest(request));
     }
 

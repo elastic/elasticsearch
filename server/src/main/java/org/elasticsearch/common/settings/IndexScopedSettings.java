@@ -276,6 +276,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        if (IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING);
+        }
         if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING);
         }

@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     private static final String ES95_CODEC_NAME = "ES95TSDB";
+    private static final String ES95RT_CODEC_NAME = "ES95RTTSDB";
 
     private static List<IndexMode> indexModesUnderTest() {
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB));
@@ -45,6 +46,17 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         );
     }
 
+    public void testRunTableOrdinalSettingRegisteredOnlyWhenFeatureFlagEnabled() {
+        final boolean registered = IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(
+            IndexSettings.TIME_SERIES_RUN_TABLE_ORDINAL_ENABLED_SETTING
+        );
+        assertEquals(
+            "run-table ordinal setting registration must match feature flag state",
+            IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled(),
+            registered
+        );
+    }
+
     public void testES95OnlySelectedForTimeSeriesWhenSettingEnabled() {
         final IndexVersion version = IndexVersionUtils.randomVersionBetween(
             IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
@@ -53,7 +65,10 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         for (IndexMode mode : indexModesUnderTest()) {
             final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(mode, version, true), null);
             if (mode == IndexMode.TIME_SERIES) {
-                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(ES95_CODEC_NAME));
+                final boolean runTable = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled()
+                    && version.onOrAfter(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT);
+                final String expectedName = runTable ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+                assertThat("mode=" + mode + " version=" + version, format.getName(), equalTo(expectedName));
             } else {
                 assertThat("mode=" + mode + " version=" + version, format.getName(), startsWith("ES819"));
             }
@@ -69,22 +84,53 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
     public void testVersionBoundary() {
         final IndexVersion justBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
-        final IndexVersion exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
+        final IndexVersion es95Exact = IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG;
+        final IndexVersion rtJustBefore = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT);
+        final IndexVersion rtExact = IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT;
 
         assertThat(
             TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, justBefore, true), null).getName(),
             startsWith("ES819")
         );
         assertThat(
-            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, exact, true), null).getName(),
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, es95Exact, true), null).getName(),
             equalTo(ES95_CODEC_NAME)
+        );
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, rtJustBefore, true), null).getName(),
+            equalTo(ES95_CODEC_NAME)
+        );
+        final String expectedAtRt = IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled() ? ES95RT_CODEC_NAME : ES95_CODEC_NAME;
+        assertThat(
+            TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, rtExact, true), null).getName(),
+            equalTo(expectedAtRt)
         );
     }
 
-    public void testES819AlwaysSelectedForTSDBWithOldVersion() {
-        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG);
-        final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.TIME_SERIES, oldVersion, true), null);
-        assertThat(format.getName(), startsWith("ES819"));
+    public void testUseES95RunTableRequiresTimeSeriesMode() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT,
+            IndexVersion.current()
+        );
+        assertTrue(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));
+        for (IndexMode mode : indexModesUnderTest()) {
+            if (mode != IndexMode.TIME_SERIES) {
+                assertFalse(
+                    "useES95RunTable must return false for mode=" + mode,
+                    TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(mode, version, true))
+                );
+            }
+        }
+    }
+
+    public void testUseES95RunTableReturnsFalseWhenFeatureFlagDisabled() {
+        assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_RUN_TABLE_ORDINAL_DEFAULT,
+            IndexVersion.current()
+        );
+        assertFalse(TSDBDocValuesFormatSelector.useES95RunTable(indexSettings(IndexMode.TIME_SERIES, version, true)));
     }
 
     private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, boolean es95Enabled) {
@@ -133,6 +179,27 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         assertFalse(defaultEs95Enabled(IndexMode.LOGSDB, version, false));
     }
 
+    public void testRunTableOrdinalDefaultEnabledForTimeSeriesWhenFeatureFlagEnabled() {
+        assumeTrue("run-table ordinal feature flag must be enabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.ES95_TSDB_CODEC_FEATURE_FLAG,
+            IndexVersion.current()
+        );
+        assertTrue(defaultRunTableOrdinalEnabled(IndexMode.TIME_SERIES, version));
+    }
+
+    public void testRunTableOrdinalDefaultDisabledForNonTimeSeries() {
+        final IndexVersion version = IndexVersion.current();
+        assertFalse(defaultRunTableOrdinalEnabled(IndexMode.STANDARD, version));
+        assertFalse(defaultRunTableOrdinalEnabled(IndexMode.LOGSDB, version));
+    }
+
+    public void testRunTableOrdinalDefaultDisabledWhenFeatureFlagDisabled() {
+        assumeFalse("run-table ordinal feature flag must be disabled", IndexSettings.ES95_RUNTABLE_ENCODING_FEATURE_FLAG.isEnabled());
+        final IndexVersion version = IndexVersion.current();
+        assertFalse(defaultRunTableOrdinalEnabled(IndexMode.TIME_SERIES, version));
+    }
+
     private static boolean defaultEs95Enabled(final IndexMode mode, final IndexVersion version, boolean stateless) {
         final Settings.Builder indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
@@ -149,5 +216,21 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
             : Settings.EMPTY;
         final IndexMetadata metadata = IndexMetadata.builder("test").settings(indexSettings).build();
         return new IndexSettings(metadata, nodeSettings).isTimeSeriesEs95CodecEnabled();
+    }
+
+    private static boolean defaultRunTableOrdinalEnabled(final IndexMode mode, final IndexVersion version) {
+        final Settings.Builder indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        if (mode != IndexMode.STANDARD) {
+            indexSettings.put("index.mode", mode.getName());
+        }
+        if (mode == IndexMode.TIME_SERIES) {
+            indexSettings.put("index.routing_path", "dimension");
+            indexSettings.put(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey(), true);
+        }
+        final IndexMetadata metadata = IndexMetadata.builder("test").settings(indexSettings).build();
+        return new IndexSettings(metadata, Settings.EMPTY).isTimeSeriesRunTableOrdinalEnabled();
     }
 }

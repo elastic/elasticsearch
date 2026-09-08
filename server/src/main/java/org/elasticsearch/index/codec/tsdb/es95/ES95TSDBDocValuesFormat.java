@@ -19,10 +19,11 @@ import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.NumericBlockCodec;
-import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.PrefixedPartitionsWriter;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
+import org.elasticsearch.index.codec.tsdb.SortedOrdinalCodec;
+import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
@@ -34,7 +35,8 @@ import java.io.IOException;
 
 /**
  * ES95 TSDB doc values format. Uses pipeline-based encoding for numeric fields via
- * {@link ES95NumericCodec} and ordinal encoding via {@link ES95OrdinalCodec}.
+ * {@link ES95NumericCodec} and ordinal encoding via {@link ES95SortedCodec} and
+ * {@link ES95SortedSetCodec}.
  * Non-numeric field types are handled identically to ES819 by the shared abstract
  * base classes. Each numeric field writes a self-describing
  * {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor} so decoders
@@ -73,7 +75,6 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
     static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = StaticPipelineConfigResolver.INSTANCE;
-    static final OrdinalBlockCodec ORDINAL_CODEC = new ES95OrdinalCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
         TERMS_DICT_BLOCK_LZ4_MASK,
@@ -86,16 +87,14 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     final TSDBDocValuesFormatConfig formatConfig;
     final NumericCodecFactory numericCodecFactory;
     final FallbackDecoderFactory fallbackDecoderFactory;
+    final SortedOrdinalCodec sortedCodec;
+    final SortedSetOrdinalCodec sortedSetCodec;
     @Nullable
     final FieldContextResolver fieldContextResolver;
 
-    /**
-     * Creates a new ES95 format with default configuration.
-     * NOTE: required by SPI but not used at runtime; codec selection goes through
-     * {@link ES95TSDBDocValuesFormatFactory}.
-     */
     public ES95TSDBDocValuesFormat() {
         this(
+            CODEC_NAME,
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -107,11 +106,14 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            null
+            null,
+            new ES95SortedCodec(),
+            new ES95SortedSetCodec()
         );
     }
 
     ES95TSDBDocValuesFormat(
+        String codecName,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForRangeEncoding,
         boolean enableOptimizedMerge,
@@ -123,9 +125,11 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
         final FallbackDecoderFactory fallbackDecoderFactory,
-        @Nullable final FieldContextResolver fieldContextResolver
+        @Nullable final FieldContextResolver fieldContextResolver,
+        final SortedOrdinalCodec sortedCodec,
+        final SortedSetOrdinalCodec sortedSetCodec
     ) {
-        super(CODEC_NAME);
+        super(codecName);
         assert numericBlockShift >= NUMERIC_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
@@ -133,6 +137,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
+        this.sortedCodec = sortedCodec;
+        this.sortedSetCodec = sortedSetCodec;
         this.fieldContextResolver = fieldContextResolver;
         this.formatConfig = new TSDBDocValuesFormatConfig(
             TSDBDocValuesFormatConfig.VERSION_CURRENT,
@@ -179,7 +185,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                     : SortedFieldObserver.NOOP
                 : SortedFieldObserverFactory.NOOP,
             numericBlockCodec,
-            ORDINAL_CODEC
+            sortedCodec,
+            sortedSetCodec
         );
     }
 
@@ -202,7 +209,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             formatConfig,
             DocOffsetsCodec.BITPACKING.getDecoder(),
             numericBlockCodec,
-            ORDINAL_CODEC
+            sortedCodec,
+            sortedSetCodec
         );
     }
 }

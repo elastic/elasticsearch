@@ -12,7 +12,15 @@ package org.elasticsearch.index.codec.tsdb;
 /**
  * Statistics returned after writing one field's doc values.
  *
- * @param numDocsWithField number of documents that have at least one value for this field
- * @param numValues        total number of values across all documents for this field
+ * @param numDocsWithField  number of documents that have at least one value for this field
+ * @param numValues         total number of values across all documents for this field
+ * @param skipAddressesTable {@code true} when the ordinal layout delimits each document's value
+ *                          slice on its own, so the shared consumer must skip the per-doc
+ *                          addresses table; {@code false} for every layout that relies on that
+ *                          table (the default multi-valued path).
+ *                          NOTE: this flag is a stop-gap; the clean alternative is to pass the
+ *                          full {@code OffsetsAccumulator} to {@code SortedSetOrdinalWriter
+ *                          .writeOrdinals()} and let the codec call {@code accumulator.build()}
+ *                          itself, removing the flag and the consumer's addresses-table branch
  */
-public record DocValueFieldCountStats(int numDocsWithField, long numValues) {}
+public record DocValueFieldCountStats(int numDocsWithField, long numValues, boolean skipAddressesTable) {}

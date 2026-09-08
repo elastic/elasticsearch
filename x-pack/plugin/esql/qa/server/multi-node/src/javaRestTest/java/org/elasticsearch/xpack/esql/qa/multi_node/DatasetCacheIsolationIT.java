@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
@@ -195,7 +196,9 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
         // external_warm_aggregates > 0 means the COUNT(*) was served from the schema-cache stats
         // without re-scanning S3. Only after this signal can we be sure that dataset B returning 7
         // reflects cache isolation rather than a cold scan that produced the correct answer by chance.
-        assertCoordinatorWarm("FROM " + DATASET_A + " | STATS count = COUNT(*)");
+        // Stripe reconciliation is async, so retry until warm or the 30 s deadline passes.
+        String warmQuery = "FROM " + DATASET_A + " | STATS count = COUNT(*)";
+        assertBusy(() -> assertCoordinatorWarm(warmQuery), 30, TimeUnit.SECONDS);
 
         long countB = count("FROM " + DATASET_B + " | STATS count = COUNT(*)");
         assertEquals(

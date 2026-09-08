@@ -711,8 +711,6 @@ tests:
 - class: org.elasticsearch.index.IndexModuleTests
   method: testQueryCacheDisabledByDefaultForStrictlyColumnarMode
   issue: https://github.com/elastic/elasticsearch/issues/158305
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackUnmappedLoadPunkIT
-  issue: https://github.com/elastic/elasticsearch/issues/158348
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testFetchTooManyBigFields
   issue: https://github.com/elastic/elasticsearch/issues/158349

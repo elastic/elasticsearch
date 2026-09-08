@@ -36,6 +36,11 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         this.delegate = delegate;
     }
 
+    /** The format this one reads and writes through. */
+    public StoredFieldsFormat delegate() {
+        return delegate;
+    }
+
     @Override
     public StoredFieldsReader fieldsReader(Directory directory, SegmentInfo si, FieldInfos fn, IOContext context) throws IOException {
         return new TSDBStoredFieldsReader(directory, si, fn, context);
@@ -92,12 +97,23 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
 
         @Override
         public void checkIntegrity() throws IOException {
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.checkIntegrity();
+            }
             storedFieldsReader.checkIntegrity();
         }
 
         @Override
         public void close() throws IOException {
             IOUtils.close(storedFieldsReader, syntheticIdStoredFieldsReader);
+        }
+
+        @Override
+        public void prefetch(int docID) throws IOException {
+            if (syntheticIdStoredFieldsReader != null) {
+                syntheticIdStoredFieldsReader.prefetch(docID);
+            }
+            storedFieldsReader.prefetch(docID);
         }
 
         @Override

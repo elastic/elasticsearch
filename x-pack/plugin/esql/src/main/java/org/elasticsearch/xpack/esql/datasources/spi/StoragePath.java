@@ -158,7 +158,7 @@ public final class StoragePath {
                 try {
                     port = Integer.parseInt(authority.substring(portIndex + 1));
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Invalid port in location: " + location, e);
+                    throw new IllegalArgumentException("Malformed authority in location: " + location, e);
                 }
             } else {
                 host = authority;

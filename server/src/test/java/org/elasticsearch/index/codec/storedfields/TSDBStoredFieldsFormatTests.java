@@ -11,13 +11,17 @@ package org.elasticsearch.index.codec.storedfields;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.StoredFieldsFormat;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+
+import java.io.IOException;
 
 import static org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests.runTestWithRandomDocs;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,5 +66,42 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
                 }
             }
         });
+    }
+
+    public void testSegmentsWithoutASyntheticIdReader() throws Exception {
+        var format = new TSDBStoredFieldsFormat(new Lucene90StoredFieldsFormat());
+        var storedFields = new RecordingStoredFieldsReader();
+        var reader = format.new TSDBStoredFieldsReader(storedFields, null);
+
+        reader.checkIntegrity();
+        reader.prefetch(7);
+        assertThat(storedFields.integrityChecks, equalTo(1));
+        assertThat(storedFields.prefetched, equalTo(7));
+    }
+
+    private static class RecordingStoredFieldsReader extends StoredFieldsReader {
+        int integrityChecks = 0;
+        int prefetched = -1;
+
+        @Override
+        public void document(int docID, StoredFieldVisitor visitor) {}
+
+        @Override
+        public void prefetch(int docID) {
+            prefetched = docID;
+        }
+
+        @Override
+        public void checkIntegrity() {
+            integrityChecks += 1;
+        }
+
+        @Override
+        public StoredFieldsReader clone() {
+            return this;
+        }
+
+        @Override
+        public void close() throws IOException {}
     }
 }

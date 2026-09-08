@@ -10,9 +10,12 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
@@ -24,6 +27,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
@@ -36,7 +40,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -55,9 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
@@ -65,11 +68,10 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         var codec = codecService.codec("default");
-        // DefaultCompressionPerFieldMapperCodec is itself a DeduplicateFieldInfosCodec, so CodecService uses it as-is rather than wrapping
-        // it.
-        assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
-        assertThat(codec, instanceOf(DefaultCompressionPerFieldMapperCodec.class));
-        assertThat(((CodecService.DeduplicateFieldInfosCodec) codec).delegate(), instanceOf(Lucene104Codec.class));
+        // PerFieldMapperCodec already shares field infos, so CodecService uses it as-is rather than wrapping it.
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        assertThat(codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
+        assertThat(((Elasticsearch96Codec) codec).delegate(), instanceOf(Lucene104Codec.class));
     }
 
     /**
@@ -84,23 +86,23 @@ public class CodecTests extends ESTestCase {
 
             // Named per-field wrappers: the name is what lands in the segment.
             assertEquals(mode.toString(), lucene.postingsFormat().getName(), es.postingsFormat().getName());
-            assertEquals(mode.toString(), lucene.docValuesFormat().getName(), es.docValuesFormat().getName());
+            // The doc values wrapper is the Elasticsearch fork, which is interchangeable with Lucene's: see
+            // XPerFieldDocValuesFormatDuelTests. Its name is neither SPI-registered nor written to a segment.
+            assertThat(es.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
             assertEquals(mode.toString(), lucene.knnVectorsFormat().getName(), es.knnVectorsFormat().getName());
 
             // Everything else is inherited from the delegate and must stay identical.
-            assertEquals(mode.toString(), lucene.storedFieldsFormat().getClass(), es.storedFieldsFormat().getClass());
-            assertEquals(mode.toString(), lucene.pointsFormat().getClass(), es.pointsFormat().getClass());
+            assertEquals(mode.toString(), lucene.storedFieldsFormat().getClass(), effectiveStoredFieldsFormat(es).getClass());
             assertEquals(mode.toString(), lucene.termVectorsFormat().getClass(), es.termVectorsFormat().getClass());
             assertEquals(mode.toString(), lucene.normsFormat().getClass(), es.normsFormat().getClass());
             assertEquals(mode.toString(), lucene.segmentInfoFormat().getClass(), es.segmentInfoFormat().getClass());
             assertEquals(mode.toString(), lucene.liveDocsFormat().getClass(), es.liveDocsFormat().getClass());
             assertEquals(mode.toString(), lucene.compoundFormat().getClass(), es.compoundFormat().getClass());
 
-            // The one intended difference.
-            assertThat(
-                es.fieldInfosFormat(),
-                either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
-            );
+            // The intended differences. Both change how a segment is produced or read back, not the bytes on disk:
+            // adaptive points writes Lucene90 point files with data-driven leaf sizes and reads with Lucene's own reader.
+            assertThat(es.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
+            assertSame(mode.toString(), Elasticsearch900AdaptivePointsFormat.INSTANCE, es.pointsFormat());
         }
     }
 
@@ -110,6 +112,30 @@ public class CodecTests extends ESTestCase {
      * Elasticsearch name it reached neither format, so segments shared nothing at all — this half of the fix is invisible to the test
      * above, which requires the flag.
      */
+    /**
+     * Adaptive points only changes how BKD leaves are sized while writing; the files are Lucene90 point files and the reader is
+     * Lucene's own. Segments written with it therefore have to stay queryable, which is what would break if the writer ever
+     * diverged from the format the reader expects.
+     */
+    public void testAdaptivePointsSegmentsStayQueryable() throws Exception {
+        Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);
+        assertSame(Elasticsearch900AdaptivePointsFormat.INSTANCE, codec.pointsFormat());
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+                for (int i = 0; i < 200; i++) {
+                    Document doc = new Document();
+                    doc.add(new IntField("int_field", i, Field.Store.NO));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertEquals(200, searcher.count(IntField.newRangeQuery("int_field", 0, 199)));
+                assertEquals(10, searcher.count(IntField.newRangeQuery("int_field", 5, 14)));
+            }
+        }
+    }
+
     public void testDefaultCodecInternsFieldNamesWithoutTheCache() throws Exception {
         assumeFalse("covers the path taken when the per-Directory cache is off", FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec(CodecService.DEFAULT_CODEC);
@@ -217,22 +243,16 @@ public class CodecTests extends ESTestCase {
                         + readCodec.getClass().getName()
                         + "] on read",
                     readCodec.fieldInfosFormat(),
-                    either(instanceOf(CachingFieldInfosFormat.class)).or(instanceOf(DeduplicatingFieldInfosFormat.class))
+                    instanceOf(ElasticsearchFieldInfosFormat.class)
                 );
             }
         }
     }
 
     /**
-     * Each layer of deduplication re-interns instances the layer beneath it already made canonical, once per segment open. The
-     * codecs compose — a TSDB synthetic-id codec wraps a per-field codec that deduplicates in its own right — so the wrapping has
-     * to be idempotent, and {@link CodecService} must not add a layer to a codec that carries one already.
+     * Every codec Elasticsearch writes with shares field infos across a shard's segments.
      */
-    public void testFieldInfosAreDeduplicatedExactlyOnce() throws Exception {
-        FieldInfosFormat once = CodecService.deduplicating(new Lucene104Codec().fieldInfosFormat());
-        assertTrue(CodecService.isDeduplicating(once));
-        assertSame("wrapping an already-deduplicating format must be a no-op", once, CodecService.deduplicating(once));
-
+    public void testEveryWritableCodecSharesFieldInfos() throws Exception {
         for (boolean syntheticId : new boolean[] { false, true }) {
             CodecService codecService = createCodecService(syntheticId);
             for (String name : new String[] {
@@ -241,45 +261,52 @@ public class CodecTests extends ESTestCase {
                 CodecService.LEGACY_DEFAULT_CODEC,
                 CodecService.LEGACY_BEST_COMPRESSION_CODEC }) {
                 Codec codec = codecService.codec(name);
-                assertTrue(
-                    "codec [" + name + "] (syntheticId=" + syntheticId + ") does not deduplicate field infos",
-                    CodecService.isDeduplicating(codec.fieldInfosFormat())
-                );
-                // A codec that deduplicates in its own right is a *subclass*; an extra layer added by CodecService is the
-                // class itself. Comparing the exact class is what tells the two apart.
-                assertNotEquals(
-                    "codec [" + name + "] (syntheticId=" + syntheticId + ") was wrapped although it deduplicates already",
-                    CodecService.DeduplicateFieldInfosCodec.class,
-                    codec.getClass()
+                assertThat(
+                    "codec [" + name + "] (syntheticId=" + syntheticId + ")",
+                    codec.fieldInfosFormat(),
+                    instanceOf(ElasticsearchFieldInfosFormat.class)
                 );
             }
         }
     }
 
+    /**
+     * The per-field fallbacks come from the Lucene codec rather than being restated, so a codec for a newer Lucene inherits them.
+     * These are the formats that were previously named here explicitly.
+     */
+    public void testPerFieldFallbacksComeFromTheLuceneCodec() {
+        Elasticsearch96Codec es = new Elasticsearch96Codec();
+        Lucene104Codec lucene = new Lucene104Codec();
+        for (String field : new String[] { "a", "_id", "vector" }) {
+            // Distinct instances, so compare what actually lands in a segment: the class and the recorded name.
+            assertEquals(field, lucene.getPostingsFormatForField(field).getClass(), es.getPostingsFormatForField(field).getClass());
+            assertEquals(field, lucene.getPostingsFormatForField(field).getName(), es.getPostingsFormatForField(field).getName());
+            assertEquals(field, lucene.getDocValuesFormatForField(field).getClass(), es.getDocValuesFormatForField(field).getClass());
+            assertEquals(field, lucene.getDocValuesFormatForField(field).getName(), es.getDocValuesFormatForField(field).getName());
+            assertEquals(field, lucene.getKnnVectorsFormatForField(field).getClass(), es.getKnnVectorsFormatForField(field).getClass());
+            assertEquals(field, lucene.getKnnVectorsFormatForField(field).getName(), es.getKnnVectorsFormatForField(field).getName());
+        }
+        assertThat(es.getPostingsFormatForField("a"), instanceOf(Lucene104PostingsFormat.class));
+        assertThat(es.getDocValuesFormatForField("a"), instanceOf(Lucene90DocValuesFormat.class));
+        assertThat(es.getKnnVectorsFormatForField("a"), instanceOf(Lucene99HnswVectorsFormat.class));
+    }
+
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) codec.storedFieldsFormat();
+        Lucene90StoredFieldsFormat storedFieldsFormat = (Lucene90StoredFieldsFormat) effectiveStoredFieldsFormat(codec);
         var mode = getLucene90StoredFieldsFormatMode(storedFieldsFormat);
         assertEquals(Lucene90StoredFieldsFormat.Mode.BEST_SPEED, mode);
     }
 
     public void testTSDBDefault() throws Exception {
-        // Both values every run: which shape the default codec takes depends on this, and a randomBoolean() would only
-        // exercise one of them per seed.
+        // Synthetic ids no longer get a codec of their own: the same codec covers them, differing per field and in what it
+        // validates. Both values run every time, since a randomBoolean() would only exercise one of them per seed.
         for (boolean syntheticIdEnabled : new boolean[] { false, true }) {
-            CodecService codecService = createCodecService(syntheticIdEnabled);
-            Codec codec = codecService.codec("default");
-            assertTrue("syntheticId=" + syntheticIdEnabled, CodecService.isDeduplicating(codec.fieldInfosFormat()));
-            if (syntheticIdEnabled) {
-                // The TSDB codec deduplicates in its own right, so CodecService hands it back unwrapped.
-                assertThat(codec, instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
-            } else {
-                assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
-                assertThat(
-                    ((CodecService.DeduplicateFieldInfosCodec) codec).delegate(),
-                    not(instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class))
-                );
-            }
+            Codec codec = createCodecService(syntheticIdEnabled).codec("default");
+            String message = "syntheticId=" + syntheticIdEnabled;
+            assertThat(message, codec, instanceOf(PerFieldMapperCodec.class));
+            assertEquals(message, "Elasticsearch96", codec.getName());
+            assertThat(message, codec.fieldInfosFormat(), instanceOf(ElasticsearchFieldInfosFormat.class));
         }
     }
 
@@ -287,13 +314,13 @@ public class CodecTests extends ESTestCase {
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
-            codec.storedFieldsFormat().toString()
+            effectiveStoredFieldsFormat(codec).toString()
         );
     }
 
     public void testLegacyDefault() throws Exception {
         Codec codec = createCodecService().codec("legacy_default");
-        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        assertThat(effectiveStoredFieldsFormat(codec), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
             Document doc = new Document();
@@ -306,7 +333,7 @@ public class CodecTests extends ESTestCase {
 
     public void testLegacyBestCompression() throws Exception {
         Codec codec = createCodecService().codec("legacy_best_compression");
-        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        assertThat(effectiveStoredFieldsFormat(codec), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
         // Make sure the legacy codec is writable
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
             Document doc = new Document();
@@ -338,6 +365,17 @@ public class CodecTests extends ESTestCase {
         assertFalse(codecList.contains("unknown_codec"));
 
         assertEquals(expectedCodecCount, availableCodecs.length);
+    }
+
+    /**
+     * The implementation behind {@link ElasticsearchStoredFieldsFormat}, which selects it per segment.
+     */
+    private static StoredFieldsFormat effectiveStoredFieldsFormat(Codec codec) {
+        StoredFieldsFormat format = codec.storedFieldsFormat();
+        if (format instanceof TSDBStoredFieldsFormat tsdbFormat) {
+            format = tsdbFormat.delegate();
+        }
+        return format instanceof ElasticsearchStoredFieldsFormat elasticsearchFormat ? elasticsearchFormat.writeFormat() : format;
     }
 
     private CodecService createCodecService() throws IOException {

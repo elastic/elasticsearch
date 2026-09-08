@@ -7,11 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec;
+package org.elasticsearch.index.codec.bwc;
 
 import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.backward_codecs.lucene912.Lucene912PostingsFormat;
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -20,13 +23,14 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.ElasticsearchFieldInfosFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
  * Elasticsearch codec as of 8.16. This extends the Lucene 9.12 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCodec {
+public class Elasticsearch816Codec extends FilterCodec {
 
     private static final Lucene912Codec LUCENE_912_CODEC = new Lucene912Codec();
     private static final PostingsFormat defaultPostingsFormat = new Lucene912PostingsFormat();
@@ -56,6 +60,19 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
         }
     };
 
+    private final FieldInfosFormat fieldInfosFormat;
+
+    /** Shares field infos across the segments of a shard. */
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    /** The Lucene codec this one delegates to. */
+    public final Codec delegate() {
+        return delegate;
+    }
+
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch816Codec() {
         this(Zstd814StoredFieldsFormat.Mode.BEST_SPEED);
@@ -67,6 +84,7 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
      */
     public Elasticsearch816Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch816", LUCENE_912_CODEC);
+        this.fieldInfosFormat = new ElasticsearchFieldInfosFormat(delegate.fieldInfosFormat());
         this.storedFieldsFormat = mode.getFormat();
     }
 

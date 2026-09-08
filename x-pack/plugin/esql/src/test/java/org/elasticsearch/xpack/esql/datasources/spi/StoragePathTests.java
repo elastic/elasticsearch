@@ -287,4 +287,22 @@ public class StoragePathTests extends ESTestCase {
         StoragePath parent = path.parentDirectory();
         assertEquals("https://host/dir", parent.toString());
     }
+
+    // -- malformed authority (ARN colon) --
+
+    public void testArnAuthorityThrowsMalformedAuthority() {
+        // An ARN in the authority has colons that are not port separators; the error must say "Malformed authority", not "Invalid port".
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> StoragePath.of("s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet")
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Malformed authority in location"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Invalid port")));
+    }
+
+    public void testIpv6NonPortSuffixThrowsInvalidPort() {
+        // IPv6 URIs can genuinely have a port; "Invalid port" is accurate for a non-numeric suffix here.
+        var e = expectThrows(IllegalArgumentException.class, () -> StoragePath.of("https://[::1]:notaport/path"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Invalid port in location"));
+    }
 }

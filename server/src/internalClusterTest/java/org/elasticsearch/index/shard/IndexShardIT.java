@@ -275,36 +275,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertThat(dataSetSize.get(), greaterThan(0L));
     }
 
-    public void testHeapUsageEstimateIsPresent() {
+    public void testNodeHeapUsageEstimateIsPresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         Map<String, NodeHeapMetrics> nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
-        assertNotNull(nodeHeapMetrics);
-        // Not collecting yet because it is disabled
-        assertTrue(nodeHeapMetrics.isEmpty());
 
-        // Enable collection for estimated heap usages
-        updateClusterSettings(
-            Settings.builder()
-                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
-                .build()
-        );
-        try {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            nodeHeapMetrics = clusterInfoService.getClusterInfo().getNodeHeapMetrics();
-            assertEquals(state.nodes().size(), nodeHeapMetrics.size());
-            for (DiscoveryNode node : state.nodes()) {
-                assertTrue(nodeHeapMetrics.containsKey(node.getId()));
-                NodeHeapMetrics currentNodeMetrics = nodeHeapMetrics.get(node.getId());
-                assertThat(currentNodeMetrics.estimatedFreeBytes(), lessThanOrEqualTo(currentNodeMetrics.totalBytes()));
-            }
-        } finally {
-            updateClusterSettings(
-                Settings.builder()
-                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
-                    .build()
-            );
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), nodeHeapMetrics.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(nodeHeapMetrics.containsKey(node.getId()));
+            NodeHeapMetrics currentNodeMetrics = nodeHeapMetrics.get(node.getId());
+            assertThat(currentNodeMetrics.estimatedFreeBytes(), lessThanOrEqualTo(currentNodeMetrics.totalBytes()));
         }
     }
 
@@ -323,31 +304,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
         assertNotNull(estimatedShardHeapUsages);
-        // No shard heap usage is reported because it is not yet enabled.
-        assertTrue(estimatedShardHeapUsages.isEmpty());
 
-        // Enable collection of heap usages for ClusterInfo.
-        updateClusterSettings(
-            Settings.builder()
-                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
-                .build()
-        );
-
-        try {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
-            assertNotNull(estimatedShardHeapUsages);
-            assertEquals(estimatedShardHeapUsages.size(), numIndices * numShards);
-            for (var entry : estimatedShardHeapUsages.entrySet()) {
-                assertThat(entry.getValue().shardHeapUsageBytes(), greaterThanOrEqualTo(0L));
-                assertThat(entry.getValue().indexHeapUsageBytes(), greaterThanOrEqualTo(0L));
-            }
-        } finally {
-            updateClusterSettings(
-                Settings.builder()
-                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
-                    .build()
-            );
+        estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
+        assertNotNull(estimatedShardHeapUsages);
+        assertEquals(estimatedShardHeapUsages.size(), numIndices * numShards);
+        for (var entry : estimatedShardHeapUsages.entrySet()) {
+            assertThat(entry.getValue().shardHeapUsageBytes(), greaterThanOrEqualTo(0L));
+            assertThat(entry.getValue().indexHeapUsageBytes(), greaterThanOrEqualTo(0L));
         }
     }
 

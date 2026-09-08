@@ -186,9 +186,8 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             return Tuple.tuple(null, nullValue);
         }
         int length = 5;
-        // In columnar mode ignore_above is a no-op, so don't bother generating over-limit values —
-        // they are just regular values in that context.
-        if (ignoreAbove != null && isColumnar == false && (allIgnored || ESTestCase.randomBoolean())) {
+        // In columnar mode ignore_above is a no-op, so over-limit values land in validValues.
+        if (ignoreAbove != null && (allIgnored || ESTestCase.randomBoolean())) {
             length = ignoreAbove + 5;
         }
         String v = ESTestCase.randomAlphaOfLength(length);

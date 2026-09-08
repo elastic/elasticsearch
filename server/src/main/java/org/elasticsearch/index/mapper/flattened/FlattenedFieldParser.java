@@ -43,7 +43,10 @@ class FlattenedFieldParser {
 
     private final MappedFieldType fieldType;
     private final int depthLimit;
-    private final Mapper.IgnoreAbove ignoreAbove;
+    // Primitive int (via limit()) to avoid per-value object dispatch on this hot path.
+    // Uses UTF-16 length, matching the original row-path semantics (pre-existing divergence from
+    // the batch path's code-point count; fixing it needs its own index-version gate).
+    private final int ignoreAbove;
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
@@ -57,6 +60,9 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
+    // True when the output includes an inverted-index term or SORTED_SET doc values (both subject to
+    // MAX_TERM_LENGTH). False for strictly columnar indices where only binary DV is written.
+    private final boolean checkTermLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -80,7 +86,7 @@ class FlattenedFieldParser {
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.fieldType = fieldType;
         this.depthLimit = depthLimit;
-        this.ignoreAbove = ignoreAbove;
+        this.ignoreAbove = ignoreAbove.limit();
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
@@ -90,6 +96,7 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
+        this.checkTermLength = fieldType.indexType().hasTerms() || (fieldType.hasDocValues() && usesBinaryDocValues == false);
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -171,8 +178,8 @@ class FlattenedFieldParser {
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
-        // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
-        if (ignoreAbove.isIgnored(value)) {
+        // Inert for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR (limit == MAX_VALUE).
+        if (value.length() > ignoreAbove) {
             var lookup = context.documentParserContext().mappingLookup();
             if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
                 // In document-order mode there is no _offsets sidecar; ignored values are tail-appended during read.
@@ -200,9 +207,8 @@ class FlattenedFieldParser {
             return;
         }
 
-        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
-        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+        // Skipped when only binary DV is written (no MAX_TERM_LENGTH limit applies there).
+        if (checkTermLength && bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
             String msg = "Flattened field ["
                 + rootFieldFullPath
                 + "] contains one immense field"

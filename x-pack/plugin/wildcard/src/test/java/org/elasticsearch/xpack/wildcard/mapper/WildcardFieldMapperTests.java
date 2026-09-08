@@ -1389,8 +1389,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 return Tuple.tuple(null, nullValue);
             }
             int length = 5;
-            // In columnar mode ignore_above is a no-op, so don't generate over-limit values.
-            if (ignoreAbove != null && isColumnar == false && (allIgnored || randomBoolean())) {
+            // Generate over-limit values in all modes. In columnar mode (post-gate) ignore_above is a
+            // no-op, so these values are kept rather than ignored — the classification guard routes
+            // them to validValues and the synthetic-source expectation is correct.
+            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
                 length = ignoreAbove + 5;
             }
             String v = randomAlphaOfLength(length);

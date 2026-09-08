@@ -131,6 +131,52 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         }
     }
 
+    /**
+     * Like {@link #mapColumnarLeaf} but for group mappers (e.g. flattened fields): accumulates all
+     * ESCF leaf columns whose owner is {@code field} and calls {@link FieldMapper#mapColumnGroupBatch}.
+     * Intended for bail-out tests that expect {@link UnsupportedOperationException}.
+     */
+    protected final void mapColumnarGroupField(MapperService mapperService, String field, String... sources) throws IOException {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        final BatchMappingContext ctx = new BatchMappingContext(
+            EngineTestCase.initFromRequests(requests),
+            mappingLookup,
+            indexSettings,
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+        try (EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)) {
+            final SourceSchema schema = escfBatch.schema();
+            final ColumnGroupResolver.Builder groupBuilder = new ColumnGroupResolver.Builder();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                if (mappingLookup.getMapper(path) == null) {
+                    if (ColumnGroupResolver.findColumnGroup(
+                        path,
+                        mappingLookup
+                    ) instanceof ColumnGroupResolver.ColumnGroupLookup.Owned owned && owned.ownerPath().equals(field)) {
+                        groupBuilder.add(owned, c);
+                    }
+                }
+            }
+            for (ColumnGroupResolver.ColumnGroupResolution group : groupBuilder.build()) {
+                final int[] leafIndexes = group.leafIndexes();
+                final EscfColumn[] groupColumns = new EscfColumn[leafIndexes.length];
+                for (int i = 0; i < leafIndexes.length; i++) {
+                    groupColumns[i] = escfBatch.column(leafIndexes[i]);
+                }
+                group.mapper().mapColumnGroupBatch(ctx, groupColumns, group.relativeKeys());
+            }
+        }
+    }
+
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
         return new Doc(id, null, seqNo, 1L, source, null);

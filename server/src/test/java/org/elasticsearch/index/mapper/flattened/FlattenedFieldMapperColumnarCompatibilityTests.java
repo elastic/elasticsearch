@@ -12,8 +12,11 @@ package org.elasticsearch.index.mapper.flattened;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -280,6 +283,26 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
             mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
             columnarSettings(),
             batch("ignore_above is no-op", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
+        );
+    }
+
+    /**
+     * Pre-gate: a value exceeding {@code ignore_above} must throw {@link UnsupportedOperationException}
+     * so {@code ShardBatchMapper} falls back to the row path for {@code _keyed._ignored} handling.
+     */
+    public void testIgnoreAboveIsRejectedPreGate() throws IOException {
+        Settings preGateSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
+            preGateSettings,
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject())
+        );
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapColumnarGroupField(mapperService, FIELD, "{\"flat\":{\"k\":\"too long\"}}")
         );
     }
 

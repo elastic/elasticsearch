@@ -1,0 +1,196 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "columnar index mode required"
+
+---
+
+keyword ignore_above is a no-op in columnar - field-level:
+  - requires:
+      cluster_features: ["mapper.columnar.ignore_above_no_op"]
+      reason: "ignore_above must be a no-op in strictly columnar mode"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          kwd: "this value exceeds the ignore_above limit of 10 characters"
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+
+  # Over-limit value must be present in _source
+  - match: { hits.hits.0._source.kwd: "this value exceeds the ignore_above limit of 10 characters" }
+
+  # _ignored must be absent — nothing was dropped
+  - is_false: hits.hits.0._ignored
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [kwd]
+
+  # Over-limit value must also be present in fields
+  - match: { hits.hits.0.fields.kwd: ["this value exceeds the ignore_above limit of 10 characters"] }
+
+  # GET _mapping must still echo the configured ignore_above
+  - do:
+      indices.get_mapping:
+        index: test
+
+  - match: { test.mappings.properties.kwd.ignore_above: 10 }
+
+  - do:
+      indices.delete:
+        index: test
+
+---
+
+keyword ignore_above is a no-op in columnar - array positions preserved:
+  - requires:
+      cluster_features: ["mapper.columnar.ignore_above_no_op"]
+      reason: "ignore_above must be a no-op in strictly columnar mode"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          kwd: ["short", "this is much longer than five chars", null, "ok"]
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+
+  # Array positions including null must be preserved
+  - match: { hits.hits.0._source.kwd: ["short", "this is much longer than five chars", null, "ok"] }
+  - is_false: hits.hits.0._ignored
+
+  - do:
+      indices.delete:
+        index: test
+
+---
+
+keyword ignore_above is a no-op in columnar - index-level default:
+  - requires:
+      cluster_features: ["mapper.columnar.ignore_above_no_op"]
+      reason: "ignore_above must be a no-op in strictly columnar mode"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+            index.mapping.ignore_above: 10
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          kwd: "this value exceeds the index-level ignore_above limit of 10"
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+
+  - match: { hits.hits.0._source.kwd: "this value exceeds the index-level ignore_above limit of 10" }
+  - is_false: hits.hits.0._ignored
+
+  - do:
+      indices.delete:
+        index: test
+
+---
+
+flattened ignore_above is a no-op in columnar:
+  - requires:
+      cluster_features: ["mapper.columnar.ignore_above_no_op"]
+      reason: "ignore_above must be a no-op in strictly columnar mode"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          labels:
+            env: "this value exceeds the ignore_above limit of 5 characters"
+            region: "eu"
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+
+  # Over-limit flattened value must survive
+  - match: { hits.hits.0._source.labels.env: "this value exceeds the ignore_above limit of 5 characters" }
+  - match: { hits.hits.0._source.labels.region: "eu" }
+  - is_false: hits.hits.0._ignored
+
+  - do:
+      indices.delete:
+        index: test

@@ -133,12 +133,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
-    /**
-     * Retained so {@link #withFormatConfigKeyResolver} keeps its existing signature. Extension
-     * inference delegates to {@link #formatReaderRegistry}; this set is not consulted.
-     */
-    @SuppressWarnings("unused")
-    private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
     private final BooleanSupplier federatedIdentityEnabled;
     @Nullable
@@ -150,7 +144,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, null, (r, e) -> {});
+        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, (r, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -158,7 +152,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
-        Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
         BooleanSupplier federatedIdentityEnabled,
         @Nullable FormatReaderRegistry formatReaderRegistry,
@@ -168,7 +161,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
-        this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
         this.formatReaderRegistry = formatReaderRegistry;
@@ -179,17 +171,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * Returns a new validator that resolves a dataset's file format (from an explicit {@code format}
      * setting or the resource extension) and validates format-specific fields against it. The resolver
      * maps a format name to its config keys and enumerates the known format names for error messages.
-     *
-     * <p>{@code compressionExtensions} is accepted for call-site compatibility; compound-extension
-     * inference is performed by {@link FormatReaderRegistry} after {@link #withFormatReaderRegistry}.
+     * Compound-extension inference is performed by {@link FormatReaderRegistry} after
+     * {@link #withFormatReaderRegistry}.
      */
-    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
+    public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver) {
         return new FileDataSourceValidator(
             type,
             configFactory,
             supportedSchemes,
             resolver,
-            compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
             formatReaderRegistry,
@@ -208,7 +198,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
             registry,
@@ -229,7 +218,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             supplier,
             federatedIdentityEnabled,
             formatReaderRegistry,
@@ -248,7 +236,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             managedIdentityEnabled,
             supplier,
             formatReaderRegistry,
@@ -268,7 +255,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
             configFactory,
             supportedSchemes,
             formatConfigKeyResolver,
-            compressionExtensions,
             managedIdentityEnabled,
             federatedIdentityEnabled,
             formatReaderRegistry,
@@ -444,10 +430,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * accepts the base fields only; a remaining key that some registered format recognises draws a
      * targeted "set format" error, while a key no format recognises is reported as a plain unknown
      * setting. Without a resolver, {@code format} itself is rejected (see {@link #DATASET_FIELDS_WITHOUT_FORMAT}).
+     * Registry vetoes (whole-file compression on parquet/ORC, a non-GA codec on release) are recorded
+     * as validation errors and also return {@code null} so the PUT fails on that one reason.
      *
      * <p>Returns {@code null} to signal that an explicit {@code format} value is not a registered
-     * format: the caller short-circuits on the single {@code unknown format} error rather than piling
-     * on per-key messages.
+     * format, or that the registry vetoed the resource: the caller short-circuits on that one error
+     * rather than piling on per-key messages.
      */
     @Nullable
     private Set<String> resolveAcceptedFields(@Nullable String resource, Map<String, Object> settings, ValidationException errors) {
@@ -464,11 +452,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 errors.addValidationError(unknownFormatError(explicitFormat, formatConfigKeyResolver.knownFormats()));
                 return null;
             }
+            if (recordRegistryVeto(explicitFormat, resource, errors)) {
+                return null;
+            }
             return acceptStrict(settings, formatKeys, errors);
         }
 
         // No usable explicit format: infer the format from the resource extension.
-        String extensionFormat = resource == null ? null : formatFromExtension(resource);
+        String extensionFormat;
+        try {
+            extensionFormat = resource == null ? null : formatFromExtension(resource);
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(e.getMessage());
+            return null;
+        }
         if (extensionFormat != null) {
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(extensionFormat);
             return acceptStrict(settings, formatKeys != null ? formatKeys : Set.of(), errors);
@@ -559,54 +556,67 @@ public class FileDataSourceValidator implements DataSourceValidator {
     /**
      * Resolves the logical format name from a resource through
      * {@link FormatNameResolver#resolveFormatName}. Returns {@code null} when no registry is
-     * attached or the registry cannot read the name (CRUD keeps the unknown-format path).
-     * This method does not walk suffixes itself.
+     * attached or the name is unreadable (no extension, or an extension the registry cannot map).
+     * Whole-file-compression vetoes from the registry propagate as {@link IllegalArgumentException}
+     * so CRUD can surface them as validation errors. This method does not walk suffixes itself.
      */
     @Nullable
     String formatFromExtension(String resource) {
-        String objectName = extractObjectName(resource);
-        if (objectName == null || objectName.isEmpty() || formatReaderRegistry == null) {
+        if (formatReaderRegistry == null) {
+            return null;
+        }
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null || objectName.isEmpty()) {
             return null;
         }
         try {
             return FormatNameResolver.resolveFormatName(null, objectName, formatReaderRegistry);
-        } catch (IllegalArgumentException e) {
+        } catch (FormatReaderRegistry.UnreadableObjectException e) {
             return null;
         }
     }
 
     /**
-     * Extracts the object/path portion after the {@code scheme://host/} prefix, stripping any query
-     * or fragment. A scheme-less name is returned as-is (still stripping {@code ?}/{@code #}) so
-     * extension inference and the consistency pin can use bare object names.
+     * Runs the named format through {@link FormatReaderRegistry#byNameForObject} so an explicit
+     * {@code format} cannot skip a wrapWithCodec veto (e.g. {@code format: parquet} on
+     * {@code data.parquet.gz}). Returns {@code true} when a veto was recorded.
      */
-    @Nullable
-    private static String extractObjectName(String resource) {
-        int schemeEnd = resource.indexOf("://");
-        if (schemeEnd < 0) {
-            return stripQueryAndFragment(resource);
+    private boolean recordRegistryVeto(String formatName, @Nullable String resource, ValidationException errors) {
+        if (formatReaderRegistry == null || resource == null) {
+            return false;
         }
-        String afterScheme = resource.substring(schemeEnd + 3);
-        int firstSlash = afterScheme.indexOf('/');
-        String path;
-        if (firstSlash < 0) {
-            path = afterScheme;
-        } else {
-            path = afterScheme.substring(firstSlash + 1);
+        String objectName = objectNameForResolution(resource);
+        if (objectName == null || objectName.isEmpty()) {
+            return false;
         }
-        return stripQueryAndFragment(path);
+        try {
+            formatReaderRegistry.byNameForObject(formatName, objectName);
+            return false;
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(e.getMessage());
+            return true;
+        }
     }
 
-    private static String stripQueryAndFragment(String path) {
-        int qMark = path.indexOf('?');
-        if (qMark >= 0) {
-            path = path.substring(0, qMark);
+    /**
+     * Object name the registry should see. {@link StoragePath} is scheme-aware: HTTP/HTTPS strip
+     * query/fragment, object-store schemes keep {@code ?} and {@code #} as literal key characters.
+     * Scheme-less names (the consistency pin) fall back to the raw string.
+     */
+    @Nullable
+    private static String objectNameForResolution(String resource) {
+        if (resource == null || resource.isEmpty()) {
+            return null;
         }
-        int hash = path.indexOf('#');
-        if (hash >= 0) {
-            path = path.substring(0, hash);
+        try {
+            String objectName = StoragePath.of(resource).objectName();
+            if (objectName.isEmpty() == false) {
+                return objectName;
+            }
+        } catch (IllegalArgumentException e) {
+            // bare names such as data.csv are not StoragePath URIs
         }
-        return path;
+        return resource;
     }
 
     private void validateResource(String resource, ValidationException errors) {

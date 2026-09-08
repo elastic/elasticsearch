@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
@@ -15,8 +16,10 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +49,18 @@ public class FileDataSourceValidatorFormatConsistencyTests extends ESTestCase {
             assertNull(resource, validator.formatFromExtension(resource));
             assertNull(resource, safeFormatName(registry, resource));
         }
+
+        // Walker would resolve parquet.gz as parquet; the registry vetoes whole-file compression.
+        IllegalArgumentException expected = expectThrows(
+            IllegalArgumentException.class,
+            () -> FormatNameResolver.resolveFormatName(null, "data.parquet.gz", registry)
+        );
+        assertThat(expected.getMessage(), containsString("does not support whole-file compression"));
+        IllegalArgumentException actual = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.formatFromExtension("data.parquet.gz")
+        );
+        assertEquals(expected.getMessage(), actual.getMessage());
     }
 
     public void testFormatFromExtensionWithoutRegistryIsNull() {
@@ -54,15 +69,47 @@ public class FileDataSourceValidatorFormatConsistencyTests extends ESTestCase {
         assertNull(validator.formatFromExtension("data.csv.gz"));
     }
 
+    public void testParquetGzVetoIsValidationError() {
+        FileDataSourceValidator validator = consistencyValidator();
+        ValidationException inferred = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/data.parquet.gz", Map.of())
+        );
+        assertThat(inferred.getMessage(), containsString("does not support whole-file compression"));
+
+        ValidationException explicit = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/data.parquet.gz", Map.of("format", "parquet"))
+        );
+        assertThat(explicit.getMessage(), containsString("does not support whole-file compression"));
+    }
+
+    public void testUnreadableNameWithoutFormatKeysIsAccepted() {
+        FileDataSourceValidator validator = consistencyValidator();
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/data.tar.gz", Map.of()));
+        assertNotNull(validator.validateDataset(Map.of(), "s3://bucket/no_extension", Map.of()));
+    }
+
     /**
-     * Same adapter the validator uses: the registry throws for unreadable names; CRUD needs null.
+     * Same adapter the validator uses for true unreadable names: the registry throws
+     * {@link FormatReaderRegistry.UnreadableObjectException}; CRUD needs null.
      */
     private static String safeFormatName(FormatReaderRegistry registry, String resource) {
         try {
             return FormatNameResolver.resolveFormatName(null, resource, registry);
-        } catch (IllegalArgumentException e) {
+        } catch (FormatReaderRegistry.UnreadableObjectException e) {
             return null;
         }
+    }
+
+    private static FileDataSourceValidator consistencyValidator() {
+        return new FileDataSourceValidator("s3", (raw, consumed) -> null, Set.of("s3")).withFormatReaderRegistry(csvAndParquetRegistry())
+            .withFormatConfigKeyResolver(
+                FileDataSourceValidator.FormatConfigKeyResolver.of(
+                    Map.of("csv", Set.of("header_row"), "parquet", Set.of()),
+                    Map.of(".csv", "csv", ".parquet", "parquet")
+                )
+            );
     }
 
     /**

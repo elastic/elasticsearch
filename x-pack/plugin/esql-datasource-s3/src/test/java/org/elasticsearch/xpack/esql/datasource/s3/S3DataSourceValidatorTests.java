@@ -111,7 +111,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "s3",
         S3Configuration::fromMap,
         Set.of("s3", "s3a", "s3n")
-    ).withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz")).withFormatReaderRegistry(csvGzipRegistry());
+    ).withFormatConfigKeyResolver(CSV_RESOLVER).withFormatReaderRegistry(csvGzipRegistry());
 
     /**
      * Registry the production validator uses for compound-extension inference. Mockito stub: only
@@ -1092,7 +1092,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             .withManagedIdentityEnabled(() -> false)
             .withFederatedIdentityEnabled(() -> false)
             .withFormatReaderRegistry(csvGzipRegistry())
-            .withFormatConfigKeyResolver(CSV_RESOLVER, Set.of(".gz"));
+            .withFormatConfigKeyResolver(CSV_RESOLVER);
 
         var e = expectThrows(
             ValidationException.class,

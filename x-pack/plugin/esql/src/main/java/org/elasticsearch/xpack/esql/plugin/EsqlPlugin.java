@@ -126,7 +126,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourc
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -167,7 +166,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -547,21 +545,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ? null
             : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
 
-        // Collect known compression extensions so withFormatConfigKeyResolver keeps its existing
-        // signature. Compound-extension inference is performed by FormatReaderRegistry, not this set.
-        Set<String> compressionExtensions = new HashSet<>();
-        for (DataSourcePlugin p : allDataSourcePlugins) {
-            for (DecompressionCodec codec : p.decompressionCodecs(settings)) {
-                for (String ext : codec.extensions()) {
-                    String normalized = ext.toLowerCase(Locale.ROOT);
-                    if (normalized.startsWith(".") == false) {
-                        normalized = "." + normalized;
-                    }
-                    compressionExtensions.add(normalized);
-                }
-            }
-        }
-
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
@@ -571,7 +554,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                         .withFederatedIdentityEnabled(federatedIdentityEnabled::get)
                         .withFormatReaderRegistry(dataSourceModule.formatReaderRegistry());
                     if (formatKeyResolver != null) {
-                        wired = wired.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
+                        wired = wired.withFormatConfigKeyResolver(formatKeyResolver);
                     }
                     effective = wired;
                 }

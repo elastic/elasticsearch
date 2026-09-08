@@ -16,6 +16,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -33,49 +34,70 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
     protected abstract Object getSampleValueForDocument(boolean binaryFormat);
 
+    /**
+     * The mappings for the vector field that every test here runs against. A field whose value can be stored in more than one
+     * layout — an indexed {@code dense_vector} lives in the vector index, a non-indexed one in binary doc values — returns one
+     * entry per layout, since each needs its own loader to patch the vector back into {@code _source}.
+     */
+    protected List<CheckedConsumer<XContentBuilder, IOException>> vectorMappings() {
+        return List.of(this::minimalMapping);
+    }
+
     public void testSyntheticVectorsMinimalValidDocument() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDoc(type, true, true, false, false, false);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDoc(type, true, true, false, false, false);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
     public void testSyntheticVectorsFullDocument() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDoc(type, true, true, true, true, false);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDoc(type, true, true, true, true, false);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
     public void testSyntheticVectorsWithUnmappedFields() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDoc(type, true, true, true, true, true);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDoc(type, true, true, true, true, true);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
     public void testSyntheticVectorsMissingRootFields() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDoc(type, false, false, false, false, false);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDoc(type, false, false, false, false, false);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
     public void testSyntheticVectorsPartialNestedContent() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDoc(type, true, true, true, false, false);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDoc(type, true, true, true, false, false);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
     public void testFlatPathDocument() throws IOException {
-        for (XContentType type : XContentType.values()) {
-            BytesReference source = generateRandomDocWithFlatPath(type);
-            assertSyntheticVectors(buildVectorMapping(), source, type);
+        for (var vectorMapping : vectorMappings()) {
+            for (XContentType type : XContentType.values()) {
+                BytesReference source = generateRandomDocWithFlatPath(type);
+                assertSyntheticVectors(buildVectorMapping(vectorMapping), source, type);
+            }
         }
     }
 
-    private String buildVectorMapping() throws IOException {
+    private String buildVectorMapping(CheckedConsumer<XContentBuilder, IOException> vectorMapping) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.startObject(); // root
             builder.startObject("_doc");
@@ -90,7 +112,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
             // emb
             builder.startObject("emb");
-            minimalMapping(builder);
+            vectorMapping.accept(builder);
             builder.endObject();
 
             // another_field
@@ -114,7 +136,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
             // nested.emb
             builder.startObject("emb");
-            minimalMapping(builder);
+            vectorMapping.accept(builder);
             builder.endObject();
 
             // double_nested
@@ -129,7 +151,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
             // double_nested.emb
             builder.startObject("emb");
-            minimalMapping(builder);
+            vectorMapping.accept(builder);
             builder.endObject();
 
             builder.endObject(); // double_nested.properties

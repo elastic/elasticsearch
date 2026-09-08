@@ -50,10 +50,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.engine.Engine;
@@ -2136,10 +2137,14 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     for (var indexShard : indexService) {
                         nbVisitedShards += indexShard.withEngineOrNull(engine -> {
                             if (engine != null) {
-                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
+                                assertThat(engine.config().getCodec().getName(), equalTo(Elasticsearch96Codec.NAME));
                                 try (var searcher = engine.acquireSearcher("test_codec")) {
                                     for (var leaf : searcher.getLeafContexts()) {
                                         var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(ElasticsearchStoredFieldsFormat.MODE_KEY),
+                                            equalTo(ElasticsearchStoredFieldsFormat.Mode.ZSTD_BEST_COMPRESSION.name())
+                                        );
                                         assertThat(
                                             segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
                                             equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())

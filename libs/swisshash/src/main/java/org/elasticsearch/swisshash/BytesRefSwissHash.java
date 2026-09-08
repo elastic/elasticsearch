@@ -1142,6 +1142,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                     bytes += (long) offsets.length * Integer.BYTES;
                 }
             }
+            partitionData = null;
+            partitionOffsets = null;
             breaker.addWithoutBreaking(-bytes);
         }
     }
@@ -1161,11 +1163,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 success = true;
             } finally {
                 if (success == false) {
-                    for (int p = 0; p < NUM_PARTITIONS; p++) {
-                        if (partitionArrays[p] != null) {
-                            partitionArrays[p].close();
-                        }
-                    }
+                    Releasables.close(partitionArrays);
                 }
             }
         }

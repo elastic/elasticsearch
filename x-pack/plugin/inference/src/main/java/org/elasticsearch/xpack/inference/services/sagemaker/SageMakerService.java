@@ -32,7 +32,7 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -237,7 +237,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequest request,
+        UnifiedCompletionRequestBody request,
         boolean stream,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

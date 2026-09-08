@@ -25,7 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
@@ -49,9 +49,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectFile;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectImage;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectText;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectFile;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectImage;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomContentObjectText;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -260,7 +260,7 @@ public class SenderServiceTests extends ESTestCase {
         };
         try (service) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
             service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
             listener.actionGet(TIMEOUT);
@@ -294,7 +294,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 messages,
                 null,
                 null,
@@ -339,7 +339,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (service) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 messages,
                 null,
                 null,
@@ -366,7 +366,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 
@@ -399,7 +399,7 @@ public class SenderServiceTests extends ESTestCase {
 
         try (service) {
             var messages = List.of(new Message(new ContentString("test"), "user", null, null));
-            var request = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, "test-session");
+            var request = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, "test-session");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(mock(Model.class), request, true, TIMEOUT, listener);
 

@@ -26,7 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -109,7 +109,7 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 true,
                 null,
                 listener
@@ -148,7 +148,7 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 true,
                 null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
@@ -237,7 +237,7 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 true,
                 null,
                 listener

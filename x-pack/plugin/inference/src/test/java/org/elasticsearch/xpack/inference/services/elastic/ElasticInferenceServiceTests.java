@@ -44,7 +44,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
@@ -1031,7 +1031,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
+            var request = UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
@@ -1079,7 +1079,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(
+            var request = UnifiedCompletionRequestBody.of(
                 List.of(
                     new Message(
                         new ContentObjects(List.of(new ContentObjectImage(new ContentObjectImageUrl("image data", null)))),
@@ -1214,7 +1214,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = new UnifiedCompletionRequest(
+            var request = new UnifiedCompletionRequestBody(
                 List.of(
                     new Message(
                         new ContentString("Say `Hello world!`"),
@@ -1982,7 +1982,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 true,
                 null,
                 listener

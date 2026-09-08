@@ -29,7 +29,7 @@ import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -162,7 +162,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public void unifiedCompletionInfer(
             Model model,
-            UnifiedCompletionRequest request,
+            UnifiedCompletionRequestBody request,
             boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
@@ -270,7 +270,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             };
         }
 
-        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
+        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequestBody request) {
             var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -289,7 +289,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequest request) {
+        private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequestBody request) {
             var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
             return new ChatCompletionChunkResponse(
                 "test-id",

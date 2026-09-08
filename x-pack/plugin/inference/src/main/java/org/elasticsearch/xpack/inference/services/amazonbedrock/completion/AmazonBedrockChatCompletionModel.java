@@ -12,7 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -46,7 +46,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
      * @param request The UnifiedCompletionRequest containing the model override.
      * @return A new AmazonBedrockChatCompletionModel with the overridden model ID.
      */
-    public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null || request.model().equals(model.getServiceSettings().modelId())) {
             return model;
         }

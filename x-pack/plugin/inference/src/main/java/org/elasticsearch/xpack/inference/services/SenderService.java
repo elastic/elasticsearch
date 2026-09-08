@@ -29,7 +29,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -246,7 +246,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequest request,
+        UnifiedCompletionRequestBody request,
         boolean stream,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

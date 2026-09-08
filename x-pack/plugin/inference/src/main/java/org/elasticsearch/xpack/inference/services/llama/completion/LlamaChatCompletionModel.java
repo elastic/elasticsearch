@@ -12,7 +12,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaModel;
@@ -90,7 +90,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
      * @param request the UnifiedCompletionRequest containing potential overrides
      * @return a new LlamaChatCompletionModel with overridden settings or the original model if no overrides are specified
      */
-    public static LlamaChatCompletionModel of(LlamaChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static LlamaChatCompletionModel of(LlamaChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null) {
             // If no model id is specified in the request, return the original model
             return model;

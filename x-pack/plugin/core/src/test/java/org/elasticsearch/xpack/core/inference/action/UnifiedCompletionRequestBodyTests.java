@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.CacheControlTests;
 import org.elasticsearch.inference.completion.Content;
@@ -55,7 +55,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.hamcrest.Matchers.is;
 
-public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
+public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequestBody> {
 
     public void testParseAllFields() throws IOException {
         String requestJson = """
@@ -158,8 +158,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            var expected = new UnifiedCompletionRequest(
+            var request = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            var expected = new UnifiedCompletionRequestBody(
                 List.of(
                     new Message(
                         new ContentObjects(
@@ -227,7 +227,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             assertThat(request, is(expected));
 
             assertThat(
-                Strings.toString(request, UnifiedCompletionRequest.withMaxCompletionTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
+                Strings.toString(request, UnifiedCompletionRequestBody.withMaxCompletionTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
                 is(XContentHelper.stripWhitespace(requestJson))
             );
         }
@@ -261,8 +261,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            var expected = new UnifiedCompletionRequest(
+            var request = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            var expected = new UnifiedCompletionRequestBody(
                 List.of(new Message(new ContentString("What is the weather like in Boston today?"), "user", null, null)),
                 "gpt-4o",
                 null,
@@ -305,7 +305,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -337,7 +337,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -368,7 +368,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -400,7 +400,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -430,7 +430,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -460,7 +460,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -492,7 +492,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             """;
 
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
                 ElasticsearchStatusException.class
@@ -515,7 +515,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
         testSerializationIsNotBackwardsCompatible(
             MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
-            UnifiedCompletionRequest::containsMultimodalContent,
+            UnifiedCompletionRequestBody::containsMultimodalContent,
             """
                 Cannot send a multimodal chat completion request to an older node. \
                 Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
@@ -524,7 +524,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     public void testContainsMultimodalContentWithNullContent() {
         var messageWithNullContent = new Message(null, "user", null, null, null, null);
-        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent));
+        var request = UnifiedCompletionRequestBody.of(List.of(messageWithNullContent));
         assertFalse(request.containsMultimodalContent());
     }
 
@@ -538,13 +538,13 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             null,
             null
         );
-        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent, messageWithMultimodalContent));
+        var request = UnifiedCompletionRequestBody.of(List.of(messageWithNullContent, messageWithMultimodalContent));
         assertTrue(request.containsMultimodalContent());
     }
 
-    public static UnifiedCompletionRequest randomUnifiedCompletionRequest() {
-        return new UnifiedCompletionRequest(
-            randomList(5, UnifiedCompletionRequestTests::randomMessage),
+    public static UnifiedCompletionRequestBody randomUnifiedCompletionRequest() {
+        return new UnifiedCompletionRequestBody(
+            randomList(5, UnifiedCompletionRequestBodyTests::randomMessage),
             randomAlphaOfLengthOrNull(10),
             randomNonNegativeLongOrNull(),
             randomStopOrNull(),
@@ -558,8 +558,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         );
     }
 
-    public static UnifiedCompletionRequest randomTextInputOnlyUnifiedCompletionRequest() {
-        return new UnifiedCompletionRequest(
+    public static UnifiedCompletionRequestBody randomTextInputOnlyUnifiedCompletionRequest() {
+        return new UnifiedCompletionRequestBody(
             randomList(5, () -> randomMessage(false)),
             randomAlphaOfLengthOrNull(10),
             randomNonNegativeLongOrNull(),
@@ -626,7 +626,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     public static List<ToolCall> randomToolCallListOrNull() {
-        return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomToolCall) : null;
+        return randomBoolean() ? randomList(10, UnifiedCompletionRequestBodyTests::randomToolCall) : null;
     }
 
     public static ToolCall randomToolCall() {
@@ -664,7 +664,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     public static List<Tool> randomToolListOrNull() {
-        return randomBoolean() ? randomList(10, UnifiedCompletionRequestTests::randomTool) : null;
+        return randomBoolean() ? randomList(10, UnifiedCompletionRequestBodyTests::randomTool) : null;
     }
 
     public static Tool randomTool() {
@@ -684,17 +684,20 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     @Override
-    protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+    protected UnifiedCompletionRequestBody mutateInstanceForVersion(UnifiedCompletionRequestBody instance, TransportVersion version) {
         return mutateInstanceForTransportVersion(instance, version);
     }
 
-    public static UnifiedCompletionRequest mutateInstanceForTransportVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+    public static UnifiedCompletionRequestBody mutateInstanceForTransportVersion(
+        UnifiedCompletionRequestBody instance,
+        TransportVersion version
+    ) {
         // Unsupported content types cause an exception to be thrown when serializing to older nodes,
         // so there is no need to mutate the instance for backwards compatibility for versions that don't support multimodal content.
         // This is tested in testMultimodalContentIsNotBackwardsCompatible
 
         if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
-            instance = new UnifiedCompletionRequest(
+            instance = new UnifiedCompletionRequestBody(
                 instance.messages()
                     .stream()
                     .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
@@ -709,7 +712,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             );
         }
         if (version.supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) == false) {
-            instance = new UnifiedCompletionRequest(
+            instance = new UnifiedCompletionRequestBody(
                 instance.messages(),
                 instance.model(),
                 instance.maxCompletionTokens(),
@@ -727,17 +730,17 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     @Override
-    protected Writeable.Reader<UnifiedCompletionRequest> instanceReader() {
-        return UnifiedCompletionRequest::new;
+    protected Writeable.Reader<UnifiedCompletionRequestBody> instanceReader() {
+        return UnifiedCompletionRequestBody::new;
     }
 
     @Override
-    protected UnifiedCompletionRequest createTestInstance() {
+    protected UnifiedCompletionRequestBody createTestInstance() {
         return randomUnifiedCompletionRequest();
     }
 
     @Override
-    protected UnifiedCompletionRequest mutateInstance(UnifiedCompletionRequest instance) throws IOException {
+    protected UnifiedCompletionRequestBody mutateInstance(UnifiedCompletionRequestBody instance) throws IOException {
         List<Message> messages = instance.messages();
         String model = instance.model();
         Long maxCompletionTokens = instance.maxCompletionTokens();
@@ -750,20 +753,20 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         CacheControl cacheControl = instance.cacheControl();
         String sessionId = instance.sessionId();
         switch (between(0, 10)) {
-            case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
+            case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestBodyTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
-            case 3 -> stop = randomValueOtherThan(stop, UnifiedCompletionRequestTests::randomStopOrNull);
+            case 3 -> stop = randomValueOtherThan(stop, UnifiedCompletionRequestBodyTests::randomStopOrNull);
             case 4 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomFloatOrNull);
-            case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestTests::randomToolChoiceOrNull);
-            case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
+            case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestBodyTests::randomToolChoiceOrNull);
+            case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestBodyTests::randomToolListOrNull);
             case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
-            case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestTests::randomReasoningOrNull);
-            case 9 -> cacheControl = randomValueOtherThan(cacheControl, UnifiedCompletionRequestTests::randomCacheControlOrNull);
+            case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestBodyTests::randomReasoningOrNull);
+            case 9 -> cacheControl = randomValueOtherThan(cacheControl, UnifiedCompletionRequestBodyTests::randomCacheControlOrNull);
             case 10 -> sessionId = randomValueOtherThan(sessionId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionRequest(
+        return new UnifiedCompletionRequestBody(
             messages,
             model,
             maxCompletionTokens,
@@ -780,6 +783,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+        return new NamedWriteableRegistry(UnifiedCompletionRequestBody.getNamedWriteables());
     }
 }

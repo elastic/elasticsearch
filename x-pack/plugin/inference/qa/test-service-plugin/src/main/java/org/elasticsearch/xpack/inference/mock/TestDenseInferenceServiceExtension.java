@@ -34,7 +34,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -62,7 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.*;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
 public class TestDenseInferenceServiceExtension implements InferenceServiceExtension {
 
@@ -187,7 +187,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void unifiedCompletionInfer(
             Model model,
-            UnifiedCompletionRequest request,
+            UnifiedCompletionRequestBody request,
             boolean stream,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener

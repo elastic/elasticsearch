@@ -156,7 +156,7 @@ public interface InferenceService extends Closeable {
      */
     void unifiedCompletionInfer(
         Model model,
-        UnifiedCompletionRequest request,
+        UnifiedCompletionRequestBody request,
         boolean stream,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

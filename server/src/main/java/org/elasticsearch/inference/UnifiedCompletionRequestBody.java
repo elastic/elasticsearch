@@ -61,7 +61,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public record UnifiedCompletionRequest(
+public record UnifiedCompletionRequestBody(
     List<Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,
@@ -147,12 +147,12 @@ public record UnifiedCompletionRequest(
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedCompletionRequest.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedCompletionRequestBody.class);
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
-        UnifiedCompletionRequest.class.getSimpleName(),
-        args -> new UnifiedCompletionRequest(
+    public static final ConstructingObjectParser<UnifiedCompletionRequestBody, Void> PARSER = new ConstructingObjectParser<>(
+        UnifiedCompletionRequestBody.class.getSimpleName(),
+        args -> new UnifiedCompletionRequestBody(
             (List<Message>) args[0],
             (String) args[1],
             (Long) args[2],
@@ -214,11 +214,11 @@ public record UnifiedCompletionRequest(
         );
     }
 
-    public static UnifiedCompletionRequest of(List<Message> messages) {
-        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null, null, null);
+    public static UnifiedCompletionRequestBody of(List<Message> messages) {
+        return new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null, null, null, null);
     }
 
-    public UnifiedCompletionRequest(
+    public UnifiedCompletionRequestBody(
         List<Message> messages,
         @Nullable String model,
         @Nullable Long maxCompletionTokens,
@@ -231,7 +231,7 @@ public record UnifiedCompletionRequest(
         this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null, null, null);
     }
 
-    public UnifiedCompletionRequest(StreamInput in) throws IOException {
+    public UnifiedCompletionRequestBody(StreamInput in) throws IOException {
         this(
             in.readCollectionAsImmutableList(Message::new),
             in.readOptionalString(),

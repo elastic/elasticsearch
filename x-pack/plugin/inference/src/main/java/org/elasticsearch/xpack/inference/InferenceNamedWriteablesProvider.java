@@ -17,7 +17,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -279,7 +279,7 @@ public class InferenceNamedWriteablesProvider {
     }
 
     private static void addUnifiedNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        var writeables = UnifiedCompletionRequest.getNamedWriteables();
+        var writeables = UnifiedCompletionRequestBody.getNamedWriteables();
         namedWriteables.addAll(writeables);
     }
 

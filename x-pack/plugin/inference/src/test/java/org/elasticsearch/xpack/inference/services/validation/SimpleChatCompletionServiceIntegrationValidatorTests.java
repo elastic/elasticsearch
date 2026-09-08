@@ -13,7 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -36,7 +36,7 @@ import static org.mockito.MockitoAnnotations.openMocks;
 
 public class SimpleChatCompletionServiceIntegrationValidatorTests extends ESTestCase {
 
-    private static final UnifiedCompletionRequest EXPECTED_REQUEST = new UnifiedCompletionRequest(
+    private static final UnifiedCompletionRequestBody EXPECTED_REQUEST = new UnifiedCompletionRequestBody(
         List.of(new Message(new ContentString("how big"), "user", null, null)),
         null,
         null,

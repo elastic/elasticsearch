@@ -6485,13 +6485,15 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(highlight.query(), instanceOf(Match.class));
 
+        // A full-text function exists in the WHERE, but its shape (mixed OR, or a NOT) disqualifies it, so the message
+        // explains what can be borrowed rather than claiming there was no full-text WHERE at all.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(first_name, \"x\") OR salary > 3 | HIGHLIGHT ON first_name",
-            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+            containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
         );
         supportsHighlight(basic()).error(
             "FROM test | WHERE NOT MATCH(first_name, \"x\") | HIGHLIGHT ON first_name",
-            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+            containsString("HIGHLIGHT found no borrowable condition in the preceding WHERE")
         );
     }
 
@@ -6511,18 +6513,68 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name")));
         assertTrue(highlight.implicitQuery());
 
-        // Nothing is left to highlight when the WHERE searches only non-text fields.
+        // Nothing is left to highlight when the WHERE searches only non-text fields; the message names the field the
+        // derived query targeted so the user is not sent to add an ON clause that would only yield a null column.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(salary, 3) | HIGHLIGHT",
-            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight"),
+                containsString("salary"),
+                containsString("not a text or keyword column")
+            )
         );
     }
 
     public void testHighlightImplicitQueryStopsAtStats() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
+        // STATS is not doc-preserving, so the walk stops there; the message names the command that blocked it rather
+        // than claiming there was no full-text WHERE at all.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(first_name, \"x\") | STATS c = COUNT(*) BY first_name | HIGHLIGHT ON first_name",
-            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
+            allOf(
+                containsString("HIGHLIGHT cannot borrow the WHERE before"),
+                containsString("STATS c = COUNT(*) BY first_name"),
+                containsString("does not preserve documents")
+            )
+        );
+    }
+
+    /**
+     * INLINE STATS appends aggregate columns rather than collapsing rows, so the walk continues through it to the WHERE.
+     */
+    public void testHighlightImplicitQueryDescendsThroughInlineStats() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | INLINE STATS c = COUNT(*)
+            | HIGHLIGHT ON first_name
+            """));
+
+        assertThat(highlight.query(), instanceOf(Match.class));
+        assertTrue(highlight.implicitQuery());
+    }
+
+    /**
+     * A WHERE MATCH (or other full-text function) that sets analyzer or quote_analyzer cannot be borrowed: HIGHLIGHT
+     * has a single analyzer and cannot apply the WHERE-side option correctly. Sibling conjuncts without an analyzer
+     * are not borrowed either, so the analyzer-bearing MATCH is not silently dropped.
+     * TODO: support WHERE-side analyzer/quote_analyzer on an implicit HIGHLIGHT query.
+     */
+    public void testHighlightRejectsAnalyzerOnBorrowedMatch() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        var analyzerNotSupported = allOf(
+            containsString("cannot borrow a WHERE condition that sets analyzer"),
+            not(containsString("analyzer not found"))
+        );
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
+            analyzerNotSupported
+        );
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) AND MATCH(last_name, \"y\") | HIGHLIGHT",
+            analyzerNotSupported
         );
     }
 
@@ -6637,20 +6689,39 @@ public class AnalyzerTests extends ESTestCase {
         assertFalse(highlight.implicitQuery());
     }
 
-    public void testHighlightCollectsPredicateForDroppedField() {
+    /**
+     * A derived query that can only match nothing on the highlighted fields is rejected, naming the field it targeted.
+     */
+    public void testHighlightRejectsDerivedQueryTargetingOnlyDroppedField() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        Highlight highlight = soleHighlight(supportsHighlight(basic()).query("""
-            FROM test
-            | WHERE MATCH(first_name, "x")
-            | DROP first_name
-            | HIGHLIGHT ON last_name
-            """));
-
-        assertThat(highlight.query(), instanceOf(Match.class));
-        assertTrue(highlight.implicitQuery());
+        // Explicit ON that does not include the query's field: rejected, message names first_name.
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT ON last_name",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("last_name"))
+        );
+        // Omitted ON derives no highlightable fields: rejected, message names first_name.
         supportsHighlight(basic()).error(
             "FROM test | WHERE MATCH(first_name, \"x\") | DROP first_name | HIGHLIGHT",
-            containsString("HIGHLIGHT found no text or keyword fields to highlight; add an explicit ON clause")
+            allOf(
+                containsString("HIGHLIGHT found no text or keyword fields to highlight"),
+                containsString("first_name"),
+                containsString("renamed or dropped")
+            )
+        );
+    }
+
+    /**
+     * A renamed field is the same case as a dropped one: the derived query still names the old name.
+     */
+    public void testHighlightRejectsDerivedQueryTargetingOnlyRenamedField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT ON fn",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("first_name"), containsString("fn"))
+        );
+        supportsHighlight(basic()).error(
+            "FROM test | WHERE MATCH(first_name, \"x\") | RENAME first_name AS fn | HIGHLIGHT",
+            allOf(containsString("HIGHLIGHT found no text or keyword fields to highlight"), containsString("first_name"))
         );
     }
 

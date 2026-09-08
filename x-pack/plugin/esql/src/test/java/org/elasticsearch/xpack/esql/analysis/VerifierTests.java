@@ -4897,11 +4897,56 @@ public class VerifierTests extends ESTestCase {
 
     public void testHighlightExplicitOnStrictnessAndImplicitLeniency() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
+        // Explicit: a query field outside ON is rejected structurally.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"x\") ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
-        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body");
+        // Implicit MATCH that narrows to a single non-highlighted field is rejected, naming it.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("title"), containsString("body"))
+        );
+        // Implicit QSTR/KQL naming a non-ON field stays lenient: it cannot be narrowed statically, so it becomes match-none.
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE QSTR(\"title:x\") | HIGHLIGHT ON body");
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE KQL(\"title: x\") | HIGHLIGHT ON body");
+    }
+
+    public void testHighlightImplicitQstrKqlNonOnFieldIsLenient() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // A borrowed QSTR/KQL naming a field outside ON is lenient: the field resolves to nothing and becomes match-none.
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE QSTR(\"body:bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE KQL(\"body: bar\") AND MATCH(title, \"fox\") | HIGHLIGHT ON title");
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
+        // A borrowed MATCH/MATCH_PHRASE/QSTR analyzer is not supported on implicit HIGHLIGHT.
+        Matcher<String> analyzerNotSupported = containsString("cannot borrow a WHERE condition that sets analyzer");
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title",
+            analyzerNotSupported
+        );
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH_PHRASE(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title",
+            analyzerNotSupported
+        );
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE QSTR(\"title:fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title",
+            analyzerNotSupported
+        );
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE QSTR(\"title:fox\", {\"quote_analyzer\": \"keyword\"}) | HIGHLIGHT ON title",
+            analyzerNotSupported
+        );
+    }
+
+    public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // A borrowed query that fails translation is framed as derived from WHERE, not quoted as HIGHLIGHT source text.
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE KQL(\"title: (fox\") | HIGHLIGHT ON title",
+            allOf(containsString("Invalid query derived from WHERE for HIGHLIGHT:"), not(containsString("Invalid query [")))
+        );
     }
 
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {

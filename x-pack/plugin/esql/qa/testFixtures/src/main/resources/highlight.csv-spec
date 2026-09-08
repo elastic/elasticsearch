@@ -1938,20 +1938,22 @@ Return of the Shadow                                             | <em>Return</e
 ;
 
 
+# The derived query targets title, so title is highlighted; the extra ON field description that the query does not
+# target is left null rather than failing (a query that names *only* untargeted fields is rejected at analysis, see
+# AnalyzerTests#testHighlightRejectsDerivedQueryTargetingOnlyDroppedField).
 implicitQueryUntargetedOnFieldIsNull
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
-| HIGHLIGHT ON description
-| KEEP title, highlight_description
+| HIGHLIGHT ON title, description
+| KEEP title, highlight_title, highlight_description
 | SORT title
 ;
 
-title:text | highlight_description:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
-Return of the Shadow                                             | null
+title:text | highlight_title:keyword | highlight_description:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | null
+Return of the Shadow                                             | <em>Return</em> of the Shadow                                             | null
 ;
 
 
@@ -2009,6 +2011,92 @@ ROW id = 1
 
 note:text | highlight_note:keyword
 On-call found it after a search ranking | <em>On</em>-call found it after a search ranking
+;
+
+
+# A borrowed QSTR that names a field outside ON is lenient: the qualifier becomes match-none
+# against the ON field. MATCH still highlights title.
+implicitQueryQstrNonOnFieldIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("author:Tolkien") AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# Same leniency for a borrowed KQL qualifier on a non-ON field.
+implicitQueryKqlNonOnFieldIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE KQL("author:Tolkien") AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# QSTR default_field naming a non-ON field is also lenient; MATCH still highlights title.
+implicitQueryQstrDefaultFieldNonOnIsLenient
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("Tolkien", {"default_field": "author"}) AND MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# A QSTR that names only a non-ON field still selects the row, but the derived highlight query is
+# match-none against ON, so the generated column is null rather than a verification error.
+implicitQueryQstrOnlyNonOnFieldIsNull
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE QSTR("author:Tolkien") AND book_no == "2714"
+| HIGHLIGHT ON title
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# INLINE STATS appends aggregates without collapsing rows, so HIGHLIGHT can still borrow MATCH(title).
+implicitQueryDescendsThroughInlineStats
+required_capability: highlight_implicit_query_and_fields
+
+FROM books
+| WHERE MATCH(title, "Return")
+| INLINE STATS c = COUNT(*)
+| HIGHLIGHT ON title
+| KEEP title, c, highlight_title
+| SORT title
+;
+
+title:text | c:long | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | 2 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | 2 | <em>Return</em> of the Shadow
 ;
 
 

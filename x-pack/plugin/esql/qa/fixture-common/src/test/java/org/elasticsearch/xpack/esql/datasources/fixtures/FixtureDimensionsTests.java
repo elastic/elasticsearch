@@ -537,6 +537,32 @@ public class FixtureDimensionsTests extends ESTestCase {
     }
 
     /**
+     * The nightly battery's size, per format, and the number the pull-request tier is argued against.
+     *
+     * <p>Pinned for the same reason as the CI count, and it was missing while that one was there --
+     * which left the comparison the whole two-tier argument rests on ("393 vectors against 9,378") with
+     * only one half anchored. A change that shrank the nightly would have made the pull-request tier
+     * look like a smaller fraction of it without either number moving in a diff.
+     *
+     * <p>This is the EXPRESSIBLE count per suite, not the universe {@code testTheVectorUniverseSizeIsPinned}
+     * pins: the universe is every crossing the declaration admits, while this is what a suite can actually
+     * ask for through the seams it declares.
+     */
+    public void testTheNightlyTierVectorCountIsPinnedPerFormat() {
+        FixtureDimensions d = FixtureDimensions.get();
+        Map<String, Integer> expected = Map.of("csv", 3582, "tsv", 3385, "ndjson", 1082, "orc", 452, "parquet", 877); // dimension-copy-ok:
+        // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
+        // this line rather than be counted silently into a battery nobody sized.
+        Map<String, Integer> actual = new LinkedHashMap<>();
+        for (String format : d.values("format")) {
+            Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
+            actual.put(format, d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY).size());
+        }
+        assertThat(actual, equalTo(expected));
+        assertThat(actual.values().stream().mapToInt(Integer::intValue).sum(), equalTo(9378));
+    }
+
+    /**
      * The nightly tier IS the universe. Not a near-copy of it: if restricting to a tier could drop a
      * vector the unrestricted derivation emits, then every count this file pins would depend on which
      * overload a caller reached for, and the tier axis would have quietly narrowed the exhaustive run.

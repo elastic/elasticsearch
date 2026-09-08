@@ -13,10 +13,14 @@
 # while it finishes inside the SHORTEST build, and across the three latest passed builds that floor is
 # 35 minutes (the ceiling is 52).
 #
-# Measured at this tier on real CI, in build 178256: parquet 8.3 minutes, orc 10.8, ndjson 17.5, text
-# 20.5, against part-5 at 43.5 and part-2 at 41.4 in the same build. Taken from the commit-status
-# transitions rather than from a stopwatch -- Buildkite posts a second `pending` when a job starts, so
-# last-pending to terminal is the step's wall.
+# Measured at this tier on real CI, over the two builds that have run it: text 19.8-20.5 minutes,
+# ndjson 17.5-19.6, orc 10.8-11.2, parquet 8.3-11.0, against part-5 at 43.5 and part-2 at 41.4. Taken
+# from the commit-status transitions rather than from a stopwatch -- Buildkite posts a second `pending`
+# when a job starts, so last-pending to terminal is the step's wall.
+#
+# Ranges rather than the first build's numbers, because one draw is not a measurement of a noisy
+# quantity: parquet came in at 8.3 and then 11.0, a third apart, on identical registrations. What both
+# builds agree on is the only thing this file needs -- the longest of the four is about 20 minutes.
 #
 # Cheaper than the one earlier run on the old agent type, which gave parquet 17.3, orc 17.9, text 27.2
 # and ndjson 28.6 at the 346-vector tier. Two things moved at once -- the crossing lost 1,741 cases to
@@ -26,9 +30,9 @@
 #
 # The EC2 numbers quoted further down are from a different machine and measure a different thing --
 # suite time on a 48-vCPU box, excluding gradle configure, cluster start and fixture generation. They
-# are NOT a floor for the step wall: against the figures above they run 87% of it for text and 93% for
-# ndjson, but 107% and 116% for orc and parquet, which is to say that box is slower than the n4 agent
-# on the columnar suites. They are kept because they are what the case counts were measured from; for
+# are NOT a floor for the step wall: against the ranges above they run 87-90% of it for text and
+# 83-93% for ndjson, but 104-107% and 87-116% for orc and parquet, which is to say that box is at or
+# slower than the n4 agent on the columnar suites. They are kept because they are what the case counts were measured from; for
 # anything about how long a step takes, use the CI numbers.
 #
 # Why four steps and not one. The JVM boundary is per format: one qa module, one cluster spec, one
@@ -105,10 +109,10 @@ steps:
 
       # ndjson and orc get a step each rather than sharing one. They were paired on the estimate that
       # neither would fill a step, then split on a measurement of 35.6 and 31.9 minutes that no later
-      # run reproduces: on CI these are 17.5 and 10.8, so a shared step would be about 28 and would fit
-      # inside the 45-minute bound.
+      # run reproduces: on CI these are 17.5-19.6 and 10.8-11.2, so a shared step would be about 30 and
+      # would fit inside the 45-minute bound.
       #
-      # They stay split anyway, and not out of inertia. A shared step at 28 minutes has spent most of
+      # They stay split anyway, and not out of inertia. A shared step at 30 minutes has spent most of
       # its margin against the 35-minute critical-path floor, so the first dimension added to the
       # contract would push it past the point where it is free -- and the bound is there to catch
       # exactly that. Steps are concurrent, so splitting costs one more agent and nothing in wall

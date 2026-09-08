@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -99,32 +100,46 @@ public final class ColumnarStringTermQuery extends Query {
                 }
 
                 // An overlay rather than the column, as an updated field is: the values are read one
-                // document at a time and compared.
+                // document at a time and compared. The surface carries a document's slots as one payload, so
+                // each is decoded and tested in turn and any of them matching matches the document, which is
+                // what the column answers too.
                 final BytesRef value = new BytesRef();
+                final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(values) {
                     @Override
                     public boolean matches() throws IOException {
-                        final BytesRef candidate = values.binaryValue();
-                        return switch (where) {
-                            case WHOLE -> candidate.bytesEquals(term);
-                            case START -> {
-                                if (candidate.length < term.length) {
-                                    yield false;
-                                }
-                                value.bytes = candidate.bytes;
-                                value.offset = candidate.offset;
-                                value.length = term.length;
-                                yield value.bytesEquals(term);
+                        final int slots = decoder.reset(values.binaryValue());
+                        for (int slot = 0; slot < slots; slot++) {
+                            final BytesRef candidate = decoder.next();
+                            // A null is no term, starts with no prefix, and holds nothing.
+                            if (candidate == null) {
+                                continue;
                             }
-                            case ANYWHERE -> ESVectorUtil.contains(
-                                candidate.bytes,
-                                candidate.offset,
-                                candidate.length,
-                                term.bytes,
-                                term.offset,
-                                term.length
-                            );
-                        };
+                            final boolean matched = switch (where) {
+                                case WHOLE -> candidate.bytesEquals(term);
+                                case START -> {
+                                    if (candidate.length < term.length) {
+                                        yield false;
+                                    }
+                                    value.bytes = candidate.bytes;
+                                    value.offset = candidate.offset;
+                                    value.length = term.length;
+                                    yield value.bytesEquals(term);
+                                }
+                                case ANYWHERE -> ESVectorUtil.contains(
+                                    candidate.bytes,
+                                    candidate.offset,
+                                    candidate.length,
+                                    term.bytes,
+                                    term.offset,
+                                    term.length
+                                );
+                            };
+                            if (matched) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
 
                     @Override

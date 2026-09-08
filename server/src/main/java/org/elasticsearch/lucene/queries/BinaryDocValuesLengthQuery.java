@@ -80,23 +80,37 @@ final class BinaryDocValuesLengthQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
 
-                        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                        final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                        if ((countsSkipper == null || countsSkipper.maxValue() == 1)
-                            && values instanceof BlockLoader.OptionalLengthReader direct) {
-                            // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
-                            // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
-                            return direct.tryLengthIterator(length);
-                        }
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                        if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
-                            return AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, lengthPredicate, matchCost);
-                        } else if (countsSkipper != null) {
-                            return AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost);
-                        } else {
-                            return AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
-                        }
+                        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+                        return switch (binaryFormat) {
+                            // The payload carries its own count; its blob is never a bare value, so no fast path applies.
+                            case COLUMNAR_PAYLOAD -> AbstractBinaryDocValuesQuery.columnarPayloadIterator(
+                                values,
+                                lengthPredicate,
+                                matchCost
+                            );
+                            case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
+                                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+                                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+                                if ((countsSkipper == null || countsSkipper.maxValue() == 1)
+                                    && values instanceof BlockLoader.OptionalLengthReader direct) {
+                                    // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
+                                    // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
+                                    yield direct.tryLengthIterator(length);
+                                }
+                                if (binaryFormat == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL) {
+                                    yield AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(
+                                        values,
+                                        counts,
+                                        lengthPredicate,
+                                        matchCost
+                                    );
+                                }
+                                yield countsSkipper != null
+                                    ? AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, lengthPredicate, matchCost)
+                                    : AbstractBinaryDocValuesQuery.singleValuedIterator(values, lengthPredicate, matchCost);
+                            }
+                        };
                     }
                 };
             }

@@ -906,8 +906,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
-         * The queries this field answers from its doc values, chosen by how those doc values are framed. Held rather
-         * than decided per query, so the eight query methods below each delegate instead of branching on the format.
+         * The queries this field answers from its doc values, chosen by how those doc values are framed, so the query
+         * methods below each delegate instead of branching on the format.
          */
         private BinaryDocValuesQueries binaryQueries() {
             return BinaryDocValuesQueries.forFormat(binaryFormat());

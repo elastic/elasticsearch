@@ -37,11 +37,9 @@ import java.util.function.Predicate;
  * Documents whose keyword column holds a value {@code matcher} accepts, answered by the column rather than
  * by an inverted index.
  *
- * <p>For the shapes that are a test over values and nothing more: a set of terms, a range, a length. What
- * the column makes of that is its own business, and it is more than a scan — a dictionary column tests each
- * term once and lets every value naming it inherit the answer, so the cost follows the vocabulary rather
- * than the documents. A caller that knows its shape is a term or a prefix should say so through
- * {@link ColumnarStringTermQuery} instead, which can bisect; a caller holding an automaton should use
+ * <p>For the shapes that are a test over values and nothing more: a set of terms, a range, a length. What the
+ * column makes of that is its own business. A caller that knows its shape is a term or a prefix should say so
+ * through {@link ColumnarStringTermQuery} instead, which can bisect; a caller holding an automaton should use
  * {@link ColumnarStringAutomatonQuery}, which can also hand its terms to a {@link QueryVisitor}.
  *
  * <p>{@code identity} stands in for the predicate in {@link #equals}, since a predicate has no equality worth

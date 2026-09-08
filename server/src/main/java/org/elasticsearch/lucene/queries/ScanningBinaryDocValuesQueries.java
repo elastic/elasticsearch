@@ -16,9 +16,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Queries over binary doc values that carry a blob per document: every one of them is read and compared. The framing of
@@ -26,9 +31,27 @@ import java.util.Objects;
  */
 final class ScanningBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
+    /**
+     * One per format, since the format is all that distinguishes them. A columnar field is answered by its column and
+     * not by scanning, so there is nothing here for it and asking is a routing mistake.
+     */
+    private static final Map<BinaryDocValuesFormat, ScanningBinaryDocValuesQueries> BY_FORMAT = new EnumMap<>(
+        Arrays.stream(BinaryDocValuesFormat.values())
+            .filter(format -> format != BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+            .collect(Collectors.toMap(Function.identity(), ScanningBinaryDocValuesQueries::new))
+    );
+
+    static ScanningBinaryDocValuesQueries forFormat(BinaryDocValuesFormat format) {
+        final ScanningBinaryDocValuesQueries queries = BY_FORMAT.get(Objects.requireNonNull(format));
+        if (queries == null) {
+            throw new IllegalArgumentException("[" + format + "] is answered by the column, not by scanning");
+        }
+        return queries;
+    }
+
     private final BinaryDocValuesFormat format;
 
-    ScanningBinaryDocValuesQueries(BinaryDocValuesFormat format) {
+    private ScanningBinaryDocValuesQueries(BinaryDocValuesFormat format) {
         this.format = Objects.requireNonNull(format);
     }
 

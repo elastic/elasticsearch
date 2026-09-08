@@ -83,11 +83,8 @@ final class BinaryDocValuesLengthQuery extends Query {
                         Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
                         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
                         return switch (binaryFormat) {
-                            // Reached only by rewriting a term query for the empty term, and a columnar field's term
-                            // query is the column's own, which answers the empty term by bisecting like any other.
-                            case COLUMNAR_PAYLOAD -> throw new IllegalStateException(
-                                "a columnar field is answered by its column, not by scanning [" + fieldName + "]"
-                            );
+                            // Refused by the constructor, so a query holding this format does not exist.
+                            case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
                             case ARRAY_ORDER_INLINE_NULL, SEPARATE_COUNT -> {
                                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);

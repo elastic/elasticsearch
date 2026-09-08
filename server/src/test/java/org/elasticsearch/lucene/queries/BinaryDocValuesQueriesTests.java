@@ -21,6 +21,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * Which query each format answers a shape with. The results these produce are checked against each other elsewhere, over
  * real documents; what this pins is that the columnar format reaches the column at all. Nothing else would notice if it
@@ -95,6 +97,15 @@ public class BinaryDocValuesQueriesTests extends ESTestCase {
         assertNotEquals(queries.prefix(FIELD, "abc", true), queries.prefix(FIELD, "abd", true));
         assertNotEquals(queries.caseInsensitiveTerm(FIELD, "abc"), queries.caseInsensitiveTerm(FIELD, "abd"));
         assertNotEquals(queries.regexp(FIELD, "a.*", 0, 0, 10000, null), queries.regexp(FIELD, "b.*", 0, 0, 10000, null));
+    }
+
+    /** A columnar field is answered by its column, so asking for a scan of one fails where it is asked. */
+    public void testAColumnHasNoScanningQuery() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ScanningBinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.COLUMNAR_PAYLOAD)
+        );
+        assertThat(e.getMessage(), containsString("not by scanning"));
     }
 
     /** A description stands in for a predicate, so two equal queries share a cache entry. */

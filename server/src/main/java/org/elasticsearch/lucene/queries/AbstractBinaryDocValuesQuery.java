@@ -109,11 +109,8 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             return null;
         }
         return switch (binaryFormat) {
-            // A field framed this way is answered by its column, through the queries in the columnar library, and never
-            // arrives here - see BinaryDocValuesQueries, which is what chooses between the two.
-            case COLUMNAR_PAYLOAD -> throw new IllegalStateException(
-                "a columnar field is answered by its column, not by scanning [" + fieldName + "]"
-            );
+            // Refused by the constructor, so a query holding this format does not exist.
+            case COLUMNAR_PAYLOAD -> throw new AssertionError("columnar field [" + fieldName + "]");
             case ARRAY_ORDER_INLINE_NULL -> {
                 // ArrayOrderInlineNull always writes the .counts field (even for an all-null or empty array, which writes no blob), so
                 // the counts column drives iteration and count==1 is handled inside the inline-null reader as the raw case.

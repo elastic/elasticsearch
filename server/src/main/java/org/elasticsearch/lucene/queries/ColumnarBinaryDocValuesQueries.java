@@ -45,11 +45,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
     static final ColumnarBinaryDocValuesQueries INSTANCE = new ColumnarBinaryDocValuesQueries();
 
-    /**
-     * The column library keeps no notion of a heap budget, so it is handed one. Every columnar query consults this once
-     * per segment before it reads anything - matching a term against a dictionary reads every term, and a segment that
-     * arrives as an overlay rather than as a column is decoded a document at a time.
-     */
+    /** The column library keeps no notion of a heap budget, so it is handed the search layer's. */
     private static final ScanBudget BUDGET = ContextIndexSearcher::checkBinaryDvDecodeBreaker;
 
     private ColumnarBinaryDocValuesQueries() {}

@@ -24,19 +24,19 @@ import java.util.Collection;
  * <p>How a document's values are framed on disk decides how a query over them is best answered, and the two are not the
  * same question at every shape. A field whose doc values are a ColumNAR column can bisect an ordered column, match over
  * a dictionary's ordinals, and test a term once for every value naming it; a field framed as a blob per document has to
- * read every document and compare. Choosing between them once, here, keeps that decision out of the eight query methods
- * on the field type, which would otherwise each grow a branch per format.
+ * read every document and compare. Choosing between them once, here, keeps that decision out of the query methods on the
+ * field type, which would otherwise each grow a branch per format.
  *
- * <p>Implementations are stateless and chosen by {@link #forFormat}, so a field type holds one for the life of its
- * mapping rather than deciding per query.
+ * <p>Implementations are stateless, and {@link #forFormat} hands out one instance per format, so asking for them costs
+ * nothing and a field type need not hold its own.
  */
 public interface BinaryDocValuesQueries {
 
-    /** The implementation for {@code format}. */
+    /** The implementation for {@code format}, shared rather than built per call. */
     static BinaryDocValuesQueries forFormat(BinaryDocValuesFormat format) {
         return format == BinaryDocValuesFormat.COLUMNAR_PAYLOAD
             ? ColumnarBinaryDocValuesQueries.INSTANCE
-            : new ScanningBinaryDocValuesQueries(format);
+            : ScanningBinaryDocValuesQueries.forFormat(format);
     }
 
     /** Documents holding exactly {@code term}. */

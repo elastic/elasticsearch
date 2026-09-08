@@ -15,10 +15,10 @@ import org.apache.lucene.search.IndexSearcher;
  * Consulted once per segment before a columnar query starts reading it, so a caller that keeps a budget for
  * that work can refuse it before anything is allocated.
  *
- * <p>These queries scan: matching a term against a dictionary reads every term, and a segment handed over as
- * an overlay rather than as a column is decoded a document at a time. Whether there is room for that is not
- * a question this library can answer — it knows nothing of heap accounting — so the search layer supplies
- * the answer and this is the whole of the seam.
+ * <p>Not every shape scans, but the ones that cannot bisect do: a predicate or an automaton is tested against
+ * every term, and a segment handed over as an overlay rather than as a column is decoded a document at a time.
+ * Whether there is room for that is not a question this library can answer — it knows nothing of heap
+ * accounting — so the search layer supplies the answer and this is the whole of the seam.
  *
  * <p>An implementation is expected to throw when the budget is spent, and to be cheap enough to call for
  * every segment of every query.

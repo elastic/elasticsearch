@@ -129,6 +129,14 @@ public final class KeywordScenario {
         }));
     }
 
+    /**
+     * Generates a corpus above the default Lucene block size (128 values) to exercise the ordinal block
+     * cursor and the single-chunk read cache, which only activate beyond that threshold.
+     */
+    public static KeywordScenario largeCorpus() {
+        return new KeywordScenario("large_corpus", () -> build(randomIntBetween(300, 500), doc -> List.of(KeywordValues.themed())));
+    }
+
     public static KeywordScenario randomizedMixed() {
         return new KeywordScenario("randomized_mixed", () -> build(doc -> switch (randomInt(6)) {
             case 0 -> null;
@@ -143,7 +151,10 @@ public final class KeywordScenario {
     }
 
     private static List<KeywordDoc> build(final DocValues perDoc) {
-        final int count = randomIntBetween(30, 120);
+        return build(randomIntBetween(30, 120), perDoc);
+    }
+
+    private static List<KeywordDoc> build(final int count, final DocValues perDoc) {
         final List<KeywordDoc> docs = new ArrayList<>(count);
         for (long docId = 0; docId < count; docId++) {
             docs.add(new KeywordDoc(docId, perDoc.valuesFor(docId)));

@@ -99,6 +99,10 @@ public class ES819KeywordEsqlBehaviorDuelIT extends AbstractEsqlIntegTestCase {
         runDuel(KeywordScenario.emptyStrings());
     }
 
+    public void testLargeCorpus() {
+        runDuel(KeywordScenario.largeCorpus());
+    }
+
     private void runDuel(final KeywordScenario scenario) {
         final BehaviorDuelHarness harness = new BehaviorDuelHarness(client(), this::indexSettings, this::docValuesFormats);
         harness.run(

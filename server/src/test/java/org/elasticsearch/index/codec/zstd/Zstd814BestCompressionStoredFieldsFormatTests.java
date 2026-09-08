@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.zstd;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 
 public class Zstd814BestCompressionStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 

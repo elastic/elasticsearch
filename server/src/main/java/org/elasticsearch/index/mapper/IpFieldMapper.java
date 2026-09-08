@@ -897,7 +897,10 @@ public class IpFieldMapper extends FieldMapper {
         // retainValues=false: each value is encoded and appended to the document blob before the cursor
         // advances, so no value has to outlive the nextDoc() that moves past it.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        try (EscfColumnBuilder binaryDvs = mergeStringColumn(ctx); EscfColumnBuilder dvCounts = mergeLongColumn(ctx)) {
+        final EscfColumnBuilder binaryDvs = mergeStringColumn(ctx);
+        final EscfColumnBuilder dvCounts = mergeLongColumn(ctx);
+        boolean success = false;
+        try {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
@@ -971,6 +974,12 @@ public class IpFieldMapper extends FieldMapper {
                 EscfColumnData dvCountData = dvCounts.finish(docCount);
                 ctx.addColumn(LuceneLongColumn.counts(dvCountData, fieldType().name()), dvCountData);
             }
+            success = true;
+        } finally {
+            if (success == false) {
+                binaryDvs.discard();
+                dvCounts.discard();
+            }
         }
     }
 
@@ -979,7 +988,9 @@ public class IpFieldMapper extends FieldMapper {
         // retainValues=false: every value is consumed within one loop iteration, before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         // IP always re-encodes (no zero-copy shortcut), so the values builder is unconditional.
-        try (EscfColumnBuilder values = mergeStringColumn(ctx)) {
+        final EscfColumnBuilder values = mergeStringColumn(ctx);
+        boolean success = false;
+        try {
             // The 16-byte null-value substitute, or null when no null_value is configured.
             final BytesRef nullValueEncoded = nullValue != null ? new BytesRef(CIDRUtils.encode(nullValue.getAddress())) : null;
 
@@ -1026,6 +1037,13 @@ public class IpFieldMapper extends FieldMapper {
             if (values.isEmpty() == false) {
                 EscfColumnData valuesData = values.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(valuesData, fieldType().name(), BinaryDocValuesField.TYPE), valuesData);
+            } else {
+                values.discard();
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                values.discard();
             }
         }
     }

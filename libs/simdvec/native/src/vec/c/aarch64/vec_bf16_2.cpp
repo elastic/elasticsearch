@@ -274,9 +274,10 @@ EXPORT void vec_dotDbf16Qbf16_bulk_offsets_2(
 }
 
 /*
- * Bulk squared distance for bf16×bf16 using bfdot via ||a-b||² = a·a - 2·a·b + b·b.
- * Loads query once per dimension step. Computes q·q once (shared across all vectors
- * in the batch), then per vector accumulates a·a and a·q.
+ * Bulk squared distance for bf16 x bf16, computed as sum((a - b)^2) on f32-widened lanes
+ * (see sqrDbf16Qbf16_inner_sve for the numerical rationale). The widened query halves are shared by all vectors in
+ * the batch and computed once per dimension step. Eight vectors per batch with two
+ * accumulators each fit in the 32 SVE registers without spilling.
  */
 template <
     typename TData,
@@ -295,86 +296,93 @@ static inline void sqrDbf16Qbf16_bulk_sve(
 
     int c = 0;
     const int elements = svcnth();
+    const svbool_t all32 = svptrue_b32();
+    const uint16_t* bu = (const uint16_t*)b;
 
     for (; c + batches <= count; c += batches) {
-        // there are 32 SVE registers, so we can define these all as local vars without spilling
-        svfloat32_t sum_aa0 = svdup_f32(0.0f);
-        svfloat32_t sum_ab0 = svdup_f32(0.0f);
-        svfloat32_t sum_aa1 = svdup_f32(0.0f);
-        svfloat32_t sum_ab1 = svdup_f32(0.0f);
-        svfloat32_t sum_aa2 = svdup_f32(0.0f);
-        svfloat32_t sum_ab2 = svdup_f32(0.0f);
-        svfloat32_t sum_aa3 = svdup_f32(0.0f);
-        svfloat32_t sum_ab3 = svdup_f32(0.0f);
-        svfloat32_t sum_aa4 = svdup_f32(0.0f);
-        svfloat32_t sum_ab4 = svdup_f32(0.0f);
-        svfloat32_t sum_aa5 = svdup_f32(0.0f);
-        svfloat32_t sum_ab5 = svdup_f32(0.0f);
-        svfloat32_t sum_aa6 = svdup_f32(0.0f);
-        svfloat32_t sum_ab6 = svdup_f32(0.0f);
-        svfloat32_t sum_aa7 = svdup_f32(0.0f);
-        svfloat32_t sum_ab7 = svdup_f32(0.0f);
-        svfloat32_t sum_bb = svdup_f32(0.0f);
+        svfloat32_t se0 = svdup_f32(0.0f), so0 = svdup_f32(0.0f);
+        svfloat32_t se1 = svdup_f32(0.0f), so1 = svdup_f32(0.0f);
+        svfloat32_t se2 = svdup_f32(0.0f), so2 = svdup_f32(0.0f);
+        svfloat32_t se3 = svdup_f32(0.0f), so3 = svdup_f32(0.0f);
+        svfloat32_t se4 = svdup_f32(0.0f), so4 = svdup_f32(0.0f);
+        svfloat32_t se5 = svdup_f32(0.0f), so5 = svdup_f32(0.0f);
+        svfloat32_t se6 = svdup_f32(0.0f), so6 = svdup_f32(0.0f);
+        svfloat32_t se7 = svdup_f32(0.0f), so7 = svdup_f32(0.0f);
 
-        const bfloat16_t* a0 = (const bfloat16_t*)mapper(a, c + 0, offsets, pitch);
-        const bfloat16_t* a1 = (const bfloat16_t*)mapper(a, c + 1, offsets, pitch);
-        const bfloat16_t* a2 = (const bfloat16_t*)mapper(a, c + 2, offsets, pitch);
-        const bfloat16_t* a3 = (const bfloat16_t*)mapper(a, c + 3, offsets, pitch);
-        const bfloat16_t* a4 = (const bfloat16_t*)mapper(a, c + 4, offsets, pitch);
-        const bfloat16_t* a5 = (const bfloat16_t*)mapper(a, c + 5, offsets, pitch);
-        const bfloat16_t* a6 = (const bfloat16_t*)mapper(a, c + 6, offsets, pitch);
-        const bfloat16_t* a7 = (const bfloat16_t*)mapper(a, c + 7, offsets, pitch);
+        const uint16_t* a0 = (const uint16_t*)mapper(a, c + 0, offsets, pitch);
+        const uint16_t* a1 = (const uint16_t*)mapper(a, c + 1, offsets, pitch);
+        const uint16_t* a2 = (const uint16_t*)mapper(a, c + 2, offsets, pitch);
+        const uint16_t* a3 = (const uint16_t*)mapper(a, c + 3, offsets, pitch);
+        const uint16_t* a4 = (const uint16_t*)mapper(a, c + 4, offsets, pitch);
+        const uint16_t* a5 = (const uint16_t*)mapper(a, c + 5, offsets, pitch);
+        const uint16_t* a6 = (const uint16_t*)mapper(a, c + 6, offsets, pitch);
+        const uint16_t* a7 = (const uint16_t*)mapper(a, c + 7, offsets, pitch);
 
         int i = 0;
         for (; i < dims; i += elements) {
             svbool_t pg = svwhilelt_b16(i, dims);
 
-            svbfloat16_t bi = svld1_bf16(pg, (const bfloat16_t*)(b + i));
-            sum_bb = svbfdot_f32(sum_bb, bi, bi);
+            svint32_t qv = svreinterpret_s32_u16(svld1_u16(pg, bu + i));
+            svfloat32_t q_even = bf16_even_to_f32(all32, qv);
+            svfloat32_t q_odd = bf16_odd_to_f32(all32, qv);
 
-            svbfloat16_t ai0 = svld1_bf16(pg, (const bfloat16_t*)(a0 + i));
-            sum_aa0 = svbfdot_f32(sum_aa0, ai0, ai0);
-            sum_ab0 = svbfdot_f32(sum_ab0, ai0, bi);
+            svint32_t av0 = svreinterpret_s32_u16(svld1_u16(pg, a0 + i));
+            svfloat32_t de0 = svsub_f32_x(all32, bf16_even_to_f32(all32, av0), q_even);
+            svfloat32_t do0 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av0), q_odd);
+            se0 = svmla_f32_x(all32, se0, de0, de0);
+            so0 = svmla_f32_x(all32, so0, do0, do0);
 
-            svbfloat16_t ai1 = svld1_bf16(pg, (const bfloat16_t*)(a1 + i));
-            sum_aa1 = svbfdot_f32(sum_aa1, ai1, ai1);
-            sum_ab1 = svbfdot_f32(sum_ab1, ai1, bi);
+            svint32_t av1 = svreinterpret_s32_u16(svld1_u16(pg, a1 + i));
+            svfloat32_t de1 = svsub_f32_x(all32, bf16_even_to_f32(all32, av1), q_even);
+            svfloat32_t do1 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av1), q_odd);
+            se1 = svmla_f32_x(all32, se1, de1, de1);
+            so1 = svmla_f32_x(all32, so1, do1, do1);
 
-            svbfloat16_t ai2 = svld1_bf16(pg, (const bfloat16_t*)(a2 + i));
-            sum_aa2 = svbfdot_f32(sum_aa2, ai2, ai2);
-            sum_ab2 = svbfdot_f32(sum_ab2, ai2, bi);
+            svint32_t av2 = svreinterpret_s32_u16(svld1_u16(pg, a2 + i));
+            svfloat32_t de2 = svsub_f32_x(all32, bf16_even_to_f32(all32, av2), q_even);
+            svfloat32_t do2 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av2), q_odd);
+            se2 = svmla_f32_x(all32, se2, de2, de2);
+            so2 = svmla_f32_x(all32, so2, do2, do2);
 
-            svbfloat16_t ai3 = svld1_bf16(pg, (const bfloat16_t*)(a3 + i));
-            sum_aa3 = svbfdot_f32(sum_aa3, ai3, ai3);
-            sum_ab3 = svbfdot_f32(sum_ab3, ai3, bi);
+            svint32_t av3 = svreinterpret_s32_u16(svld1_u16(pg, a3 + i));
+            svfloat32_t de3 = svsub_f32_x(all32, bf16_even_to_f32(all32, av3), q_even);
+            svfloat32_t do3 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av3), q_odd);
+            se3 = svmla_f32_x(all32, se3, de3, de3);
+            so3 = svmla_f32_x(all32, so3, do3, do3);
 
-            svbfloat16_t ai4 = svld1_bf16(pg, (const bfloat16_t*)(a4 + i));
-            sum_aa4 = svbfdot_f32(sum_aa4, ai4, ai4);
-            sum_ab4 = svbfdot_f32(sum_ab4, ai4, bi);
+            svint32_t av4 = svreinterpret_s32_u16(svld1_u16(pg, a4 + i));
+            svfloat32_t de4 = svsub_f32_x(all32, bf16_even_to_f32(all32, av4), q_even);
+            svfloat32_t do4 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av4), q_odd);
+            se4 = svmla_f32_x(all32, se4, de4, de4);
+            so4 = svmla_f32_x(all32, so4, do4, do4);
 
-            svbfloat16_t ai5 = svld1_bf16(pg, (const bfloat16_t*)(a5 + i));
-            sum_aa5 = svbfdot_f32(sum_aa5, ai5, ai5);
-            sum_ab5 = svbfdot_f32(sum_ab5, ai5, bi);
+            svint32_t av5 = svreinterpret_s32_u16(svld1_u16(pg, a5 + i));
+            svfloat32_t de5 = svsub_f32_x(all32, bf16_even_to_f32(all32, av5), q_even);
+            svfloat32_t do5 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av5), q_odd);
+            se5 = svmla_f32_x(all32, se5, de5, de5);
+            so5 = svmla_f32_x(all32, so5, do5, do5);
 
-            svbfloat16_t ai6 = svld1_bf16(pg, (const bfloat16_t*)(a6 + i));
-            sum_aa6 = svbfdot_f32(sum_aa6, ai6, ai6);
-            sum_ab6 = svbfdot_f32(sum_ab6, ai6, bi);
+            svint32_t av6 = svreinterpret_s32_u16(svld1_u16(pg, a6 + i));
+            svfloat32_t de6 = svsub_f32_x(all32, bf16_even_to_f32(all32, av6), q_even);
+            svfloat32_t do6 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av6), q_odd);
+            se6 = svmla_f32_x(all32, se6, de6, de6);
+            so6 = svmla_f32_x(all32, so6, do6, do6);
 
-            svbfloat16_t ai7 = svld1_bf16(pg, (const bfloat16_t*)(a7 + i));
-            sum_aa7 = svbfdot_f32(sum_aa7, ai7, ai7);
-            sum_ab7 = svbfdot_f32(sum_ab7, ai7, bi);
+            svint32_t av7 = svreinterpret_s32_u16(svld1_u16(pg, a7 + i));
+            svfloat32_t de7 = svsub_f32_x(all32, bf16_even_to_f32(all32, av7), q_even);
+            svfloat32_t do7 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av7), q_odd);
+            se7 = svmla_f32_x(all32, se7, de7, de7);
+            so7 = svmla_f32_x(all32, so7, do7, do7);
         }
 
-        const svbool_t all32 = svptrue_b32();
-        f32_t final_bb = svaddv_f32(all32, sum_bb);
-        results[c + 0] = svaddv_f32(all32, sum_aa0) + final_bb - 2.0f * svaddv_f32(all32, sum_ab0);
-        results[c + 1] = svaddv_f32(all32, sum_aa1) + final_bb - 2.0f * svaddv_f32(all32, sum_ab1);
-        results[c + 2] = svaddv_f32(all32, sum_aa2) + final_bb - 2.0f * svaddv_f32(all32, sum_ab2);
-        results[c + 3] = svaddv_f32(all32, sum_aa3) + final_bb - 2.0f * svaddv_f32(all32, sum_ab3);
-        results[c + 4] = svaddv_f32(all32, sum_aa4) + final_bb - 2.0f * svaddv_f32(all32, sum_ab4);
-        results[c + 5] = svaddv_f32(all32, sum_aa5) + final_bb - 2.0f * svaddv_f32(all32, sum_ab5);
-        results[c + 6] = svaddv_f32(all32, sum_aa6) + final_bb - 2.0f * svaddv_f32(all32, sum_ab6);
-        results[c + 7] = svaddv_f32(all32, sum_aa7) + final_bb - 2.0f * svaddv_f32(all32, sum_ab7);
+        results[c + 0] = svaddv_f32(all32, svadd_f32_x(all32, se0, so0));
+        results[c + 1] = svaddv_f32(all32, svadd_f32_x(all32, se1, so1));
+        results[c + 2] = svaddv_f32(all32, svadd_f32_x(all32, se2, so2));
+        results[c + 3] = svaddv_f32(all32, svadd_f32_x(all32, se3, so3));
+        results[c + 4] = svaddv_f32(all32, svadd_f32_x(all32, se4, so4));
+        results[c + 5] = svaddv_f32(all32, svadd_f32_x(all32, se5, so5));
+        results[c + 6] = svaddv_f32(all32, svadd_f32_x(all32, se6, so6));
+        results[c + 7] = svaddv_f32(all32, svadd_f32_x(all32, se7, so7));
     }
 
     // vectors tail

@@ -10,29 +10,25 @@
 package org.elasticsearch.example.painlesswhitelist;
 
 /**
- * An example of estimating what an allowlisted method allocates, so the Painless allocation limit and its metrics can
- * account for it. Referenced from {@code example_whitelist.txt} by the {@code @allocates} annotation.
+ * An example of estimating what an allowlisted method allocates, so the Painless allocation limit and metrics can account
+ * for it. {@code example_whitelist.txt} points at these with {@code @allocates}.
  *
  * <p>An estimator is a {@code public static long} method whose parameters match the allowlisted method's, receiver first
- * for an instance method. It runs immediately before the real call, so it must be cheap, must not allocate, must not
- * throw, and must not consume anything it is handed.
+ * for an instance method. It runs just before the real call, so it must be cheap and must not allocate, throw, or consume
+ * what it is given.
  *
- * <p>This class is deliberately <b>not</b> allowlisted. A plugin's estimator has to be reachable from the generated
- * script's class loader without being visible to scripts, which is what {@code 40_allocation.yml} covers.
+ * <p>This class is deliberately not allowlisted, so scripts cannot see it. See {@code 50_allocation.yml}.
  */
 public final class ExampleAllocationEstimators {
 
     private ExampleAllocationEstimators() {}
 
-    /** Bytes {@link ExampleWhitelistedClass#repeat(int)} allocates: a String of {@code count} chars, 2 bytes each. */
+    /** Bytes {@link ExampleWhitelistedClass#repeat(int)} allocates: a String of {@code count} chars. */
     public static long repeatBytes(ExampleWhitelistedClass receiver, int count) {
         return stringBytes(count);
     }
 
-    /**
-     * Bytes {@link ExampleWhitelistedClass#staticRepeat(int)} allocates. The annotated method is static, so the estimator
-     * takes only its arguments; an instance method's estimator takes the receiver first.
-     */
+    /** Bytes {@link ExampleWhitelistedClass#staticRepeat(int)} allocates. Static, so no receiver. */
     public static long staticRepeatBytes(int count) {
         return stringBytes(count);
     }

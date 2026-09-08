@@ -57,7 +57,7 @@ public class AllocationEstimatorTestObject {
     }
 
     /** Instance method allowlisted with {@code @allocates}; used to exercise the {@code def}-dispatch constant charge. */
-    /** Its estimator lives in a class that is not allowlisted, as the x-pack module estimators do. */
+    /** Its estimator lives in a class that is not allowlisted, like the x-pack ones. */
     public int externallyEstimated(int n) {
         return n;
     }

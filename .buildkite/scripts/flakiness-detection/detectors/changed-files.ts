@@ -6,7 +6,7 @@ export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];
 
   for (const file of files) {
-    // Skip builds the root build cannot address; deriving a task path for them fails the compile gate.
+    // A task path for these does not resolve, which fails the compile gate.
     if (isSeparateBuild(file)) continue;
 
     for (const pattern of SOURCE_SET_PATTERNS) {

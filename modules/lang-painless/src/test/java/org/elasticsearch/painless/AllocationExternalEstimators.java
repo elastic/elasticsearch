@@ -10,9 +10,8 @@
 package org.elasticsearch.painless;
 
 /**
- * Estimators held by a class that is deliberately <b>not</b> allowlisted, mirroring how the x-pack modules ship their own
- * estimator classes. The generated script references such a class only through the {@code INVOKESTATIC} the pre-check emits,
- * so it has to be reachable from the script's class loader without being visible to scripts.
+ * Estimators in a class that is deliberately <b>not</b> allowlisted, like the ones the x-pack modules ship. Such a class is
+ * only named by the call the pre-check emits, so it must be reachable from the script's loader but stay invisible to scripts.
  */
 public final class AllocationExternalEstimators {
 

@@ -1,8 +1,7 @@
-# Example test for an allowlisted method whose allocation is estimated by a class this plugin owns.
+# Tests an allowlisted method whose allocation is estimated by a class this plugin owns.
 #
-# The pre-check emits a call naming that estimator class, and the generated script is loaded by Painless, not by this
-# plugin. So the script only links if Painless was told to make the estimator reachable. Running this at all is the
-# assertion: without that, every script calling repeat fails to link.
+# The generated script is loaded by Painless, not by this plugin, so it only links if Painless was told to make the
+# estimator reachable. Getting an answer back is the assertion.
 
 "allocation estimated by a plugin's own class":
 - do:
@@ -31,7 +30,7 @@
 
 ---
 "allocation estimated for a static method":
-# A static method's estimator takes only the arguments, with no receiver.
+# A static method's estimator takes no receiver.
 - do:
     index:
       index: test
@@ -58,8 +57,8 @@
 
 ---
 "allocation estimated through a def reference":
-# A def call resolves its target at runtime and charges through a MethodHandle rather than an emitted call, so it reaches
-# the estimator by a different route than the two cases above. Both routes are covered so neither can regress alone.
+# A def call charges through a MethodHandle instead of an emitted call, so it reaches the estimator a different way.
+# Both ways are covered so neither can regress alone.
 - do:
     index:
       index: test
@@ -86,7 +85,7 @@
 
 ---
 "estimator class is not visible to scripts":
-# Each yaml test starts from a clean cluster, so this one indexes its own document rather than reusing the one above.
+# Each yaml test starts clean, so this one indexes its own document.
 - do:
     index:
       index: test
@@ -95,8 +94,7 @@
 - do:
     indices.refresh: {}
 
-# Same request shape as the passing test above, so the same allowlist is in play and the only thing that can fail is
-# naming the estimator class.
+# Same shape as the test above, so the only thing that can fail is naming the estimator class.
 - do:
     catch: bad_request
     search:

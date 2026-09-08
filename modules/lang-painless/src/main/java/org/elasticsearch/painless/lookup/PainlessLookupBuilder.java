@@ -293,19 +293,16 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        // The pre-check emits an INVOKESTATIC naming this class, and the generated script's loader resolves that name
-        // through javaClassNamesToClasses. A plugin's estimator class lives in the plugin's loader, not the generated
-        // class's parent, so without this the script fails to link with NoClassDefFoundError as soon as tracking is on.
-        // Registering here grants linkage only: script-visible types come from canonicalClassNamesToClasses, which this
-        // does not touch, so the class stays unnameable and absent from the context API.
+        // The pre-check emits a call naming this class. A plugin's estimator is not in the generated script's loader,
+        // so without this the script fails to link. This grants linkage only, never visibility to scripts.
         registerJavaClassName(estimatorClass);
 
         return estimator;
     }
 
     /**
-     * Makes {@code clazz} resolvable by the generated script's class loader without making it visible to scripts. Rejects
-     * two different classes claiming one name, as the allowlisted-class and imported-method paths do.
+     * Makes {@code clazz} resolvable by the generated script's loader, without making it visible to scripts. Rejects two
+     * classes claiming one name, as the allowlisted-class and imported-method paths do.
      */
     private void registerJavaClassName(Class<?> clazz) {
         Class<?> existingClass = javaClassNamesToClasses.get(clazz.getName());

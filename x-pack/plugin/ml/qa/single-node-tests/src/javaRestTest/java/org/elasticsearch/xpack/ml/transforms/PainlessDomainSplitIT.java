@@ -38,9 +38,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         // domainSplit is annotated @allocates, so tracking makes the pre-check emit a call naming this module's
-        // estimator class. The generated script is loaded by Painless, not by this plugin, so the scripts below only
-        // run if that class was made reachable; otherwise every one of them fails with NoClassDefFoundError. Set here
-        // rather than in build.gradle to keep it to this class.
+        // estimator class. The scripts below only run if that class is reachable from the generated script's loader.
+        // Set here, not in build.gradle, so the other test classes in this project are unaffected.
         .systemProperty("es.painless.allocation_metrics.enabled", "true")
         .build();
 

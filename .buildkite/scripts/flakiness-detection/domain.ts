@@ -64,9 +64,8 @@ export interface TestRef {
 }
 
 /**
- * Directories that are their own Gradle build rather than projects of the root build. Tests under them cannot be
- * compiled or run by the root build, so a `:plugins:examples:...` task path does not resolve and the pre-flight compile
- * gate fails on it. `plugins/examples` is built separately by the `example-plugins` periodic job.
+ * Directories that are their own Gradle build. The root build cannot compile or run tests under them, so a
+ * `:plugins:examples:...` task path does not resolve and the compile gate fails. The `example-plugins` job builds them.
  */
 const SEPARATE_BUILD_PREFIXES = ["plugins/examples/"];
 

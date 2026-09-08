@@ -153,17 +153,14 @@ public class AllocationEstimatorTests extends AllocationTestCase {
     }
 
     public void testEstimatorInNonAllowlistedClassCharged() {
-        // The estimator class is referenced only by the @allocates annotation, never allowlisted. This is the shape every
-        // x-pack module estimator has.
+        // The estimator class is only named by the annotation, never allowlisted, like the x-pack ones.
         assertEquals(5 * 8L, allocatedBytes("new AllocationEstimatorTestObject().externallyEstimated(5); return \"x\";"));
     }
 
     public void testEstimatorClassIsLinkableButNotVisibleToScripts() {
-        // The pre-check emits an INVOKESTATIC naming the estimator's class, and the generated script's loader resolves that
-        // name through the lookup. A plugin's estimator class lives in the plugin's loader, which is not the generated
-        // class's parent, so it must be registered here or the script fails to link with NoClassDefFoundError. A unit test
-        // cannot reproduce that failure -- one flat classpath means the parent resolves everything -- so assert the
-        // registration itself.
+        // A plugin's estimator is not in the generated script's loader, so it must be registered or the script fails to
+        // link. A unit test cannot reproduce that: one flat classpath means the parent loader finds everything. So assert
+        // the registration instead.
         PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
             scriptContexts().get(PainlessTestScript.CONTEXT),
             new HashMap<>(),

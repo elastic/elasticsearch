@@ -45,12 +45,12 @@ public class ExampleWhitelistedClass {
         return Integer.parseInt(x);
     }
 
-    // example allocating method, whose cost is estimated by ExampleAllocationEstimators
+    // example allocating method, sized by ExampleAllocationEstimators
     public String repeat(int count) {
         return "x".repeat(Math.max(0, count));
     }
 
-    // the same, as a static method: its estimator takes no receiver
+    // the same, but static, so its estimator takes no receiver
     public static String staticRepeat(int count) {
         return "y".repeat(Math.max(0, count));
     }

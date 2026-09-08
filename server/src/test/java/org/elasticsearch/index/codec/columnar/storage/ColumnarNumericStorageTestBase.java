@@ -35,7 +35,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;

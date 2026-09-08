@@ -48,7 +48,7 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
@@ -97,7 +97,7 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             default -> throw new AssertionError(this);
         };
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -249,7 +249,7 @@ public enum StringFormat {
                 dictionaryPolicy()
             );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -267,7 +267,7 @@ public enum StringFormat {
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             dictionaryPolicy()
         );
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;

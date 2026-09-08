@@ -317,6 +317,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -1295,6 +1296,7 @@ public class MachineLearning extends Plugin
             indexNameExpressionResolver
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
+        DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry,
@@ -1304,7 +1306,8 @@ public class MachineLearning extends Plugin
             jobResultsPersister,
             settings,
             clusterService,
-            () -> machineLearningExtension.get().getCloudCredentialManager()
+            () -> machineLearningExtension.get().getCloudCredentialManager(),
+            datafeedSearchTelemetry
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1545,7 +1548,8 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool,
             datafeedConfigProvider,
-            settings
+            settings,
+            xContentRegistry
         );
         return List.of(
             mlLifeCycleService,

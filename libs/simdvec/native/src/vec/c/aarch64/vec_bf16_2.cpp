@@ -79,114 +79,86 @@ EXPORT f32_t vec_dotDbf16Qbf16_2(const bf16_t* a, const bf16_t* b, const int32_t
 }
 
 /*
- * Squared distance of 2 bf16 vectors using bfdot, via the identity:
- * |a - b|^2 = a*a - 2*a*b + b*b
- * Each term is a dot product computed natively with bfdot, avoiding
- * the costly bf16 -> f32 conversion
+ * bf16 is the upper half of the f32 bit pattern, so a vector of bf16 values viewed as 32-bit
+ * lanes widens without unpacking: even elements (low half of each lane) by a shift, odd
+ * elements (already in the high half) by masking the low half. Element order differs from
+ * memory, which is irrelevant for reductions.
+ */
+static inline svfloat32_t bf16_even_to_f32(svbool_t pg, svint32_t v) {
+    return svreinterpret_f32_s32(svlsl_n_s32_x(pg, v, 16));
+}
+
+static inline svfloat32_t bf16_odd_to_f32(svbool_t pg, svint32_t v) {
+    return svreinterpret_f32_s32(svand_n_s32_x(pg, v, (int32_t)0xFFFF0000));
+}
+
+/*
+ * Squared distance of 2 bf16 vectors, computed as sum((a - b)^2) on f32-widened lanes.
+ * Differencing before squaring keeps the result exact to f32 rounding of the distance itself, so
+ * duplicates score exactly 0 and near-duplicates keep their precision even when the norms are
+ * large. Four blocks per pass with two accumulators each (even and odd lanes).
  */
 static inline f32_t sqrDbf16Qbf16_inner_sve(const bfloat16_t* d, const bfloat16_t* q, const int32_t elementCount) {
-    constexpr int batches = 8;
+    constexpr int batches = 4;
     int i = 0;
 
-    svfloat32_t sum_self0 = svdup_f32(0.0f);
-    svfloat32_t sum_self1 = svdup_f32(0.0f);
-    svfloat32_t sum_self2 = svdup_f32(0.0f);
-    svfloat32_t sum_self3 = svdup_f32(0.0f);
-    svfloat32_t sum_self4 = svdup_f32(0.0f);
-    svfloat32_t sum_self5 = svdup_f32(0.0f);
-    svfloat32_t sum_self6 = svdup_f32(0.0f);
-    svfloat32_t sum_self7 = svdup_f32(0.0f);
-    svfloat32_t sum_cross0 = svdup_f32(0.0f);
-    svfloat32_t sum_cross1 = svdup_f32(0.0f);
-    svfloat32_t sum_cross2 = svdup_f32(0.0f);
-    svfloat32_t sum_cross3 = svdup_f32(0.0f);
-    svfloat32_t sum_cross4 = svdup_f32(0.0f);
-    svfloat32_t sum_cross5 = svdup_f32(0.0f);
-    svfloat32_t sum_cross6 = svdup_f32(0.0f);
-    svfloat32_t sum_cross7 = svdup_f32(0.0f);
+    const svbool_t all16 = svptrue_b16();
+    const svbool_t all32 = svptrue_b32();
+    svfloat32_t se0 = svdup_f32(0.0f), so0 = svdup_f32(0.0f);
+    svfloat32_t se1 = svdup_f32(0.0f), so1 = svdup_f32(0.0f);
+    svfloat32_t se2 = svdup_f32(0.0f), so2 = svdup_f32(0.0f);
+    svfloat32_t se3 = svdup_f32(0.0f), so3 = svdup_f32(0.0f);
 
+    const uint16_t* du = (const uint16_t*)d;
+    const uint16_t* qu = (const uint16_t*)q;
     const int elements = svcnth();
     const int stride = elements * batches;
-    const svbool_t all16 = svptrue_b16();
     for (; i + stride <= elementCount; i += stride) {
-        svbfloat16_t av0 = svld1_vnum(all16, d + i, 0);
-        svbfloat16_t bv0 = svld1_vnum(all16, q + i, 0);
-        sum_self0 = svbfdot_f32(sum_self0, av0, av0);
-        sum_cross0 = svbfdot_f32(sum_cross0, av0, bv0);
-        sum_self0 = svbfdot_f32(sum_self0, bv0, bv0);
+        svint32_t av0 = svreinterpret_s32_u16(svld1_vnum_u16(all16, du + i, 0));
+        svint32_t bv0 = svreinterpret_s32_u16(svld1_vnum_u16(all16, qu + i, 0));
+        svfloat32_t de0 = svsub_f32_x(all32, bf16_even_to_f32(all32, av0), bf16_even_to_f32(all32, bv0));
+        svfloat32_t do0 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av0), bf16_odd_to_f32(all32, bv0));
+        se0 = svmla_f32_x(all32, se0, de0, de0);
+        so0 = svmla_f32_x(all32, so0, do0, do0);
 
-        svbfloat16_t av1 = svld1_vnum(all16, d + i, 1);
-        svbfloat16_t bv1 = svld1_vnum(all16, q + i, 1);
-        sum_self1 = svbfdot_f32(sum_self1, av1, av1);
-        sum_cross1 = svbfdot_f32(sum_cross1, av1, bv1);
-        sum_self1 = svbfdot_f32(sum_self1, bv1, bv1);
+        svint32_t av1 = svreinterpret_s32_u16(svld1_vnum_u16(all16, du + i, 1));
+        svint32_t bv1 = svreinterpret_s32_u16(svld1_vnum_u16(all16, qu + i, 1));
+        svfloat32_t de1 = svsub_f32_x(all32, bf16_even_to_f32(all32, av1), bf16_even_to_f32(all32, bv1));
+        svfloat32_t do1 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av1), bf16_odd_to_f32(all32, bv1));
+        se1 = svmla_f32_x(all32, se1, de1, de1);
+        so1 = svmla_f32_x(all32, so1, do1, do1);
 
-        svbfloat16_t av2 = svld1_vnum(all16, d + i, 2);
-        svbfloat16_t bv2 = svld1_vnum(all16, q + i, 2);
-        sum_self2 = svbfdot_f32(sum_self2, av2, av2);
-        sum_cross2 = svbfdot_f32(sum_cross2, av2, bv2);
-        sum_self2 = svbfdot_f32(sum_self2, bv2, bv2);
+        svint32_t av2 = svreinterpret_s32_u16(svld1_vnum_u16(all16, du + i, 2));
+        svint32_t bv2 = svreinterpret_s32_u16(svld1_vnum_u16(all16, qu + i, 2));
+        svfloat32_t de2 = svsub_f32_x(all32, bf16_even_to_f32(all32, av2), bf16_even_to_f32(all32, bv2));
+        svfloat32_t do2 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av2), bf16_odd_to_f32(all32, bv2));
+        se2 = svmla_f32_x(all32, se2, de2, de2);
+        so2 = svmla_f32_x(all32, so2, do2, do2);
 
-        svbfloat16_t av3 = svld1_vnum(all16, d + i, 3);
-        svbfloat16_t bv3 = svld1_vnum(all16, q + i, 3);
-        sum_self3 = svbfdot_f32(sum_self3, av3, av3);
-        sum_cross3 = svbfdot_f32(sum_cross3, av3, bv3);
-        sum_self3 = svbfdot_f32(sum_self3, bv3, bv3);
-
-        svbfloat16_t av4 = svld1_vnum(all16, d + i, 4);
-        svbfloat16_t bv4 = svld1_vnum(all16, q + i, 4);
-        sum_self4 = svbfdot_f32(sum_self4, av4, av4);
-        sum_cross4 = svbfdot_f32(sum_cross4, av4, bv4);
-        sum_self4 = svbfdot_f32(sum_self4, bv4, bv4);
-
-        svbfloat16_t av5 = svld1_vnum(all16, d + i, 5);
-        svbfloat16_t bv5 = svld1_vnum(all16, q + i, 5);
-        sum_self5 = svbfdot_f32(sum_self5, av5, av5);
-        sum_cross5 = svbfdot_f32(sum_cross5, av5, bv5);
-        sum_self5 = svbfdot_f32(sum_self5, bv5, bv5);
-
-        svbfloat16_t av6 = svld1_vnum(all16, d + i, 6);
-        svbfloat16_t bv6 = svld1_vnum(all16, q + i, 6);
-        sum_self6 = svbfdot_f32(sum_self6, av6, av6);
-        sum_cross6 = svbfdot_f32(sum_cross6, av6, bv6);
-        sum_self6 = svbfdot_f32(sum_self6, bv6, bv6);
-
-        svbfloat16_t av7 = svld1_vnum(all16, d + i, 7);
-        svbfloat16_t bv7 = svld1_vnum(all16, q + i, 7);
-        sum_self7 = svbfdot_f32(sum_self7, av7, av7);
-        sum_cross7 = svbfdot_f32(sum_cross7, av7, bv7);
-        sum_self7 = svbfdot_f32(sum_self7, bv7, bv7);
+        svint32_t av3 = svreinterpret_s32_u16(svld1_vnum_u16(all16, du + i, 3));
+        svint32_t bv3 = svreinterpret_s32_u16(svld1_vnum_u16(all16, qu + i, 3));
+        svfloat32_t de3 = svsub_f32_x(all32, bf16_even_to_f32(all32, av3), bf16_even_to_f32(all32, bv3));
+        svfloat32_t do3 = svsub_f32_x(all32, bf16_odd_to_f32(all32, av3), bf16_odd_to_f32(all32, bv3));
+        se3 = svmla_f32_x(all32, se3, de3, de3);
+        so3 = svmla_f32_x(all32, so3, do3, do3);
     }
 
-    const svbool_t all32 = svptrue_b32();
-    svfloat32_t sum_self = svadd_f32_x(all32,
-        svadd_f32_x(all32,
-            svadd_f32_x(all32, sum_self0, sum_self1),
-            svadd_f32_x(all32, sum_self2, sum_self3)),
-        svadd_f32_x(all32,
-             svadd_f32_x(all32, sum_self4, sum_self5),
-             svadd_f32_x(all32, sum_self6, sum_self7)));
-    svfloat32_t sum_cross = svadd_f32_x(all32,
-        svadd_f32_x(all32,
-            svadd_f32_x(all32, sum_cross0, sum_cross1),
-            svadd_f32_x(all32, sum_cross2, sum_cross3)),
-        svadd_f32_x(all32,
-             svadd_f32_x(all32, sum_cross4, sum_cross5),
-             svadd_f32_x(all32, sum_cross6, sum_cross7)));
-
-    // unstrided tail
+    // Predicated tail. Inactive 16-bit lanes load as zero, so a half-covered 32-bit lane (odd
+    // element count) yields an exact zero difference and the tail also covers odd counts.
     for (; i < elementCount; i += elements) {
         svbool_t pg = svwhilelt_b16(i, elementCount);
-        svbfloat16_t av = svld1(pg, d + i);
-        svbfloat16_t bv = svld1(pg, q + i);
-        // don't need predicated vector_op (even for odd dimensions), inactive lanes are all zero anyway
-        sum_self = svbfdot_f32(sum_self, av, av);
-        sum_cross = svbfdot_f32(sum_cross, av, bv);
-        sum_self = svbfdot_f32(sum_self, bv, bv);
+        svint32_t av = svreinterpret_s32_u16(svld1_u16(pg, du + i));
+        svint32_t bv = svreinterpret_s32_u16(svld1_u16(pg, qu + i));
+        svfloat32_t de = svsub_f32_x(all32, bf16_even_to_f32(all32, av), bf16_even_to_f32(all32, bv));
+        svfloat32_t dodd = svsub_f32_x(all32, bf16_odd_to_f32(all32, av), bf16_odd_to_f32(all32, bv));
+        se0 = svmla_f32_x(all32, se0, de, de);
+        so0 = svmla_f32_x(all32, so0, dodd, dodd);
     }
 
-    // |a - b|^2 = a*a - 2*a*b + b*b
-    return svaddv_f32(all32, sum_self) - 2.0f * svaddv_f32(all32, sum_cross);
+    svfloat32_t total = svadd_f32_x(all32,
+        svadd_f32_x(all32, svadd_f32_x(all32, se0, se1), svadd_f32_x(all32, se2, se3)),
+        svadd_f32_x(all32, svadd_f32_x(all32, so0, so1), svadd_f32_x(all32, so2, so3)));
+    return svaddv_f32(all32, total);
 }
 
 EXPORT f32_t vec_sqrDbf16Qbf16_2(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {

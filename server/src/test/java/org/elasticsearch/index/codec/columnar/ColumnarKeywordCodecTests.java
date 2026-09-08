@@ -226,6 +226,38 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
     }
 
+    /**
+     * A field that is null in one document and a value in the next. The mapper writes a payload for the null
+     * — that is what keeps an explicit null distinct from an absent field — so the column holds one slot per
+     * document and one of them is nothing, which leaves the slots and the documents in step without the
+     * column being single-valued in the sense that every slot holds a value.
+     */
+    public void testExplicitNullsAlongsideSingleValues() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false}}}""";
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
+
+        final List<String> docs = List.of("\"a\"", "null", "\"\"", "\"b\"", "null");
+        for (int i = 0; i < docs.size(); i++) {
+            prepareIndex(INDEX).setId(Integer.toString(i))
+                .setSource("{\"@timestamp\":\"2024-01-01T00:00:0" + i + "Z\",\"kw\":" + docs.get(i) + "}", XContentType.JSON)
+                .get();
+        }
+        indicesAdmin().prepareRefresh(INDEX).get();
+
+        assertKeywordFieldUsesColumnarFormat(INDEX);
+
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "a")), 1);
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "b")), 1);
+        // The empty string is a real value in one document; the two nulls are not it.
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.termQuery("kw", "")), 1);
+        // A pattern that accepts the empty string still must not accept a null.
+        assertHitCount(client().prepareSearch(INDEX).setQuery(QueryBuilders.regexpQuery("kw", "[ab]*")), 3);
+    }
+
     private static Settings columnarSettings(IndexMode mode) {
         return columnarSettings(mode, true);
     }

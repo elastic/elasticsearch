@@ -332,7 +332,7 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                             if (delimiter[1] != null) settings.put("delimiter", delimiter[1]);
                             if (headerRow[1] != null) settings.put("header_row", Booleans.parseBoolean(headerRow[1]));
                             if (sampleSize[1] != null) settings.put("schema_sample_size", Integer.parseInt(sampleSize[1]));
-                            boolean expectAccepted = isKnownCanary(delimiter[0]) == false && isKnownCanary(sampleSize[0]) == false;
+                            boolean expectAccepted = isKnownCanary(sampleSize[0]) == false;
                             cases.add(new Object[] { name, new ComboCase(resourceFile, Map.copyOf(settings), expectAccepted) });
                         }
                     }
@@ -373,6 +373,10 @@ public class DataSourceCrudAcceptCombinationsIT extends ESRestTestCase {
                 }
                 // Canary case: PUT correctly rejected the known-garbage value; skip the query
                 return;
+            }
+            if (combo.expectAccepted() == false) {
+                // Canary case: PUT was expected to return 400 but returned 200 — coordinator validation gap
+                throw new AssertionError("PUT returned 200 for canary case [" + caseName + "] — expected 400 rejection");
             }
             runQuery("FROM " + dtName + " | LIMIT 1");
         } finally {

@@ -30,7 +30,6 @@ public class LifecycleExecutionStateRamBytesUsedTests extends AbstractAccountabl
             "action",
             "step",
             "failedStep",
-            "isAutoRetryableError",
             "failedStepRetryCount",
             "stepInfo",
             "previousStepInfo",
@@ -46,6 +45,12 @@ public class LifecycleExecutionStateRamBytesUsedTests extends AbstractAccountabl
             "downsampleIndexName",
             "forceMergeCloneIndexName"
         );
+    }
+
+    @Override
+    protected Set<String> fieldsExcludedFromRamBytesUsed() {
+        // Boxed Boolean singleton; only the field reference is counted in BASE_RAM_BYTES_USED.
+        return Set.of("isAutoRetryableError");
     }
 
     @Override

@@ -224,7 +224,7 @@ public record LifecycleExecutionState(
         size += RamUsageEstimator.sizeOf(action);
         size += RamUsageEstimator.sizeOf(step);
         size += RamUsageEstimator.sizeOf(failedStep);
-        size += RamUsageEstimator.shallowSizeOf(isAutoRetryableError);
+        // isAutoRetryableError is a boxed Boolean singleton; the reference is already in BASE_RAM_BYTES_USED
         size += RamUsageEstimator.shallowSizeOf(failedStepRetryCount);
         size += RamUsageEstimator.sizeOf(stepInfo);
         size += RamUsageEstimator.sizeOf(previousStepInfo);

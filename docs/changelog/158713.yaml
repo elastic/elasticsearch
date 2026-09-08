@@ -1,5 +1,5 @@
 area: Analysis
 issues: []
 pr: 158713
-summary: Emitting proper messages
+summary: Add option to limit the number of characters in analyze filters
 type: bug

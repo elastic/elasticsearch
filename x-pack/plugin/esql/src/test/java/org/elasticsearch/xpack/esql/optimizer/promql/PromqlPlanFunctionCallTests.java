@@ -443,6 +443,20 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         promql.forEachExpressionDown(Div.class, promqlDivs::add);
         assertThat(promqlDivs, not(empty()));
         assertTrue("PromQL Div must be lenient", promqlDivs.stream().anyMatch(NonFiniteSupport::allowNonFinite));
+
+        // Native ES|QL STATS MAX / MIN stay strict: they introduce no lenient (non-finite-preserving) expression.
+        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());
+        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS m = MIN(salary)")), empty());
+
+        // The PromQL translation of max / min produces the lenient variants.
+        assertThat(
+            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
     }
 
     private static List<Expression> lenientNonFiniteExpressions(LogicalPlan plan) {

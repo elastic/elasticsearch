@@ -275,7 +275,7 @@ public class ExternalSourceMetricsTests extends ESTestCase {
 
     public void testCanonicalSchemeFoldsProviderAliases() {
         // The raw StoragePath scheme is what storage providers register; fold the aliases so one provider
-        // is one metric series (s3a/s3n->s3, gs->gcs, wasb/wasbs->azure, https->http).
+        // is one metric series (s3a/s3n->s3, gs->gcs, wasb/wasbs->azure, https->http, file->local).
         assertThat(ExternalSourceMetrics.canonicalScheme("s3"), equalTo("s3"));
         assertThat(ExternalSourceMetrics.canonicalScheme("s3a"), equalTo("s3"));
         assertThat(ExternalSourceMetrics.canonicalScheme("s3n"), equalTo("s3"));
@@ -284,19 +284,19 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(ExternalSourceMetrics.canonicalScheme("wasbs"), equalTo("azure"));
         assertThat(ExternalSourceMetrics.canonicalScheme("http"), equalTo("http"));
         assertThat(ExternalSourceMetrics.canonicalScheme("https"), equalTo("http"));
-        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("file"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("local"));
         assertThat(ExternalSourceMetrics.canonicalScheme("S3A"), equalTo("s3"));
-        // Unknown schemes pass through lower-cased; null is mapped to a stable sentinel.
-        assertThat(ExternalSourceMetrics.canonicalScheme("ftp"), equalTo("ftp"));
+        // Unknown schemes clamp to the closed unknown token; null is the same sentinel.
+        assertThat(ExternalSourceMetrics.canonicalScheme("ftp"), equalTo("unknown"));
         assertThat(ExternalSourceMetrics.canonicalScheme(null), equalTo("unknown"));
     }
 
-    public void testTypeTokenFoldsFileToLocalAndLeavesPhoneHomeSchemeAlone() {
-        // APM type attribute: file → local. Phone-home still keys local filesystem as file.
+    public void testTypeTokenFoldsFileToLocal() {
+        // Both APM and phone-home fold file → local after the type-vocabulary unification.
         assertThat(ExternalSourceMetrics.typeToken("file"), equalTo("local"));
         assertThat(ExternalSourceMetrics.typeToken("FILE"), equalTo("local"));
         assertThat(ExternalSourceMetrics.typeToken("s3a"), equalTo("s3"));
-        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("file"));
+        assertThat(ExternalSourceMetrics.canonicalScheme("file"), equalTo("local"));
 
         metrics.recordRequest(1L, 1L, "file");
         Measurement request = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL);

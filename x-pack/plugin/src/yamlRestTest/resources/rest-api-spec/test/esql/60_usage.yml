@@ -528,12 +528,13 @@ took:
       reason: "Datasource phone-home telemetry keys present in /_xpack/usage"
 
   - do: { xpack.usage: { } }
-  # per-scheme storage counters
+  # per-type storage counters
   - exists: esql.datasources.storage.requests.total.s3
   - exists: esql.datasources.storage.requests.total.gcs
   - exists: esql.datasources.storage.requests.total.azure
   - exists: esql.datasources.storage.requests.total.http
-  - exists: esql.datasources.storage.requests.total.file
+  - exists: esql.datasources.storage.requests.total.local
+  - is_false: esql.datasources.storage.requests.total.file
   - exists: esql.datasources.storage.requests.total.unknown
   - exists: esql.datasources.storage.bytes_read.total.s3
   - exists: esql.datasources.storage.errors.total.s3

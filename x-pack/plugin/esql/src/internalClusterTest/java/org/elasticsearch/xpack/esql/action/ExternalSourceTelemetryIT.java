@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceActio
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -203,8 +204,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
         long parseRowsBefore = clusterTotal(DataSourceUsageAccumulator::parseRows);
         long parseRowsCsvBefore = clusterTotal(a -> a.parseRowsByFormat(DataSourceUsageAccumulator.FORMAT_CSV));
-        long storageRequestsBefore = clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE));
-        long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE));
+        long storageRequestsBefore = clusterTotal(a -> a.storageRequests(Type.LOCAL));
+        long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(Type.LOCAL));
         long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
         long queriesFailureBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
         long filesScannedBucketBefore = clusterTotal(a -> a.discoveryFilesScanned(1));
@@ -259,7 +260,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         // A clean success trips neither the discovery-failure nor the breaker counter.
         assertThat("no discovery failures on a clean scan", counterTotal(ExternalSourceMetrics.DISCOVERY_FAILURES_TOTAL), equalTo(0L));
 
-        // storage read layer (data node), tagged with the canonical file scheme
+        // storage read layer (data node), tagged with the canonical local type (file:// folded)
         assertThat(
             "storage.requests.total must fire for type=local (file folded)",
             counterTotalForType(ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL, "local"),
@@ -285,13 +286,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             equalTo(10L)
         );
         assertThat(
-            "phone-home: storage.requests (file scheme) must fire",
-            clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE)) - storageRequestsBefore,
+            "phone-home: storage.requests (local type) must fire",
+            clusterTotal(a -> a.storageRequests(Type.LOCAL)) - storageRequestsBefore,
             greaterThan(0L)
         );
         assertThat(
-            "phone-home: storage.bytes_read (file scheme) must fire",
-            clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE)) - storageBytesReadBefore,
+            "phone-home: storage.bytes_read (local type) must fire",
+            clusterTotal(a -> a.storageBytesRead(Type.LOCAL)) - storageBytesReadBefore,
             greaterThan(0L)
         );
         assertThat(

@@ -128,6 +128,12 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                 return values[doc] == null ? 0 : 1;
             }
 
+            /** A document with no value is skipped rather than carrying a null slot, so there are none. */
+            @Override
+            public int nullCount() {
+                return 0;
+            }
+
             @Override
             public void nextValue() {}
 

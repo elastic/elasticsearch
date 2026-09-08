@@ -13,9 +13,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -126,9 +127,9 @@ public final class ExternalSourceMetrics {
     public static final String BREAKER_TRIPPED_TOTAL = "es.esql.datasources.breaker.tripped.total";
 
     /**
-     * Storage-type dimension, normalised via {@link #typeToken(String)}: {@code s3}, {@code gcs},
-     * {@code azure}, {@code http}, {@code local}, {@code unknown}. The raw URI scheme {@code file}
-     * folds to {@code local} on this attribute only; phone-home storage keys still use {@code file}.
+     * Storage type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
+     * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
+     * {@code local}, {@code unknown}.
      */
     public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
@@ -137,13 +138,6 @@ public final class ExternalSourceMetrics {
      * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
      */
     public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
-
-    /**
-     * APM type tokens for {@link #TYPE_ATTRIBUTE}. Distinct from
-     * {@link DataSourceUsageAccumulator#SCHEME_NAMES}: the phone-home scheme table still uses {@code file}
-     * while this APM attribute folds {@code file} → {@code local}.
-     */
-    public static final List<String> TYPE_NAMES = List.of("s3", "gcs", "azure", "http", "local", "unknown");
 
     /**
      * Query-outcome dimension, a closed low-cardinality set: {@code success}, {@code failure}, {@code cancelled}.
@@ -173,18 +167,18 @@ public final class ExternalSourceMetrics {
     private final DataSourceUsageAccumulator usageAccumulator;
 
     /**
-     * Pre-built, immutable single-entry {@link #TYPE_ATTRIBUTE} attribute maps for the closed APM type set,
-     * so the common case never allocates a fresh map per record call. Mirrors {@code ShardChangesObserver}'s
-     * pre-built per-value attribute maps and {@code RepositoriesMetrics}'s {@code createAttributesMap}. Looked
-     * up via {@link #typeAttrs(String)}, which falls back to a freshly built map for a rare unknown type
-     * (thread-safe: immutable maps + {@code getOrDefault}, no {@code computeIfAbsent} mutating a shared map).
+     * Pre-built, immutable single-entry {@link #TYPE_ATTRIBUTE} attribute maps for the closed
+     * {@link Type} set, so the common case never allocates a fresh map per record call. Mirrors
+     * {@code ShardChangesObserver}'s pre-built per-value attribute maps and {@code RepositoriesMetrics}'s
+     * {@code createAttributesMap}. Looked up via {@link #typeAttrs(String)}. Thread-safe: immutable
+     * maps; every {@link Type} token is present so lookups never allocate.
      */
-    private static final Map<String, Map<String, Object>> TYPE_ATTRIBUTES = TYPE_NAMES.stream()
-        .collect(Collectors.toUnmodifiableMap(t -> t, t -> Map.of(TYPE_ATTRIBUTE, t)));
+    private static final Map<String, Map<String, Object>> TYPE_ATTRIBUTES = Arrays.stream(Type.values())
+        .collect(Collectors.toUnmodifiableMap(Type::key, t -> Map.of(TYPE_ATTRIBUTE, t.key())));
 
     /**
      * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} maps for the four scan-operator instruments.
-     * Keyed {@code type + '\0' + format}. Unknown combinations fall back to a freshly built two-entry map.
+     * Keyed {@code type + '\0' + format}. Every closed combination is present so lookups never allocate.
      */
     private static final Map<String, Map<String, Object>> TYPE_FORMAT_ATTRIBUTES = typeFormatAttributes();
 
@@ -343,22 +337,22 @@ public final class ExternalSourceMetrics {
     /**
      * Records one completed read request: increments the request count, adds the bytes read, and
      * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
-     * via {@link #typeToken(String)}.
+     * via {@link Type#fromScheme(String)}.
      * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
      */
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            Map<String, Object> attributes = typeAttrsForToken(typeToken(canonical));
+            Type type = Type.fromScheme(scheme);
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
             }
             requestDuration.record(Math.max(0L, durationMillis), attributes);
             if (usageAccumulator != null) {
-                usageAccumulator.recordRequest(accScheme(canonical), durationMillis, bytes);
+                usageAccumulator.recordRequest(type, durationMillis, bytes);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordRequest failed", e);
@@ -368,8 +362,8 @@ public final class ExternalSourceMetrics {
     /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            retriesTotal.incrementBy(1, typeAttrsForToken(typeToken(canonical)));
+            Type type = Type.fromScheme(scheme);
+            retriesTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
                 usageAccumulator.recordRetry();
             }
@@ -384,10 +378,10 @@ public final class ExternalSourceMetrics {
      */
     public void recordError(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            errorsTotal.incrementBy(1, typeAttrsForToken(typeToken(canonical)));
+            Type type = Type.fromScheme(scheme);
+            errorsTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
-                usageAccumulator.recordError(accScheme(canonical));
+                usageAccumulator.recordError(type);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordError failed", e);
@@ -400,10 +394,10 @@ public final class ExternalSourceMetrics {
      */
     public void recordThrottled(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            throttledTotal.incrementBy(1, typeAttrsForToken(typeToken(canonical)));
+            Type type = Type.fromScheme(scheme);
+            throttledTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
-                usageAccumulator.recordThrottled(accScheme(canonical));
+                usageAccumulator.recordThrottled(type);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordThrottled failed", e);
@@ -571,39 +565,45 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Canonicalises {@code scheme} to an APM {@link #TYPE_ATTRIBUTE} token and returns the pre-built
-     * type-only attribute map. The common case (a known type) returns a shared immutable map with no
-     * allocation; an unknown type builds a fresh map. Thread-safe: immutable maps + {@code getOrDefault}.
+     * Canonicalises {@code scheme} and returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map
+     * for that closed {@link Type} token. Thread-safe: immutable maps, no allocation on the record path.
      */
     private static Map<String, Object> typeAttrs(String scheme) {
-        return typeAttrsForToken(typeToken(scheme));
+        return typeAttrsForToken(Type.fromScheme(scheme).key());
     }
 
     /**
-     * Returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map for an already-folded APM type token.
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map for an already-canonicalised
+     * {@code canonical} type token. Callers that have already called {@link Type#fromScheme(String)} use
+     * this overload to avoid re-canonicalising, while keeping the APM attribute lookup in one place.
      */
-    private static Map<String, Object> typeAttrsForToken(String type) {
-        return TYPE_ATTRIBUTES.getOrDefault(type, Map.of(TYPE_ATTRIBUTE, type));
+    private static Map<String, Object> typeAttrsForToken(String canonical) {
+        Map<String, Object> attrs = TYPE_ATTRIBUTES.get(canonical);
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type token [" + canonical + "]");
+        }
+        return attrs;
     }
 
     /**
      * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} map for a raw scheme and
-     * format. Both tokens are folded first; unknown combinations build a fresh two-entry map.
+     * format. Both tokens are folded first; every closed combination is present so this never allocates.
      */
     private static Map<String, Object> typeFormatAttrs(String scheme, String format) {
-        String type = typeToken(scheme);
+        String type = Type.fromScheme(scheme).key();
         String canonicalFormat = canonicalFormat(format);
-        return TYPE_FORMAT_ATTRIBUTES.getOrDefault(
-            typeFormatKey(type, canonicalFormat),
-            Map.of(TYPE_ATTRIBUTE, type, FORMAT_ATTRIBUTE, canonicalFormat)
-        );
+        Map<String, Object> attrs = TYPE_FORMAT_ATTRIBUTES.get(typeFormatKey(type, canonicalFormat));
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type/format [" + type + "/" + canonicalFormat + "]");
+        }
+        return attrs;
     }
 
     private static Map<String, Map<String, Object>> typeFormatAttributes() {
         Map<String, Map<String, Object>> maps = new HashMap<>();
-        for (String type : TYPE_NAMES) {
+        for (Type type : Type.values()) {
             for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
-                maps.put(typeFormatKey(type, format), Map.of(TYPE_ATTRIBUTE, type, FORMAT_ATTRIBUTE, format));
+                maps.put(typeFormatKey(type.key(), format), Map.of(TYPE_ATTRIBUTE, type.key(), FORMAT_ATTRIBUTE, format));
             }
         }
         return Map.copyOf(maps);
@@ -619,49 +619,22 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Returns the scheme token to pass to the {@link DataSourceUsageAccumulator}. APM emits unknown
-     * schemes lower-cased (to preserve observability without high cardinality), but the accumulator's
-     * {@link DataSourceUsageAccumulator#schemeIndex(String)} only accepts the six declared canonical
-     * values. Any scheme that is not one of those is bucketed to {@code "unknown"} here.
-     */
-    private static String accScheme(String canonical) {
-        return DataSourceUsageAccumulator.SCHEME_NAMES_SET.contains(canonical) ? canonical : "unknown";
-    }
-
-    /**
-     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the single canonical token used
-     * by the phone-home scheme table and as the input to {@link #typeToken(String)}. Provider aliases
-     * ({@code s3a}/{@code s3n}, {@code wasb}/{@code wasbs}, {@code https}) and the bucket-prefix form
-     * ({@code gs}) do not fragment a provider. {@code file} stays {@code file} here so
-     * {@link #accScheme(String)} can keep writing {@code .file} phone-home keys; APM folds it to
-     * {@code local} in {@link #typeToken(String)}. Unknown schemes pass through lower-cased.
+     * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the closed
+     * {@link Type} token used for {@link #TYPE_ATTRIBUTE}. Provider aliases
+     * ({@code s3a}/{@code s3n}, {@code wasb}/{@code wasbs}, {@code https}, {@code gs}) collapse onto one
+     * series; {@code file} folds to {@code local}; anything else is {@code unknown}.
      */
     public static String canonicalScheme(String scheme) {
-        if (scheme == null) {
-            return "unknown";
-        }
-        String lower = scheme.toLowerCase(Locale.ROOT);
-        return switch (lower) {
-            case "s3", "s3a", "s3n" -> "s3";
-            case "gs", "gcs" -> "gcs";
-            case "wasb", "wasbs", "azure" -> "azure";
-            case "http", "https" -> "http";
-            case "file" -> "file";
-            // Open default (pass unknown schemes through lower-cased) is acceptable here because scheme is
-            // provider-registered — a closed set in practice, not user-supplied — so the TYPE_ATTRIBUTE dimension
-            // cardinality stays bounded even though this branch does not enumerate every value.
-            default -> lower;
-        };
+        return Type.fromScheme(scheme).key();
     }
 
     /**
-     * APM {@link #TYPE_ATTRIBUTE} token for a raw or already-canonical scheme. {@code file} folds to
-     * {@code local}; every other token is {@link #canonicalScheme(String)}. Does not change the
-     * phone-home scheme table, which still keys local filesystem traffic as {@code file}.
+     * APM {@link #TYPE_ATTRIBUTE} token for a raw or already-canonical scheme. Equivalent to
+     * {@link #canonicalScheme(String)} after the type vocabulary unification: {@code file} folds to
+     * {@code local} in both sinks.
      */
     public static String typeToken(String scheme) {
-        String canonical = canonicalScheme(scheme);
-        return "file".equals(canonical) ? "local" : canonical;
+        return Type.fromScheme(scheme).key();
     }
 
     /**

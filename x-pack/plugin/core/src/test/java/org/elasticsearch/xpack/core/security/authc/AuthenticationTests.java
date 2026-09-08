@@ -941,7 +941,7 @@ public class AuthenticationTests extends ESTestCase {
             limitedByRoleNames
         );
         runWithAuthenticationToXContent(capped, m -> {
-            assertThat(m, hasEntry("limited_by", limitedByRoleNames));
+            assertThat(m, hasEntry("limited_by_roles", limitedByRoleNames));
             assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
         });
 
@@ -950,7 +950,7 @@ public class AuthenticationTests extends ESTestCase {
             null
         );
         runWithAuthenticationToXContent(uncapped, m -> {
-            assertThat(m, not(hasKey("limited_by")));
+            assertThat(m, not(hasKey("limited_by_roles")));
             assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
         });
     }

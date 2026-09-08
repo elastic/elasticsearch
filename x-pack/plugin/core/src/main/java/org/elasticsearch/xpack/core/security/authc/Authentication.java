@@ -845,7 +845,7 @@ public final class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         final List<String> limitedByRoleNames = effectiveSubject.getCloudLimitedByRoleNames();
         if (limitedByRoleNames != null) {
-            builder.array(User.Fields.LIMITED_BY.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
+            builder.array(User.Fields.LIMITED_BY_ROLES.getPreferredName(), limitedByRoleNames.toArray(String[]::new));
         }
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());

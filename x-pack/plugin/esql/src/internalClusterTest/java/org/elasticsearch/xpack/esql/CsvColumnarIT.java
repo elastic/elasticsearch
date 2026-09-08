@@ -527,8 +527,18 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put("index.mode", "columnar").build();
+        return Settings.builder().put(INDEX_MODE_SETTING, "columnar").build();
     }
+
+    private static final String INDEX_MODE_SETTING = "index.mode";
+
+    /**
+     * The {@code _index_mode} metadata column, and the value the csv-spec corpus declares for it.
+     * The corpus is written against standard indices, so any dataset this strategy converts
+     * reports a different mode at query time.
+     */
+    private static final String INDEX_MODE_COLUMN = "_index_mode";
+    private static final String STANDARD_INDEX_MODE = "standard";
 
     /**
      * Installs the columnar index-load strategy.
@@ -673,13 +683,60 @@ public class CsvColumnarIT extends CsvIT {
             return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
+        /**
+         * Rewrites expected {@code _index_mode} values from {@code standard} to the mode this
+         * strategy actually stamps on the datasets it converts.
+         *
+         * <p>Only the literal {@code standard} is rewritten. Lookup-mode datasets keep their
+         * original mode and the corpus already declares {@code lookup} for them, and a dataset
+         * that unexpectedly stayed standard (see {@link #FORCED_STANDARD_DATASETS}) still fails
+         * rather than being masked.
+         */
         @Override
         public CsvTestUtils.ExpectedResults transformExpectedResults(
             String testId,
             CsvTestCase testCase,
             CsvTestUtils.ExpectedResults expected
         ) {
-            return expected;
+            int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
+            if (modeIdx < 0) {
+                return expected;
+            }
+            String actualMode = extraSettings.get(INDEX_MODE_SETTING);
+            if (actualMode == null) {
+                return expected;
+            }
+            boolean anyChanged = false;
+            List<List<Object>> newValues = new ArrayList<>(expected.values().size());
+            for (List<Object> row : expected.values()) {
+                Object rewritten = rewriteIndexMode(row.get(modeIdx), actualMode);
+                if (rewritten == row.get(modeIdx)) {
+                    newValues.add(row);
+                } else {
+                    List<Object> newRow = new ArrayList<>(row);
+                    newRow.set(modeIdx, rewritten);
+                    newValues.add(newRow);
+                    anyChanged = true;
+                }
+            }
+            if (anyChanged == false) {
+                return expected;
+            }
+            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        /**
+         * Returns the cell with {@code standard} replaced by {@code actualMode}, or the original
+         * cell instance when nothing needs rewriting.
+         *
+         * <p>Only scalar cells are rewritten. Every row of a {@code _index_mode} column describes
+         * a single index, so no multi-value cell is expected here. If one ever appears it falls
+         * through unchanged and the comparison fails with a plain value mismatch, which is the
+         * intended outcome: this hook exists to retarget a known-good expectation, not to absorb
+         * shapes it was never verified against.
+         */
+        private static Object rewriteIndexMode(Object cell, String actualMode) {
+            return STANDARD_INDEX_MODE.equals(cell) ? actualMode : cell;
         }
 
         /**

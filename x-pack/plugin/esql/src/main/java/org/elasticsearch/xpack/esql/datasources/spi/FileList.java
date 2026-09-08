@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 
 import java.util.List;
 
@@ -170,8 +171,9 @@ public interface FileList {
     }
 
     /**
-     * {@code file_exclusions} warnings produced while this listing was built. Empty when nothing was
-     * dropped. Cached listings carry these so a cache hit can emit the same headers as a cold expand.
+     * Notices raised while this listing was built: {@code file_exclusions} drops and reserved partition-name
+     * renames. Empty when neither happened. Nothing is emitted from here; cached listings carry these so a cache
+     * hit hands the resolver the same notices as a cold expand.
      */
     default List<String> listingWarnings() {
         return List.of();
@@ -181,7 +183,7 @@ public interface FileList {
         List<String> warnings = listingWarnings();
         long bytes = 0;
         for (int i = 0; i < warnings.size(); i++) {
-            bytes += 40 + warnings.get(i).length() * (long) Character.BYTES;
+            bytes += SchemaCacheEntry.estimatedStringBytes(warnings.get(i));
         }
         return bytes;
     }

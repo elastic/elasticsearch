@@ -95,7 +95,7 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = expandWithoutReplay(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -116,21 +116,6 @@ public final class GlobExpander {
      * {@code /}, and the prefix's own marker) are always skipped.
      */
     public static FileList expand(
-        String path,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        @Nullable Map<String, Object> config,
-        int maxDiscoveredFiles,
-        int maxGlobExpansion
-    ) throws IOException {
-        FileList listing = expandWithoutReplay(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
-        return listing;
-    }
-
-    /**
-     * Expands without emitting {@code file_exclusions} headers. The listing cache loader uses this so a miss
-     */
-    private static FileList expandWithoutReplay(
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
@@ -301,7 +286,7 @@ public final class GlobExpander {
     ) throws IOException {
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        FileList listing = doExpandGlob(
+        return doExpandGlob(
             pattern,
             provider,
             hints,
@@ -311,7 +296,6 @@ public final class GlobExpander {
             nameFilter,
             fileOrder
         );
-        return listing;
     }
 
     public static FileList expandGlob(
@@ -324,7 +308,7 @@ public final class GlobExpander {
     ) throws IOException {
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        FileList listing = doExpandGlob(
+        return doExpandGlob(
             pattern,
             provider,
             hints,
@@ -334,7 +318,6 @@ public final class GlobExpander {
             nameFilter,
             fileOrder
         );
-        return listing;
     }
 
     static FileList doExpandGlob(
@@ -559,7 +542,7 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) throws IOException {
-        FileList listing = doExpandCommaSeparated(
+        return doExpandCommaSeparated(
             pathList,
             provider,
             hints,
@@ -569,7 +552,6 @@ public final class GlobExpander {
             ExclusionConfig.fromConfig(config).compile(),
             FileOrderConfig.forListing(config)
         );
-        return listing;
     }
 
     public static FileList expandCommaSeparated(
@@ -580,7 +562,7 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList listing = doExpandCommaSeparated(
+        return doExpandCommaSeparated(
             pathList,
             provider,
             hints,
@@ -590,7 +572,6 @@ public final class GlobExpander {
             ExclusionConfig.fromConfig(config).compile(),
             FileOrderConfig.forListing(config)
         );
-        return listing;
     }
 
     private static FileList doExpandCommaSeparated(

@@ -50,7 +50,7 @@ final class ReservedPartitionNames {
     }
 
     /**
-     * Emit one {@code Warning} response header per renamed key (none when {@code renamed} is
+     * Hand one notice per renamed key to {@code warningSink} (none when {@code renamed} is
      * empty). Callers pass the ORIGINAL key names that {@link #surface(String)} renamed.
      */
     static void warnRenamed(List<String> renamed, Consumer<String> warningSink) {

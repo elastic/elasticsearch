@@ -176,7 +176,7 @@ public record SchemaCacheEntry(
      * strings use one byte per character); this feeds a cache budget, where over-counting evicts a little early and
      * under-counting lets the cache outgrow its budget. Shared by every cached value that holds Strings.
      */
-    static long estimatedStringBytes(@Nullable String s) {
+    public static long estimatedStringBytes(@Nullable String s) {
         return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
     }
 

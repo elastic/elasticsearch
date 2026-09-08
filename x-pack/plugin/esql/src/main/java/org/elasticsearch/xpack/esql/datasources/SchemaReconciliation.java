@@ -42,8 +42,8 @@ import java.util.function.Consumer;
  * This is NOT {@code EsqlDataTypeConverter.commonType()}, which allows LONG→DOUBLE (lossy above 2^53).
  * <p>
  * Under {@code UNION_BY_NAME}, any pair the lossless table cannot widen falls back to
- * {@link DataType#KEYWORD} (the cross-type join), and a single response {@code Warning} header per
- * affected column tells the user what happened. How the wider (or KEYWORD) type is produced depends
+ * {@link DataType#KEYWORD} (the cross-type join), and a single notice per affected column, handed to
+ * the caller's warning sink, tells the user what happened. How the wider (or KEYWORD) type is produced depends
  * on the format: columnar files (Parquet, ORC) read the physically-typed value and stringify it via
  * {@code ColumnMapping}'s per-block cast, while text files (CSV, TSV, NDJSON) are pinned to the
  * reconciled type and read it at that type directly (see {@code readsColumnsAtReconciledType}). This
@@ -328,7 +328,7 @@ public final class SchemaReconciliation {
      * UNION_BY_NAME reconciliation: merge schemas from all files into a superset.
      * Missing columns are NULL-filled; type differences are resolved by safe widening or, when no
      * lossless supertype exists, by falling back to {@link DataType#KEYWORD} with a per-column
-     * {@code Warning} response header. See the class javadoc for the rationale and the lattice
+     * notice on {@code warningSink}. See the class javadoc for the rationale and the lattice
      * picture.
      * <p>
      * The merge is by exact name for every format, so a scalar {@code user} in one file and dotted
@@ -338,11 +338,9 @@ public final class SchemaReconciliation {
      * both spellings of one name to one column and take no position on a name that only prefixes others.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
-     * @return reconciliation result with unified schema and per-file mappings
-     */
-    /**
      * @param warningSink where the keyword-widening warning goes. Reconciliation runs on the resolver's executor, off the
      *                    request thread, so the resolver passes its buffered sink.
+     * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();

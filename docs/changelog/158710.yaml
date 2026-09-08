@@ -1,0 +1,6 @@
+pr: 158710
+summary: Fix broken ECS v1 Cisco ASA grok patterns
+area: Ingest Node
+type: bug
+issues:
+ - 158709

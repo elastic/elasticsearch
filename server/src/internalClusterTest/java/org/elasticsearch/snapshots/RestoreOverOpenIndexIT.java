@@ -64,6 +64,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -122,10 +123,14 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         assertThat("restore must assign a history UUID", historyUuid(), notNullValue());
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);
 
-        // the index service was recreated as REOPENED rather than DELETED, so the shard store survived and the restore diff reused it
-        final RecoveryState.Index recoveredIndex = restoreRecoveryState().getIndex();
-        assertThat("restore should have reused the preserved local Lucene files", recoveredIndex.reusedFileCount(), greaterThan(0));
-        assertThat("no file should have needed downloading again", recoveredIndex.recoveredFileCount(), equalTo(0));
+        // the index service was recreated as REOPENED rather than DELETED, so the shard store survived and the restore diff reused it.
+        // Every shard's recovery must have downloaded nothing, and across all shards at least some files must have been reused.
+        long totalReusedFiles = 0;
+        for (RecoveryState recovery : snapshotRecoveryStates()) {
+            assertThat("no file should have needed downloading again", recovery.getIndex().recoveredFileCount(), equalTo(0));
+            totalReusedFiles += recovery.getIndex().reusedFileCount();
+        }
+        assertThat("restore should have reused the preserved local Lucene files", totalReusedFiles, greaterThan(0L));
     }
 
     public void testRestoredIndexSurvivesNodeRestart() throws Exception {
@@ -171,12 +176,13 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         awaitRestoreCompleted();
 
         assertHitCount(prepareSearch(INDEX_NAME).setSize(0), docCount);
-        assertThat(restoreRecoveryState().getIndex().reusedFileCount(), greaterThan(0));
+        final long totalReusedFiles = snapshotRecoveryStates().stream().mapToLong(r -> r.getIndex().reusedFileCount()).sum();
+        assertThat("retrying must reuse the preserved local store rather than download again", totalReusedFiles, greaterThan(0L));
     }
 
     public void testRestoreOverAlreadyRestoredIndexAssignsNewHistoryUuidEachTime() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(randomIntBetween(1, 2));
 
         final int docCount = createRepositoryAndSnapshottedIndex();
 
@@ -393,7 +399,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
      */
     public void testOrdinaryRestoreCanTargetOpenIndexWhenRequested() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(randomIntBetween(1, 2));
 
         final int docCount = createRepositoryAndSnapshottedIndex();
         assertThat(historyUuid(), nullValue());
@@ -428,7 +434,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
      */
     public void testRestoreOverExistingCanTargetClosedIndex() throws Exception {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNodes(randomIntBetween(1, 2));
 
         final int docCount = createRepositoryAndSnapshottedIndex();
 
@@ -461,7 +467,15 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         // a separate, already-open index that the rename resolves to as the destination, seeded with different content so the restore is
         // observably replacing it rather than adopting it
         final String renamedIndex = INDEX_NAME + "-restored";
-        createIndex(renamedIndex, indexSettings(1, 0).build());
+        // the rename destination must have the same shard count as the snapshotted source, which the shared setup randomizes
+        final int numberOfShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject(ProjectId.DEFAULT)
+            .index(INDEX_NAME)
+            .getNumberOfShards();
+        createIndex(renamedIndex, indexSettings(numberOfShards, 0).build());
         prepareIndex(renamedIndex).setId("pre").setSource("field", "pre-existing").get();
         indicesAdmin().prepareFlush(renamedIndex).get();
         ensureGreen(renamedIndex);
@@ -488,12 +502,18 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     private int createRepositoryAndSnapshottedIndex() throws Exception {
-        return createRepositoryAndSnapshottedIndex(0);
+        // Randomize the replica count within what the running cluster can allocate, so that across CI seeds the restore-over-open operation
+        // is exercised against different copy layouts. The operation is expected to be routing-state-agnostic, and randomizing here guards
+        // against a regression that made it copy-count sensitive. Tests that need a specific layout start a fixed number of data nodes
+        // (a single node bounds this to zero replicas); tests that want replica coverage start more than one.
+        return createRepositoryAndSnapshottedIndex(randomIntBetween(0, Math.max(0, internalCluster().numDataNodes() - 1)));
     }
 
     private int createRepositoryAndSnapshottedIndex(int numberOfReplicas) throws Exception {
         createRepository(REPOSITORY_NAME, "mock");
-        createIndex(INDEX_NAME, indexSettings(1, numberOfReplicas).build());
+        // Randomize the shard count as well, so the operation is exercised against different routing-table breadths.
+        final int numberOfShards = randomIntBetween(1, 3);
+        createIndex(INDEX_NAME, indexSettings(numberOfShards, numberOfReplicas).build());
 
         final int docCount = randomIntBetween(20, 100);
         for (int i = 0; i < docCount; i++) {
@@ -715,15 +735,15 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private RecoveryState restoreRecoveryState() {
+    private List<RecoveryState> snapshotRecoveryStates() {
         final RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).get();
         final List<RecoveryState> states = response.shardRecoveryStates()
             .get(INDEX_NAME)
             .stream()
             .filter(state -> state.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT)
             .toList();
-        assertThat("expected exactly one snapshot recovery", states.size(), equalTo(1));
-        return states.get(0);
+        assertThat("expected at least one snapshot recovery (one per primary shard)", states, not(empty()));
+        return states;
     }
 
     /**

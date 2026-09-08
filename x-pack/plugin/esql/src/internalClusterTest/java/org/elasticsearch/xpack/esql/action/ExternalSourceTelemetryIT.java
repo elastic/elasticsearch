@@ -463,8 +463,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
         assertThat(
-            "parse.rows.total must fire for the local scheme",
-            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
+            "parse.rows.total must fire for type=local",
+            counterTotalForType(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
             equalTo(1L)
         );
 

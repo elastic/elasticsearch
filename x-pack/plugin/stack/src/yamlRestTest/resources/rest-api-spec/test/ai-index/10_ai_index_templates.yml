@@ -36,6 +36,8 @@ setup:
       indices.get_mapping:
         index: ai-index-idx-foo
   - match: { ai-index-idx-foo.mappings.properties.type.type: keyword }
+  - match: { ai-index-idx-foo.mappings.properties.type.normalizer: lowercase }
+  - match: { ai-index-idx-foo.mappings.properties.tags.normalizer: lowercase }
 
 ---
 "Data stream AI index is backed by the managed template":

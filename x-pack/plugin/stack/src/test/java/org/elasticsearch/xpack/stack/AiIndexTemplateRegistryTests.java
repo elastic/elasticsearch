@@ -110,6 +110,13 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
             Map<String, Object> semantic = (Map<String, Object>) subFields.get("semantic");
             assertThat("field [" + field + "]", semantic.get("type"), equalTo("semantic_text"));
         }
+
+        // Lowercased at index time so term/prefix queries against them are case-insensitive.
+        for (String field : new String[] { "type", "tags" }) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fieldDef = (Map<String, Object>) properties.get(field);
+            assertThat("field [" + field + "]", fieldDef.get("normalizer"), equalTo("lowercase"));
+        }
     }
 
     public void testDataStreamSettingsComponent() {

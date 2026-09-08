@@ -122,8 +122,8 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
     private void testUnmappedFieldsLoadAll(String keep) {
         assumeTrue("Requires unmapped_fields=\"load_all\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
-        String nested = "nest_load_" + getTestName().toLowerCase(Locale.ROOT);
-        String object = "obj_load_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_load_");
+        String object = indexName("obj_load_");
         createIndex(nested, """
             { "properties": { "id": { "type": "keyword" }, "item": {
               "type": "nested", "properties": { "value": { "type": "integer" } } } } }""");
@@ -147,8 +147,8 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
     private void testIntegerVsLong(boolean sameNode) {
         String[] nodes = pinNodes(sameNode);
-        String nested = "nest_int_" + getTestName().toLowerCase(Locale.ROOT);
-        String object = "obj_long_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_int_");
+        String object = indexName("obj_long_");
         createPinnedIndex(nested, """
             { "properties": { "id": { "type": "keyword" }, "item": {
               "type": "nested", "properties": { "value": { "type": "integer" } } } } }""", nodes[0]);
@@ -171,8 +171,8 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
     private void testDoubleVsLong(boolean sameNode) {
         String[] nodes = pinNodes(sameNode);
-        String nested = "nest_dbl_" + getTestName().toLowerCase(Locale.ROOT);
-        String object = "obj_lng_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_dbl_");
+        String object = indexName("obj_lng_");
         createPinnedIndex(nested, """
             { "properties": { "item": { "type": "nested", "properties": { "value": { "type": "double" } } } } }""", nodes[0]);
         createPinnedIndex(object, """
@@ -194,8 +194,8 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
     private void testKeywordVsDate(boolean sameNode) {
         String[] nodes = pinNodes(sameNode);
-        String nested = "nest_kw_" + getTestName().toLowerCase(Locale.ROOT);
-        String object = "obj_dt_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_kw_");
+        String object = indexName("obj_dt_");
         createPinnedIndex(nested, """
             { "properties": { "item": { "type": "nested", "properties": { "value": { "type": "keyword" } } } } }""", nodes[0]);
         createPinnedIndex(object, """
@@ -213,8 +213,8 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
     private void testIncludeInRootSameType(boolean sameNode) {
         String[] nodes = pinNodes(sameNode);
-        String nested = "nest_root_" + getTestName().toLowerCase(Locale.ROOT);
-        String object = "obj_root_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_root_");
+        String object = indexName("obj_root_");
         // Single-level nested: include_in_parent and include_in_root both copy onto the root.
         String include = randomFrom("include_in_root", "include_in_parent");
         createPinnedIndex(nested, Strings.format("""
@@ -250,6 +250,14 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         return randomBoolean() ? "item.value::long" : "item.value";
     }
 
+    /**
+     * {@link #getTestName()} includes {@code {seed=[...]}} under repeat-changed-tests, which is
+     * not a valid index name and is not a valid ES|QL identifier.
+     */
+    private String indexName(String prefix) {
+        return prefix + getTestName().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
     private String[] pinNodes(boolean sameNode) {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String node1 = randomDataNode().getName();
@@ -258,7 +266,7 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
     }
 
     private String createSingleNestedIndex() {
-        String nested = "nest_only_" + getTestName().toLowerCase(Locale.ROOT);
+        String nested = indexName("nest_only_");
         assertAcked(
             client().admin()
                 .indices()

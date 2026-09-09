@@ -68,6 +68,11 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
  *       differences). Only checked while the per-iteration <em>determinism gate</em> is open.</li>
  * </ol>
  *
+ * <p>When both sides throw, the shared failure is not treated as a test failure: this suite's job
+ * is to find index-mode divergences. Bugs that reproduce on both modes belong in other suites
+ * (e.g. {@code GenerativeIT} or unit tests). The pipeline step still stops so later commands are
+ * not built on a failed query.
+ *
  * <p>The determinism gate closes when a row-truncating or non-deterministic command appears in
  * the pipeline, or when either side returns exactly 1 000 rows (the implicit {@code LIMIT 1000}
  * may have kicked in). After the gate closes, failure parity and schema are still checked for
@@ -110,7 +115,18 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         "many_numbers",
         // cartesian_shape cannot be stored via doc values for synthetic source, leaving the cand
         // index with 0 documents while ref has the full dataset.
-        "cartesian_multipolygons"
+        "cartesian_multipolygons",
+        // Unmapped-source fixtures: all are dynamic:false with only `id` mapped, so everything else in the
+        // document lands in _source / _ignored_source. Strict columnar drops that content at ingest (it
+        // reconstructs _source from doc values), so the ref side surfaces those fields and the cand side
+        // cannot - a legitimate mode difference, not a bug. Same reasoning and same list as
+        // CsvColumnarIT#EXCLUDED_DATASETS, which skips them for the columnar csv-spec run.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data"
     );
 
     /**
@@ -150,12 +166,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // a 500 error on any shard that encounters a null-typed unmapped field in a date_extract()
         // expression. Affects both modes equally but can surface as partial results on one side
         // only due to shard-level execution order differences.
-        "Unsupported field type [NULL]",
-        // USER_AGENT / REPLACE can produce a NullPointerException ("Cannot invoke
-        // String.isEmpty() because this.pattern is null") when applied to certain field
-        // combinations. Server-side bug; both modes are equally affected but shard-level execution
-        // order means partial results may be reported on one side only.
-        "this.pattern\" is null"
+        "Unsupported field type [NULL]"
     );
 
     /**
@@ -188,6 +199,13 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     // Per-iteration candidate state. Reset in runCommand when prevRef == null (the source command).
     private QueryExecuted candidatePreviousResult;
     private boolean determinismGateOpen;
+
+    /**
+     * Set by {@link #compareSides} when both reference and candidate threw. The base-class
+     * {@code checkPipelineException} would otherwise fail the suite on the shared error; we
+     * suppress that because matching failures are not a mode divergence.
+     */
+    private boolean bothSidesThrew;
 
     /** Number of pipeline steps where the determinism gate was open and value comparison was attempted. */
     private int valueComparedSteps;
@@ -381,6 +399,23 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         return errors;
     }
 
+    /**
+     * Shared failures (both modes threw) are out of scope for this differential suite — see class
+     * javadoc. One-sided throws still go through the usual allowed-error checks (including
+     * {@link #ALLOWED_MODE_DIFFERENCE_SUBSTRINGS}).
+     */
+    @Override
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (bothSidesThrew) {
+            return;
+        }
+        super.checkPipelineException(query, previousCommands, currentSchema);
+    }
+
     // -----------------------------------------------------------------------------------------
     // Generator hooks
     // -----------------------------------------------------------------------------------------
@@ -406,6 +441,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
             candidatePreviousResult = null;
             determinismGateOpen = true;
         }
+        bothSidesThrew = false;
 
         // Determine the reference and candidate command strings.
         Object mirror = current.context().get(DualModeFromGenerator.MIRROR_COMMAND);
@@ -567,6 +603,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
     private void compareSides(CommandGenerator.CommandDescription current, QueryExecuted ref, QueryExecuted cand, boolean deterministic) {
         boolean refThrew = ref.exception() != null;
         boolean candThrew = cand.exception() != null;
+        bothSidesThrew = refThrew && candThrew;
 
         // 1. Failure parity
         if (refThrew != candThrew) {

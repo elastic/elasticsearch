@@ -63,23 +63,23 @@ public class PotentiallyUnmappedNonLoadableEsFieldTests extends AbstractEsFieldT
         );
     }
 
-    /** The marker carries the sibling's mapped type rather than assuming one, so serialization must round-trip it. */
-    public void testSerializesAsEsFieldToOldNodes() throws IOException {
+    /**
+     * The type must never write itself as a plain {@link EsField}: that would strip the instruction to fail on a {@code _source} value,
+     * leaving the reader to null the column instead. It also carries the sibling's mapped type rather than assuming one.
+     */
+    public void testAlwaysWritesItsOwnNameAndKeepsTheMappedType() throws IOException {
         DataType dataType = randomNonLoadableType();
         PotentiallyUnmappedNonLoadableEsField field = new PotentiallyUnmappedNonLoadableEsField(
             new EsField("name", dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
 
-        EsField current = copy(field, TransportVersion.current());
-        assertThat(current, instanceOf(PotentiallyUnmappedNonLoadableEsField.class));
-        assertThat(current.getName(), equalTo("name"));
-        assertThat(current.getDataType(), equalTo(dataType));
-
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_non_loadable_es_field"));
-        EsField oldCopy = copy(field, old);
-        assertThat(oldCopy.getClass(), equalTo(EsField.class));
-        assertThat(oldCopy.getName(), equalTo("name"));
-        assertThat(oldCopy.getDataType(), equalTo(dataType));
+        for (TransportVersion version : List.of(TransportVersion.current(), TransportVersionUtils.randomVersion())) {
+            assertThat(field.getWriteableName(version), equalTo("PotentiallyUnmappedNonLoadableEsField"));
+            EsField copy = copy(field, version);
+            assertThat(copy, instanceOf(PotentiallyUnmappedNonLoadableEsField.class));
+            assertThat(copy.getName(), equalTo("name"));
+            assertThat(copy.getDataType(), equalTo(dataType));
+        }
     }
 
     private EsField copy(EsField field, TransportVersion version) throws IOException {

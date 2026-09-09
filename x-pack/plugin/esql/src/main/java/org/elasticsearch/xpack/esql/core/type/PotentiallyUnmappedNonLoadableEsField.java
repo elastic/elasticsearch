@@ -20,9 +20,6 @@ import java.util.Map;
  * {@link EsField} as missing and rewrite it to null.
  */
 public class PotentiallyUnmappedNonLoadableEsField extends EsField {
-    private static final TransportVersion ESQL_UNMAPPED_NON_LOADABLE_ES_FIELD = TransportVersion.fromName(
-        "esql_unmapped_non_loadable_es_field"
-    );
 
     public PotentiallyUnmappedNonLoadableEsField(EsField mapped) {
         this(
@@ -62,12 +59,14 @@ public class PotentiallyUnmappedNonLoadableEsField extends EsField {
         );
     }
 
+    /**
+     * Always the real name, like {@link PotentiallyUnmappedKeywordEsField}: substituting a plain {@link EsField} for a node too old to
+     * know this type would strip the very instruction it carries, so that node would return null where it must fail. Such a node cannot
+     * run a {@code LOAD_ALL} query anyway - it does not know {@code UnmappedFieldsAttribute} either - so it fails on the unknown name.
+     */
     @Override
     public String getWriteableName(TransportVersion transportVersion) {
-        if (transportVersion.supports(ESQL_UNMAPPED_NON_LOADABLE_ES_FIELD)) {
-            return "PotentiallyUnmappedNonLoadableEsField";
-        }
-        return "EsField";
+        return "PotentiallyUnmappedNonLoadableEsField";
     }
 
     @Override

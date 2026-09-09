@@ -34,10 +34,6 @@ import static org.elasticsearch.test.ESTestCase.randomList;
  */
 public class EsFieldTestUtils {
 
-    private static final TransportVersion ESQL_UNMAPPED_NON_LOADABLE_ES_FIELD = TransportVersion.fromName(
-        "esql_unmapped_non_loadable_es_field"
-    );
-
     private EsFieldTestUtils() {}
 
     /**
@@ -53,8 +49,7 @@ public class EsFieldTestUtils {
      * to keep the unrestricted behavior.
      */
     public static EsField randomSerializableEsField(int maxDepth, TransportVersion supportedOn) {
-        int maxCase = supportedOn == null || supportedOn.supports(ESQL_UNMAPPED_NON_LOADABLE_ES_FIELD) ? 6 : 5;
-        return switch (between(0, maxCase)) {
+        return switch (between(0, 6)) {
             case 0 -> randomEsField(maxDepth, supportedOn);
             case 1 -> randomDateEsField(maxDepth, supportedOn);
             case 2 -> randomKeywordEsField(maxDepth, supportedOn);

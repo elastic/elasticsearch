@@ -23,6 +23,10 @@ setup:
                 default_metric: max
               txt:
                 type: text
+              vec:
+                type: dense_vector
+                dims: 3
+                index: false
 
   - do:
       indices.create:
@@ -37,9 +41,9 @@ setup:
         refresh: true
         body:
           - { "index": { "_index": "idx1" } }
-          - { "tx": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 }, "txt": "mapped" }
+          - { "tx": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 }, "txt": "mapped", "vec": [ 1.0, 2.0, 3.0 ] }
           - { "index": { "_index": "idx2" } }
-          - { "tx": 81, "txt": "unmapped" }
+          - { "tx": 81, "txt": "unmapped", "vec": [ 4.0, 5.0, 6.0 ] }
 
 ---
 "LOAD_ALL subquery fails when unmapped sibling has an aggregate_metric_double _source value":
@@ -64,3 +68,25 @@ setup:
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - contains: { error.reason: 'Field [txt] of type [text] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }
+
+---
+"LOAD_ALL subquery fails when unmapped sibling has a dense_vector _source value":
+  - do:
+      catch: bad_request
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2) | KEEP vec'
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - contains: { error.reason: 'Field [vec] of type [dense_vector] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }
+
+---
+"LOAD_ALL comma form warns and nulls where the subquery form fails":
+  - do:
+      allowed_warnings:
+        - "Field [vec] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM idx1, idx2 | KEEP vec | SORT vec NULLS LAST | LIMIT 2'
+  - match: { values: [ [ [ 1.0, 2.0, 3.0 ] ], [ null ] ] }

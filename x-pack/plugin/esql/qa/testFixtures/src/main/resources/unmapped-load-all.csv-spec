@@ -4070,3 +4070,27 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 6          | null             | null                 | deep6                      | null                 | abc
 123         | 7          | null             | bar7                 | null                       | null                 | abc
 ;
+
+// Same nulls and warning as the load twin in unmapped-load.csv-spec: a comma-separated FROM does not reach the non-loadable
+// marker, so it warns instead of failing the way the subquery form does (298_unmapped_load_all_subquery_non_loadable.yml).
+loadAllCommaFormDenseVectorWarnsAndNulls
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_partially_unmapped_dense_vector
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM dense_vector, dense_vector_unmapped METADATA _index
+| KEEP _index, id, float_vector
+| SORT _index, id
+| LIMIT 6
+;
+warning:Field [float_vector] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+_index:keyword        | id:l | float_vector:dense_vector
+dense_vector          | 0    | [1.0, 2.0, 3.0]
+dense_vector          | 1    | [4.0, 5.0, 6.0]
+dense_vector          | 2    | [9.0, 8.0, 7.0]
+dense_vector          | 3    | [0.0625, 0.25, 0.75]
+dense_vector          | 4    | null
+dense_vector_unmapped | 0    | null
+;

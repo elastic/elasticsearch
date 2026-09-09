@@ -4238,3 +4238,37 @@ FROM normalized_keyword, normalized_keyword_unmapped
 doc_id:keyword | kw:keyword
 b-1            | HELLO
 ;
+
+// loc and wkt hold the same point, yet only wkt survives being read from _source: a JSON object has no keyword projection
+// (UnmappedKeywordValues drops it) so the geo_point converter is handed null, and unlike the d case below that is silent.
+unmappedObjectSourceValueIsSilentlyNotReconstructed
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="load"\;
+FROM source_representation, source_representation_unmapped METADATA _index
+| KEEP _index, loc, wkt
+| SORT _index
+;
+
+_index:keyword                 | loc:geo_point                | wkt:geo_point
+source_representation          | POINT (-71.340000 41.120000) | POINT (-71.340000 41.120000)
+source_representation_unmapped | null                         | POINT (-71.340000 41.120000)
+;
+
+// ToDatetime parses ES|QL's own formats, never the sibling mapping's "dd/MM/yyyy", so the unmapped leg cannot re-parse its own
+// _source value. This one at least warns.
+unmappedCustomFormattedDateSourceValueWarnsAndNulls
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="load"\;
+FROM source_representation, source_representation_unmapped METADATA _index
+| KEEP _index, d
+| SORT _index
+;
+warning:Line 2:1: evaluation of [FROM source_representation, source_representation_unmapped METADATA _index] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:1: java.lang.IllegalArgumentException: failed to parse date field [09/09/2026] with format [strict_date_optional_time]
+
+_index:keyword                 | d:datetime
+source_representation          | 2026-09-09T00:00:00.000Z
+source_representation_unmapped | null
+;

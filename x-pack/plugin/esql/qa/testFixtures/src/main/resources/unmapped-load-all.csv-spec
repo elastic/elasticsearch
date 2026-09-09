@@ -1832,6 +1832,58 @@ ignoreOrder:true
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+// A sibling's mapped type wins over the keyword an unmapped branch fabricates, whichever branch is listed first. Here the
+// unmapped branch comes first and mentions the field via KEEP, which used to make the union reject the query outright.
+loadAllSubqueryUnmappedBranchFirstKeepCastsToSiblingType
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// Same, materialized by a WHERE reference rather than a KEEP: that shape used to yield an all-null unsupported column.
+loadAllSubqueryUnmappedBranchFirstWhereCastsToSiblingType
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
+| KEEP event_duration
+| SORT event_duration
+| LIMIT 3
+;
+
+event_duration:long
+725447
+725447
+1232381
+;
+
+// Mapped on both sides is an ordinary type conflict, unrelated to LOAD_ALL: no cast, and unsupported in either branch order.
+loadAllSubqueryBothBranchesMappedConflictStaysUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM sample_data_str), (FROM sample_data)
+| KEEP client_ip
+| LIMIT 1
+;
+
+client_ip:unsupported
+null
+;
+
 // KEEP * admits every name, so it must not stop the branch from reading a sibling-mapped column: 14, not the 7 mapped rows alone.
 loadAllSubqueryKeepStarBranchStillLoadsMappedSibling
 required_capability: optional_fields_load_all_subqueries
@@ -2062,7 +2114,7 @@ null                     | null         | 5033754             | null            
 null                     | null         | 1756466             | null                   | null                  | null                    | null                            | null
 ;
 
-// Mapped AMD first so the union type is AMD; KEEP on the unmapped index is swapped to PotentiallyUnmappedNonLoadableEsField.
+// Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index becomes a non-loadable marker.
 loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command

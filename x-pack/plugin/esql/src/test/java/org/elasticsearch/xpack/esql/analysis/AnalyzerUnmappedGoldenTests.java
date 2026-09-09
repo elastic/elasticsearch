@@ -1347,7 +1347,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // Suffix glob so LOAD_ALL extras stay enabled without also keeping AMD metric subfields.
+    // Suffix glob so LOAD_ALL extras stay enabled without also keeping the aggregate_metric_double metric subfields.
     public void testLoadAllSubqueryMappedAmdLoadsOnUnmappedSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
@@ -1387,7 +1387,29 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    // Mapped AMD first so the union type is AMD; KEEP on the unmapped index is swapped to PotentiallyUnmappedAmdEsField.
+    // Unmapped branch listed first and mentioning the field: its fabricated keyword must yield to the sibling's LONG rather than
+    // leave the column without a common type. ResolveUnionTypesInUnionAll inserts the cast, so branch order does not matter.
+    public void testLoadAllSubqueryUnmappedBranchFirstKeepCastsToSiblingType() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | KEEP event_duration), (FROM partial_mapping_sample_data)
+            | KEEP event_duration
+            """).run();
+    }
+
+    // Same, materialized by a WHERE reference instead of a KEEP.
+    public void testLoadAllSubqueryUnmappedBranchFirstWhereCastsToSiblingType() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());
+        loadAll("""
+            FROM (FROM no_mapping_sample_data | WHERE event_duration IS NOT NULL), (FROM partial_mapping_sample_data)
+            | KEEP event_duration
+            """).run();
+    }
+
+    // Mapped index first so the union type is aggregate_metric_double; the KEEP on the unmapped index is swapped to
+    // PotentiallyUnmappedNonLoadableEsField.
     public void testLoadAllSubqueryKeepAmdLoadsOnUnmappedSibling() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.isEnabled());

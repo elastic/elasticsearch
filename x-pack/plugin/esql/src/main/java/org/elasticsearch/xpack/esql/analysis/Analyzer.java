@@ -1878,13 +1878,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<FieldAttribute> nonLoadableReplacements = List.of();
                 if (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
-                    nonLoadableReplacements = convertExplicitlyLoadedUnmappedToSiblingType(
-                        source,
-                        logicalPlan,
-                        outputUnion,
-                        aliases,
-                        context.configuration()
-                    );
+                    nonLoadableReplacements = markExplicitlyLoadedUnmappedNonLoadable(logicalPlan, outputUnion, context.configuration());
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
@@ -1991,39 +1985,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * When this branch already read an unmapped field from {@code _source} as keyword (KEEP/mention) and a sibling maps it as
-         * another type, convert here so both branches agree on the union column's type. Returns the replacements for types with no
-         * implicit keyword cast, which cannot be converted and are marked non-loadable instead.
+         * When this branch already read an unmapped field from {@code _source} as keyword (KEEP/mention) and a sibling maps it as a
+         * type with no cast from keyword, mark it non-loadable, so that reading a value fails rather than silently yielding null. A
+         * sibling type that does have a cast needs nothing here: {@code ResolveUnionTypesInUnionAll} reconciles those, in either
+         * branch order.
          */
-        private static List<FieldAttribute> convertExplicitlyLoadedUnmappedToSiblingType(
-            Source source,
+        private static List<FieldAttribute> markExplicitlyLoadedUnmappedNonLoadable(
             LogicalPlan logicalPlan,
             List<Attribute> outputUnion,
-            List<Alias> aliases,
             Configuration configuration
         ) {
-            Set<String> aliased = new HashSet<>();
-            for (Alias alias : aliases) {
-                aliased.add(alias.name());
-            }
             List<FieldAttribute> nonLoadableReplacements = new ArrayList<>();
             for (Attribute attr : outputUnion) {
                 if (attr instanceof FieldAttribute fa
                     && fa instanceof UnsupportedAttribute == false
-                    && aliased.contains(fa.name()) == false
                     && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
                     && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField == false
                     && fa.field() instanceof MissingEsField == false) {
                     FieldAttribute punk = punkFieldNamed(logicalPlan, fa.name());
-                    if (punk == null) {
-                        continue;
-                    }
-                    AbstractConvertFunction cast = implicitCastFromKeyword(fa.dataType(), punk, configuration);
-                    if (cast == null) {
+                    if (punk != null && implicitCastFromKeyword(fa.dataType(), punk, configuration) == null) {
                         nonLoadableReplacements.add(punk.withField(new PotentiallyUnmappedNonLoadableEsField(fa.field())));
-                    } else if (cast.isNoop() == false) {
-                        aliases.add(new Alias(source, fa.name(), cast));
-                        aliased.add(fa.name());
                     }
                 }
             }
@@ -4468,7 +4449,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         unionAll,
                         planWithConvertFunctionsReplaced,
                         updatedUnionAllOutput,
-                        context.configuration()
+                        context.configuration(),
+                        context.unmappedResolution().loadsAllUnmappedFields()
                     )
                     : unionAll
             );
@@ -4701,14 +4683,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             UnionAll unionAll,
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput,
-            Configuration configuration
+            Configuration configuration,
+            boolean loadsAllUnmappedFields
         ) {
             // build a map of UnionAll output to a list of LogicalPlan that reference this output
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
             List<List<Attribute>> outputs = unionAll.children().stream().map(LogicalPlan::output).toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
-            List<DataType> commonTypes = commonTypes(outputs);
+            List<DataType> commonTypes = commonTypes(outputs, configuration, loadsAllUnmappedFields);
 
             // Collect UnsupportedAttributes by column index so that rebuildUnionAllOutput
             // can use them for the UnionAll output, preserving original_types metadata.
@@ -4771,7 +4754,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return outputToPlans;
         }
 
-        private static List<DataType> commonTypes(List<List<Attribute>> outputs) {
+        private static List<DataType> commonTypes(
+            List<List<Attribute>> outputs,
+            Configuration configuration,
+            boolean loadsAllUnmappedFields
+        ) {
             int columnCount = outputs.get(0).size();
             List<DataType> commonTypes = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
@@ -4779,9 +4766,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 for (List<Attribute> out : outputs) {
                     type = commonType(type, alignmentDataType(out.get(i)));
                 }
+                if (type == null && loadsAllUnmappedFields) {
+                    type = typeMappedBranchesAgreeOn(outputs, i, configuration);
+                }
                 commonTypes.add(type);
             }
             return commonTypes;
+        }
+
+        /**
+         * The type the branches that really map column {@code i} agree on, for a column the fold above found no common type for. Under
+         * {@code LOAD_ALL} every unmapped source field reads as keyword, so a branch that only fabricates the column that way says
+         * nothing about its type and must not be what condemns it: {@link #resolveAttribute} casts it to the returned type instead.
+         * {@code null} — leaving the column {@code UNSUPPORTED} — when the mapped branches disagree among themselves, which is an
+         * ordinary type conflict having nothing to do with unmapped fields, or when the type they agree on has no cast from keyword.
+         * Only {@code LOAD_ALL} loads unmapped fields unconditionally, so under {@code load} a conflict still fails the query.
+         */
+        private static DataType typeMappedBranchesAgreeOn(List<List<Attribute>> outputs, int i, Configuration configuration) {
+            DataType mapped = null;
+            FieldAttribute fabricated = null;
+            for (List<Attribute> out : outputs) {
+                if (out.get(i) instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                    fabricated = fa;
+                    continue;
+                }
+                DataType type = alignmentDataType(out.get(i));
+                mapped = mapped == null ? type : commonType(mapped, type);
+                if (mapped == null) {
+                    return null;
+                }
+            }
+            if (fabricated == null || mapped == null) {
+                return null;
+            }
+            return ResolveRefs.implicitCastFromKeyword(mapped, fabricated, configuration) == null ? null : mapped;
         }
 
         private static DataType commonType(DataType t1, DataType t2) {

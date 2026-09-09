@@ -176,14 +176,14 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * The minimum shard write load (in write threads) below which a shard will not be considered for movement in a
+     * The minimum shard write load (in write threads) below or equal to which a shard will not be considered for movement in a
      * {@code canRemain} hotspot check. A shard using fewer threads than this threshold cannot meaningfully relieve
-     * the hotspot by being moved. Set to {@code 0.0} to disable the check (all shards eligible for movement).
+     * the hotspot by being moved. Set to {@code -1.0} to disable the check (all shards eligible for movement).
      */
     public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING = Setting.doubleSetting(
         SETTING_PREFIX + "hotspot_min_shard_write_load_threshold",
         0.001,
-        0.0,
+        -1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -275,8 +275,8 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * @return The minimum shard write load (in write threads) below which a shard will not be moved in a hotspot
-     * {@code canRemain} check. Returns 0.0 when the check is disabled (all shards eligible for movement).
+     * @return The minimum shard write load (in write threads) below or equal to which a shard will not be moved in a hotspot
+     * {@code canRemain} check. Returns -1.0 when the check is disabled (all shards eligible for movement).
      */
     public double getHotspotMinShardWriteLoadThreshold() {
         return this.hotspotMinShardWriteLoadThreshold;

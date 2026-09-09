@@ -72,15 +72,15 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
     }
 
     /**
-     * Returns true when a shard's write load is below the minimum threshold, meaning the shard cannot
+     * Returns true when a shard's write load is below or equal to the minimum threshold, meaning the shard cannot
      * meaningfully relieve a hotspot by being moved. Returns false (not negligible) when the threshold
-     * is 0.0 (disabled).
+     * is -1.0 (disabled).
      */
     public static boolean isShardWriteLoadContributionNegligible(double minThreshold, double shardWriteLoad) {
-        if (minThreshold == 0.0) {
+        if (minThreshold < 0.0) {
             return false;
         }
-        return shardWriteLoad < minThreshold;
+        return shardWriteLoad <= minThreshold;
     }
 
     @Override
@@ -198,7 +198,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 return allocation.decision(
                     Decision.YES,
                     NAME,
-                    "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] below the minimum threshold [%.5f] to "
+                    "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] at or below the minimum threshold [%.5f] to "
                         + "consider for movement",
                     node.getShortNodeDescription(),
                     shardRouting.shardId(),

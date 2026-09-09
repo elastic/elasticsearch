@@ -3823,8 +3823,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertHitCount(prepareSearchAll(indexName), numDocs);
             assertTrue("SHARD_STARTED must succeed after restart completes", shardStartedAfterRestart.get());
         } finally {
-            restartCompleted.set(true);
-            suppressShardStarted.set(false);
             targetTransport.clearAllRules();
         }
     }

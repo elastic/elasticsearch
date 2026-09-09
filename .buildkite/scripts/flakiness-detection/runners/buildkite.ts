@@ -309,9 +309,11 @@ function orchestrationCommand(): string {
     // guard below. Compiling everything is what lets the scan phase resolve an abstract base against
     // subclasses in other projects.
     //
-    // The guard matters because `pr.ts` turns EVERY changed file into a ref, not just test files, so the
-    // bootstrap's `refs.length === 0` short-circuit almost never fires - a docs-only PR still reaches this
-    // step. Without the guard it would pay the whole repo test compile to produce an empty plan.
+    // The guard is the second of two gates, not the first. `pr.ts` already declines to upload this step at
+    // all when nothing changed under a source directory (see mayBeTestSource), so a docs-only PR never gets
+    // here. That gate is deliberately coarse, though, so plenty of PRs still arrive with refs that resolve to
+    // no target - a change confined to `src/main/java`, or to a source set the resolver does not consult.
+    // Without this guard those would pay the whole repo test compile to produce an empty plan.
     // `"refIndex"` is the marker: it is the one field name that appears in a per-project file exactly when
     // that project resolved at least one target, so this stays a single-token grep rather than JSON parsing
     // in shell. Keep in sync with FlakinessJson.RefTarget#refIndex.

@@ -41,6 +41,19 @@ export function resolveMergeBaseTarget(
 // timeout_in_minutes budget.
 const GIT_COMMAND_TIMEOUT_MS = 60_000;
 
+/**
+ * Whether a changed file is worth handing to the resolver at all.
+ *
+ * This is a **cost gate, not a classifier**. It never decides what a ref means - the resolver still does all
+ * of that against the real source-set model. It only decides whether starting the Gradle orchestration is
+ * worth it, because every changed file becomes a ref and the compile phase's own guard only fires after
+ * resolve has already run. Without this, a docs-only or build-script-only PR pays a whole resolve pass over
+ * ~450 projects, plus a scan, to produce an empty plan.
+ */
+export function mayBeTestSource(path: string): boolean {
+  return /(^|\/)src\//.test(path);
+}
+
 // Gather `unmute` refs from the muted-tests.yml diff. Note there is no longer any repo-file listing or
 // class-file location here: turning a class name into a project/sourceSet/kind (and expanding an abstract
 // base) is the Java resolver's job now, which is why the old `git ls-files` scan is gone.
@@ -86,10 +99,11 @@ export function run(): void {
     .toString()
     .trim();
   const changedFiles = changedFilesOutput.split("\n").map((f) => f.trim()).filter((f) => f);
-  console.log(`Found ${changedFiles.length} changed files`);
-  // Every changed file becomes a ref; the resolver decides which are test files it can act on and silently
-  // ignores the rest. No path-shape heuristics live here anymore.
-  const changedRefs: FlakinessRef[] = changedFiles.map((path) => ({ source: "changed-file", path }));
+  const sourceFiles = changedFiles.filter(mayBeTestSource);
+  console.log(`Found ${changedFiles.length} changed files (${sourceFiles.length} under a source directory)`);
+  // Every changed source file becomes a ref; the resolver decides which are test files it can act on and
+  // silently ignores the rest. No path-shape classification lives here - see mayBeTestSource.
+  const changedRefs: FlakinessRef[] = sourceFiles.map((path) => ({ source: "changed-file", path }));
 
   console.log("Gathering unmuted refs...");
   const unmuteRefs = gatherUnmuteRefs(mergeBase, PROJECT_ROOT);
@@ -98,7 +112,7 @@ export function run(): void {
   const refs: FlakinessRef[] = [...changedRefs, ...unmuteRefs];
 
   if (refs.length === 0) {
-    console.log("No changed files or unmutes detected");
+    console.log("No changed source files or unmutes detected; not starting the resolver");
     if (process.env.CI) {
       try {
         execSync(

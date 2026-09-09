@@ -356,9 +356,10 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
   });
 
   test("compile phase is skipped entirely when resolve produced no targets", () => {
-    // pr.ts turns EVERY changed file into a ref, not just test files, so the bootstrap's refs.length === 0
-    // short-circuit almost never fires: a docs-only PR still reaches this step. Without the guard it would
-    // pay the whole repo test compile to produce an empty plan.
+    // The second of two gates. pr.ts already declines to upload this step when nothing changed under a
+    // source directory, so a docs-only PR never gets here; this guard catches what that coarse filter lets
+    // through - a change confined to src/main/java, say - which would otherwise pay the whole repo test
+    // compile to produce an empty plan.
     expect(cmd).toContain(`if grep -qs '"refIndex"' build/flakiness/project-targets/*.json; then`);
     expect(cmd).toContain('echo "resolve produced no runnable targets; skipping the repo-wide test compile."');
     // scan still runs either way - it is what reports refs no project could claim at all.

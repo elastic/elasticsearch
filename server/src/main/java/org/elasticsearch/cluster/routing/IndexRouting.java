@@ -155,6 +155,23 @@ public abstract class IndexRouting {
      * per request in the same order as {@code requests}.
      */
     public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+        return indexShard(requests, batch, null);
+    }
+
+    /**
+     * Batch version of {@link #indexShard(IndexRequest)} with an optional row-subset mapping.
+     *
+     * <p>When {@code rows} is non-null, {@code rows[i]} is the batch row index for {@code requests[i]}.
+     * Callers use this when routing only a subset of a larger batch (e.g. the rows belonging to one
+     * concrete backing index when a TSDB data stream spans multiple).
+     *
+     * <p>When {@code rows} is null the behaviour is identical to {@link #indexShard(IndexRequest[], SourceBatch)}:
+     * {@code requests[i]} is assumed to correspond to row {@code i}.
+     *
+     * @param rows batch row index per request, or null when {@code requests[i]} is row {@code i}
+     */
+    public int[] indexShard(IndexRequest[] requests, SourceBatch batch, @Nullable int[] rows) {
+        assert rows == null || rows.length == requests.length;
         int[] shards = new int[requests.length];
         for (int i = 0; i < requests.length; i++) {
             shards[i] = indexShard(requests[i]);
@@ -761,10 +778,25 @@ public abstract class IndexRouting {
 
             /**
              * Batch routing: computes tsids for all requests in one column-major pass over
-             * {@code batch}.
+             * {@code batch}. Delegates to {@link #indexShard(IndexRequest[], SourceBatch, int[])}.
              */
             @Override
             public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                return indexShard(requests, batch, null);
+            }
+
+            /**
+             * Batch routing with an optional row-subset: computes tsids for the given requests in one
+             * column-major pass over {@code batch}.
+             *
+             * <p>When {@code rows} is non-null, {@code rows[i]} is the batch row index for
+             * {@code requests[i]}. Only those rows contribute to the tsid computation; all other rows
+             * in the batch are silently skipped. Use this when routing the subset of rows that belong
+             * to one concrete backing index of a TSDB data stream that spans multiple generations.
+             */
+            @Override
+            public int[] indexShard(IndexRequest[] requests, SourceBatch batch, @Nullable int[] rows) {
+                assert rows == null || rows.length == requests.length;
                 batchHashes = null;
                 int[] shards = new int[requests.length];
                 int[] hashes = new int[requests.length];
@@ -794,7 +826,7 @@ public abstract class IndexRouting {
                 }
 
                 if (allPreSet == false) {
-                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion);
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion, rows);
                     for (int i = 0; i < requests.length; i++) {
                         requests[i].tsid(tsids[i]);
                         int h = hash(tsids[i]);

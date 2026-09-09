@@ -180,6 +180,9 @@ public class BatchModeRouterTests extends ESTestCase {
      * post-process, and batch bookkeeping — to {@link BatchModeRouter#route}. Calls
      * {@link BatchModeRouter#buildGrouping} after the scan, matching the production path.
      *
+     * <p>Calls {@link BatchModeRouter#preResolveTimestamps} before the per-item loop, matching the
+     * production path in {@link BulkOperation#groupRequestsByShards}.
+     *
      * @param skipRows rows to drop before routing, standing in for items that fail validation in the
      *                 real loop
      */
@@ -189,6 +192,7 @@ public class BatchModeRouterTests extends ESTestCase {
         ProjectMetadata project,
         Set<Integer> skipRows
     ) {
+        router.preResolveTimestamps(project, bulkRequest.requests());
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
         int slot = 0;
         for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests) {
@@ -454,44 +458,75 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * Step-1 limit: one batch may only resolve to one concrete write index. This is the restriction
-     * that prevents using pre-built batches with TSDB data streams spanning two backing indices.
-     * Support for multi-index fan-out will be added in a follow-up.
+     * Rows whose timestamps fall in different TSDB backing-index time ranges resolve to different
+     * concrete write indices (two generations of the same data stream). Multi-index fan-out is now
+     * supported, so routing must succeed and each backing index must receive exactly the rows that
+     * belong to its time range.
      */
-    public void testRejectsSecondConcreteIndex() throws IOException {
-        // Two plain indices; the items target the same batch name but resolve to different
-        // concrete write indices because the metadata has no alias pointing both to the same one.
-        EscfBatch batch = buildBatch(2);
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(rowRequest("myindex", batch, 0));
-        bulkRequest.add(rowRequest("myindex", batch, 1));
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
+    public void testRowsSpanTwoBackingIndices() throws IOException {
+        String gen2End = "2025-01-01T00:00:00Z";
+        IndexMetadata gen1 = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        IndexMetadata gen2 = tsdbBackingIndex(2, 1, GEN_1_END, gen2End);
+        ProjectMetadata project = projectWithDataStream(gen1, gen2);
 
-        IndexMetadata mdA = plainMetadata("myindex", 1);
-        // Simulate a second concrete index by using a different Index object (different UUID).
-        Index concreteA = mdA.getIndex();
-        IndexMetadata mdB = IndexMetadata.builder("myindex-alt")
-            .settings(indexSettings("myindex-alt").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
-            .build();
-        Index concreteB = mdB.getIndex();
-        ProjectMetadata project = project(mdA, mdB);
+        EscfBatch batch = buildBatch(2);
+        Instant inGen2 = Instant.parse("2024-09-01T00:00:00Z");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1)); // row 0 → gen 1
+        bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 1, inGen2));   // row 1 → gen 2
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
-        IndexRouting routingA = IndexRouting.fromIndexMetadata(mdA);
-        // Resolve the abstraction for "myindex" — both items target the same name.
-        IndexAbstraction ia = project.getIndicesLookup().get("myindex");
-        IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-        router.route(new BulkItemRequest(0, first), first, ia, concreteA, routingA, project, requestsByShard);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> shardBatches = router.shardBatches();
 
-        // The second item is artificially routed to a different concrete index — must be rejected.
-        IndexRequest second = (IndexRequest) bulkRequest.requests.get(1);
-        IndexRouting routingB = IndexRouting.fromIndexMetadata(mdB);
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> router.route(new BulkItemRequest(1, second), second, ia, concreteB, routingB, project, requestsByShard)
-        );
-        assertThat(e.getMessage(), containsString("not yet supported"));
+        // Each backing index has one shard and must receive exactly one row.
+        assertThat("expected two shards (one per backing index)", shardBatches.size(), equalTo(2));
+        ShardId gen1Shard = new ShardId(gen1.getIndex(), 0);
+        ShardId gen2Shard = new ShardId(gen2.getIndex(), 0);
+        assertThat("gen1 shard must have one row", shardBatches.get(gen1Shard).docCount(), equalTo(1));
+        assertThat("gen2 shard must have one row", shardBatches.get(gen2Shard).docCount(), equalTo(1));
+        assertShardsAligned(requestsByShard, shardBatches);
+        router.close();
+    }
+
+    /**
+     * Two backing indices with different shard counts: gen 1 has 2 shards, gen 2 has 3 shards,
+     * giving 5 total partitions. Each shard that receives rows must be aligned with its items.
+     */
+    public void testTwoBackingIndicesScatterIntoFiveShards() throws IOException {
+        String gen2End = "2025-01-01T00:00:00Z";
+        IndexMetadata gen1 = tsdbBackingIndex(1, 2, GEN_1_START, GEN_1_END); // 2 shards
+        IndexMetadata gen2 = tsdbBackingIndex(2, 3, GEN_1_END, gen2End);      // 3 shards
+        ProjectMetadata project = projectWithDataStream(gen1, gen2);
+
+        // 5 rows: rows 0–2 in gen 1's time range, rows 3–4 in gen 2's time range.
+        int numRows = 5;
+        EscfBatch batch = buildBatch(numRows);
+        Instant inGen2 = Instant.parse("2024-09-01T00:00:00Z");
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 3; i++) {
+            bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, i, IN_GEN_1));
+        }
+        for (int i = 3; i < numRows; i++) {
+            bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, i, inGen2));
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> shardBatches = router.shardBatches();
+
+        // All rows must be accounted for across both backing indices.
+        int totalRows = shardBatches.values().stream().mapToInt(SourceBatch::docCount).sum();
+        assertThat("all rows must be accounted for", totalRows, equalTo(numRows));
+        // No shard may belong to the wrong backing index.
+        for (ShardId sid : shardBatches.keySet()) {
+            boolean isGen1 = sid.getIndex().equals(gen1.getIndex());
+            boolean isGen2 = sid.getIndex().equals(gen2.getIndex());
+            assertTrue("shard " + sid + " belongs to neither backing index", isGen1 || isGen2);
+        }
+        assertShardsAligned(requestsByShard, shardBatches);
         router.close();
     }
 

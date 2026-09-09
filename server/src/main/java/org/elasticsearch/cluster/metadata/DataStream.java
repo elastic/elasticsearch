@@ -1819,7 +1819,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         Object rawTimestamp = request.getRawTimestamp();
         Instant timestamp = rawTimestamp != null
-            ? getTimeStampFromRaw(rawTimestamp)
+            ? getTimestampFromRawValue(rawTimestamp)
             : getTimestampFromParser(request.source(), request.getContentType());
         timestamp = getCanonicalTimestampBound(timestamp);
         request.setTimeSeriesTimestamp(timestamp);
@@ -1871,7 +1871,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
     }
 
-    private static Instant getTimeStampFromRaw(Object rawTimestamp) {
+    /**
+     * Parses a raw timestamp value (Long epoch-millis or String ISO-8601/epoch-millis) into an {@link Instant}.
+     * Exposed for callers that read the timestamp from a columnar source rather than from inline source bytes.
+     *
+     * @throws TimestampError if the value type is not Long or String, or if parsing fails
+     */
+    public static Instant getTimestampFromRawValue(Object rawTimestamp) {
         try {
             if (rawTimestamp instanceof Long lTimestamp) {
                 return Instant.ofEpochMilli(lTimestamp);

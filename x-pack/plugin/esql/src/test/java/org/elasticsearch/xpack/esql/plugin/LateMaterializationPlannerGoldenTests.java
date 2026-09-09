@@ -82,6 +82,36 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    /**
+     * No narrowing {@code KEEP}, so {@code ProjectAwayColumns} leaves the top-level {@code Project} covering the whole relation.
+     * That is the shape every {@code FORK} branch has (reproduced here without {@code FORK}, which {@code GoldenTestCase} cannot
+     * plan because of its multiple {@code ExchangeExec}s), and the case where using that {@code Project} to decide what crosses the
+     * exchange prunes nothing. The data driver must still come out as {@code [_doc, hire_date]}.
+     */
+    public void testNoKeepWithFilter() {
+        String query = """
+            FROM employees
+            | WHERE salary > 10000
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    /**
+     * {@code _score} is produced by the Lucene source operator and has no block loader, so the node-reduce driver cannot re-read it.
+     * It must cross the exchange even though it is neither a sort key nor referenced below the TopN.
+     */
+    public void testScoreMustCrossTheExchange() {
+        String query = """
+            FROM books METADATA _score
+            | WHERE title:"Tolkien"
+            | SORT year
+            | LIMIT 5
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
     public void testMultipleFieldSortTopN() {
         String query = """
             FROM employees

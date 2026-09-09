@@ -833,12 +833,12 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 .item(matchesMap().entry("name", "fieldLength").entry("type", any(String.class))),
             Map.of(
                 "data",
-                List.of(
-                    // Pushed down function
-                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                    // TODO It should not load the field value on the data node, but just on the node_reduce phase
-                    matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
-                )
+                // Only the pushed down function: the field itself is reloadable from _doc, so the node-reduce driver reads it back
+                // for the rows that survive the TopN instead of the data driver reading it for every row.
+                List.of(matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1)),
+                "node_reduce",
+                // Field
+                List.of(matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1))
             ),
             sig -> assertMap(
                 sig,
@@ -846,7 +846,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("ValuesSourceReaderOperator")
                     .item("EvalOperator")
                     .item("TopNOperator")
-                    .item("ValuesSourceReaderOperator")
                     .item("ProjectOperator")
                     .item("ExchangeSinkOperator")
             )

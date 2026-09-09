@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -213,6 +214,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
+        UnresolvedMetadata.class,
 
         // internals
         PackDims.class,

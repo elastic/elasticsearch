@@ -1243,6 +1243,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> present = plan.output().stream().map(Attribute::name).collect(Collectors.toSet());
             List<Alias> nullFills = new ArrayList<>();
             for (NamedExpression field : metadataFields) {
+                if (field.resolved() == false) {
+                    continue;
+                }
                 if (present.contains(field.name()) == false) {
                     nullFills.add(new Alias(src, field.name(), new Literal(src, null, field.dataType())));
                 }

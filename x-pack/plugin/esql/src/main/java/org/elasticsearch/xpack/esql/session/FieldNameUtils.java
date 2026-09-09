@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -511,6 +512,7 @@ public class FieldNameUtils {
             || p instanceof Row
             || p instanceof TopN
             || p instanceof Row
+            || p instanceof UnresolvedMetadata
             || p instanceof UnresolvedSourceRelation) == false;
     }
 

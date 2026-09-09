@@ -2493,9 +2493,12 @@ public class ExternalSourceResolver {
      * announced rather than silent and the message names all three alongside the query-side replacement.
      * <p>
      * Called once per {@link #resolve} rather than per path or per file, so a column warns once however wide the
-     * resource expands. Takes {@code warningSink} for the same reason {@link #warnOnShadowedColumns} does: this runs
-     * on {@link #metadataReadExecutor}, so a direct {@code HeaderWarning} write would be discarded — see that method
-     * and elastic/elasticsearch#153780. A no-op for every mapping registered since the withdrawal.
+     * resource expands. Unlike {@link #warnOnShadowedColumns} this one runs synchronously on the calling thread,
+     * above the {@link #metadataReadExecutor} dispatch, so the racy-context argument in that method does not apply
+     * here. It takes the same {@code warningSink} anyway, because the delivery route is what matters: buffered onto
+     * {@link ExternalSourceResolution} (see {@link #pendingShadowWarnings}) the message reaches the client through
+     * {@code TransportEsqlQueryAction#toResponse} whatever thread {@code resolve} was called on, and one route for
+     * every warning this class raises beats two. A no-op for every mapping registered since the withdrawal.
      */
     private static void warnOnWithdrawnDeclaredTypes(
         @Nullable Map<String, DatasetMapping> declaredMappings,

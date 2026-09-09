@@ -2054,16 +2054,20 @@ Fellowship of the Ring 2ND Edition | John Ronald Reuel Tolkien | Fellowship of t
 implicitQueryBareForm
 required_capability: highlight_implicit_query_and_fields
 
+// tag::highlightImplicitQueryBareFormForDocs[]
 FROM books
 | WHERE MATCH(title, "Return")
 | HIGHLIGHT
 | KEEP title, highlight_title
 | SORT title
+// end::highlightImplicitQueryBareFormForDocs[]
 ;
 
+// tag::highlightImplicitQueryBareFormForDocs-result[]
 title:text | highlight_title:keyword
 Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 Return of the Shadow                                             | <em>Return</em> of the Shadow
+// end::highlightImplicitQueryBareFormForDocs-result[]
 ;
 
 
@@ -2327,12 +2331,16 @@ John Ronald Reuel <em>Tolkien</em> | John Ronald Reuel <em>Tolkien</em> | null  
 highlightMatchOmitsOn
 required_capability: highlight_implicit_query_and_fields
 
+// tag::highlightQueryWithoutOnForDocs[]
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT MATCH(title, "king")
+// end::highlightQueryWithoutOnForDocs[]
 ;
 
+// tag::highlightQueryWithoutOnForDocs-result[]
 title:keyword      | body:keyword             | highlight_title:keyword
 Return of the King | An ordinary description. | Return of the <em>King</em>
+// end::highlightQueryWithoutOnForDocs-result[]
 ;
 
 
@@ -2340,13 +2348,17 @@ Return of the King | An ordinary description. | Return of the <em>King</em>
 highlightMatchOnStarKeepsUnmatchedFields
 required_capability: highlight_implicit_query_and_fields
 
+// tag::highlightOnStarForDocs[]
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT MATCH(title, "king") ON *
 | KEEP highlight_title, highlight_body
+// end::highlightOnStarForDocs[]
 ;
 
+// tag::highlightOnStarForDocs-result[]
 highlight_title:keyword     | highlight_body:keyword
 Return of the <em>King</em> | null
+// end::highlightOnStarForDocs-result[]
 ;
 
 
@@ -2440,4 +2452,43 @@ semantic_text_field:text | highlight_semantic_text_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null
 live long and prosper                                                 | live long and <em>prosper</em>
+;
+
+
+# Documentation examples for the optional query and ON clause.
+
+highlightImplicitQueryOnFieldForDocs
+required_capability: highlight_implicit_query_and_fields
+
+// tag::highlightImplicitQueryOnFieldForDocs[]
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+// end::highlightImplicitQueryOnFieldForDocs[]
+;
+
+// tag::highlightImplicitQueryOnFieldForDocs-result[]
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+// end::highlightImplicitQueryOnFieldForDocs-result[]
+;
+
+
+highlightLiteralWithoutOnForDocs
+required_capability: highlight_implicit_query_and_fields
+
+// tag::highlightLiteralWithoutOnForDocs[]
+ROW title = "Return of the King", body = "Tolkien wrote the epic saga."
+| HIGHLIGHT "tolkien"
+| KEEP highlight_title, highlight_body
+// end::highlightLiteralWithoutOnForDocs[]
+;
+
+// tag::highlightLiteralWithoutOnForDocs-result[]
+highlight_title:keyword | highlight_body:keyword
+null                    | <em>Tolkien</em> wrote the epic saga.
+// end::highlightLiteralWithoutOnForDocs-result[]
 ;

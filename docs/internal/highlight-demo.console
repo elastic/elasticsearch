@@ -1,0 +1,570 @@
+###############################################################################
+# ES|QL HIGHLIGHT - demo
+#
+# Paste the whole file into Kibana -> Dev Tools -> Console and run top to
+# bottom. Section 1 builds the dataset; everything after it is independent.
+#
+#   HIGHLIGHT [prefix = "<prefix>"] [<query>] [ON <field> [, <field>...]]
+#             [WITH { "option": value }]
+###############################################################################
+
+
+# =============================================================================
+# 0. ROW, no index.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      ROW content = "The quick brown fox jumps over the lazy dog."
+    | HIGHLIGHT "fox" ON content
+    | KEEP highlight_content
+  """
+}
+
+
+# =============================================================================
+# 1. Setup: eight short incident notes plus a lookup index of owning teams.
+#    The two DELETEs 404 on a first run. That is fine.
+# =============================================================================
+
+DELETE /incidents
+
+DELETE /teams
+
+PUT /incidents
+{
+  "mappings": {
+    "properties": {
+      "id":    { "type": "keyword" },
+      "svc":   { "type": "keyword" },
+      "title": { "type": "text"    },
+      "note":  { "type": "text"    },
+      "fix":   { "type": "text"    },
+      "tags":  { "type": "keyword" },
+      "log":   { "type": "keyword" }
+    }
+  }
+}
+
+PUT /teams
+{
+  "settings": { "index.mode": "lookup" },
+  "mappings": {
+    "properties": {
+      "svc":     { "type": "keyword" },
+      "team":    { "type": "keyword" },
+      "charter": { "type": "text"    }
+    }
+  }
+}
+
+POST /_bulk?refresh=true
+{"index":{"_index":"incidents","_id":"1"}}
+{"id":"INC-01","svc":"checkout","title":"Checkout timeouts at peak","note":"The connection pool was exhausted. Requests queued behind the connection pool.","fix":"Raised the connection pool and added a circuit breaker.","tags":["database","capacity"],"log":"level=ERROR svc=checkout msg=connection pool exhausted"}
+{"index":{"_index":"incidents","_id":"2"}}
+{"id":"INC-02","svc":"payments","title":"Payment failures after cert rotation","note":"An expired certificate broke TLS. The gateway retried too fast.","fix":"Rotated certificates. Retries now use backoff.","tags":["tls","certificates"],"log":"level=FATAL svc=payments msg=tls handshake timeout"}
+{"index":{"_index":"incidents","_id":"3"}}
+{"id":"INC-03","svc":"indexer","title":"Indexer fell twelve hours behind","note":"A poison message caused a crash loop. Nobody noticed the lag.","fix":"Added a dead letter queue and a lag alert.","tags":["kafka","monitoring"],"log":"level=ERROR svc=indexer msg=deserialization failure"}
+{"index":{"_index":"incidents","_id":"4"}}
+{"id":"INC-04","svc":"auth","title":"Login latency from a cold cache","note":"A deploy flushed the session cache. Latency rose tenfold.","fix":"Deploys now warm the cache first.","tags":["cache","deploy"],"log":"level=WARN svc=auth msg=cache miss ratio elevated"}
+{"index":{"_index":"incidents","_id":"5"}}
+{"id":"INC-05","svc":"notify","title":"Duplicate order emails","note":"A retry loop sent duplicate emails. No payment was affected.","fix":"Made the send path idempotent with a deduplication key.","tags":["idempotency"],"log":"level=WARN svc=notify msg=duplicate send detected"}
+{"index":{"_index":"incidents","_id":"6"}}
+{"id":"INC-06","svc":"inventory","title":"Stock drift after migration","note":"The sync job read the old replica. Stock levels drifted.","fix":"Repointed the job and added reconciliation.","tags":["migration","data-quality"],"log":"level=ERROR svc=inventory msg=row count mismatch"}
+{"index":{"_index":"incidents","_id":"7"}}
+{"id":"INC-07","svc":"checkout","title":"Cart totals rounded wrong","note":"Currency conversion rounded too early. Yen orders were off.","fix":"Moved rounding to the final total.","tags":["billing"],"log":"level=INFO svc=checkout msg=rounding mismatch currency=JPY"}
+{"index":{"_index":"incidents","_id":"8"}}
+{"id":"INC-08","svc":"indexer","title":"Shard count reduced","note":"Routine capacity work. No customer impact.","fix":"Shrink ran in the maintenance window.","tags":["capacity","planned"],"log":"level=INFO svc=indexer msg=shrink complete shards=30"}
+
+POST /_bulk?refresh=true
+{"index":{"_index":"teams","_id":"1"}}
+{"svc":"checkout","team":"Storefront","charter":"Owns the cart and the connection pool budget."}
+{"index":{"_index":"teams","_id":"2"}}
+{"svc":"payments","team":"Payments","charter":"Owns card auth and certificate rotation."}
+{"index":{"_index":"teams","_id":"3"}}
+{"svc":"indexer","team":"Discovery","charter":"Owns the index pipeline and lag budgets."}
+{"index":{"_index":"teams","_id":"4"}}
+{"svc":"auth","team":"Identity","charter":"Owns login and the session cache."}
+{"index":{"_index":"teams","_id":"5"}}
+{"svc":"notify","team":"Messaging","charter":"Owns email and push delivery."}
+{"index":{"_index":"teams","_id":"6"}}
+{"svc":"inventory","team":"Supply","charter":"Owns stock levels and the warehouse replica."}
+
+
+# =============================================================================
+# 2. Terms vs phrase. Two words -> two separate tags.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "connection pool")
+    | HIGHLIGHT "connection pool" ON note
+    | KEEP id, highlight_note
+  """
+}
+
+# Quote the query and it becomes a phrase: one tag pair around the whole span.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "pool")
+    | HIGHLIGHT "\"connection pool\"" ON note
+    | KEEP id, highlight_note
+  """
+}
+
+
+# =============================================================================
+# 3. Fuzzy. Both search terms are misspelled; the correct spelling gets tagged.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | HIGHLIGHT "conection~ OR certifcate~" ON note
+    | WHERE highlight_note IS NOT NULL
+    | KEEP id, highlight_note
+  """
+}
+
+
+# =============================================================================
+# 4. Regex and wildcards in one query.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | HIGHLIGHT "/re(tr|try).*/ OR dedup*" ON note, fix
+    | WHERE highlight_note IS NOT NULL OR highlight_fix IS NOT NULL
+    | KEEP id, highlight_note, highlight_fix
+  """
+}
+
+
+# =============================================================================
+# 5. The search-UI shape: score, sort, page, then highlight only that page.
+#    Row two shows a null title - no match there, so no echoed text.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents METADATA _score
+    | WHERE QSTR("note:(pool OR certificate) OR title:timeouts")
+    | SORT _score DESC
+    | LIMIT 3
+    | HIGHLIGHT QSTR("note:(pool OR certificate) OR title:timeouts") ON title, note
+        WITH { "pre_tags": ["["], "post_tags": ["]"] }
+    | KEEP _score, highlight_title, highlight_note
+  """
+}
+
+
+# =============================================================================
+# 6. KQL, for parity with the Kibana search bar.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE KQL("note: (cache and latency)")
+    | HIGHLIGHT KQL("note: (cache and latency)") ON note
+    | KEEP id, highlight_note
+  """
+}
+
+# Full-text functions also compose with AND / OR / NOT.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH_PHRASE(note, "connection pool")
+    | HIGHLIGHT MATCH_PHRASE(note, "connection pool") OR MATCH(fix, "breaker")
+        ON note, fix
+    | KEEP id, highlight_note, highlight_fix
+  """
+}
+
+
+###############################################################################
+# Sections 7-10: highlighting columns that are not in the index.
+# The _search highlighter cannot do any of these.
+###############################################################################
+
+
+# =============================================================================
+# 7. A field parsed out of a raw log line by GROK. "msg" is not in the mapping.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | GROK log "level=%{WORD:level} svc=%{WORD:service} msg=%{GREEDYDATA:msg}"
+    | HIGHLIGHT "exhausted OR handshake OR mismatch" ON msg
+    | WHERE highlight_msg IS NOT NULL
+    | KEEP id, level, highlight_msg
+  """
+}
+
+
+# =============================================================================
+# 8. An aggregation result. Rows here are groups, not documents.
+#    checkout grouped two titles but only one matched, so one snippet returns.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | STATS n = COUNT(*), titles = VALUES(title) BY svc
+    | WHERE n > 1
+    | HIGHLIGHT "checkout OR indexer OR shard" ON titles
+    | KEEP svc, n, highlight_titles
+  """
+}
+
+
+# =============================================================================
+# 9. A column pulled in from another index by LOOKUP JOIN.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "certificate OR pool")
+    | LOOKUP JOIN teams ON svc
+    | HIGHLIGHT "\"connection pool\" OR \"certificate rotation\"" ON charter
+    | KEEP id, team, highlight_charter
+  """
+}
+
+
+# =============================================================================
+# 10. A synthetic document stitched together by EVAL, highlighted across
+#     the seam between the original fields.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "pool")
+    | EVAL doc = CONCAT(title, ". ", note, " ", fix)
+    | HIGHLIGHT "\"connection pool\" OR breaker" ON doc
+        WITH { "fragment_size": 40, "number_of_fragments": 3 }
+    | KEEP id, highlight_doc
+  """
+}
+
+
+# =============================================================================
+# 11. Two highlighters in one pass. _search allows one config per field;
+#     HIGHLIGHT is just a pipeline stage, so stack as many as you like.
+#     Here: what broke, and what fixed it, with different tags.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-01"
+    | HIGHLIGHT prefix = "cause_" "pool OR exhausted"
+        ON note WITH { "pre_tags": ["("], "post_tags": [")"] }
+    | HIGHLIGHT prefix = "fix_" "breaker OR raised"
+        ON fix  WITH { "pre_tags": ["{"], "post_tags": ["}"] }
+    | KEEP cause_note, fix_fix
+  """
+}
+
+
+# =============================================================================
+# 12. An empty prefix rewrites the source column in place instead of adding
+#     a new one. Markdown bold as the tags.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-01"
+    | HIGHLIGHT prefix = "" "pool OR breaker" ON note, fix
+        WITH { "pre_tags": ["**"], "post_tags": ["**"] }
+    | KEEP id, note, fix
+  """
+}
+
+
+# =============================================================================
+# 13. HTML-safe output. The document text is escaped, the highlight tags
+#     stay live: a user-supplied <b> goes inert, <em> still renders.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      ROW review = "The <b>best</b> tent ever. Survived a storm & rain."
+    | HIGHLIGHT "tent OR storm" ON review WITH { "encoder": "html" }
+    | KEEP highlight_review
+  """
+}
+
+
+# =============================================================================
+# 14. Fragments. sentence (the default) gives readable snippets.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-01"
+    | HIGHLIGHT "pool" ON note
+        WITH { "fragment_size": 30, "number_of_fragments": 2 }
+    | KEEP highlight_note
+  """
+}
+
+# The word scanner gives tight ones.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-01"
+    | HIGHLIGHT "pool" ON note
+        WITH { "fragment_size": 30, "number_of_fragments": 2, "boundary_scanner": "word" }
+    | KEEP highlight_note
+  """
+}
+
+
+# =============================================================================
+# 15. Fragment order. none (the default) keeps document order.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      ROW snippet = ["fast search", "fast and fast results"]
+    | HIGHLIGHT "fast" ON snippet WITH { "order": "none" }
+    | KEEP highlight_snippet
+  """
+}
+
+# score puts the densest snippet first.
+
+POST /_query?format=txt
+{
+  "query": """
+      ROW snippet = ["fast search", "fast and fast results"]
+    | HIGHLIGHT "fast" ON snippet WITH { "order": "score" }
+    | KEEP highlight_snippet
+  """
+}
+
+
+# =============================================================================
+# 16. Non-matching fields are null by default. no_match_size returns leading
+#     text instead - useful when you always need something to render.
+#     It is a minimum, not a cap: text runs on to the next boundary.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | HIGHLIGHT "kubernetes" ON title WITH { "no_match_size": 20 }
+    | KEEP id, highlight_title
+    | LIMIT 3
+  """
+}
+
+
+# =============================================================================
+# 17. Analyzers. The word "retry" appears nowhere in INC-02; the text says
+#     "retried" and "Retries". With the default standard analyzer: nothing.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-02"
+    | HIGHLIGHT "retry" ON note, fix
+    | KEEP highlight_note, highlight_fix
+  """
+}
+
+# One option later, the english analyzer stems both sides of the comparison.
+# HIGHLIGHT re-analyzes with "standard" by default, not the mapping analyzer,
+# so set this explicitly for language or custom analyzed fields.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-02"
+    | HIGHLIGHT "retry" ON note, fix WITH { "analyzer": "english" }
+    | KEEP highlight_note, highlight_fix
+  """
+}
+
+
+# =============================================================================
+# 18. Multivalued fields. Each value is highlighted on its own; phrases and
+#     fragment boundaries never cross a value boundary.
+# =============================================================================
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE id == "INC-01"
+    | HIGHLIGHT "capacity OR database" ON tags
+    | KEEP id, highlight_tags
+  """
+}
+
+# It survives MV_EXPAND too. Full-text functions must come before MV_EXPAND,
+# hence the WHERE first.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "cache pool")
+    | MV_EXPAND tags
+    | HIGHLIGHT "cach* OR databas*" ON tags, note
+    | WHERE highlight_tags IS NOT NULL
+    | KEEP id, highlight_tags, highlight_note
+  """
+}
+
+
+# =============================================================================
+# 19. Parity with the _search highlighter: same unified highlighter underneath.
+#     This returns exactly the section 2 snippet, character for character.
+# =============================================================================
+
+GET /incidents/_search?filter_path=hits.hits.highlight
+{
+  "query":     { "match": { "note": "connection pool" } },
+  "highlight": { "fields": { "note": {} } }
+}
+
+
+###############################################################################
+# 20. Inferred queries and fields.
+#
+# BUILD REQUIREMENT: needs a build reporting the capability below. On older
+# builds the query and the ON clause are both mandatory and these four
+# requests fail to parse. Run this first and check for "supported": true.
+###############################################################################
+
+GET /_capabilities?method=POST&path=/_query&capabilities=highlight_implicit_query_and_fields
+
+# Bare HIGHLIGHT reuses the WHERE MATCH predicate and derives note from it.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "connection pool")
+    | HIGHLIGHT
+    | KEEP id, highlight_note
+  """
+}
+
+# Separate WHERE commands are OR-ed for highlighting while both still filter.
+# Only INC-02 passes both, and title and note both come back tagged.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "certificate")
+    | WHERE MATCH(title, "rotation")
+    | HIGHLIGHT
+    | KEEP id, highlight_title, highlight_note
+  """
+}
+
+# ON * expands to every text and keyword column in scope: id, svc, title,
+# note, fix, tags and log. Columns without a match come back null.
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | WHERE MATCH(note, "certificate")
+    | HIGHLIGHT ON *
+    | KEEP highlight_*
+  """
+}
+
+# A query with no ON falls back to all text/keyword columns: find this
+# string anywhere. Matches land in fix (INC-02) and log (INC-01, 06, 07).
+
+POST /_query?format=txt
+{
+  "query": """
+      FROM incidents
+    | HIGHLIGHT "exhausted OR mismatch OR backoff"
+    | KEEP id, highlight_fix, highlight_log
+  """
+}
+
+
+###############################################################################
+# WITH options
+#
+#   pre_tags                 string or 1-element array   default <em>
+#   post_tags                string or 1-element array   default </em>
+#   encoder                  default | html              default "default"
+#                            (case-sensitive, unlike the rest)
+#   analyzer                 built-in or plugin name     default standard
+#                            (analyzers defined in index settings are not available)
+#   number_of_fragments      integer >= 0                default 5
+#                            (0 returns the whole value, unfragmented)
+#   fragment_size            integer >= 0                default 100
+#   no_match_size            integer >= 0                default 0 -> null
+#   boundary_scanner         sentence | word             default sentence
+#   boundary_scanner_locale  BCP 47 tag, e.g. en-US      default root locale
+#   order                    none | score                default none
+#   max_analyzed_offset      positive integer, or -1     default -1
+#                            (hard ceiling of 1M chars per value regardless)
+#
+# Values must be constants: literals or query parameters, never columns.
+#
+# Also worth knowing:
+#   - Fields must be text or keyword. semantic_text works and is treated as
+#     text, but matching is lexical: a pure vector hit with no keyword
+#     overlap highlights to null.
+#   - When both the query and ON are written, every field the query names must
+#     appear in ON. Derived queries skip that check.
+#   - A query with no positive clause (NOT MATCH(...)) has nothing to
+#     highlight and returns null unless no_match_size is set.
+#   - Multivalued keyword fields load from doc values, so they arrive sorted
+#     and deduplicated. Snippet order can differ from the _search API.
+###############################################################################
+
+
+# =============================================================================
+# 21. Cleanup.
+# =============================================================================
+
+DELETE /incidents
+
+DELETE /teams

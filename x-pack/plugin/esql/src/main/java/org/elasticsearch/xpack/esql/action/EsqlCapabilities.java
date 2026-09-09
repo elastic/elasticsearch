@@ -1554,7 +1554,7 @@ public class EsqlCapabilities {
         /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
-        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+        WHERE_IN_MULTI_COLUMN_SUBQUERY,
 
         /**
          * Support non-correlated IN subqueries in the {@code EVAL} command.

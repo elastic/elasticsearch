@@ -591,8 +591,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                prepareIndex(rankIndex).setId(Integer.toString(i))
-                    .setSource(rankFeatureField, "0." + (i + 1), fillerField, largeFillerText)
+                prepareIndex(rankIndex).setId(Integer.toString(i)).setSource(rankFeatureField, "0." + (i + 1), fillerField, largeFillerText)
             );
         }
         indexRandom(true, builders);

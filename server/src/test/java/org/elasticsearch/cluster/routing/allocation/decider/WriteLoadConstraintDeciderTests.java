@@ -406,7 +406,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final int numThreads = randomIntBetween(1, 10);
         final float allocationUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
-        final var settings = createSettings(allocationUtilizationThreshold, null, highLatencyThreshold, null);
+        final var settings = createSettings(allocationUtilizationThreshold, null, highLatencyThreshold, null, null);
 
         final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
         final var overloadedNode = randomFrom(state.nodes().getAllNodes());
@@ -480,7 +480,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             null,
             hotspotUtilizationThreshold,
             highLatencyThreshold,
-            maxShardWriteLoadProportionSettingAsPercent
+            maxShardWriteLoadProportionSettingAsPercent,
+            null
         );
         final var decider = createWriteLoadConstraintDecider(settings);
         final var indexName = randomIdentifier();
@@ -601,7 +602,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
         final String highLatencyThresholdString = highLatencyThreshold.toHumanReadableString(2);
 
-        final var settings = createSettings(null, hotspotUtilizationThreshold, highLatencyThreshold, 0);
+        final var settings = createSettings(null, hotspotUtilizationThreshold, highLatencyThreshold, 0, null);
         final var decider = createWriteLoadConstraintDecider(settings);
         final var indexName = randomIdentifier();
         final var state = ClusterStateCreationUtils.state(1, new String[] { indexName }, 4);
@@ -740,7 +741,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         /* Test that a hotspot that is too focused on a single shard (over 90%) is left alone, as
          * rebalancing won't do anything and the hotspot shard should not be moved. Test that when this
          * proportion is not exceeded, the same check sees both shards flagged for migration away */
-        var writeLoadDecider = createWriteLoadConstraintDecider(createSettings(null, null, null, 90));
+        var writeLoadDecider = createWriteLoadConstraintDecider(createSettings(null, null, null, 90, null));
 
         String indexName = randomIndexName();
         int numberOfShards = 3;
@@ -806,7 +807,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
 
         // retry test, but turn off setting with a 0 value
-        var writeLoadDeciderProportionDisabled = createWriteLoadConstraintDecider(createSettings(null, null, null, 0));
+        var writeLoadDeciderProportionDisabled = createWriteLoadConstraintDecider(createSettings(null, null, null, 0, null));
 
         assertEquals(
             Decision.Type.NOT_PREFERRED,
@@ -942,21 +943,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     /**
      * Create settings with write load decider enabled, and the given configurations set if they're not null
      */
-    private static Settings createSettings(
-        @Nullable Float allocationUtilizationThreshold,
-        @Nullable Float hotspotUtilizationThreshold,
-        @Nullable TimeValue highLatencyThreshold,
-        @Nullable Integer maxShardWriteLoadProportion
-    ) {
-        return createSettings(
-            allocationUtilizationThreshold,
-            hotspotUtilizationThreshold,
-            highLatencyThreshold,
-            maxShardWriteLoadProportion,
-            null
-        );
-    }
-
     private static Settings createSettings(
         @Nullable Float allocationUtilizationThreshold,
         @Nullable Float hotspotUtilizationThreshold,

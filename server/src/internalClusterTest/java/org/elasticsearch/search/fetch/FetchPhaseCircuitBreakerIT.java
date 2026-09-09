@@ -32,6 +32,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -68,7 +69,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(ScriptFieldsTestPlugin.class);
+        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
     }
 
     public static class ScriptFieldsTestPlugin extends MockScriptPlugin {
@@ -530,13 +531,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testInnerHitsReleasesCircuitBreaker() throws Exception {
-        String dataNode = internalCluster().startNode(
-            Settings.builder()
-                .put("indices.breaker.request.type", "memory")
-                .put("indices.breaker.request.limit", "100mb")
-                .put("search.memory_accounting_buffer_size", "1mb")
-                .build()
-        );
+        String dataNode = startDataNode("100mb", "1mb");
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         assertThat(internalCluster().size(), equalTo(2));
 
@@ -577,10 +572,69 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         });
     }
 
-    private String startDataNode(String cbRequestLimit) {
-        return internalCluster().startNode(
-            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
+    public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb", "1mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String rankIndex = "rank_feature_test_idx";
+        String rankFeatureField = "rank_feature_field";
+        String fillerField = "filler_field";
+        assertAcked(
+            prepareCreate(rankIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping(rankFeatureField, "type=text,store=false", fillerField, "type=text,store=false")
         );
+
+        String largeFillerText = Strings.repeat("rank feature phase filler content ", 30_000);
+        int numDocs = 5;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(
+                prepareIndex(rankIndex).setId(Integer.toString(i))
+                    .setSource(rankFeatureField, "0." + (i + 1), fillerField, largeFillerText)
+            );
+        }
+        indexRandom(true, builders);
+        ensureSearchable(rankIndex);
+
+        var getResp = client(coordinatorNode).prepareGet(rankIndex, "0").get();
+        System.err.println("DEBUG source length=" + getResp.getSourceAsBytesRef().length());
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(rankIndex)
+                .setQuery(matchAllQuery())
+                .setRankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(numDocs, rankFeatureField))
+                .setSize(numDocs),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(numDocs));
+                System.err.println("DEBUG hit0 field=" + response.getHits().getAt(0).field(rankFeatureField));
+            }
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after rank_feature phase completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    private String startDataNode(String cbRequestLimit) {
+        return startDataNode(cbRequestLimit, null);
+    }
+
+    private String startDataNode(String cbRequestLimit, String memoryAccountingBufferSize) {
+        Settings.Builder settings = Settings.builder()
+            .put("indices.breaker.request.type", "memory")
+            .put("indices.breaker.request.limit", cbRequestLimit);
+        if (memoryAccountingBufferSize != null) {
+            settings.put("search.memory_accounting_buffer_size", memoryAccountingBufferSize);
+        }
+        return internalCluster().startNode(settings.build());
     }
 
     private long getRequestBreakerUsed(String node) {

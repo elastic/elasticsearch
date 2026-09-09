@@ -1,0 +1,4 @@
+// Columnar index (index.mode=columnar, dynamic:false), bar mapped, foo unmapped.
+// One document: {foo:"a2", bar:"b2"}. foo is dropped at ingest (columnar, no _ignored_source).
+foo:keyword,bar:keyword
+a2,b2

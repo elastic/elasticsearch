@@ -203,10 +203,12 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Hive-partition shadow-column warning messages collected during one {@link #resolve} call's schema-resolution
-     * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
-     * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
-     * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
+     * Resolve-time warning messages collected during one {@link #resolve} call: Hive-partition
+     * shadow-column notices (see {@link #warnOnShadowedColumns}) and {@code UNION_BY_NAME}
+     * schema-reconciliation notices (keyword fallback and long/double precision loss). That chain
+     * runs on {@link #metadataReadExecutor}, a real thread pool in production, so a direct
+     * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
+     * {@link ThreadContext} rather than the originating request's, and never reach the client.
      * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
      * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
      * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
@@ -1531,7 +1533,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingShadowWarnings::add);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1561,7 +1563,7 @@ public class ExternalSourceResolver {
                 Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
                     SchemaReconciliation.FileSchemaInfo info = e.getValue();
-                    perFileTypes.put(e.getKey(), attributesToTypeMap(info.fileSchema().attributes()));
+                    perFileTypes.put(e.getKey(), statsFileTypesOf(info));
                     Set<String> pinnedColumns = pinnedColumnsOf(info);
                     if (pinnedColumns.isEmpty() == false) {
                         perFilePinnedColumns.put(e.getKey(), pinnedColumns);
@@ -1810,10 +1812,11 @@ public class ExternalSourceResolver {
     /**
      * Reconciliation-path aggregate: normalizes each file's per-column min/max to the reconciled unified type
      * ({@link SourceStatisticsSerializer#normalizeStatsToReconciled}) BEFORE the cross-file fold, so a column that
-     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; numeric vs the
-     * KEYWORD non-widenable fallback) is folded in ONE type and served result-identical to a full scan — or
-     * safe-misses when a value cannot be normalized. {@code perFileTypes} maps each file's path to its own column
-     * types; {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
+     * mixes units/representations across files (DATETIME epoch-millis vs DATE_NANOS epoch-nanos; a file type
+     * that {@code TypeWidening.join}s to DOUBLE; numeric vs the KEYWORD non-widenable fallback) is folded in
+     * ONE type and served result-identical to a full scan, or safe-misses when a value cannot be normalized.
+     * {@code perFileTypes} maps each file's path to its footer or inferred column types (not a pinned or
+     * unified type); {@code reconciledTypes} is the unified schema's types. Without this, the source-level warm
      * MIN/MAX/COUNT would compare raw file-local values unit-blind (a wrong answer).
      * <p>
      * {@code perFilePinnedColumns} names, per file, the columns a text-format UNION_BY_NAME pin retyped above their
@@ -1923,6 +1926,17 @@ public class ExternalSourceResolver {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * The type authority for normalizing this file's cached or footer stats to the reconciled type: the pre-retype
+     * inferred types when a pin or overlay populated them, otherwise the file schema itself (nothing retyped this
+     * file). A text UNION_BY_NAME pin stores the reconciled type on {@code fileSchema}, so using that map as the file
+     * type would make {@code file == reconciled} and skip {@code LONG} to {@code DOUBLE} conversion.
+     */
+    public static Map<String, DataType> statsFileTypesOf(SchemaReconciliation.FileSchemaInfo info) {
+        Map<String, DataType> inferred = info.inferredTypes();
+        return inferred != null ? inferred : attributesToTypeMap(info.fileSchema().attributes());
     }
 
     /**

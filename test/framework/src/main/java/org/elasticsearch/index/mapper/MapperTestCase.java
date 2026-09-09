@@ -423,7 +423,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * for every malformed example the mapper declares.
      *
      * <p>Override {@link #supportsColumnarIgnoreMalformed()} and return {@code false} for field types that do not
-     * support {@link org.elasticsearch.index.IndexMode#COLUMNAR} at all.
+     * support {@link org.elasticsearch.index.IndexMode#COLUMNAR} at all, or whose parsers do not preserve the raw
+     * malformed input in a sidecar column (e.g. geometry types whose parsers call
+     * {@link AbstractGeometryFieldMapper.MalformedValueHandler#notify(Exception)} without an {@code XContentBuilder}).
      */
     public void testIgnoreMalformedInColumnarModeUsesOnFailureColumn() throws IOException {
         assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
@@ -451,8 +453,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Whether this field type can be mapped in a strict-columnar index ({@link org.elasticsearch.index.IndexMode#COLUMNAR}).
-     * Override and return {@code false} with a reason comment for types that {@code IndexMode.COLUMNAR} rejects.
+     * Whether this field type correctly routes {@code ignore_malformed} values to the {@code ._on_failure} sidecar column
+     * in a strict-columnar index. Return {@code false} when either:
+     * <ul>
+     *   <li>the type is rejected by {@link org.elasticsearch.index.IndexMode#COLUMNAR} altogether, or</li>
+     *   <li>the type's parser does not preserve the raw malformed input (e.g. geometry types whose parsers call
+     *       {@link AbstractGeometryFieldMapper.MalformedValueHandler#notify(Exception)} without an {@code XContentBuilder},
+     *       so the value is silently dropped and nothing reaches the sidecar column).</li>
+     * </ul>
      */
     protected boolean supportsColumnarIgnoreMalformed() {
         return true;

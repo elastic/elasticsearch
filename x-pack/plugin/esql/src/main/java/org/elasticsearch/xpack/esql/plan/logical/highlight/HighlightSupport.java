@@ -113,7 +113,9 @@ public final class HighlightSupport {
     /**
      * Collects the searchable conjuncts of every {@code WHERE} that still describes the documents reaching HIGHLIGHT.
      * The walk moves down the child chain (children are upstream) and stops at the first node that is not
-     * {@link DocPreserving}, because past that point a row no longer maps to a single document.
+     * {@link DocPreserving}, because past that point a row no longer maps to a single document. Non-unary barriers
+     * such as {@code LOOKUP JOIN} and {@code FORK} also end the walk and are recorded as the blocker so the
+     * missing-query message can name them, matching unary barriers such as {@code STATS}.
      * <p>
      * Conjuncts are collected as-is, with no check that their fields are still live: a predicate whose field was later
      * dropped or renamed translates against a context that only knows the ON fields, so it becomes a match-none query
@@ -150,6 +152,11 @@ public final class HighlightSupport {
                 blockedBy = current;
                 break;
             }
+        }
+        // Unary barriers are recorded in the loop. LOOKUP JOIN / FORK are not UnaryPlan, so the loop just ends
+        // on them; a source relation is a leaf and is not a blocker.
+        if (blockedBy == null && current.children().isEmpty() == false) {
+            blockedBy = current;
         }
         // Do not partially borrow: a sibling MATCH without an analyzer would otherwise become the implicit query
         // and silently drop the analyzer-bearing conjunct.

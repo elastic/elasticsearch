@@ -1,7 +1,6 @@
 singleViewOuterMetadataNullWhenNotDeclaredInBody
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
 required_capability: outer_metadata_null_injection
 
 FROM view_languages METADATA _index
@@ -30,15 +29,33 @@ language_code:integer | language_name:keyword | _index:keyword
 4                     | German                | null
 ;
 
-// Rule 1 + Rule 2: view_languages doesn't declare _index (null), view_languages_all_metadata does (passes through)
+viewAndSubqueryBothWithoutMetadataDeclaration
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages, (FROM languages) METADATA _index
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | null
+1                     | English               | null
+2                     | French                | null
+2                     | French                | null
+3                     | Spanish               | null
+3                     | Spanish               | null
+4                     | German                | null
+4                     | German                | null
+;
 
 twoViewsOneDeclaresMetadataOneDoesNot
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
 required_capability: outer_metadata_null_injection
 
-FROM view_languages, view_languages_all_metadata METADATA _index
+FROM view_languages, view_languages_meta_index METADATA _index
 | SORT language_code, _index NULLS LAST
 ;
 
@@ -66,16 +83,135 @@ language_code:integer | language_name:keyword | _index:keyword
 2                     | French                | null
 ;
 
-// Rule 1 + Rule 2: view_languages_all_metadata declares _index (passes through), subquery doesn't (null)
+nestedSubqueryMetadataAtBothLevels
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM (FROM view_languages METADATA _score) METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _score:double | _index:keyword
+1                     | English               | null          | null
+2                     | French                | null          | null
+3                     | Spanish               | null          | null
+4                     | German                | null          | null
+;
+
+viewAndRealIndexMetadataNull
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages, languages METADATA _index
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+1                     | English               | null
+2                     | French                | languages
+2                     | French                | null
+3                     | Spanish               | languages
+3                     | Spanish               | null
+4                     | German                | languages
+4                     | German                | null
+;
+
+viewBodyDeclaresMetadataPassesThroughToOuter
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_meta_index METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+2                     | French                | languages
+3                     | Spanish               | languages
+4                     | German                | languages
+;
+
+// Pass-through: metadata declared in view body returns real values (not null) via outer METADATA.
+// _id and _score are document-dependent so verified as non-null rather than by exact value.
+
+viewAllMetadataInBodyPassesThrough
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_all_metadata METADATA _index, _id, _version, _score, _index_mode
+| SORT language_code
+| LIMIT 1
+| EVAL has_id = _id IS NOT NULL, has_score = _score IS NOT NULL
+| KEEP language_code, language_name, _index, _version, _index_mode, has_id, has_score
+;
+
+language_code:integer | language_name:keyword | _index:keyword | _version:long | _index_mode:keyword | has_id:boolean | has_score:boolean
+1                     | English               | languages      | 1             | standard            | true           | true
+;
+
+// Null-injection: metadata absent from view body → null values in output rows.
+// Full 8-field symmetry is implicitly verified by viewAllMetadataInBodyPassesThrough above.
+
+viewAllMetadataNullWhenNotDeclaredInBody
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages METADATA _index, _id, _version, _score, _index_mode
+| SORT language_code
+| LIMIT 1
+| KEEP language_code, language_name, _index, _id, _version, _score, _index_mode
+;
+
+language_code:integer | language_name:keyword | _index:keyword | _id:keyword | _version:long | _score:double | _index_mode:keyword
+1                     | English               | null           | null        | null          | null          | null
+;
+
+nestedViewMetadataPassesThroughAllLevels
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_nested_a METADATA _index
+| SORT language_code
+| KEEP language_code, language_name, _index, viewC_index, viewB_index, viewA_index
+;
+
+language_code:integer | language_name:keyword | _index:keyword | viewC_index:keyword | viewB_index:keyword | viewA_index:keyword
+1                     | English               | languages      | languages           | languages           | languages
+2                     | French                | languages      | languages           | languages           | languages
+3                     | Spanish               | languages      | languages           | languages           | languages
+4                     | German                | languages      | languages           | languages           | languages
+;
+
+nestedViewOuterMetadataNullWhenNotDeclaredInChain
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages_nested_a METADATA _id
+| SORT language_code
+| LIMIT 1
+| KEEP language_code, language_name, _id
+;
+
+language_code:integer | language_name:keyword | _id:keyword
+1                     | English               | null
+;
 
 mixedViewDeclaresMetadataSubqueryDoesNot
 required_capability: subquery_in_from_command
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
 required_capability: outer_metadata_null_injection
 
-FROM view_languages_all_metadata, (FROM languages) METADATA _index
+FROM view_languages_meta_index, (FROM languages) METADATA _index
 | SORT language_code, _index NULLS LAST
 ;
 

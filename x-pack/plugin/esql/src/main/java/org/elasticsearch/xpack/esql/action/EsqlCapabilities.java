@@ -1582,10 +1582,11 @@ public class EsqlCapabilities {
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
-         * Changes how {@code METADATA} fields are handled for views
+         * If {@code METADATA} is requested on a view/subquery that itself doesn't produce the requested
+         * fields - null values are injected instead.
          * See https://github.com/elastic/esql-planning/issues/480
          */
-        VIEWS_METADATA_BEHAVIOR_CHANGES(VIEWS_WITH_BRANCHING.isEnabled()),
+        OUTER_METADATA_NULL_INJECTION(true),
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to

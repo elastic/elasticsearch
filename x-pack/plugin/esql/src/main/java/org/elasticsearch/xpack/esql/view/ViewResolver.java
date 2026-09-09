@@ -31,7 +31,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -40,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -546,7 +546,7 @@ public class ViewResolver {
                         }
                     }
                     replaceViews(
-                        resolve(view, parser, viewQueries, unresolvedRelation.metadataFields()),
+                        resolve(view, parser, viewQueries),
                         projectRouting,
                         parser,
                         branchSeenViews,
@@ -980,21 +980,16 @@ public class ViewResolver {
         }
     }
 
-    private LogicalPlan resolve(
-        View view,
-        BiFunction<String, String, LogicalPlan> parser,
-        Map<String, String> viewQueries,
-        List<NamedExpression> outerMetadataFields
-    ) {
+    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
         log.debug("Resolving view '{}'", view.name());
         // Store the view query so it can be used during Source deserialization
         viewQueries.put(view.name(), view.query());
 
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
-        LogicalPlan subquery = parser.apply(view.query(), view.name());
-        LogicalPlan rewritten = ViewMetadataNullInjector.inject(subquery, outerMetadataFields);
-        if (rewritten == subquery && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+        LogicalPlan parsed = parser.apply(view.query(), view.name());
+        LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
+        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
             // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling
@@ -1005,7 +1000,7 @@ public class ViewResolver {
         } else {
             // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
             // maintained with the view name for branch identification.
-            return new NamedSubquery(rewritten.source(), rewritten, view.name());
+            return new NamedSubquery(subquery.source(), subquery, view.name());
         }
     }
 

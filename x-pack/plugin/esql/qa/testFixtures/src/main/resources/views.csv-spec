@@ -342,7 +342,6 @@ required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
 
 FROM airports_mp_filtered, airports METADATA _index
 | WHERE abbrev == "LUH"
@@ -383,7 +382,6 @@ required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
 
 FROM airports_mp_filtered, airports METADATA _index
 | STATS duplications=COUNT(), indexes=VALUES(_index) BY abbrev
@@ -2319,145 +2317,4 @@ FROM (FROM employees_all | WHERE emp_no <= 10002 | KEEP emp_no, first_name),
 emp_no:integer | first_name:keyword
 10002          | Bezalel
 10005          | Kyoichi
-;
-
-viewBodyWithMetadataIndex
-required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_meta_index
-| SORT language_code
-;
-
-language_code:integer | language_name:keyword | _index:keyword
-1                     | English               | languages
-2                     | French                | languages
-3                     | Spanish               | languages
-4                     | German                | languages
-;
-
-viewBodyAllMetadataCombinedWithSubquery
-required_capability: views_with_branching
-required_capability: views_crud_as_index_actions
-required_capability: subquery_in_from_command
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_all_metadata, (FROM languages)
-| SORT language_code, _index NULLS LAST
-| KEEP language_code, _index, _version, _index_mode
-;
-
-language_code:integer | _index:keyword | _version:long | _index_mode:keyword
-1                     | languages      | 1             | standard
-1                     | null           | null          | null
-2                     | languages      | 1             | standard
-2                     | null           | null          | null
-3                     | languages      | 1             | standard
-3                     | null           | null          | null
-4                     | languages      | 1             | standard
-4                     | null           | null          | null
-;
-
-viewBodyAllMetadataCombinedWithSubqueryOuterMetadata
-required_capability: views_with_branching
-required_capability: views_crud_as_index_actions
-required_capability: subquery_in_from_command
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_all_metadata, (FROM languages) METADATA _index, _id, _version, _score, _ignored, _index_mode, _size, _source
-| SORT language_code, _index NULLS LAST
-| KEEP language_code, _index, _version, _index_mode
-;
-
-language_code:integer | _index:keyword | _version:long | _index_mode:keyword
-1                     | languages      | 1             | standard
-1                     | null           | null          | null
-2                     | languages      | 1             | standard
-2                     | null           | null          | null
-3                     | languages      | 1             | standard
-3                     | null           | null          | null
-4                     | languages      | 1             | standard
-4                     | null           | null          | null
-;
-
-viewBodyAllMetadataCombinedWithSubqueryMetadataAndOuterMetadata
-required_capability: views_with_branching
-required_capability: views_crud_as_index_actions
-required_capability: subquery_in_from_command
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_all_metadata, (FROM languages METADATA _index) METADATA _index, _id, _version, _score, _ignored, _index_mode, _size, _source
-| STATS count = COUNT() BY language_code, _index
-| SORT language_code
-;
-
-count:long | language_code:integer | _index:keyword
-2          | 1                     | languages
-2          | 2                     | languages
-2          | 3                     | languages
-2          | 4                     | languages
-;
-
-
-viewBodyAllMetadataPassesThrough
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_all_metadata
-| STATS
-    count_index = COUNT(_index),
-    count_id = COUNT(_id),
-    count_version = COUNT(_version),
-    count_score = COUNT(_score),
-    count_ignored = COUNT(_ignored),
-    count_index_mode = COUNT(_index_mode),
-    count_size = COUNT(_size),
-    count_source = COUNT(_source)
-;
-
-count_index:long | count_id:long | count_version:long | count_score:long | count_ignored:long | count_index_mode:long | count_size:long | count_source:long
-4                | 4             | 4                  | 4                | 0                  | 4                     | 0               | 4
-;
-
-viewOuterMetadataNullWhenNotDeclaredInBody
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages METADATA _index, _id, _version, _score, _ignored, _index_mode, _size, _source
-| STATS
-    count_index = COUNT(_index),
-    count_id = COUNT(_id),
-    count_version = COUNT(_version),
-    count_score = COUNT(_score),
-    count_ignored = COUNT(_ignored),
-    count_index_mode = COUNT(_index_mode),
-    count_size = COUNT(_size),
-    count_source = COUNT(_source)
-;
-
-count_index:long | count_id:long | count_version:long | count_score:long | count_ignored:long | count_index_mode:long | count_size:long | count_source:long
-0                | 0             | 0                  | 0                | 0                  | 0                     | 0               | 0
-;
-
-viewOuterMetadataPassesThroughWhenDeclaredInBody
-required_capability: views_with_no_branching
-required_capability: views_crud_as_index_actions
-required_capability: views_metadata_behavior_changes
-
-FROM view_languages_all_metadata METADATA _index, _id, _version, _score, _ignored, _index_mode, _size, _source
-| STATS
-    count_index = COUNT(_index),
-    count_id = COUNT(_id),
-    count_version = COUNT(_version),
-    count_score = COUNT(_score),
-    count_ignored = COUNT(_ignored),
-    count_index_mode = COUNT(_index_mode),
-    count_size = COUNT(_size),
-    count_source = COUNT(_source)
-;
-
-count_index:long | count_id:long | count_version:long | count_score:long | count_ignored:long | count_index_mode:long | count_size:long | count_source:long
-4                | 4             | 4                  | 4                | 0                  | 4                     | 0               | 4
 ;

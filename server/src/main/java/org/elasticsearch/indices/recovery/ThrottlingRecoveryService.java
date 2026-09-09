@@ -458,7 +458,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     private RecoveryListener wrapListenerForExecution(RecoveryListener listener, PendingRecovery recovery) {
-        RecoveryState recoveryState = recovery.recoveryState();
+        final RecoveryState recoveryState = recovery.recoveryState();
         final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                 schedulingListener.onStartedRecoveryCancelledOnTarget(

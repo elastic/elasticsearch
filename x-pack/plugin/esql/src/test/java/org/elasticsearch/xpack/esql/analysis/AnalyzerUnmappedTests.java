@@ -1552,8 +1552,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().statement(setUnmappedLoadAll("FROM (FROM test),(FROM test),(FROM test)"));
     }
 
-    // Parked while LOAD_ALL subquery semantics are rebuilt case by case.
-    /*
     public void testLoadAllSubqueryEvalThenKeepExactNamesDoesNotExpand() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = partialMappingTest().statement(setUnmappedLoadAll("""
@@ -1565,7 +1563,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("message", "dur")));
     }
-    */
 
     public void testLoadAllModeAllowsSubqueryWithLookupJoin() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());

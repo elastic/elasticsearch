@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -237,6 +239,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {
             return project;
         }
+        project = dropStaleNoFields(project);
         List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(project.child().output(), UnmappedFieldsAttribute.class);
         if (unmapped.isEmpty()) {
             return project;
@@ -246,6 +249,23 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             .filter(attr -> names.contains(attr.name()) == false)
             .collect(Collectors.toList());
         return missing.isEmpty() ? project : project.withProjections(CollectionUtils.combine(project.projections(), missing));
+    }
+
+    /** Drop {@code <no-fields>} from a KEEP * once the relation has real columns. */
+    private static Project dropStaleNoFields(Project project) {
+        if (Expressions.names(project.child().output()).contains(Analyzer.NO_FIELDS_NAME)) {
+            return project;
+        }
+        List<NamedExpression> kept = new ArrayList<>(project.projections().size());
+        boolean dropped = false;
+        for (NamedExpression projection : project.projections()) {
+            if (Analyzer.NO_FIELDS_NAME.equals(projection.name())) {
+                dropped = true;
+            } else {
+                kept.add(projection);
+            }
+        }
+        return dropped ? project.withProjections(kept) : project;
     }
 
     /**

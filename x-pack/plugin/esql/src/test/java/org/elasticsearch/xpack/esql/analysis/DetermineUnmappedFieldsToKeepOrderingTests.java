@@ -172,8 +172,6 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
         assertThat(analyzer.lastAnalyzer().unmappedFieldsOrdering(), nullValue());
     }
 
-    // Parked while LOAD_ALL subquery semantics are rebuilt case by case.
-    /*
     public void testSubqueryStatsInOneBranchOrderingMatchesAnalyzedOutput() {
         assertReplayMatchesAnalyzedOutput(test(), """
             FROM (FROM test), (FROM test | STATS c = COUNT(*))
@@ -214,7 +212,6 @@ public class DetermineUnmappedFieldsToKeepOrderingTests extends AnalyzerUnmapped
             | KEEP messag*, unmapped_mess*
             """, "unmapped_message_extra");
     }
-    */
 
     /**
      * Same size check {@code ExpandUnmappedFieldsPostProcessor} uses: replayed output must be the executed

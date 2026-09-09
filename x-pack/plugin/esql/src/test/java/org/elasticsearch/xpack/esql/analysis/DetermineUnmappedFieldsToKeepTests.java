@@ -375,8 +375,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("_unmapped_fields"));
     }
 
-    // Parked while LOAD_ALL subquery semantics are rebuilt case by case.
-    /*
     public void testSubqueryKeepExactNameOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("""
             FROM (FROM test | KEEP salary), (FROM test | KEEP emp_no)
@@ -485,7 +483,6 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertThat(droppedExtra, is(1));
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
-    */
 
     public void testRenameUnmappedFieldsIsAnOrdinarySourceField() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME _unmapped_fields AS extras");

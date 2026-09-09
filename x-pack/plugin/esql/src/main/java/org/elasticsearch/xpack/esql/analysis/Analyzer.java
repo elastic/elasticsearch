@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedAmdEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -1801,7 +1802,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> unionColumns = outputUnion.stream().map(Attribute::name).toList();
-            Set<String> unionMaterializedUnmappedFieldNames = alignUnmappedAcrossBranches ? materializedUnmappedFieldNames(fork) : Set.of();
+            // FORK always copies a mention to siblings. LOAD_ALL subqueries do too; LOAD stays Decision A (sibling Eval-null).
+            boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
+                || (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
+            Set<String> unionMaterializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(unionPlan) : Set.of();
 
             for (LogicalPlan logicalPlan : unionPlan.children()) {
                 Source source = logicalPlan.source();
@@ -1821,24 +1825,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
                     // branch can't surface it: loaded from _source under LOAD/LOAD_ALL, null-typed under nullify. This keeps the branches'
                     // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
-                    // #142033
-                    if (alignUnmappedAcrossBranches
+                    // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
+                    if (alignMentionedUnmapped
                         && unionMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
-                    // LOAD_ALL subqueries: a KEYWORD mapped on a sibling is a named union column, not a $$UM extra.
-                    // Load it from _source here instead of Eval-null. Independent EsRelations; FORK never sees this shape.
+                    // LOAD_ALL subqueries: a KEYWORD/LONG/AMD mapped on a sibling is a named union column, not a $$UM extra.
+                    // Load it from _source here instead of Eval-null. Unmapped _source is KEYWORD, so LONG also gets
+                    // an implicit ToLong. AMD has no KEYWORD converter: copy as PotentiallyUnmappedAmdEsField so the
+                    // local optimizer keeps it and execution extracts AMD from _source (missing → null, incompatible
+                    // JSON → runtime error). Independent EsRelations; FORK never sees this shape.
                     if (unionPlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
                         && branchCanSurfaceLoadedField(logicalPlan)
                         && attr instanceof FieldAttribute fa
                         && fa instanceof UnsupportedAttribute == false
-                        && fa.dataType() == KEYWORD
+                        && (fa.dataType() == KEYWORD || fa.dataType() == LONG || fa.dataType() == AGGREGATE_METRIC_DOUBLE)
                         && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+                        && fa.field() instanceof PotentiallyUnmappedAmdEsField == false
                         && fa.field() instanceof MissingEsField == false) {
-                        toLoad.add(unmappedKeyword(attr));
+                        if (fa.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                            toLoad.add(
+                                new FieldAttribute(
+                                    source,
+                                    fa.parentName(),
+                                    fa.qualifier(),
+                                    fa.name(),
+                                    new PotentiallyUnmappedAmdEsField(fa.field())
+                                )
+                            );
+                        } else {
+                            FieldAttribute loaded = unmappedKeyword(attr);
+                            toLoad.add(loaded);
+                            if (fa.dataType() == LONG) {
+                                aliases.add(new Alias(source, attr.name(), new ToLong(source, loaded)));
+                            }
+                        }
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -1852,21 +1876,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
+                List<FieldAttribute> amdReplacements = List.of();
+                if (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
+                    amdReplacements = convertExplicitlyLoadedUnmappedToSiblingType(source, logicalPlan, outputUnion, aliases);
+                }
+
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
-                if (toLoad.isEmpty() == false) {
+                if (toLoad.isEmpty() == false || amdReplacements.isEmpty() == false) {
+                    List<FieldAttribute> replacements = amdReplacements;
                     LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
                         if (esr.indexMode() == IndexMode.LOOKUP) {
                             return esr;
                         }
-                        Set<String> existingNames = esr.outputSet().names();
-                        List<Attribute> newFields = new ArrayList<>(toLoad.size());
+                        List<Attribute> attrs = replacements.isEmpty() ? esr.output() : replaceFieldsByName(esr.output(), replacements);
+                        Set<String> existingNames = new HashSet<>(Expressions.names(attrs));
+                        List<Attribute> newFields = new ArrayList<>(attrs);
+                        boolean added = false;
                         for (FieldAttribute field : toLoad) {
-                            if (existingNames.contains(field.name()) == false) {
+                            if (existingNames.add(field.name())) {
                                 newFields.add(field);
+                                added = true;
                             }
                         }
-                        return esr.withAdditionalAttributes(newFields);
+                        if (attrs != esr.output() || added) {
+                            return esr.withAttributes(newFields);
+                        }
+                        return esr;
                     });
+                    // KEEP/Project still holds the PUNK; swap it everywhere so the union type is AMD, not keyword.
+                    if (replacements.isEmpty() == false) {
+                        Map<String, FieldAttribute> byName = new HashMap<>(replacements.size());
+                        for (FieldAttribute replacement : replacements) {
+                            byName.put(replacement.name(), replacement);
+                        }
+                        withLoaded = withLoaded.transformUp(p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                            FieldAttribute replacement = byName.get(fa.name());
+                            return replacement != null && fa.field() instanceof PotentiallyUnmappedKeywordEsField ? replacement : fa;
+                        }));
+                    }
                     // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
                         logicalPlan = withLoaded;
@@ -1938,13 +1985,82 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Names of unmapped fields materialized by any FORK branch's {@link EsRelation}: {@link PotentiallyUnmappedKeywordEsField} under
+         * When this branch already loaded an unmapped field as keyword (KEEP/mention) and a sibling maps it as LONG or AMD,
+         * convert here so the union type matches: ToLong, or swap the PUNK for {@link PotentiallyUnmappedAmdEsField}.
+         */
+        private static List<FieldAttribute> convertExplicitlyLoadedUnmappedToSiblingType(
+            Source source,
+            LogicalPlan logicalPlan,
+            List<Attribute> outputUnion,
+            List<Alias> aliases
+        ) {
+            Set<String> aliased = new HashSet<>();
+            for (Alias alias : aliases) {
+                aliased.add(alias.name());
+            }
+            List<FieldAttribute> amdReplacements = new ArrayList<>();
+            for (Attribute attr : outputUnion) {
+                if (attr instanceof FieldAttribute fa
+                    && fa instanceof UnsupportedAttribute == false
+                    && aliased.contains(fa.name()) == false) {
+                    FieldAttribute punk = punkFieldNamed(logicalPlan, fa.name());
+                    if (punk == null) {
+                        continue;
+                    }
+                    if (fa.dataType() == LONG
+                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+                        && fa.field() instanceof MissingEsField == false) {
+                        aliases.add(new Alias(source, fa.name(), new ToLong(source, punk)));
+                        aliased.add(fa.name());
+                    } else if (fa.dataType() == AGGREGATE_METRIC_DOUBLE
+                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+                        && fa.field() instanceof MissingEsField == false
+                        && fa.field() instanceof PotentiallyUnmappedAmdEsField == false) {
+                            amdReplacements.add(punk.withField(new PotentiallyUnmappedAmdEsField(fa.field())));
+                        }
+                }
+            }
+            return amdReplacements;
+        }
+
+        private static FieldAttribute punkFieldNamed(LogicalPlan plan, String name) {
+            for (Attribute attr : plan.output()) {
+                if (attr instanceof FieldAttribute fa
+                    && fa.name().equals(name)
+                    && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                    return fa;
+                }
+            }
+            return null;
+        }
+
+        private static List<Attribute> replaceFieldsByName(List<Attribute> attrs, List<FieldAttribute> replacements) {
+            Map<String, FieldAttribute> byName = new HashMap<>(replacements.size());
+            for (FieldAttribute replacement : replacements) {
+                byName.put(replacement.name(), replacement);
+            }
+            List<Attribute> replaced = new ArrayList<>(attrs.size());
+            boolean changed = false;
+            for (Attribute attr : attrs) {
+                FieldAttribute replacement = byName.get(attr.name());
+                if (replacement != null) {
+                    replaced.add(replacement);
+                    changed = true;
+                } else {
+                    replaced.add(attr);
+                }
+            }
+            return changed ? replaced : attrs;
+        }
+
+        /**
+         * Names of unmapped fields materialized by any branch's {@link EsRelation}: {@link PotentiallyUnmappedKeywordEsField} under
          * {@code load}, {@link MissingEsField} under {@code nullify}. Scans the relations, not branch outputs, so a referencing generating
          * command (EVAL/MV_EXPAND/...) can't hide the origin.
          */
-        private static Set<String> materializedUnmappedFieldNames(Fork fork) {
+        private static Set<String> materializedUnmappedFieldNames(UnionPlan unionPlan) {
             Set<String> names = new HashSet<>();
-            for (LogicalPlan branch : fork.children()) {
+            for (LogicalPlan branch : unionPlan.children()) {
                 branch.forEachDown(EsRelation.class, esr -> {
                     if (esr.indexMode() == IndexMode.LOOKUP) {
                         return;
@@ -2407,7 +2523,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        resolved = excludeExternalMetadata(childOutput);
+                        List<Attribute> star = excludeExternalMetadata(childOutput);
+                        // KEEP x, * on an empty mapping: * would otherwise keep the <no-fields> placeholder
+                        // after ResolveUnmapped has already replaced it on the relation with x.
+                        if (projections.size() > 1) {
+                            star = star.stream().filter(a -> NO_FIELDS_NAME.equals(a.name()) == false).toList();
+                        }
+                        resolved = star;
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);

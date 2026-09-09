@@ -1,0 +1,52 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings, allowed_warnings_regex, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, aggregate_metric_double_v0, support_partial_results ]
+      reason: 'LOAD_ALL subquery should fail at execution when an AMD mapped on one index is present as a non-AMD value in the other index _source'
+
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index: idx1
+        body:
+          mappings:
+            properties:
+              tx:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max
+
+  - do:
+      indices.create:
+        index: idx2
+        body:
+          mappings:
+            dynamic: false
+            properties: {}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx1" } }
+          - { "tx": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 } }
+          - { "index": { "_index": "idx2" } }
+          - { "tx": 81 }
+
+---
+"LOAD_ALL subquery fails when unmapped sibling has incompatible AMD _source":
+  - do:
+      catch: bad_request
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2) | KEEP *tx'
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - contains: { error.reason: 'Cannot load field [tx] as aggregate_metric_double from _source' }

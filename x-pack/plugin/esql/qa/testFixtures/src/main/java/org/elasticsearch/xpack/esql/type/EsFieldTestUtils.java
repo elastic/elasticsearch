@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedAmdEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -33,6 +34,8 @@ import static org.elasticsearch.test.ESTestCase.randomList;
  */
 public class EsFieldTestUtils {
 
+    private static final TransportVersion ESQL_UNMAPPED_AMD_ES_FIELD = TransportVersion.fromName("esql_unmapped_amd_es_field");
+
     private EsFieldTestUtils() {}
 
     /**
@@ -48,13 +51,15 @@ public class EsFieldTestUtils {
      * to keep the unrestricted behavior.
      */
     public static EsField randomSerializableEsField(int maxDepth, TransportVersion supportedOn) {
-        return switch (between(0, 5)) {
+        int maxCase = supportedOn == null || supportedOn.supports(ESQL_UNMAPPED_AMD_ES_FIELD) ? 6 : 5;
+        return switch (between(0, maxCase)) {
             case 0 -> randomEsField(maxDepth, supportedOn);
             case 1 -> randomDateEsField(maxDepth, supportedOn);
             case 2 -> randomKeywordEsField(maxDepth, supportedOn);
             case 3 -> randomTextEsField(maxDepth, supportedOn);
             case 4 -> randomPotentiallyUnmappedKeywordEsField(maxDepth, supportedOn);
             case 5 -> randomUnsupportedEsField(maxDepth, supportedOn);
+            case 6 -> randomPotentiallyUnmappedAmdEsField(maxDepth, supportedOn);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -149,6 +154,19 @@ public class EsFieldTestUtils {
         TransportVersion supportedOn
     ) {
         return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(maxPropertiesDepth, supportedOn));
+    }
+
+    public static PotentiallyUnmappedAmdEsField randomPotentiallyUnmappedAmdEsField(int maxPropertiesDepth, TransportVersion supportedOn) {
+        return new PotentiallyUnmappedAmdEsField(
+            new EsField(
+                randomAlphaOfLength(4),
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                randomProperties(maxPropertiesDepth, supportedOn),
+                randomBoolean(),
+                randomBoolean(),
+                randomFrom(EsField.TimeSeriesFieldType.values())
+            )
+        );
     }
 
     /**

@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 158855
+summary: "WIP: return 409 when accessing a restoring shard [DO NOT MERGE]"
+type: enhancement

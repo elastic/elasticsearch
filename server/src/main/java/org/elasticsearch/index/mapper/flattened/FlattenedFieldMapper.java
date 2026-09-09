@@ -1682,6 +1682,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
+    private final boolean writeDimensionRouting;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1696,6 +1697,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         Map<String, Object> passthroughConfig = builder.passthrough.getValue();
         this.passthroughPriority = passthroughConfig != null ? XContentMapValues.nodeIntegerValue(passthroughConfig.get("priority")) : -1;
         this.passthrough = this.passthroughPriority >= 0;
+        this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1710,9 +1714,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
-            builder.dimensions.getValue().isEmpty() == false
-                && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
-                && efs.extractDimensionsWhileMapping(),
+            this.writeDimensionRouting,
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
@@ -1824,7 +1826,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * Whether this flattened field can be driven through the columnar batch-mapping path. Only the strict-columnar
      * {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} configuration is supported, which writes exactly two output
      * columns ({@code <root>._keyed} plus its {@code .counts} companion). Everything else — the sorted-unique keyed encoding, root
-     * doc values, the inverted index, the {@code _offsets} sidecar, mapped sub-fields, dimensions, scripts, {@code copy_to} and
+     * doc values, the inverted index, the {@code _offsets} sidecar, mapped sub-fields, scripts, {@code copy_to} and
      * multi-fields — falls back to the row path.
      */
     @Override
@@ -1838,7 +1840,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             && fieldType().indexType().hasTerms() == false
             && fieldType().hasRootDocValues == false
             && mappedSubFields.isEmpty()
-            && fieldType().dimensions().isEmpty()
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false;

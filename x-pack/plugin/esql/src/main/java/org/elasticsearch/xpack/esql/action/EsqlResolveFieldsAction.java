@@ -81,9 +81,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             return;
         }
 
-        // A dataset is a registration on the cluster that holds it, pointing at storage its own coordinator reads, so it
-        // must not resolve for a caller on another cluster. A coordinator that predates that rule still asks for datasets
-        // here; clear the option so this cluster's datasets stay out of what the request's patterns match either way.
+        // A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
+        // resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here; clear
+        // the option so this cluster's datasets stay out of what the request's patterns match either way.
         FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
         fieldCapsRequest.indicesOptions(
             IndicesOptions.builder(fieldCapsRequest.indicesOptions())

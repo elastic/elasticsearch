@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -118,7 +119,7 @@ public class RemoteDatasetInvisibleRestIT extends ESRestTestCase {
         assertThat(response.get("values"), equalTo(List.of(List.of("hello"))));
     }
 
-    private static org.elasticsearch.client.Response query(String esql) throws IOException {
+    private static Response query(String esql) throws IOException {
         Request request = new Request("POST", "/_query");
         request.setJsonEntity("{\"query\":\"" + esql + "\"}");
         return client().performRequest(request);

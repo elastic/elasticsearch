@@ -437,6 +437,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
+     * Estimated heap bytes this QueryBuilder contributes at parse time, charged to the REQUEST
+     * circuit breaker immediately after construction. Every clause in the tree — including the root
+     * query — is charged this amount. Subclasses whose parse-time representation includes large value
+     * payloads — term lists, id sets, etc. — should override to include that payload cost.
+     */
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+    }
+
+    /**
      * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
@@ -487,15 +497,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                                 + "]"
                         );
                     }
-                    if (nestedDepth > 1 && breaker != null) { // depth 1 == root query, not a clause
-                        breaker.addEstimateBytesAndMaybeBreak(QUERY_BUILDER_SIZE_ESTIMATE_BYTES, "query-parsing");
-                        totalCharged[0] += QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-                    }
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
                 if (categoryClass.equals(QueryBuilder.class)) {
                     queryNameConsumer.accept(name);
                     nestedDepth--;
+                    if (breaker != null && namedObject instanceof AbstractQueryBuilder<?> aqb) {
+                        long estimate = aqb.parseTimeBreakerEstimate();
+                        breaker.addEstimateBytesAndMaybeBreak(estimate, "query-parsing");
+                        totalCharged[0] += estimate;
+                    }
                 }
                 return namedObject;
             }

@@ -1312,7 +1312,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     public void testQueryParsingBreakerHeldAfterParseReleasedOnClose() throws IOException {
         int clauses = 3;
         long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(clauses * perClause));
+        // clauses children + 1 root bool
+        LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes((clauses + 1) * perClause));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {
             BoolQueryBuilder query = new BoolQueryBuilder();
@@ -1326,7 +1327,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     parsed.parseXContent(parser, true, new UsageService().getSearchUsageHolder(), nf -> false);
                 }
                 // charge is held after parsing completes — breaker pool is full
-                assertEquals(clauses * perClause, breaker.getUsed());
+                assertEquals((clauses + 1) * perClause, breaker.getUsed());
             }
             // charge is released after close()
             assertEquals(0L, breaker.getUsed());
@@ -1339,7 +1340,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         int queryClauses = 2;
         int postFilterClauses = 3;
         long perClause = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
-        long total = (queryClauses + postFilterClauses) * perClause;
+        // each bool (query + post_filter) contributes its children plus itself as root
+        long total = (queryClauses + 1 + postFilterClauses + 1) * perClause;
         LimitedBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(total));
         AbstractQueryBuilder.setQueryParsingBreaker(breaker);
         try {

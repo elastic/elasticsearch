@@ -218,6 +218,25 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        if (values == null) {
+            return QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        }
+        long estimate = QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        for (Object value : values) {
+            // mirror RamAccountingTermsEnum: content bytes + 64-byte object overhead per value
+            if (value instanceof org.apache.lucene.util.BytesRef br) {
+                estimate += br.length + 64L;
+            } else if (value instanceof String s) {
+                estimate += s.length() * 2L + 64L;
+            } else {
+                estimate += 64L; // numbers, booleans, etc.
+            }
+        }
+        return estimate;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (this.termsLookup != null) {

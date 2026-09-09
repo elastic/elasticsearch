@@ -141,13 +141,14 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     public void testTooManyClausesRejectedAtParseTime() throws IOException {
         int max = 5;
+        // limit = (max inner clauses + 1 root dis_max) * per-clause estimate
         LimitedBreaker limitedBreaker = new LimitedBreaker(
             CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes((long) max * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
+            ByteSizeValue.ofBytes((long) (max + 1) * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
         );
         AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
         try {
-            // dis_max with max inner clauses: circuit breaker charges exactly at the limit — must succeed
+            // dis_max with max inner clauses: root + max children charge exactly at the limit — must succeed
             DisMaxQueryBuilder okQuery = new DisMaxQueryBuilder();
             for (int i = 0; i < max; i++) {
                 okQuery.add(new MatchAllQueryBuilder());
@@ -159,7 +160,8 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 }
             }
 
-            // dis_max with max+1 inner clauses: circuit breaker trips — must be rejected at parse time
+            // dis_max with max+1 inner clauses: root dis_max is the last charge; it tips over the limit.
+            // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
             DisMaxQueryBuilder bigQuery = new DisMaxQueryBuilder();
             for (int i = 0; i < max + 1; i++) {
                 bigQuery.add(new MatchAllQueryBuilder());
@@ -167,8 +169,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    // DisMax uses a manual parsing loop so namedObject() throws CircuitBreakingException directly (no ObjectParser
-                    // wrapping)
                     expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
                 }
             }

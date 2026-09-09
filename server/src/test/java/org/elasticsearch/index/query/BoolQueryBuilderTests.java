@@ -868,13 +868,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     public void testTooManyClausesRejectedAtParseTime() throws IOException {
         int max = 5;
+        // limit = (max inner clauses + 1 root bool) * per-clause estimate
         LimitedBreaker limitedBreaker = new LimitedBreaker(
             CircuitBreaker.REQUEST,
-            ByteSizeValue.ofBytes((long) max * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
+            ByteSizeValue.ofBytes((long) (max + 1) * AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES)
         );
         AbstractQueryBuilder.setQueryParsingBreaker(limitedBreaker);
         try {
-            // bool with max inner clauses: circuit breaker charges exactly at the limit — must succeed
+            // bool with max inner clauses: root + max children charge exactly at the limit — must succeed
             BoolQueryBuilder okQuery = boolQuery();
             for (int i = 0; i < max; i++) {
                 okQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
@@ -886,7 +887,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 }
             }
 
-            // bool with max+1 inner clauses: circuit breaker trips — must be rejected at parse time
+            // bool with max+1 inner clauses: root bool is the last charge; it tips over the limit.
+            // Root charge happens outside ObjectParser so CircuitBreakingException is not wrapped.
             BoolQueryBuilder bigQuery = boolQuery();
             for (int i = 0; i < max + 1; i++) {
                 bigQuery.should(termQuery(TEXT_FIELD_NAME, "v"));
@@ -894,9 +896,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             for (XContentType type : new XContentType[] { XContentType.JSON, XContentType.SMILE }) {
                 BytesReference bytes = XContentHelper.toXContent(bigQuery, type, false);
                 try (XContentParser parser = createParser(type.xContent(), bytes)) {
-                    // ObjectParser wraps the CircuitBreakingException in an XContentParseException
-                    XContentParseException ex = expectThrows(XContentParseException.class, () -> parseQuery(parser));
-                    assertThat(ex.getCause(), instanceOf(CircuitBreakingException.class));
+                    expectThrows(CircuitBreakingException.class, () -> parseQuery(parser));
                 }
             }
         } finally {

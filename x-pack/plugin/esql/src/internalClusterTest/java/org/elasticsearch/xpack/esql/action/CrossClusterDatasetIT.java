@@ -54,6 +54,7 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_DATASET = "remote_employees";
     private static final String REMOTE_DATASET_2 = "remote_employees_b";
     private static final String REMOTE_PLAIN_INDEX = "logs_idx";
+    private static final String REMOTE_LOGS_INDEX = "remote_logs";
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -111,6 +112,12 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
 
         // A plain index on the remote that the successful query reads from.
         populateRemoteIndices(REMOTE_CLUSTER_1, REMOTE_PLAIN_INDEX, randomIntBetween(1, 3));
+
+        // An index on BOTH remotes whose name the remot*/remote* wildcards match alongside the dataset, so those
+        // patterns resolve to an index as well as a dataset on either cluster. Every wildcard assertion below is then
+        // positive: a pattern that returns nothing is distinguishable from one that returns only the index's rows.
+        populateRemoteIndices(REMOTE_CLUSTER_1, REMOTE_LOGS_INDEX, randomIntBetween(1, 3));
+        populateRemoteIndices(REMOTE_CLUSTER_2, REMOTE_LOGS_INDEX, randomIntBetween(1, 3));
 
         // A CSV fixture on the shared (single-host) filesystem; reachable from every remote node via file://.
         Path csvFixture = createTempFile("ccs-dataset-", ".csv");
@@ -174,8 +181,8 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     /**
      * Dataset analog of {@link CrossClusterViewIT#testRemoteViewExcludedSucceeds}: a wildcard that matches the
      * dataset but explicitly excludes it succeeds (the excluded dataset never reaches the detection rail), and the
-     * response is non-partial. The wildcard {@code remot*} matches only {@code remote_employees}; excluding it
-     * leaves nothing on cluster-a, which still resolves cleanly (an excluded-to-empty cluster is not a failure).
+     * response is non-partial. The wildcard {@code remot*} matches {@code remote_employees} and {@code remote_logs};
+     * excluding the dataset leaves the index, which resolves and reads cleanly.
      */
     public void testRemoteDatasetExcludedSucceeds() {
         try (

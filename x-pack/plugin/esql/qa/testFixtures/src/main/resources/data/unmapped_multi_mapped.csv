@@ -1,0 +1,3 @@
+id:keyword,unmapped.foo:keyword,unmapped.bar:keyword,unmapped.deep.leaf:keyword
+8,mfoo8,mbar8,mleaf8
+9,[mfa,mfb],,

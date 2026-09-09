@@ -80,10 +80,10 @@ import static org.hamcrest.Matchers.empty;
  *
  * <h2>Mapping sanitisation</h2>
  *
- * <p>The {@link ColumnarStrategy} removes mapping runtime fields before creating each index because
- * {@code IndexMode.COLUMNAR.validateMapping} calls {@code validateNoMappingRuntimeFields}. Datasets
- * with {@code store: true} fields (currently only {@code hosts} and {@code hosts_ip_is_kwd}) are
- * excluded in {@link #COLUMNAR_INCOMPATIBLE_DATASETS} rather than silently stripped.</p>
+ * <p>The {@link ColumnarStrategy} sanitises each mapping before creating the index: it removes
+ * the top-level {@code runtime} section (required by {@code validateNoMappingRuntimeFields}),
+ * strips {@code "store": true} from every field (stored fields are not supported in columnar mode),
+ * and applies a few other columnar-mode defaults. See {@link ColumnarStrategy#sanitizeMapping}.</p>
  *
  * <p>Lookup-mode datasets ({@code index.mode: lookup}) are deliberately left alone so that
  * {@code LOOKUP JOIN} tests can still execute with a columnar primary index.
@@ -110,11 +110,12 @@ public class CsvColumnarIT extends CsvIT {
      * <p>Note: several entries in the generative-test catalogue
      * ({@code addresses_text}, {@code employees_gender_text}, {@code all_types},
      * {@code all_types_no_short}, {@code all_types_short_as_long}, {@code apps_short}) were
-     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here.
-     * They are still included because columnar auto-converts text→keyword and
-     * short→long, causing expected column-type headers in the csv-spec entries to mismatch.
-     * Revisit once the inventory (via {@code skip_columnar:} directives) is established and
-     * transformExpectedResults becomes worth implementing.
+     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here. They were
+     * also listed here on the assumption that columnar's text→keyword and short→long conversions
+     * would mismatch the csv-spec column-type headers. Running them proved otherwise: no test
+     * fails on column types. The only failures were the {@code unmapped_fields="load"} family
+     * described below, which now carry per-test {@code skip_columnar:} directives instead, so
+     * these datasets are no longer excluded.
      */
     private static final Set<String> COLUMNAR_INCOMPATIBLE_DATASETS = Set.of(
         // index:false / doc_values:false are no-ops in strict columnar mode — every field gets
@@ -132,23 +133,6 @@ public class CsvColumnarIT extends CsvIT {
         // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
         // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
         "employees_incompatible",
-        // Multi-value double / date fields cause COUNT to count documents instead of individual
-        // MV values in columnar mode, producing different aggregate results.
-        "all_types_mv",
-        "mv_decades",
-        // Contains semantic_text and dense_vector fields that are absent from columnar field_caps,
-        // and has a short-typed field "short" that columnar normalises to long — both cause
-        // expected column-type header mismatches vs csv-spec declared types.
-        "all_types",
-        "all_types_no_short",
-        "all_types_short_as_long",
-        // id field overridden to short; columnar normalises short→long, causing a type conflict
-        // vs the base apps dataset (id: integer) and expected-type mismatches.
-        "apps_short",
-        // Keyword fields overridden to text; columnar auto-converts text→keyword, so expected
-        // column types in csv-spec entries (text) mismatch the actual columnar types (keyword).
-        "addresses_text",
-        "employees_gender_text",
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",
@@ -158,13 +142,6 @@ public class CsvColumnarIT extends CsvIT {
         // cartesian_shape field with doc_values:false cannot be reconstructed from doc values
         // in columnar mode: "field [shape] cannot reconstruct _source from doc values".
         "cartesian_multipolygons_no_doc_values",
-        // 245 000+ documents with MV integer fields; bulk indexing and force-merge can time out
-        // in columnar mode or exceed REST client limits.
-        "many_numbers",
-        // Known columnar bug: STATS output aliases whose names conflict with existing index fields
-        // read from the wrong source, producing incorrect aggregate values.
-        // TODO: file an issue and reference it here.
-        "ul_logs",
         // index.mapping.index_disabled_by_default=true disables the inverted index for fields
         // without an explicit "index: true", so full-text (:) queries return different results
         // between standard and columnar modes.
@@ -183,6 +160,16 @@ public class CsvColumnarIT extends CsvIT {
         // absent from the mapping therefore produce 0-column / 0-row results in columnar mode.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
+        // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
+        // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
+        // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data",
+        "synthetic_source_partial_mapping",
         // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
         // combined with other indices in a multi-index query and LOAD is used to load the
         // unmapped fields, columnar mode returns null for them (synthetic _source cannot
@@ -194,12 +181,7 @@ public class CsvColumnarIT extends CsvIT {
         // the original _source for these fields and rejects index creation with
         // "field [kw] cannot reconstruct _source from doc values".
         "normalized_keyword",
-        "normalized_keyword_unmapped",
-        // mapping-hosts.json has store:true on one field; strict columnar mode rejects store:true
-        // rather than silently ignoring it, so we exclude these datasets instead of stripping the
-        // attribute from the mapping.
-        "hosts",
-        "hosts_ip_is_kwd"
+        "normalized_keyword_unmapped"
     );
 
     public CsvColumnarIT(
@@ -533,8 +515,18 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put("index.mode", "columnar").build();
+        return Settings.builder().put(INDEX_MODE_SETTING, "columnar").build();
     }
+
+    private static final String INDEX_MODE_SETTING = "index.mode";
+
+    /**
+     * The {@code _index_mode} metadata column, and the value the csv-spec corpus declares for it.
+     * The corpus is written against standard indices, so any dataset this strategy converts
+     * reports a different mode at query time.
+     */
+    private static final String INDEX_MODE_COLUMN = "_index_mode";
+    private static final String STANDARD_INDEX_MODE = "standard";
 
     /**
      * Installs the columnar index-load strategy.
@@ -646,7 +638,7 @@ public class CsvColumnarIT extends CsvIT {
                     return settings;
                 }
                 if (COLUMNAR_INCOMPATIBLE_DATASETS.contains(dataset.indexName())) {
-                    // These datasets produce wrong results by design (geo_point precision, store:true,
+                    // These datasets produce wrong results by design (geo_point precision,
                     // keyword normalizers, etc.) and are excluded at generation time. routing_path is
                     // not involved. See COLUMNAR_INCOMPATIBLE_DATASETS for per-dataset reasons.
                     FORCED_STANDARD_DATASETS.add(dataset.indexName());
@@ -679,13 +671,60 @@ public class CsvColumnarIT extends CsvIT {
             return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
+        /**
+         * Rewrites expected {@code _index_mode} values from {@code standard} to the mode this
+         * strategy actually stamps on the datasets it converts.
+         *
+         * <p>Only the literal {@code standard} is rewritten. Lookup-mode datasets keep their
+         * original mode and the corpus already declares {@code lookup} for them, and a dataset
+         * that unexpectedly stayed standard (see {@link #FORCED_STANDARD_DATASETS}) still fails
+         * rather than being masked.
+         */
         @Override
         public CsvTestUtils.ExpectedResults transformExpectedResults(
             String testId,
             CsvTestCase testCase,
             CsvTestUtils.ExpectedResults expected
         ) {
-            return expected;
+            int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
+            if (modeIdx < 0) {
+                return expected;
+            }
+            String actualMode = extraSettings.get(INDEX_MODE_SETTING);
+            if (actualMode == null) {
+                return expected;
+            }
+            boolean anyChanged = false;
+            List<List<Object>> newValues = new ArrayList<>(expected.values().size());
+            for (List<Object> row : expected.values()) {
+                Object rewritten = rewriteIndexMode(row.get(modeIdx), actualMode);
+                if (rewritten == row.get(modeIdx)) {
+                    newValues.add(row);
+                } else {
+                    List<Object> newRow = new ArrayList<>(row);
+                    newRow.set(modeIdx, rewritten);
+                    newValues.add(newRow);
+                    anyChanged = true;
+                }
+            }
+            if (anyChanged == false) {
+                return expected;
+            }
+            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        /**
+         * Returns the cell with {@code standard} replaced by {@code actualMode}, or the original
+         * cell instance when nothing needs rewriting.
+         *
+         * <p>Only scalar cells are rewritten. Every row of a {@code _index_mode} column describes
+         * a single index, so no multi-value cell is expected here. If one ever appears it falls
+         * through unchanged and the comparison fails with a plain value mismatch, which is the
+         * intended outcome: this hook exists to retarget a known-good expectation, not to absorb
+         * shapes it was never verified against.
+         */
+        private static Object rewriteIndexMode(Object cell, String actualMode) {
+            return STANDARD_INDEX_MODE.equals(cell) ? actualMode : cell;
         }
 
         /**
@@ -702,7 +741,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs three adjustments in a single parse-serialize pass:
+         * <p>Performs four adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -710,6 +749,10 @@ public class CsvColumnarIT extends CsvIT {
          *       runtime fields. The csv-spec fixtures do not currently use mapping runtime fields,
          *       but removing the section defensively ensures this variant stays robust as the
          *       fixtures evolve.</li>
+         *   <li>Strips {@code "store": true} from every field definition.
+         *       Columnar mode rejects stored fields at mapping validation time. Removing the
+         *       attribute is semantically safe: columnar always reconstructs field values from doc
+         *       values, so the stored copy is neither needed nor consulted.</li>
          *   <li>Injects {@code "index": true} into every {@code dense_vector} field that declares
          *       {@code "similarity"} but omits {@code "index"}.
          *       Columnar mode defaults {@code index.mapping.index_disabled_by_default} to
@@ -734,6 +777,7 @@ public class CsvColumnarIT extends CsvIT {
         private static String sanitizeMapping(String mapping) throws IOException {
             Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
             map.remove("runtime");
+            stripStoreTrue(map);
             fixDenseVectorIndexDefault(map);
             fixTextNormsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -799,6 +843,19 @@ public class CsvColumnarIT extends CsvIT {
             walkFieldDefs(mappingObject, fieldDef -> {
                 if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
                     fieldDef.put("norms", true);
+                }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and removes {@code "store": true} from every field
+         * definition. Columnar mode rejects stored fields; removing the attribute is safe because
+         * columnar always reconstructs values from doc values.
+         */
+        private static void stripStoreTrue(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if (Boolean.TRUE.equals(fieldDef.get("store"))) {
+                    fieldDef.remove("store");
                 }
             });
         }

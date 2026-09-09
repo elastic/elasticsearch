@@ -110,7 +110,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -568,14 +567,16 @@ public class IndexModuleTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             IndexMode.LOGSDB,
             IndexMode.LOOKUP,
-            IndexMode.VECTORDB_DOCUMENT
+            IndexMode.VECTORDB_DOCUMENT,
+            IndexMode.VECTORDB_COLUMNAR
         );
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
         assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }
 
     public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
-        IndexMode mode = randomFrom(Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList());
+        // vectordb_columnar is isStrictColumnar() but intentionally keeps the query cache enabled
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
         assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }
@@ -721,7 +722,10 @@ public class IndexModuleTests extends ESTestCase {
 
         ShardRouting shard = createInitializedShardRouting();
 
-        assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
+        assertThat(
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)),
+            is(recoveryState)
+        );
 
         closeIndexService(indexService);
     }
@@ -782,9 +786,15 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
-            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
+            indexShard.markAsRecovering("test");
 
             final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);

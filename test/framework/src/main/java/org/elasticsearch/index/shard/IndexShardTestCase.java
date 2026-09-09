@@ -1312,9 +1312,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static boolean recoverFromStore(IndexShard newShard) {
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         newShard.recoverFromStore(future);
-        return future.actionGet();
+        future.actionGet(); // Will throw if unsuccessful
+        return true;
     }
 
     /**

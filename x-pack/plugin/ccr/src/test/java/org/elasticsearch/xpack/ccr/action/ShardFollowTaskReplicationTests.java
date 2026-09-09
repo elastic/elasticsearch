@@ -573,7 +573,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             @Override
             protected synchronized void recoverPrimary(IndexShard primaryShard) {
                 primaryShard.markAsRecovering("remote recovery from leader");
-                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 primaryShard.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), index.getName()) {
                     @Override
                     public void restoreShard(

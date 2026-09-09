@@ -2937,7 +2937,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store targetStore = target.store();
 
         target.markAsRecovering("store");
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
             public void restoreShard(
@@ -2961,7 +2961,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
             }
         }, future);
-        assertTrue(future.actionGet());
+        future.actionGet(); // Fail test on throw
         assertThat(target.getLocalCheckpoint(), equalTo(2L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
@@ -3672,23 +3672,23 @@ public class IndexShardTests extends IndexShardTestCase {
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
             recoverShardFromStore(differentIndex);
             expectThrows(IllegalArgumentException.class, () -> {
-                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard, differentIndex), future);
                 future.actionGet();
             });
             closeShards(differentIndex);
 
             // check that an error from the mapper service is handled correctly
-            final PlainActionFuture<Boolean> badMapperFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Void> badMapperFuture = new PlainActionFuture<>();
             final IndexShard badMapper = spy(targetShard);
             doThrow(IllegalArgumentException.class).when(badMapper).mapperService();
             final BiConsumer<MappingMetadata, ActionListener<Void>> noopConsumer = (mapping, listener) -> listener.onResponse(null);
             badMapper.recoverFromLocalShards(noopConsumer, List.of(sourceShard), badMapperFuture);
             assertThrows(IndexShardRecoveryException.class, badMapperFuture::actionGet);
 
-            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
-            assertTrue(future.actionGet());
+            future.actionGet(); // Fail test on throw
             RecoveryState recoveryState = targetShard.recoveryState();
             assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
             assertTrue(recoveryState.getIndex().fileDetails().size() > 0);

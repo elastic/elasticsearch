@@ -666,11 +666,11 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final ShardRouting aboveThresholdShard = startedShards.get(1);
         // absentShard has no entry in shardWriteLoads and should default to 0.0
         final ShardRouting absentShard = startedShards.get(2);
-        final double belowLoad = randomDoubleBetween(0.0, minShardWriteLoad, true);
+        final double belowOrEqualToLoad = randomBoolean() ? minShardWriteLoad : randomDoubleBetween(0.0, minShardWriteLoad, true);
         final double aboveLoad = randomDoubleBetween(minShardWriteLoad, 10.0, false);
 
         final Map<ShardId, Double> shardWriteLoads = new HashMap<>();
-        shardWriteLoads.put(belowThresholdShard.shardId(), belowLoad);
+        shardWriteLoads.put(belowThresholdShard.shardId(), belowOrEqualToLoad);
         shardWriteLoads.put(aboveThresholdShard.shardId(), aboveLoad);
         // absentShard intentionally omitted — defaults to 0.0
 

@@ -2498,7 +2498,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .build();
         // No split here — this rail reads one whole file, so the pre-prune unified schema IS that file's schema.
         FormatReader reader = readerWithDynamicThreshold(formatReader).withReadConfig(readConfigFingerprinter.apply(unifiedReadSchema));
-        reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+        long wallStart = System.nanoTime();
+        reader.readAsync(storageObject, ctx, executor, buffer.readCounters(), ActionListener.wrap(iterator -> {
+            buffer.readCounters().record(wallStart, -1L);
             CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
             consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {

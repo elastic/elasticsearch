@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.concurrent.Executor;
  * <p>
  * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
  * async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener, ExternalReadCounters)}
  * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
@@ -159,20 +160,29 @@ public interface FormatReader extends Closeable {
      * Asynchronously reads data from the given storage object using the provided context.
      * <p>
      * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
-     * provided executor. Formats with native async support should override this.
+     * provided executor and records off-thread CPU in {@code readCounters}. Formats with native
+     * async support should override this and call {@code readCounters.record(-1L, startCpuNanos)}
+     * on their async thread after the read completes but before calling {@code listener.onResponse()}.
      */
     default void readAsync(
         StorageObject object,
         FormatReadContext context,
         Executor executor,
+        ExternalReadCounters readCounters,
         ActionListener<CloseableIterator<Page>> listener
     ) {
         executor.execute(() -> {
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
+            CloseableIterator<Page> pages;
             try {
-                listener.onResponse(read(object, context));
+                pages = read(object, context);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
+            } finally {
+                readCounters.record(-1L, startCpuNanos);
             }
+            listener.onResponse(pages);
         });
     }
 

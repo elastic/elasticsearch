@@ -258,21 +258,11 @@ setup:
           settings:
             auth: anonymous
 
+  # One PUT, one regex over the whole message: the rejection has to name the column AND say what to do instead,
+  # because the supported-type list alone does not tell a user that the analyzed column they wanted is built in
+  # the query.
   - do:
-      catch: /unsupported declared type \[text\] for column \[msg\]/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            properties:
-              msg: { type: text }
-
-  # The rejection has to say what to do instead: the supported-type list alone does not tell a user that the
-  # analyzed column they wanted is built in the query.
-  - do:
-      catch: /apply TO_TEXT in the query/
+      catch: /unsupported declared type \[text\] for column \[msg\].+apply TO_TEXT in the query/
       esql.put_dataset:
         name: ds
         body:

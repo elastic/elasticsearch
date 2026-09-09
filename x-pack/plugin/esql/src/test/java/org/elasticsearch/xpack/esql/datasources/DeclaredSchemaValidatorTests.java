@@ -183,8 +183,13 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
             e.getMessage(),
             allOf(containsString("unsupported declared type [text] for column [msg]"), containsString(DeclaredSchemaValidator.TEXT_ROUTE))
         );
-        // The supported-type list it prints must no longer advertise the withdrawn type.
-        assertThat(e.getMessage(), not(containsString("[text, ")));
+        // The list the message prints must no longer advertise the withdrawn type. Pinned as the whole list rather
+        // than as the absence of a substring: the names are sorted, so `text` lands mid-list and every "does not
+        // contain" spelling of it is one edit away from matching nothing and passing for free.
+        assertThat(
+            e.getMessage(),
+            containsString("supported types are [boolean, date_nanos, datetime, double, integer, ip, keyword, long, unsigned_long]")
+        );
     }
 
     /**

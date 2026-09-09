@@ -2500,7 +2500,10 @@ public class ExternalSourceResolver {
         if (declaredMappings == null || declaredMappings.isEmpty()) {
             return;
         }
-        // One resource can expand to several paths sharing a dataset's mapping, so dedupe by logical column name.
+        // Keyed by resource path, so one dataset contributes as many entries as its resource expands to paths, and a
+        // multi-dataset query contributes all of them. Dedupe by logical column name: the warning is about the
+        // declaration, and a column named once is a column the user has to fix once. That is also why the message
+        // does not name a dataset — from here a column name is all that is unambiguous.
         Set<String> columns = new LinkedHashSet<>();
         for (DatasetMapping mapping : declaredMappings.values()) {
             columns.addAll(DeclaredSchemaResolver.withdrawnTextColumns(mapping));
@@ -2510,7 +2513,7 @@ public class ExternalSourceResolver {
         }
         SkipWarnings warnings = new SkipWarnings(
             "one or more columns are declared with the withdrawn [text] type and are read as [keyword]; "
-                + "matching on them is no longer analyzed. Re-register the dataset declaring [keyword], and apply "
+                + "matching on them is no longer analyzed. Re-declare those columns as [keyword], and apply "
                 + "TO_TEXT in the query where an analyzed column is wanted.",
             warningSink
         );
@@ -3042,7 +3045,10 @@ public class ExternalSourceResolver {
             if (inferredType == null) {
                 continue; // absence is handled by the overlay's own missing-column check
             }
-            DataType declaredType = DataType.fromNameOrAlias(e.getValue().type());
+            // Through the resolver's funnel, not DataType.fromNameOrAlias: a stored `text` is read as keyword, so it is
+            // the keyword pair that has to be coercible here. Decoding the raw name would validate a type the reader
+            // never sees.
+            DataType declaredType = DeclaredSchemaResolver.declaredTypeAsRead(e.getValue().type());
             boolean coercible = coercing ? DeclaredTypeCoercions.supports(inferredType, declaredType) : declaredType == inferredType;
             if (coercible == false) {
                 throw new IllegalArgumentException(

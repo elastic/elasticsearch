@@ -173,17 +173,29 @@ public final class DeclaredSchemaResolver {
         return new Overlaid(output, output);
     }
 
-    private static DataType resolveType(String column, String type) {
+    /**
+     * The declared type as the read path sees it: {@link DataType#fromNameOrAlias} except that the withdrawn
+     * {@code text} reads as {@code keyword}.
+     * <p>
+     * {@code text} was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry
+     * it. Reading it as {@code keyword} is representation-preserving — every reader's string arm is
+     * {@code case KEYWORD, TEXT} and produces the same {@code BytesRef} block — so the dataset stays queryable across
+     * the upgrade. What it does change is that {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column, which is
+     * why the read path warns: see {@code ExternalSourceResolver#warnOnWithdrawnDeclaredTypes}, the one place that
+     * emits, since resolution here runs once per file on the non-strict rail.
+     * <p>
+     * Every site that turns a stored declared type into an ES|QL type calls this, so the substitution cannot hold on
+     * one rail and be missed on another. It deliberately does not apply the declarable-type whitelist: callers that
+     * need that check ({@link #resolveType}) apply it themselves, and callers validating a declared type against a
+     * file's own type must not have the whitelist error pre-empt their own.
+     */
+    static DataType declaredTypeAsRead(String type) {
         DataType resolved = DataType.fromNameOrAlias(type);
-        // `text` was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry it.
-        // Reading it as KEYWORD is representation-preserving — every reader's string arm is `case KEYWORD, TEXT` and
-        // produces the same BytesRef block — so the dataset stays queryable across the upgrade. What it does change is
-        // that MATCH/MATCH_PHRASE stop analyzing the column, which is why the read path warns: see
-        // ExternalSourceResolver#warnOnWithdrawnDeclaredTypes, the one place that emits, since this method runs once
-        // per file on the non-strict rail.
-        if (resolved == DataType.TEXT) {
-            return DataType.KEYWORD;
-        }
+        return resolved == DataType.TEXT ? DataType.KEYWORD : resolved;
+    }
+
+    private static DataType resolveType(String column, String type) {
+        DataType resolved = declaredTypeAsRead(type);
         // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop for a
         // mapping that reached resolution another way (e.g. a hand-edited cluster state). Mirror the validator's
         // whitelist exactly so the backstop is as strict — a known-but-non-declarable type (e.g. geo_point) is rejected
@@ -195,9 +207,10 @@ public final class DeclaredSchemaResolver {
     }
 
     /**
-     * The logical columns of {@code mapping} whose declared type is the withdrawn {@code text}, in declaration order.
-     * They resolve to {@code keyword} (see {@link #resolveType}); this exposes them so the resolver can warn once per
-     * query rather than once per file. Empty for every mapping registered since the withdrawal.
+     * The logical columns of {@code mapping} whose declared type is not the type the read path gives them, in
+     * declaration order — today exactly the columns declared with the withdrawn {@code text}. Derived from
+     * {@link #declaredTypeAsRead} rather than naming the type again, so a column cannot be substituted here and
+     * missed by the warning, or the reverse. Empty for every mapping registered since the withdrawal.
      */
     public static List<String> withdrawnTextColumns(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -206,7 +219,8 @@ public final class DeclaredSchemaResolver {
         }
         List<String> columns = new ArrayList<>();
         for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-            if (DataType.fromNameOrAlias(e.getValue().type()) == DataType.TEXT) {
+            String declared = e.getValue().type();
+            if (DataType.fromNameOrAlias(declared) != declaredTypeAsRead(declared)) {
                 columns.add(e.getKey());
             }
         }

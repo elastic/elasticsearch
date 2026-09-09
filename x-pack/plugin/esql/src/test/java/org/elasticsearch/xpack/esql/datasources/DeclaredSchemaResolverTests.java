@@ -175,6 +175,22 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
         assertThat(o.output().get(0).dataType(), equalTo(DataType.KEYWORD));
     }
 
+    /**
+     * The substitution funnel itself, pinned apart from the whitelist that {@code resolveType} layers on top. Every
+     * site that turns a stored declared type into an ES|QL type calls this, including
+     * {@code ExternalSourceResolver#rejectUncoercibleFileTypedRetypes}, which validates a declared type against a
+     * columnar file's own type and must therefore see the type the reader will actually be handed.
+     */
+    public void testDeclaredTypeAsReadSubstitutesOnlyText() {
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("text"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("keyword"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("long"), equalTo(DataType.LONG));
+        // No whitelist here: a type this layer does not substitute comes back as itself, declarable or not, and
+        // resolveType is what rejects it.
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("geo_point"), equalTo(DataType.GEO_POINT));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("not_a_type"), equalTo(DataType.UNSUPPORTED));
+    }
+
     /** The columns a caller has to warn about are exactly the ones declared with the withdrawn type. */
     public void testWithdrawnTextColumnsNamesOnlyTextColumns() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();

@@ -201,7 +201,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         public boolean isExtractableMappedField(String name) {
-            return isMappedField(name) && mappingLookup().nestedLookup().getNestedParent(name) == null;
+            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
         }
     }
 

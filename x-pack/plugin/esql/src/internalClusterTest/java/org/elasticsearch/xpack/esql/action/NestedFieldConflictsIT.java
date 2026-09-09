@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -15,7 +17,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -27,8 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
  * and the nested shard must contribute nulls.
  * If ES|QL later supports nested fields, these expectations will need updating.
  * <p>
- *     Each scenario has a {@code SameNode} sibling that pins both indices to the
- *     same node.
+ *     Each scenario randomly pins both indices to the same node or to different nodes.
  * </p>
  */
 public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
@@ -38,28 +38,172 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
      * {@code long} under a plain object in another.
      */
     public void testIntegerVsLong() {
-        testIntegerVsLong(false);
-    }
+        String[] nodes = pinNodes();
+        String nested = indexName("nest_int_");
+        String object = indexName("obj_long_");
+        createPinnedIndex(nested, """
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "type": "nested",
+                  "properties": {
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }""", nodes[0]);
+        createPinnedIndex(object, """
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "properties": {
+                    "value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""", nodes[1]);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(prepareIndexJson(nested, Integer.toString(i), Strings.format("""
+                {
+                  "id": "n%02d",
+                  "item": [
+                    {
+                      "value": %d
+                    }
+                  ]
+                }""", i, i + 100)));
+            bulk.add(prepareIndexJson(object, Integer.toString(i), Strings.format("""
+                {
+                  "id": "o%02d",
+                  "item": {
+                    "value": %d
+                  }
+                }""", i, i + 1)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-    /** Same as {@link #testIntegerVsLong()} but both indices on the same node. */
-    public void testIntegerVsLongSameNode() {
-        testIntegerVsLong(true);
+        String from = "FROM " + nested + ", " + object;
+        String value = itemValue();
+        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
+        // KEEP does not accept casts; EVAL covers the convert-on-extract path.
+        assertThat(esql(from + " | " + keepIdAndValue() + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
     }
 
     public void testDoubleVsLong() {
-        testDoubleVsLong(false);
-    }
+        String[] nodes = pinNodes();
+        String nested = indexName("nest_dbl_");
+        String object = indexName("obj_lng_");
+        createPinnedIndex(nested, """
+            {
+              "properties": {
+                "item": {
+                  "type": "nested",
+                  "properties": {
+                    "value": {
+                      "type": "double"
+                    }
+                  }
+                }
+              }
+            }""", nodes[0]);
+        createPinnedIndex(object, """
+            {
+              "properties": {
+                "item": {
+                  "properties": {
+                    "value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""", nodes[1]);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(prepareIndexJson(nested, Integer.toString(i), Strings.format("""
+                {
+                  "item": [
+                    {
+                      "value": %s
+                    }
+                  ]
+                }""", (i + 1) + 0.5)));
+            bulk.add(prepareIndexJson(object, Integer.toString(i), Strings.format("""
+                {
+                  "item": {
+                    "value": %d
+                  }
+                }""", i + 1)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-    public void testDoubleVsLongSameNode() {
-        testDoubleVsLong(true);
+        String value = itemValue();
+        assertThat(
+            esql("FROM " + nested + ", " + object + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"),
+            equalTo(List.of(List.of(210L, 20L)))
+        );
     }
 
     public void testKeywordVsDate() {
-        testKeywordVsDate(false);
-    }
+        String[] nodes = pinNodes();
+        String nested = indexName("nest_kw_");
+        String object = indexName("obj_dt_");
+        createPinnedIndex(nested, """
+            {
+              "properties": {
+                "item": {
+                  "type": "nested",
+                  "properties": {
+                    "value": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""", nodes[0]);
+        createPinnedIndex(object, """
+            {
+              "properties": {
+                "item": {
+                  "properties": {
+                    "value": {
+                      "type": "date"
+                    }
+                  }
+                }
+              }
+            }""", nodes[1]);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(prepareIndexJson(nested, Integer.toString(i), Strings.format("""
+                {
+                  "item": [
+                    {
+                      "value": "nested-%d"
+                    }
+                  ]
+                }""", i)));
+            bulk.add(prepareIndexJson(object, Integer.toString(i), Strings.format("""
+                {
+                  "item": {
+                    "value": "2024-01-%02dT00:00:00.000Z"
+                  }
+                }""", i + 1)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-    public void testKeywordVsDateSameNode() {
-        testKeywordVsDate(true);
+        assertThat(esql("FROM " + nested + ", " + object + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
     }
 
     /**
@@ -67,11 +211,73 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
      * Pre-fix this leaked nested values into ES|QL; they must still be null.
      */
     public void testIncludeInRootSameType() {
-        testIncludeInRootSameType(false);
-    }
+        String[] nodes = pinNodes();
+        String nested = indexName("nest_root_");
+        String object = indexName("obj_root_");
+        // Single-level nested: include_in_parent and include_in_root both copy onto the root.
+        String include = randomFrom("include_in_root", "include_in_parent");
+        createPinnedIndex(nested, Strings.format("""
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "type": "nested",
+                  "%s": true,
+                  "properties": {
+                    "value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""", include), nodes[0]);
+        createPinnedIndex(object, """
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "properties": {
+                    "value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""", nodes[1]);
+        var bulk = client().prepareBulk();
+        for (int i = 0; i < 20; i++) {
+            bulk.add(prepareIndexJson(nested, Integer.toString(i), Strings.format("""
+                {
+                  "id": "n%02d",
+                  "item": [
+                    {
+                      "value": %d
+                    }
+                  ]
+                }""", i, i + 100)));
+            bulk.add(prepareIndexJson(object, Integer.toString(i), Strings.format("""
+                {
+                  "id": "o%02d",
+                  "item": {
+                    "value": %d
+                  }
+                }""", i, i + 1)));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-    public void testIncludeInRootSameTypeSameNode() {
-        testIncludeInRootSameType(true);
+        String from = "FROM " + nested + ", " + object;
+        String value = itemValue();
+        // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
+        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
+        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). Leave the field uncast so
+        // this still hits that path. The include flag copies nested values onto the parent
+        // doc, so skipping the nested shard is required.
+        assertThat(esql(from + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
+        assertThat(esql(from + " | " + keepIdAndValue() + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
     }
 
     /**
@@ -125,121 +331,75 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         String nested = indexName("nest_load_");
         String object = indexName("obj_load_");
         createIndex(nested, """
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "type": "nested", "properties": { "value": { "type": "integer" } } } } }""");
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "type": "nested",
+                  "properties": {
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }""");
         createIndex(object, """
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "properties": { "value": { "type": "long" } } } } }""");
-        indexJson(nested, "0", """
-            {"id": "n00", "item": [{"value": 100}]}""");
-        indexJson(nested, "1", """
-            {"id": "n01", "item": [{"value": 101}]}""");
-        indexJson(object, "0", """
-            {"id": "o00", "item": {"value": 1}}""");
-        indexJson(object, "1", """
-            {"id": "o01", "item": {"value": 2}}""");
-        refresh(nested, object);
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "properties": {
+                    "value": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""");
+        client().prepareBulk()
+            .add(prepareIndexJson(nested, "0", """
+                {
+                  "id": "n00",
+                  "item": [
+                    {
+                      "value": 100
+                    }
+                  ]
+                }"""))
+            .add(prepareIndexJson(nested, "1", """
+                {
+                  "id": "n01",
+                  "item": [
+                    {
+                      "value": 101
+                    }
+                  ]
+                }"""))
+            .add(prepareIndexJson(object, "0", """
+                {
+                  "id": "o00",
+                  "item": {
+                    "value": 1
+                  }
+                }"""))
+            .add(prepareIndexJson(object, "1", """
+                {
+                  "id": "o01",
+                  "item": {
+                    "value": 2
+                  }
+                }"""))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         assertThat(
             esql("SET unmapped_fields=\"load_all\"; FROM " + nested + ", " + object + " | KEEP " + keep + " | SORT id"),
             equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null), Arrays.asList("o00", 1L), Arrays.asList("o01", 2L)))
         );
-    }
-
-    private void testIntegerVsLong(boolean sameNode) {
-        String[] nodes = pinNodes(sameNode);
-        String nested = indexName("nest_int_");
-        String object = indexName("obj_long_");
-        createPinnedIndex(nested, """
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "type": "nested", "properties": { "value": { "type": "integer" } } } } }""", nodes[0]);
-        createPinnedIndex(object, """
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "properties": { "value": { "type": "long" } } } } }""", nodes[1]);
-        for (int i = 0; i < 20; i++) {
-            indexJson(nested, Integer.toString(i), Strings.format("""
-                {"id": "n%02d", "item": [{"value": %d}]}""", i, i + 100));
-            indexJson(object, Integer.toString(i), Strings.format("""
-                {"id": "o%02d", "item": {"value": %d}}""", i, i + 1));
-        }
-        refresh(nested, object);
-
-        String from = "FROM " + nested + ", " + object;
-        String value = itemValue();
-        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
-        assertThat(esql(from + " | KEEP id, " + value + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
-    }
-
-    private void testDoubleVsLong(boolean sameNode) {
-        String[] nodes = pinNodes(sameNode);
-        String nested = indexName("nest_dbl_");
-        String object = indexName("obj_lng_");
-        createPinnedIndex(nested, """
-            { "properties": { "item": { "type": "nested", "properties": { "value": { "type": "double" } } } } }""", nodes[0]);
-        createPinnedIndex(object, """
-            { "properties": { "item": { "properties": { "value": { "type": "long" } } } } }""", nodes[1]);
-        for (int i = 0; i < 20; i++) {
-            indexJson(nested, Integer.toString(i), Strings.format("""
-                {"item": [{"value": %s}]}""", (i + 1) + 0.5));
-            indexJson(object, Integer.toString(i), Strings.format("""
-                {"item": {"value": %d}}""", i + 1));
-        }
-        refresh(nested, object);
-
-        String value = itemValue();
-        assertThat(
-            esql("FROM " + nested + ", " + object + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"),
-            equalTo(List.of(List.of(210L, 20L)))
-        );
-    }
-
-    private void testKeywordVsDate(boolean sameNode) {
-        String[] nodes = pinNodes(sameNode);
-        String nested = indexName("nest_kw_");
-        String object = indexName("obj_dt_");
-        createPinnedIndex(nested, """
-            { "properties": { "item": { "type": "nested", "properties": { "value": { "type": "keyword" } } } } }""", nodes[0]);
-        createPinnedIndex(object, """
-            { "properties": { "item": { "properties": { "value": { "type": "date" } } } } }""", nodes[1]);
-        for (int i = 0; i < 20; i++) {
-            indexJson(nested, Integer.toString(i), Strings.format("""
-                {"item": [{"value": "nested-%d"}]}""", i));
-            indexJson(object, Integer.toString(i), Strings.format("""
-                {"item": {"value": "2024-01-%02dT00:00:00.000Z"}}""", i + 1));
-        }
-        refresh(nested, object);
-
-        assertThat(esql("FROM " + nested + ", " + object + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
-    }
-
-    private void testIncludeInRootSameType(boolean sameNode) {
-        String[] nodes = pinNodes(sameNode);
-        String nested = indexName("nest_root_");
-        String object = indexName("obj_root_");
-        // Single-level nested: include_in_parent and include_in_root both copy onto the root.
-        String include = randomFrom("include_in_root", "include_in_parent");
-        createPinnedIndex(nested, Strings.format("""
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "type": "nested", "%s": true, "properties": { "value": { "type": "long" } } } } }""", include), nodes[0]);
-        createPinnedIndex(object, """
-            { "properties": { "id": { "type": "keyword" }, "item": {
-              "properties": { "value": { "type": "long" } } } } }""", nodes[1]);
-        for (int i = 0; i < 20; i++) {
-            indexJson(nested, Integer.toString(i), Strings.format("""
-                {"id": "n%02d", "item": [{"value": %d}]}""", i, i + 100));
-            indexJson(object, Integer.toString(i), Strings.format("""
-                {"id": "o%02d", "item": {"value": %d}}""", i, i + 1));
-        }
-        refresh(nested, object);
-
-        String from = "FROM " + nested + ", " + object;
-        String value = itemValue();
-        // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
-        assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
-        // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). Leave the field uncast so
-        // this still hits that path. The include flag copies nested values onto the parent
-        // doc, so skipping the nested shard is required.
-        assertThat(esql(from + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
-        assertThat(esql(from + " | KEEP id, " + value + " | SORT id | LIMIT 5"), equalTo(firstFiveNullValueRows()));
     }
 
     /**
@@ -251,38 +411,62 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * {@link #getTestName()} includes {@code {seed=[...]}} under repeat-changed-tests, which is
-     * not a valid index name and is not a valid ES|QL identifier.
+     * {@code KEEP} only accepts names and wildcards, not {@code ::} casts.
      */
-    private String indexName(String prefix) {
-        return prefix + getTestName().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    private static String keepIdAndValue() {
+        return randomBoolean() ? "EVAL v = item.value::long | KEEP id, v" : "KEEP id, item.value";
     }
 
-    private String[] pinNodes(boolean sameNode) {
+    private static String indexName(String prefix) {
+        return prefix + randomIdentifier();
+    }
+
+    private String[] pinNodes() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String node1 = randomDataNode().getName();
-        String node2 = sameNode ? node1 : randomValueOtherThan(node1, () -> randomDataNode().getName());
+        String node2 = randomBoolean() ? node1 : randomValueOtherThan(node1, () -> randomDataNode().getName());
         return new String[] { node1, node2 };
     }
 
     private String createSingleNestedIndex() {
         String nested = indexName("nest_only_");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(nested)
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .setMapping("""
-                    { "properties": { "id": { "type": "keyword" }, "item": {
-                      "type": "nested", "properties": { "value": { "type": "integer" } } } } }""")
-        );
-        indexJson(nested, "0", """
-            {"id": "n00", "item": [{"value": 100}]}""");
-        indexJson(nested, "1", """
-            {"id": "n01", "item": [{"value": 101}]}""");
-        refresh(nested);
+        createIndex(nested, """
+            {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "type": "nested",
+                  "properties": {
+                    "value": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }""");
+        client().prepareBulk()
+            .add(prepareIndexJson(nested, "0", """
+                {
+                  "id": "n00",
+                  "item": [
+                    {
+                      "value": 100
+                    }
+                  ]
+                }"""))
+            .add(prepareIndexJson(nested, "1", """
+                {
+                  "id": "n01",
+                  "item": [
+                    {
+                      "value": 101
+                    }
+                  ]
+                }"""))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         return nested;
     }
 
@@ -311,11 +495,10 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
                 )
                 .setMapping(mapping)
         );
-        ensureGreen(index);
     }
 
-    private void indexJson(String index, String id, String json) {
-        client().prepareIndex(index).setId(id).setSource(json, XContentType.JSON).get();
+    private IndexRequestBuilder prepareIndexJson(String index, String id, String json) {
+        return client().prepareIndex(index).setId(id).setSource(json, XContentType.JSON);
     }
 
     private static List<List<Object>> firstFiveNullValueRows() {

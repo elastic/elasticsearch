@@ -50,7 +50,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description.
 - **Region**: the cloud region where your storage is located, such as `us-east-1`.
-- **Endpoint**: an optional Amazon S3 endpoint override.
+- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `http` or `https` URL.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
 For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
@@ -219,7 +219,7 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `region` | No | The bucket's AWS region, for example `us-east-1`. Defaults to `us-east-1` if omitted. Set it to match the bucket's region, otherwise requests to the bucket fail. |
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Setting it switches requests to path-style addressing. |
+| `endpoint` | No | An explicit Amazon S3 endpoint override. Setting it switches requests to path-style addressing. Must be an absolute `http` or `https` URL. |
 
 :::{tip}
 A data source connects to a single region. To query buckets in more than one region, create a separate data source for each region.
@@ -234,7 +234,7 @@ A data source connects to a single region. To query buckets in more than one reg
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity`. |
+| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity`. Subject to the same URL requirements as `endpoint`. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the bucket's region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

@@ -31,10 +31,12 @@ import java.util.Set;
  * <p>{@code configValidator} is an optional per-format value validator invoked
  * at dataset registration time after key-membership checks pass. It receives
  * only the format-specific keys the user supplied and should throw
- * {@link IllegalArgumentException} for any invalid value;
- * {@link FileDataSourceValidator#validateDataset} catches these and accumulates
- * them into a {@link org.elasticsearch.common.ValidationException} so multiple
- * bad values report together. {@code null} means no value validation beyond key
+ * {@link IllegalArgumentException} at the first invalid value;
+ * {@link FileDataSourceValidator#validateDataset} catches that exception and adds
+ * it to the {@link org.elasticsearch.common.ValidationException} it is already
+ * accumulating, so a format-value error reports together with any base-field
+ * errors — but two bad format-specific values report one at a time, since the
+ * validator stops at the first. {@code null} means no value validation beyond key
  * membership — values are accepted as-is and validated at query time.
  *
  * <p>Example (formats sharing a reader pass their own baseline so the validator applies
@@ -65,9 +67,10 @@ public record FormatSpec(String format, Set<String> extensions, Set<String> conf
 
     /**
      * Validates the format-specific dataset settings supplied at registration time.
-     * Implementors should throw {@link IllegalArgumentException} for invalid values;
-     * {@link FileDataSourceValidator} catches these and accumulates them into a
-     * {@link org.elasticsearch.common.ValidationException} so multiple bad values report together.
+     * Implementors should throw {@link IllegalArgumentException} at the first invalid value;
+     * {@link FileDataSourceValidator} catches the exception and accumulates it into a
+     * {@link org.elasticsearch.common.ValidationException} alongside any base-field errors.
+     * Multiple format-specific bad values are reported one at a time (fail-fast within the format validator).
      *
      * <p>Only format-specific keys present in the dataset settings are forwarded;
      * base dataset fields (e.g. {@code error_mode}, {@code schema_sample_size}) are

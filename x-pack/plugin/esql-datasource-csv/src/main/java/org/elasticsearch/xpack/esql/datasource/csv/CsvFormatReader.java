@@ -668,10 +668,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Called at dataset registration time via {@link CsvDataSourcePlugin}'s
      * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatSpec.FormatConfigValidator}.
      *
-     * <p>Character options ({@code delimiter}, {@code quote}, {@code escape}) are the one place this is
-     * stricter than the query path: a multi-character value is rejected here but truncated to its first
-     * character at query time (see {@link #parseChar}), so datasets stored before this gate existed keep
-     * reading exactly as they did.
+     * <p>This method is stricter than the query path in two ways: multi-character values for
+     * {@code delimiter}, {@code quote}, and {@code escape} are rejected here but truncated to their first
+     * character at query time (see {@link #parseChar}); and {@code mode: escaped} combined with an explicit
+     * {@code quote} is rejected here but emits a warning at query time. In both cases datasets stored before
+     * this gate existed keep reading exactly as they did.
      *
      * @param baseline the format's default options ({@link CsvFormatOptions#DEFAULT} for csv,
      *                 {@link CsvFormatOptions#TSV} for tsv)
@@ -744,7 +745,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 quoting = false;
             } else {
                 quoting = true;
-                quoteChar = parseChar(quoteValue, quoteChar, strictChars);
+                quoteChar = parseChar(quoteValue, CONFIG_QUOTE, quoteChar, strictChars);
             }
         }
         Object escapeValue = config.get(CONFIG_ESCAPE);
@@ -753,7 +754,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 escaping = false;
             } else {
                 escaping = true;
-                escapeChar = parseChar(escapeValue, escapeChar, strictChars);
+                escapeChar = parseChar(escapeValue, CONFIG_ESCAPE, escapeChar, strictChars);
             }
         }
         if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && quoting == false) {
@@ -784,7 +785,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         Object delimiterValue = config.get(CONFIG_DELIMITER);
         char delimiter = isExplicitlySet(delimiterValue)
-            ? parseChar(delimiterValue, baseline.delimiter(), strictChars)
+            ? parseChar(delimiterValue, CONFIG_DELIMITER, baseline.delimiter(), strictChars)
             : baseline.delimiter();
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
@@ -845,7 +846,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * an upgrade cannot turn a working (if misconfigured) dataset into a query-time error. New
      * registrations of such values are stopped at PUT, where the user can act on them.
      */
-    private static char parseChar(Object value, char defaultValue, boolean strict) {
+    private static char parseChar(Object value, String settingName, char defaultValue, boolean strict) {
         if (value == null) {
             return defaultValue;
         }
@@ -872,7 +873,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return s.charAt(0);
         }
         throw new IllegalArgumentException(
-            "Invalid character value [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+            "Invalid character value for [" + settingName + "] [" + value + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
         );
     }
 

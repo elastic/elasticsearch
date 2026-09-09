@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Set;
 
@@ -78,38 +78,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
                 errors.addValidationError("role_arn is required when federated authentication settings are configured");
             }
         }
-        // Validate endpoint URLs at registration time: a syntactically invalid or non-http(s) URL
-        // would only fail at first query, far from where the user made the mistake.
-        // Reachability is a runtime property and is not checked here.
-        validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
-        validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
-    }
-
-    /**
-     * Rejects {@code value} unless it is an absolute http(s) URL with a resolvable host. This also
-     * runs on query-time constructs ({@link #fromQueryConfig} and stored-settings rehydration), so it
-     * must accept everything the query path accepts. The scheme comparison is case-insensitive. The
-     * host check uses {@link URI#getHost()}, which returns {@code null} for hostnames that are invalid
-     * per RFC 2396 (e.g. underscores: {@code http://minio_s3:9000}); those cause a
-     * {@link java.net.URISyntaxException} in the AWS SDK's endpoint override and must be rejected here.
-     */
-    private static void validateHttpUrl(String value, String settingName, ValidationException errors) {
-        if (value == null || value.isBlank()) {
-            return;
-        }
-        try {
-            URI uri = URI.create(value);
-            String scheme = uri.getScheme();
-            if (uri.isAbsolute() == false
-                || ("http".equalsIgnoreCase(scheme) == false && "https".equalsIgnoreCase(scheme) == false)
-                || uri.getHost() == null) {
-                errors.addValidationError(
-                    settingName + " [" + value + "] must be an absolute http or https URL (e.g. https://my-endpoint.example.com)"
-                );
-            }
-        } catch (IllegalArgumentException e) {
-            errors.addValidationError(settingName + " [" + value + "] is not a valid URL: " + e.getMessage());
-        }
+        DataSourceValidationUtils.validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
+        DataSourceValidationUtils.validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {
@@ -125,7 +95,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
      * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
      * before construction; cross-field validation (auth/credential conflicts) and the endpoint
      * URL check (which accepts everything the query path accepts, see
-     * {@link #validateHttpUrl}) still run.
+     * {@link DataSourceValidationUtils#validateHttpUrl}) still run.
      */
     public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
         return filterAndConstruct(raw, FIELDS, S3Configuration::new);

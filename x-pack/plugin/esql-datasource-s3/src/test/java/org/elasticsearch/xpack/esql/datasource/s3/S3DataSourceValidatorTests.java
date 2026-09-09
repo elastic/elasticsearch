@@ -955,12 +955,13 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasourceRejectsJunkPortEndpoint() {
-        // http://localhost:abc — URI.create throws (non-numeric port), caught by the validator.
+        // http://localhost:abc — URI.create parses fine; getHost() returns null for non-RFC-3986 ports, caught by the null check.
         var e = expectThrows(
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("endpoint", "http://localhost:abc", "auth", "anonymous"))
         );
         assertThat(e.getMessage(), containsString("endpoint [http://localhost:abc]"));
+        assertThat(e.getMessage(), containsString("must be an absolute http"));
     }
 
     public void testValidateDatasourceRejectsNoAuthorityEndpoint() {
@@ -1004,7 +1005,19 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     // --- Format value validation at PUT time (via format-aware validator with validator wired) ---
 
-    /** A resolver identical to CSV_RESOLVER but wiring a test-local strict-char validator for delimiter. */
+    /**
+     * A resolver identical to CSV_RESOLVER but wiring a test-local strict-char validator for delimiter.
+     *
+     * <p>The rule and the message below are a hand-copy of {@code CsvFormatReader.parseChar}: this module
+     * cannot depend on esql-datasource-csv, so the real validator is out of reach here. The copy is
+     * therefore NOT covered by the validator/reader message-parity guarantee — if the real message
+     * changes, this stub silently diverges and these tests keep passing. That is acceptable because what
+     * they pin is the <em>dispatch</em> ({@code FileDataSourceValidator} resolves the format, forwards
+     * only format-specific keys, and folds the throw into the ValidationException), not the CSV rule
+     * itself. The rule and its message are owned by
+     * {@code CsvFormatReaderRecognizedKeysTests#testValidatorAndReaderAgreeCsvFormat}, and the real
+     * wiring end to end by {@code DataSourceCrudRestIT#testPutDatasetRejectsMultiCharDelimiterOnCsvResource}.
+     */
     private static final FileDataSourceValidator.FormatConfigKeyResolver CSV_RESOLVER_WITH_VALIDATOR =
         FileDataSourceValidator.FormatConfigKeyResolver.of(Map.of("csv", CSV_CONFIG_KEYS), Map.of(".csv", "csv"), Map.of("csv", config -> {
             // Mirror parseChar: reject multi-char values not in the four known escapes.
@@ -1018,7 +1031,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                     && "\\r".equals(s) == false
                     && "\\\\".equals(s) == false) {
                     throw new IllegalArgumentException(
-                        "Invalid character value [" + delimiter + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
+                        "Invalid character value for [delimiter] ["
+                            + delimiter
+                            + "]: expected a single character or one of \\t, \\n, \\r, \\\\"
                     );
                 }
             }
@@ -1035,6 +1050,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidatorWithValueValidation.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", "||"))
         );
+        assertThat(e.getMessage(), containsString("delimiter"));
         assertThat(e.getMessage(), containsString("||"));
     }
 
@@ -1048,8 +1064,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("\\t", result.get("delimiter"));
     }
 
-    public void testFormatValueValidationErrorsAccumulateWithKeyErrors() {
-        // A bad format-specific value and a bad base-level value both appear in the ValidationException.
+    public void testBaseAndFormatErrorsBothAppear() {
+        // A bad base-level value and a bad format-specific value both appear in the ValidationException.
+        // Note: if both values are format-specific, only the first error is reported (the format validator is fail-fast).
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidatorWithValueValidation.validateDataset(

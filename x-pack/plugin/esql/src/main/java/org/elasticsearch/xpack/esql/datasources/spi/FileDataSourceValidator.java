@@ -371,8 +371,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         // Store every accepted setting that is present, as its raw value. Each query-time consumer
         // re-parses from value.toString(), so raw storage avoids type-coercion mismatches. Format-specific
-        // fields pass through here too; the format reader validates their types at query time. The parsed
-        // schema_sample_size and format selector placed above are left intact.
+        // fields pass through here; value-level validation runs below via the format's registered validator.
+        // The parsed schema_sample_size and format selector placed above are left intact.
         for (Map.Entry<String, Object> entry : settings.entrySet()) {
             if (acceptedFields.contains(entry.getKey()) && result.containsKey(entry.getKey()) == false) {
                 result.put(entry.getKey(), entry.getValue());
@@ -380,8 +380,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         }
 
         // Value-validate format-specific keys: resolve the format (explicit setting > resource extension)
-        // and call its registered validator. Errors accumulate into the shared ValidationException so
-        // multiple bad values report together rather than surfacing one at a time.
+        // and call its registered validator. The validator is fail-fast within format-specific keys; its
+        // single error accumulates into the shared ValidationException alongside any base-field errors.
         if (formatConfigKeyResolver != null) {
             String resolvedFormat = explicitFormat(settings);
             if (resolvedFormat == null && resource != null) {

@@ -456,7 +456,10 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
             () -> putDataset("csv_validator_child", parent, "s3://bucket/data.csv", Map.of("delimiter", "||"))
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("||"));
+        // Assert the setting name, not just the echoed value: naming the offending key is the point of
+        // the check, and a message that only echoes "||" would leave the user guessing between
+        // delimiter, quote and escape.
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("Invalid character value for [delimiter] [||]"));
         deleteDataSource(parent);
     }
 

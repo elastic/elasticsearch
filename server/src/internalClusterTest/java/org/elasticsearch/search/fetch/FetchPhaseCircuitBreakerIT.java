@@ -543,10 +543,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         String nestedIndex = "nested_test_idx";
         assertAcked(
             prepareCreate(nestedIndex).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             ).setMapping("children", "type=nested")
         );
 

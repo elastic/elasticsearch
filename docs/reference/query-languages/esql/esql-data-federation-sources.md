@@ -219,7 +219,8 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `region` | No | The bucket's AWS region, for example `us-east-1`. Defaults to `us-east-1` if omitted. Set it to match the bucket's region, otherwise requests to the bucket fail. |
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Setting it switches requests to path-style addressing. Must be an absolute `http` or `https` URL. |
+| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `http` or `https` URL with a host, for example `https://minio.example.com:9000`; a value without a scheme, or with a host the URL syntax does not allow (such as an underscore or a non-numeric port), is rejected when the data source is created. {applies_to}`stack: experimental 9.6+` |
+| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
 
 :::{tip}
 A data source connects to a single region. To query buckets in more than one region, create a separate data source for each region.

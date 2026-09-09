@@ -293,28 +293,19 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        // The pre-check emits a call naming this class. A plugin's estimator is not in the generated script's loader,
-        // so without this the script fails to link. This grants linkage only, never visibility to scripts.
-        registerJavaClassName(estimatorClass);
+        // add the estimator class so painless has access to it
+        Class<?> existingEstimatorClass = javaClassNamesToClasses.get(estimatorClass.getName());
 
-        return estimator;
-    }
-
-    /**
-     * Makes {@code clazz} resolvable by the generated script's loader, without making it visible to scripts. Rejects two
-     * classes claiming one name, as the allowlisted-class and imported-method paths do.
-     */
-    private void registerJavaClassName(Class<?> clazz) {
-        Class<?> existingClass = javaClassNamesToClasses.get(clazz.getName());
-
-        if (existingClass == null) {
-            javaClassNamesToClasses.put(clazz.getName().intern(), clazz);
-        } else if (existingClass != clazz) {
+        if (existingEstimatorClass == null) {
+            javaClassNamesToClasses.put(estimatorClass.getName().intern(), estimatorClass);
+        } else if (existingEstimatorClass != estimatorClass) {
             throw lookupException(
                 "class [%s] cannot represent multiple java classes with the same name from different class loaders",
-                typeToCanonicalTypeName(clazz)
+                typeToCanonicalTypeName(estimatorClass)
             );
         }
+
+        return estimator;
     }
 
     /**

@@ -930,6 +930,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
     /**
      * Removes all entries while retaining the allocated capacity, including the key pages, so the table can be refilled without resizing.
      */
+    @Override
     public void clear() {
         size = 0;
         growCount = 0;

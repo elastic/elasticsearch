@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -24,13 +25,14 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
 
 /**
  * Maps a {@link LongBlock} and an {@link IntBlock} to group ids, handling nulls and multivalued fields.
  */
-public final class LongIntBlockHash extends BlockHash {
+public final class LongIntBlockHash extends PartitionedBlockHash {
     private final int longChannel;
     private final int intChannel;
     private final int emitBatchSize;
@@ -551,6 +553,34 @@ public final class LongIntBlockHash extends BlockHash {
     // for testing
     int effectiveEmitBatchSize() {
         return emitBatchSize;
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        hash.clear();
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.splitPartition(breaker, partitionSplitter);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.combinePartition(keys, partitionIndex, resultIds);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 
     @Override

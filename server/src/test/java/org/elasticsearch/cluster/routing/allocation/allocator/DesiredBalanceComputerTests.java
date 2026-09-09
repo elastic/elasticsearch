@@ -223,7 +223,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final var settings = Settings.builder()
             .put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled")
-            .put(WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey(), 0.0)
+            .put(WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey(), -1.0)
             .build();
         final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
         final var input = new DesiredBalanceInput(42, routingAllocation, List.of());

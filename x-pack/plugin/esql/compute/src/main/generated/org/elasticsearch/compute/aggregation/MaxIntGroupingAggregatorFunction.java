@@ -37,7 +37,7 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
 
   MaxIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new IntArrayState(driverContext.bigArrays(), MaxIntAggregator.init());
+    this.state = new IntArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxIntAggregator.init());
     this.driverContext = driverContext;
   }
 

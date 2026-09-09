@@ -20,9 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -93,9 +91,10 @@ public class FlakinessResolverTests {
     public void testResolvesChangedFilesToProjectSourceSetKind() throws IOException {
         Path repo = tmp.newFolder("repo").toPath();
         List<ProjectInfo> projects = fixtureProjects(repo);
-        RefResolver resolver = resolver(repo, projects);
 
-        RefResolver.Resolution r = resolver.resolve(
+        FlakinessJson.BaseTargetsFile r = resolveAcross(
+            repo,
+            projects,
             List.of(
                 changedFile("server/src/test/java/org/elasticsearch/FooTests.java"),
                 changedFile("server/src/internalClusterTest/java/org/elasticsearch/BarIT.java"),
@@ -139,9 +138,10 @@ public class FlakinessResolverTests {
         List<ProjectInfo> projects = fixtureProjects(repo);
         touch(repo, "server/src/test/java/org/elasticsearch/FooTests.java");
         touch(repo, "x-pack/plugin/esql/src/yamlRestTest/java/org/elasticsearch/EsqlIT.java");
-        RefResolver resolver = resolver(repo, projects);
 
-        RefResolver.Resolution r = resolver.resolve(
+        FlakinessJson.BaseTargetsFile r = resolveAcross(
+            repo,
+            projects,
             List.of(
                 unmute("org.elasticsearch.FooTests", null),
                 unmute("org.elasticsearch.EsqlIT", "test {yaml=esql/10_foo/Case}"),
@@ -166,24 +166,25 @@ public class FlakinessResolverTests {
 
     /**
      * A malformed refs file is an input defect, not a programming error: a missing or misspelled
-     * {@code source} must be reported as {@code unknown-source} rather than thrown as an NPE from the switch.
-     * Under the per-project topology this runs inside the ownership probe of every project at once, so an NPE
-     * here surfaces as a wall of unreadable stack traces with no mention of the refs file.
+     * {@code source} must resolve to nothing rather than throw an NPE out of the switch. This runs in every
+     * project at once, so an NPE here surfaces as a wall of unreadable stack traces with no mention of the
+     * refs file.
+     *
+     * <p>Only the no-throw property is asserted here. Turning "nothing claimed it" into
+     * {@code unknown-source} is {@link FlakinessTargets#merge}'s job, since only it has the global view, and
+     * {@code FlakinessTargetsTests#testUnknownRefSourceIsReportedNotSilentlyDropped} pins that.
      */
     @Test
-    public void testMalformedRefSourceIsReportedRatherThanThrown() throws IOException {
+    public void testMalformedRefSourceResolvesToNothingRatherThanThrowing() throws IOException {
         Path repo = tmp.newFolder("malformed-repo").toPath();
         ProjectInfo server = new ProjectInfo(":server", repo.resolve("server"), List.of(ssi(repo, "server", "test")));
+        RefResolver resolver = resolver(repo, server);
 
         FlakinessRef nullSource = new FlakinessRef(null, null, "org.elasticsearch.FooTests", null, null);
         FlakinessRef bogusSource = new FlakinessRef("typo-source", "server/src/test/java/X.java", null, null, null);
 
-        RefResolver.Resolution r = resolver(repo, List.of(server)).resolve(List.of(nullSource, bogusSource));
-
-        assertThat(r.targets(), empty());
-        assertThat(r.unresolved(), hasSize(2));
-        assertThat(r.unresolved().get(0).reason(), equalTo(RefResolver.REASON_UNKNOWN_SOURCE));
-        assertThat(r.unresolved().get(1).reason(), equalTo(RefResolver.REASON_UNKNOWN_SOURCE));
+        assertThat(resolver.resolve(nullSource).isPresent(), is(false));
+        assertThat(resolver.resolve(bogusSource).isPresent(), is(false));
     }
 
     // ---- PlanBuilder ----
@@ -305,27 +306,46 @@ public class FlakinessResolverTests {
     }
 
     /**
-     * A resolver over the fixture projects, with the {@code Test}-task facts the real build would report:
-     * ordinary projects have an enabled bare task, while {@code :qa:rolling} mirrors
+     * A single-project resolver with the {@code Test}-task facts the real build would report for it: an
+     * ordinary project has an enabled bare task, while {@code :qa:rolling} mirrors
      * {@code elasticsearch.bwc-test} - a <em>disabled</em> bare {@code javaRestTest} plus differently named
      * tasks pointed at the same source-set output.
      */
-    private static RefResolver resolver(Path repo, List<ProjectInfo> projects) {
-        Map<String, List<TestTaskInfo>> tasks = new LinkedHashMap<>();
-        for (ProjectInfo p : projects) {
-            List<TestTaskInfo> projectTasks = new ArrayList<>();
-            for (SourceSetInfo ss : p.sourceSets()) {
-                boolean bwcProject = p.projectPath().equals(":qa:rolling");
-                projectTasks.add(testTask(p.projectPath(), ss.name(), bwcProject == false, ss.outputDir()));
-                if (bwcProject) {
-                    projectTasks.add(testTask(p.projectPath(), "bcUpgradeTest", true, ss.outputDir()));
-                    projectTasks.add(testTask(p.projectPath(), "v9.5.1#bwcTest", true, ss.outputDir()));
-                    projectTasks.add(testTask(p.projectPath(), "v9.6.0#bwcTest", true, ss.outputDir()));
-                }
+    private static RefResolver resolver(Path repo, ProjectInfo p) {
+        List<TestTaskInfo> tasks = new ArrayList<>();
+        boolean bwcProject = p.projectPath().equals(":qa:rolling");
+        for (SourceSetInfo ss : p.sourceSets()) {
+            tasks.add(testTask(p.projectPath(), ss.name(), bwcProject == false, ss.outputDir()));
+            if (bwcProject) {
+                tasks.add(testTask(p.projectPath(), "bcUpgradeTest", true, ss.outputDir()));
+                tasks.add(testTask(p.projectPath(), "v9.5.1#bwcTest", true, ss.outputDir()));
+                tasks.add(testTask(p.projectPath(), "v9.6.0#bwcTest", true, ss.outputDir()));
             }
-            tasks.put(p.projectPath(), projectTasks);
         }
-        return new RefResolver(repo, projects, path -> tasks.getOrDefault(path, List.of()), TestTaskSelector.DEFAULT_TASK_CAP);
+        return new RefResolver(repo, p, tasks, TestTaskSelector.DEFAULT_TASK_CAP);
+    }
+
+    /**
+     * Resolve refs across several projects exactly the way the pipeline does: one single-project resolver per
+     * project, one ref at a time so each target keeps its ref index, then the real global fold. That fold is
+     * what turns per-project "not mine" verdicts into a single {@code unresolved} entry, so asserting on the
+     * merged result is asserting on what the plan will actually say.
+     *
+     * @see FlakinessResolveProjectTask#resolve()
+     * @see FlakinessScanTask#scan()
+     */
+    private static FlakinessJson.BaseTargetsFile resolveAcross(Path repo, List<ProjectInfo> projects, List<FlakinessRef> refs) {
+        List<FlakinessJson.ProjectTargetsFile> perProject = new ArrayList<>();
+        for (ProjectInfo p : projects) {
+            RefResolver resolver = resolver(repo, p);
+            List<FlakinessJson.RefTarget> resolved = new ArrayList<>();
+            for (int i = 0; i < refs.size(); i++) {
+                int refIndex = i;
+                resolver.resolve(refs.get(i)).ifPresent(t -> resolved.add(new FlakinessJson.RefTarget(refIndex, t)));
+            }
+            perProject.add(new FlakinessJson.ProjectTargetsFile(p.projectPath(), resolved, List.of(), List.of()));
+        }
+        return FlakinessTargets.merge(refs, perProject);
     }
 
     private static TestTaskInfo testTask(String projectPath, String name, boolean enabled, Path classesDir) {

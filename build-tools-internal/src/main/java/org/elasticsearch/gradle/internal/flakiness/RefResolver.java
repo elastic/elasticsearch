@@ -9,17 +9,13 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
-import org.elasticsearch.gradle.internal.flakiness.FlakinessPlan.Unresolved;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -29,24 +25,31 @@ import java.util.regex.Pattern;
  * {@code detectors/changed-files.ts} (classify half), {@code detectors/locator.ts}, and
  * {@code detectors/bwc.ts}.
  *
- * <p>Resolution is done entirely against the model's real {@code srcDirs} / {@code outputDir} - it no longer
- * assumes the {@code src/&lt;ss&gt;/java} layout, so a project with a non-standard source layout resolves
- * correctly.
+ * <p>Resolution is done against the model's real {@code srcDirs} / {@code outputDir} rather than the
+ * {@code src/&lt;ss&gt;/java} layout, so a project with a non-standard source layout resolves correctly. The
+ * one path assumption that remains is the project-directory early-out in {@code resolveChangedFile}, which is
+ * documented there.
  *
  * <p>Every produced target is also given its <b>disposition</b>: {@link TestTaskSelector} names the enabled
  * {@code Test} tasks that really run the target's source-set output (so a project that disables the bare
  * conventional task - bwc, packaging - resolves to its real tasks or to a precise skip reason, instead of
- * silently emitting a task Gradle reports {@code SKIPPED}). The {@code Test}-task facts are supplied by a
- * per-project lookup. {@link FlakinessProjectResolvePlugin} deliberately passes an <em>empty</em> lookup when it
- * only needs to know whether this project owns a ref, so the ownership probe realizes no {@code Test} task.
+ * silently emitting a task Gradle reports {@code SKIPPED}).
+ *
+ * <p>The resolver is deliberately <b>single-project</b>: it is constructed with one {@link ProjectInfo} and
+ * that project's own {@code Test} tasks, which is exactly what {@code flakinessResolveProject} has to hand.
+ * Folding several projects' answers together is a separate, later concern - see
+ * {@link FlakinessTargets#merge}, which is also where the global {@code unresolved} verdict is computed,
+ * because "not in <em>this</em> project" is not "not anywhere".
  *
  * <p>Two resolution paths:
  * <ul>
- *   <li><b>changed-file</b> refs carry a repo-relative path; the owning project is the longest
- *       {@code projectDir}-prefix match, and the source set / kind / fqcn come from which of that project's
- *       source-set {@code srcDirs} actually contains the file. A changed file not under any recognised test
- *       source dir is silently ignored (matching today's behaviour) - it is not surfaced as
- *       {@code unresolved}.</li>
+ *   <li><b>changed-file</b> refs carry a repo-relative path; it must lie under this project's directory, and
+ *       the source set / kind / fqcn come from which of the project's source-set {@code srcDirs} actually
+ *       contains the file. That last check is what disambiguates nested projects, which a directory-prefix
+ *       test cannot: {@code :x-pack:plugin:logsdb} and {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} have
+ *       nested directories but disjoint {@code srcDirs}, so only one of them claims a given file. A changed
+ *       file not under any recognised test source dir is silently ignored (matching today's behaviour) - it is
+ *       not surfaced as {@code unresolved}.</li>
  *   <li><b>unmute</b> / <b>explicit</b> refs carry only a class (and optional method); the owning source set
  *       is the one whose java {@code srcDirs} actually contain {@code &lt;pkg&gt;/&lt;Name&gt;.java} on disk (a
  *       filesystem probe - see JAVA_RESOLVER_NOTES.md P3). A ref that resolves to no source file is surfaced
@@ -95,53 +98,64 @@ public final class RefResolver {
     }
 
     private final Path repoRoot;
-    private final List<ProjectInfo> projects;
-    private final Function<String, List<TestTaskInfo>> testTasks;
+    private final ProjectInfo project;
+    private final List<TestTaskInfo> testTasks;
+    private final Path projectDir;
     private final int taskCap;
 
     /**
-     * @param testTasks per-project-path lookup of the project's post-configuration {@code Test} tasks
+     * @param project   the one project to resolve against (see the class javadoc on single-project scope)
+     * @param testTasks that project's post-configuration {@code Test} tasks. Pass {@link List#of()} to resolve
+     *                  source-set membership without a disposition - every target then comes back with
+     *                  {@link TestTaskSelector#REASON_NO_RUNNABLE_TASK}, which is how
+     *                  {@code FlakinessOwnershipTests} asserts membership without fabricating
+     *                  {@code Test}-task fixtures
      * @param taskCap   max tasks a single target may fan out to (see {@link TestTaskSelector#DEFAULT_TASK_CAP})
      */
-    public RefResolver(Path repoRoot, List<ProjectInfo> projects, Function<String, List<TestTaskInfo>> testTasks, int taskCap) {
+    public RefResolver(Path repoRoot, ProjectInfo project, List<TestTaskInfo> testTasks, int taskCap) {
         this.repoRoot = repoRoot.toAbsolutePath().normalize();
-        // Longest projectDir first so a nested project wins over its ancestor.
-        this.projects = projects.stream()
-            .sorted(Comparator.comparingInt((ProjectInfo p) -> p.projectDir().toAbsolutePath().normalize().toString().length()).reversed())
-            .toList();
+        this.project = project;
         this.testTasks = testTasks;
+        this.projectDir = project.projectDir().toAbsolutePath().normalize();
         this.taskCap = taskCap;
     }
 
-    /** The result of resolving a batch of refs: the base targets plus any refs that could not be resolved. */
-    public record Resolution(List<BaseTarget> targets, List<Unresolved> unresolved) {}
-
-    public Resolution resolve(List<FlakinessRef> refs) {
-        List<BaseTarget> targets = new ArrayList<>();
-        List<Unresolved> unresolved = new ArrayList<>();
-        for (FlakinessRef ref : refs) {
-            // A null source would make the switch below throw NPE. A refs file with a missing/misspelled
-            // `source` is a malformed input, not a programming error, so it is reported as unknown-source
-            // like any other unrecognised discriminator.
-            String source = ref.source();
-            if (source == null) {
-                unresolved.add(new Unresolved(ref, REASON_UNKNOWN_SOURCE));
-                continue;
-            }
-            switch (source) {
-                case FlakinessRef.SOURCE_CHANGED_FILE -> resolveChangedFile(ref).ifPresent(targets::add);
-                case FlakinessRef.SOURCE_UNMUTE, FlakinessRef.SOURCE_EXPLICIT -> {
-                    Optional<BaseTarget> t = resolveClassRef(ref);
-                    if (t.isPresent()) {
-                        targets.add(t.get());
-                    } else {
-                        unresolved.add(new Unresolved(ref, REASON_NO_SOURCE_FILE));
-                    }
-                }
-                default -> unresolved.add(new Unresolved(ref, REASON_UNKNOWN_SOURCE));
-            }
+    /**
+     * Resolve <b>one</b> ref against this project: the target it names, or empty when this project does not
+     * claim it.
+     *
+     * <p>One ref per call, deliberately. A batch signature could not express the answer the caller needs: a
+     * flat list of targets loses which ref produced which target, and that mapping is not recoverable
+     * afterwards because {@code target -> ref} is not a function - an {@code unmute} and an {@code explicit}
+     * ref naming the same class dedupe to a single target. {@code FlakinessTargets#merge} needs the mapping
+     * for two things, so the caller pairs each answer with its ref index as it goes:
+     * <ul>
+     *   <li>the global {@code unresolved} verdict - a ref is unresolved exactly when <em>no</em> project
+     *       produced a target for its index;</li>
+     *   <li>restoring the refs file's ordering across projects.</li>
+     * </ul>
+     *
+     * <p>It deliberately reports <b>no reason</b> when it returns empty. This project failing to claim a ref is
+     * not a verdict on the ref - "not in <em>this</em> project" is not "not anywhere" - so the reason would be
+     * a value this class is not entitled to produce. {@code FlakinessTargets#merge} owns that classification,
+     * using {@link #REASON_NO_SOURCE_FILE} / {@link #REASON_UNKNOWN_SOURCE}, because it is the only place with
+     * the global view. Empty therefore covers all three of: no source file here, a source this resolver does
+     * not know, and a changed file under no recognised test source dir (which is silently ignored rather than
+     * reported, since it is simply not a test).
+     */
+    public Optional<BaseTarget> resolve(FlakinessRef ref) {
+        // A null source would make the switch throw NPE. A refs file with a missing/misspelled `source` is a
+        // malformed input, not a programming error, so it resolves to nothing here and merge reports it as
+        // unknown-source.
+        String source = ref.source();
+        if (source == null) {
+            return Optional.empty();
         }
-        return new Resolution(dedupe(targets), unresolved);
+        return switch (source) {
+            case FlakinessRef.SOURCE_CHANGED_FILE -> resolveChangedFile(ref);
+            case FlakinessRef.SOURCE_UNMUTE, FlakinessRef.SOURCE_EXPLICIT -> resolveClassRef(ref);
+            default -> Optional.empty();
+        };
     }
 
     private Optional<BaseTarget> resolveChangedFile(FlakinessRef ref) {
@@ -150,14 +164,21 @@ public final class RefResolver {
             return Optional.empty();
         }
         Path abs = repoRoot.resolve(path).toAbsolutePath().normalize();
-        ProjectInfo owner = ownerOf(abs);
-        if (owner == null) {
+        // An early-out, not the membership decision: a path under this project but outside every srcDir also
+        // falls through to Optional.empty() below. It is kept because it reproduces the old multi-project
+        // ownerOf() lookup exactly. It is NOT implied by the srcDirs checks, though: a source set's srcDirs
+        // may point outside its own project - esql-datasource-parquet-rs/qa adds a sibling project's
+        // directory to javaRestTest.resources - and such a path is rejected here before those checks see it.
+        // That is harmless only because those directories hold .csv-spec files, so the yaml-suite matcher
+        // (rest-api-spec/test/*.yml) would not have matched them anyway. Widening this is a behaviour change,
+        // so it is deliberately left alone.
+        if (abs.equals(projectDir) == false && abs.startsWith(projectDir) == false) {
             return Optional.empty();
         }
         // Java test file: <javaSrcDir>/<pkg>/<Name>.java. Iterate source sets in a fixed kind order so
         // resolution is deterministic even in the (improbable) case of overlapping source dirs.
         for (Map.Entry<String, String> e : JAVA_SOURCE_SET_KIND.entrySet()) {
-            Optional<SourceSetInfo> maybe = owner.sourceSet(e.getKey());
+            Optional<SourceSetInfo> maybe = project.sourceSet(e.getKey());
             if (maybe.isEmpty()) {
                 continue;
             }
@@ -167,15 +188,15 @@ public final class RefResolver {
                 if (rel != null && rel.toString().endsWith(".java")) {
                     if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
                         // A changed yaml runner Java file re-runs the whole source set; no fqcn.
-                        return Optional.of(target(owner, ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
+                        return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
                     }
                     String fqcn = stripSuffix(rel.toString(), ".java").replace('/', '.').replace('\\', '.');
-                    return Optional.of(target(owner, ss, e.getValue(), fqcn, null, null));
+                    return Optional.of(target(ss, e.getValue(), fqcn, null, null));
                 }
             }
         }
         // Yaml suite resource: <resourceDir>/rest-api-spec/test/<suitePath>.yml
-        Optional<SourceSetInfo> yaml = owner.sourceSet(Kinds.SS_YAML_REST_TEST);
+        Optional<SourceSetInfo> yaml = project.sourceSet(Kinds.SS_YAML_REST_TEST);
         if (yaml.isPresent()) {
             for (Path resDir : yaml.get().resourceSrcDirs()) {
                 Path rel = relativeUnder(resDir, abs);
@@ -185,7 +206,7 @@ public final class RefResolver {
                 String relStr = rel.toString().replace('\\', '/');
                 if (relStr.startsWith(YAML_SUITE_SUBDIR) && relStr.endsWith(YAML_SUFFIX)) {
                     String suitePath = stripSuffix(relStr.substring(YAML_SUITE_SUBDIR.length()), YAML_SUFFIX);
-                    return Optional.of(target(owner, yaml.get(), Kinds.YAML_REST_TEST_SUITE, null, suitePath, null));
+                    return Optional.of(target(yaml.get(), Kinds.YAML_REST_TEST_SUITE, null, suitePath, null));
                 }
             }
         }
@@ -198,26 +219,24 @@ public final class RefResolver {
             return Optional.empty();
         }
         String suffix = cm.className().replace('.', '/') + ".java";
-        // Iterate projects (longest projectDir first) and their java source sets in a fixed order so the
-        // resolution is deterministic when, improbably, two projects would both contain the file.
-        for (ProjectInfo p : projects) {
-            for (String ssName : JAVA_SOURCE_SET_KIND.keySet()) {
-                Optional<SourceSetInfo> maybe = p.sourceSet(ssName);
-                if (maybe.isEmpty()) {
-                    continue;
-                }
-                SourceSetInfo ss = maybe.get();
-                for (Path srcDir : ss.javaSrcDirs()) {
-                    Path candidate = srcDir.resolve(suffix);
-                    if (Files.isRegularFile(candidate)) {
-                        if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
-                            if (cm.method() != null && YAML_METHOD.matcher(cm.method()).matches()) {
-                                return Optional.of(target(p, ss, Kinds.YAML_REST_TEST_CASE, cm.className(), null, cm.method()));
-                            }
-                            return Optional.of(target(p, ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
+        // Iterate this project's java source sets in a fixed order so resolution is deterministic even in the
+        // (improbable) case of overlapping source dirs.
+        for (String ssName : JAVA_SOURCE_SET_KIND.keySet()) {
+            Optional<SourceSetInfo> maybe = project.sourceSet(ssName);
+            if (maybe.isEmpty()) {
+                continue;
+            }
+            SourceSetInfo ss = maybe.get();
+            for (Path srcDir : ss.javaSrcDirs()) {
+                Path candidate = srcDir.resolve(suffix);
+                if (Files.isRegularFile(candidate)) {
+                    if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
+                        if (cm.method() != null && YAML_METHOD.matcher(cm.method()).matches()) {
+                            return Optional.of(target(ss, Kinds.YAML_REST_TEST_CASE, cm.className(), null, cm.method()));
                         }
-                        return Optional.of(target(p, ss, JAVA_SOURCE_SET_KIND.get(ssName), cm.className(), null, null));
+                        return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
                     }
+                    return Optional.of(target(ss, JAVA_SOURCE_SET_KIND.get(ssName), cm.className(), null, null));
                 }
             }
         }
@@ -229,15 +248,10 @@ public final class RefResolver {
      * is the source-set name itself ({@code test}/{@code internalClusterTest}/{@code javaRestTest}/
      * {@code yamlRestTest}), which is what {@link TestTaskSelector} treats as canonical when it is enabled.
      */
-    private BaseTarget target(ProjectInfo p, SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest) {
-        TestTaskSelector.Selection selection = TestTaskSelector.select(
-            ss.name(),
-            ss.outputDir(),
-            testTasks.apply(p.projectPath()),
-            taskCap
-        );
+    private BaseTarget target(SourceSetInfo ss, String kind, String fqcn, String suitePath, String yamlTest) {
+        TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), testTasks, taskCap);
         return new BaseTarget(
-            p.projectPath(),
+            project.projectPath(),
             ss.name(),
             kind,
             fqcn,
@@ -247,16 +261,6 @@ public final class RefResolver {
             selection.candidateCount(),
             selection.skipReason()
         );
-    }
-
-    private ProjectInfo ownerOf(Path abs) {
-        for (ProjectInfo p : projects) {
-            Path dir = p.projectDir().toAbsolutePath().normalize();
-            if (abs.equals(dir) || abs.startsWith(dir)) {
-                return p; // projects are sorted longest-dir-first, so the first match is the deepest owner
-            }
-        }
-        return null;
     }
 
     /** Repo-relative-ish remainder of {@code file} under {@code dir}, or {@code null} if not under it. */

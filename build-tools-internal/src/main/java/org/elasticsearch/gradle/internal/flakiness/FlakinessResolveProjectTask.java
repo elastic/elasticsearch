@@ -130,19 +130,18 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
         Path repoRoot = getRepoRoot().get().getAsFile().toPath();
         // Single-project resolver: no cross-project model, no build service, nothing but the plain records
         // that were carried in through the @Input above.
-        RefResolver resolver = new RefResolver(repoRoot, List.of(project), path -> model.testTasks(), getTaskCap().get());
+        RefResolver resolver = new RefResolver(repoRoot, project, model.testTasks(), getTaskCap().get());
 
         List<FlakinessJson.RefTarget> resolved = new ArrayList<>();
         List<FlakinessRef> refs = refsFile.refs();
         for (int i = 0; i < refs.size(); i++) {
-            // One ref at a time so each target can be attributed to its ref; the per-ref "unresolved"
-            // verdict is intentionally ignored here (see class javadoc) and recomputed globally by scan.
-            // TODO jozala - how does it filter the tests are in the right task (is it mapped with the directories?) - check the CSV
-            // tests (do they break the assumption?)
-            // TODO jozala - maybe I can check the Gradle test task if it can resolve the test classes that are used by that test???
-            for (BaseTarget target : resolver.resolve(List.of(refs.get(i))).targets()) {
-                resolved.add(new FlakinessJson.RefTarget(i, target));
-            }
+            // Each answer is paired with its ref INDEX, which FlakinessTargets#merge needs for two things it
+            // cannot derive later: the global unresolved verdict (a ref is unresolved exactly when no project
+            // produced a target for its index) and restoring the refs file's ordering across projects. The
+            // pairing has to happen here because target -> ref is not invertible: an unmute and an explicit
+            // ref naming the same class dedupe to one target.
+            int refIndex = i;
+            resolver.resolve(refs.get(i)).ifPresent(target -> resolved.add(new FlakinessJson.RefTarget(refIndex, target)));
         }
 
         // Reported whether or not this project resolved anything: the scan step runs subclasses it finds HERE

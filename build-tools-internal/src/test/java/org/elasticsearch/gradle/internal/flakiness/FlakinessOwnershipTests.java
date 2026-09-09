@@ -136,7 +136,8 @@ public class FlakinessOwnershipTests {
         if (refs.isEmpty()) {
             return false;
         }
-        return new RefResolver(repoRoot, List.of(project), path -> List.of(), 0).resolve(refs).targets().isEmpty() == false;
+        RefResolver resolver = new RefResolver(repoRoot, project, List.of(), 0);
+        return refs.stream().anyMatch(ref -> resolver.resolve(ref).isPresent());
     }
 
     // ---- helpers ----

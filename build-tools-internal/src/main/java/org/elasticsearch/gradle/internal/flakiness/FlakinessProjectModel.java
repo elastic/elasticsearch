@@ -34,7 +34,17 @@ import java.util.stream.Stream;
  */
 public final class FlakinessProjectModel {
 
-    /** The source sets flakiness detection resolves refs <em>into</em> (only these are recorded). */
+    /**
+     * The source sets flakiness detection resolves refs <em>into</em> (only these are recorded).
+     *
+     * <p>Being a fixed list leaves three things out of scope: {@code csvSpecTest} (the ES|QL per-spec-file
+     * tests, whose classes are generated rather than checked in, so a class-ref probe of the source tree
+     * would not find them either), {@code yamlRestCompatTest}, and non-Java test sources such as the Groovy
+     * {@code integTest} func tests. A ref naming one of those is reported {@code no-source-file} rather than
+     * run, and its output is outside {@link #SCANNED_SOURCE_SETS}, so an abstract base cannot expand into it.
+     * Note this is a limit on which source sets are <em>consulted</em>, not on task discovery: the
+     * {@code testClassesDirs} query in {@link TestTaskSelector} handles their oddly named runner tasks fine.
+     */
     public static final Set<String> CANDIDATE_SOURCE_SETS = Set.of(
         Kinds.SS_TEST,
         Kinds.SS_INTERNAL_CLUSTER_TEST,
@@ -138,11 +148,7 @@ public final class FlakinessProjectModel {
     }
 
     private static List<Path> toPaths(Set<File> files) {
-        List<Path> paths = new ArrayList<>(files.size());
-        for (File f : files) {
-            paths.add(f.toPath());
-        }
-        return paths;
+        return files.stream().map(File::toPath).toList();
     }
 
     private static String taskPath(String projectPath, String taskName) {

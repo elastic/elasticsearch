@@ -22,9 +22,6 @@ import org.gradle.api.Project;
  *
  * <p>Readers are exposed per option ({@link #refsPath}, {@link #taskCap}, ...) rather than as a generic
  * {@code get(name, default)}, so a caller cannot accidentally pair a property with the wrong default.
- *
- * <p>Package-private on purpose: nothing outside this package configures the flow. A project only opts in by
- * applying {@link FlakinessProjectResolvePlugin}, which does its own {@link #enabled} check.
  */
 final class FlakinessProperties {
 

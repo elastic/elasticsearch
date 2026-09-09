@@ -56,8 +56,6 @@ public class FlakinessResolvePlugin implements Plugin<Project> {
         int cap = FlakinessProperties.subclassCap(project);
         int taskCap = FlakinessProperties.taskCap(project);
 
-        // CC-safe, lazy file read via a file-contents provider (Gradle's ValueSource-backed API). Evaluated
-        // when the task property is queried at execution time, never at plain config time.
         Provider<String> refsJson = project.getProviders()
             .fileContents(project.getLayout().getProjectDirectory().file(refsPath))
             .getAsText();

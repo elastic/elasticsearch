@@ -109,7 +109,9 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         // The search node's postings are larger, but its total is not modeled. Only index-node postings feed the max value used for
         // modeled totals.
         assertThat(result.maxPostingsHeapUsage(), equalTo(5L));
+        // Index node: total = 50 non-shard + 10 shard + 100 index + 5 max postings; hosted = 10 + 100 + 5 local postings.
         assertThat(result.nodeHeapEstimates().get("index-node"), equalTo(new NodeHeapEstimates(165L, 115L, nonShardHeapUsage)));
+        // Search node: total remains unmodeled as 0, while hosted-shards still reports 20 shard + 200 index + 1000 local postings.
         assertThat(result.nodeHeapEstimates().get("search-node"), equalTo(new NodeHeapEstimates(0L, 1_220L, nonShardHeapUsage)));
     }
 

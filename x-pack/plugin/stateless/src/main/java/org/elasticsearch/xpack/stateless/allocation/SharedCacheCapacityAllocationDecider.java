@@ -97,10 +97,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      * The {@code canAllocate} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for new allocations.
      * The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
-    public static final Setting<RatioValue> LOW_WATERMARK_SETTING = new Setting<>(
+    public static final Setting<RatioValue> LOW_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        "99%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(99),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -109,10 +108,9 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
      * the node. The default will be adjusted once there is more confidence after enabling this feature in snapshot builds, such as CI.
      */
-    public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
+    public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = Setting.ratioSetting(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
-        "100%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(100),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

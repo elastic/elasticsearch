@@ -456,6 +456,17 @@ public final class RemoteFetchOperator implements Operator {
         }
     }
 
+    /*
+     * Fetch failures currently fail the query even when allow_partial_results is true. Earlier shard failures still follow
+     * the existing partial-results policy; this operator does not make selection over incomplete input globally complete.
+     *
+     * TODO: Support recoverable fetch failures when partial results are allowed: omit affected rows rather than substitute
+     * nulls, preserve the order of complete rows from successful fetches, and mark the response partial with the affected
+     * shard failures without double-counting failures already recorded during selection. Returning fewer than N rows is
+     * acceptable; refilling vacancies requires extra candidates or another selection pass and is separate work. Keep
+     * cancellation, query-wide errors, and the existing all-shards-failed behavior fatal. With partial results disabled,
+     * failures that prevent selecting or fetching the global TopN must continue to fail the query.
+     */
     private void throwIfFailed() {
         if (failure == null) {
             return;

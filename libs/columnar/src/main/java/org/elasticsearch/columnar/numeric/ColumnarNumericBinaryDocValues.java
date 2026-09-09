@@ -29,7 +29,7 @@ import java.io.IOException;
  * directly. Those fast paths require a dense single-valued column; otherwise the caller falls back to
  * {@link #binaryValue}. The skip index lives inside the column, not on the Lucene surface.
  */
-public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
+public final class ColumnarNumericBinaryDocValues extends BinaryDocValues implements NumericColumnSource {
 
     private static final float RANGE_MATCH_COST = 2f;
 
@@ -210,6 +210,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
      * <p>The approximation is the column's own iterator, so only documents that have a value are visited,
      * and the block work is keyed on value addresses. The column may be dense or sparse.
      */
+    @Override
     public DocIdSetIterator rangeIterator(long lowerValue, long upperValue) throws IOException {
         if (singleValued == false) {
             return null;

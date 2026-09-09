@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157248
+summary: "[ESQLDS] Fix streaming breaker accounting in `StreamingParallelIterator`"
+type: bug

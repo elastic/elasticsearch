@@ -31,14 +31,13 @@ public class ExternalDistributedClusters {
         return Clusters.testCluster(spec -> {
             // This suite force-enables every storage backend / format flag so its external tests run even in
             // release builds: file:// and http(s):// scheme registration depends on their sub-flags (otherwise
-            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must
+            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC must
             // be on to exercise every backend in release builds too.
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
-            spec.feature(FeatureFlag.ESQL_EXTERNAL_PARQUET_RS);
             // Federation is only on by default in snapshot builds; this suite reads external sources. It is set here
             // rather than relying on Clusters, which serverless substitutes with a builder that only defines node
             // shape.

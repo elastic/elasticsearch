@@ -176,6 +176,26 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+[`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) is an exception:
+it can appear between `FROM` and the `WHERE` command without causing the query to fail.
+Unlike `STATS`, it appends the aggregated values as new columns and keeps every input row,
+so the search function can still use the index:
+
+```esql
+FROM books
+| INLINE STATS max_year = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND year == max_year
+```
+
+This applies to `MATCH`,
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
+and the `:` operator. Other search functions, such as
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) and
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), are
+still not supported after `INLINE STATS`. A `STATS` command before the search function still
+causes the query to fail, even if an `INLINE STATS` comes after it.
+
 {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 This restriction does not apply when `MATCH` targets an expression rather
 than an indexed field (for example, a column produced by `EVAL` or `STATS`).

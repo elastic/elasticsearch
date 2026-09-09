@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -19,6 +22,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -379,6 +383,273 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
     }
 
+    public void testForkSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE true) (WHERE true)"));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, excl("_fork"));
+        }
+    }
+
+    public void testForkMentionExcludesNamedFieldFromBothBranches() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE emp_no > 0)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertNotKept(pattern, "unmapped_extra");
+            assertKept(pattern, "first_name_suffix");
+        }
+    }
+
+    public void testForkDropInEveryBranchExcludesDroppedKeepsOthers() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (DROP unmapped_extra) (DROP unmapped_extra)"));
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertNotKept(pattern, "unmapped_extra");
+            assertKept(pattern, "first_name_suffix");
+        }
+    }
+
+    public void testForkDifferentFieldsMentionedExcludeBothKeepOthers() {
+        LogicalPlan plan = test().statement(
+            setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE first_name_suffix == \"y\")")
+        );
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertNotKept(pattern, "unmapped_extra", "first_name_suffix");
+            assertKept(pattern, "salary_bonus");
+        }
+    }
+
+    public void testForkKeepInOneBranchStillSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP emp_no, first_name) (WHERE emp_no > 0)"));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
+        int stamped = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            if (unmappedFieldsAttributes(relation).isEmpty() == false) {
+                stamped++;
+                assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
+            }
+        }
+        assertThat(stamped, is(1));
+    }
+
+    public void testForkStatsInOneBranchStillSurfacesUnmappedFieldsAttribute() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (STATS c = COUNT(*)) (WHERE emp_no > 0)"));
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
+        int stamped = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            if (unmappedFieldsAttributes(relation).isEmpty() == false) {
+                stamped++;
+                assertKept(unmappedFieldsPattern(relation), "unmapped_extra");
+            }
+        }
+        assertThat(stamped, is(1));
+    }
+
+    public void testForkKeepWildcardInOneBranchStampsBothBranchesWithDifferentPatterns() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (KEEP first_name*) (WHERE emp_no > 0)"));
+        int keptExtra = 0;
+        int droppedExtra = 0;
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertKept(pattern, "first_name_suffix");
+            if (pattern.matches("unmapped_extra")) {
+                keptExtra++;
+            } else {
+                droppedExtra++;
+            }
+        }
+        assertThat(keptExtra, is(1));
+        assertThat(droppedExtra, is(1));
+        // Coordinator expansion filters every branch's keys through Fork's pattern, so the union must still
+        // keep extras the WHERE sibling loaded even when the KEEP branch is listed first.
+        assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
+    }
+
+    public void testInlineStatsThenForkStampsBothBranchesAndExcludesAggAlias() {
+        LogicalPlan plan = test().statement(
+            setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | FORK (WHERE emp_no > 0) (WHERE emp_no > 0)")
+        );
+        assertThat(unmappedFieldsAttributes(plan), hasSize(1));
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
+            assertKept(pattern, "unmapped_extra");
+            assertNotKept(pattern, "c");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // LOOKUP JOIN: the left side's KEEP/DROP constraints must survive the join
+    // -----------------------------------------------------------------------
+
+    public void testKeepWildcardBeforeLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | KEEP first_name*, language_code | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // first_name* pattern should survive the join
+        assertKept(pattern, "first_name_suffix", "first_name.sub");
+        // lookup index fields (language_name, language_code) and test-mapped fields are excluded
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        // other unmapped fields not matching first_name* are not kept
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    }
+
+    /** A DROP of a plain name before the join still restricts — the dropped name must stay excluded across the join. */
+    public void testDropBeforeLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | DROP salary | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // salary is excluded, everything else kept
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertNotKept(pattern, excl("salary", "language_code", "language_name"));
+        assertKeptAnyOtherName(pattern, excl("salary", "language_code", "language_name"));
+    }
+
+    /**
+     * Like {@link #testDropBeforeLookupJoinIsRespected}, but the DROP uses a wildcard: every unmapped name matching it stays
+     * excluded across the join, while non-matching names still expand. No {@code assertKeptAnyOtherName} here — a random name
+     * could match the wildcard exclude.
+     */
+    public void testDropWildcardBeforeLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | DROP first_name* | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // names matching the dropped wildcard stay excluded across the join
+        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
+        // everything else still expands
+        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
+        // lookup index fields (language_code, language_name) and test-mapped fields are excluded
+        assertNotKept(pattern, excl("language_code", "language_name"));
+    }
+
+    /**
+     * The lookup index's own output fields ({@code language_code}, {@code language_name}) are excluded from expansion via
+     * {@link UnmappedFieldsPattern#withAdditionalExcludes} on the Join's output, even though they come from the right side.
+     */
+    public void testLookupIndexFieldsAreExcludedFromPattern() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        assertKept(pattern, "unmapped_extra");
+        // language_code and language_name come from the lookup index - they must be excluded from the blob
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        assertKeptAnyOtherName(pattern, excl("language_code", "language_name"));
+    }
+
+    /**
+     * Fields from a lookup index with names that overlap existing columns (e.g. {@code salary}) must be excluded from expansion.
+     * We use {@code EVAL language_code = languages} to produce an integer join key matching the lookup's integer {@code language_code}.
+     */
+    public void testLookupIndexOverlappingFieldIsExcluded() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code",
+            test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+        );
+        // salary, lookup_only are lookup-index output fields — excluded from blob
+        assertNotKept(pattern, excl("salary", "lookup_only", "language_code"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    /**
+     * Multi-column LOOKUP JOIN ({@code ON field1, field2}): all join-key names and lookup output fields are
+     * excluded from the unmapped-fields blob.
+     */
+    public void testMultiColumnLookupJoin() {
+        // EVAL two keyword columns that match the lookup's two key fields.
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = first_name, language_name = last_name"
+                + " | LOOKUP JOIN keyword_languages_lookup ON language_code, language_name",
+            test().addLookupIndex(keywordLanguagesLookup())
+        );
+        // language_code and language_name appear in join output — excluded from blob
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    /**
+     * ON-expression LOOKUP JOIN ({@code ON lc == language_code}): the derived column and all lookup output fields
+     * are excluded from the unmapped-fields blob.
+     */
+    public void testLookupJoinOnExpression() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL lc = first_name" + " | LOOKUP JOIN keyword_languages_lookup ON lc == language_code",
+            test().addLookupIndex(keywordLanguagesLookup())
+        );
+        // lc is the derived join key; language_code and language_name come from the lookup — all excluded
+        assertNotKept(pattern, excl("lc", "language_code", "language_name"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    // -----------------------------------------------------------------------
+    // ENRICH: already a UnaryPlan/GeneratingPlan, so recursion was already correct;
+    // these tests confirm nothing regressed and that enrich output names are excluded.
+    // -----------------------------------------------------------------------
+
+    public void testEnrichOutputFieldsAreExcludedFromPattern() {
+        // languages policy adds language_name; the enrich output name must be excluded from the blob.
+        UnmappedFieldsPattern pattern = patternForEnrich(
+            "FROM test | ENRICH languages ON languages",
+            test().addAnalysisTestsEnrichResolution()
+        );
+        assertKept(pattern, "unmapped_extra");
+        // language_name is the enrich output field — must not reappear from the blob
+        assertNotKept(pattern, excl("language_name"));
+        assertKeptAnyOtherName(pattern, excl("language_name"));
+    }
+
+    public void testKeepWildcardBeforeEnrichIsRespected() {
+        // EVAL a match key before KEEP so the match field (lc) is available after the wildcard KEEP narrows the output.
+        UnmappedFieldsPattern pattern = patternForEnrich(
+            "FROM test | EVAL lc = languages | KEEP first_name*, lc | ENRICH languages ON lc",
+            test().addAnalysisTestsEnrichResolution()
+        );
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("language_name", "lc"));
+        assertNotKept(pattern, "unmapped_extra");
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers for multi-relation queries (LOOKUP JOIN has left + right EsRelation)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Like {@link #patternFor(String)}, but for queries involving a LOOKUP JOIN which have two {@link EsRelation}s.
+     * Returns the pattern on the non-LOOKUP relation (the primary index).
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
+     */
+    private static UnmappedFieldsPattern patternForJoin(String query, TestAnalyzer analyzer) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
+        EsRelation primary = plan.collect(EsRelation.class)
+            .stream()
+            .filter(r -> r.indexMode() != IndexMode.LOOKUP)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No non-LOOKUP EsRelation found"));
+        return unmappedFieldsPattern(primary);
+    }
+
+    /**
+     * Like {@link #patternFor(String, TestAnalyzer)}, but for queries using ENRICH.
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_V2} is disabled.
+     */
+    private static UnmappedFieldsPattern patternForEnrich(String query, TestAnalyzer analyzer) {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        return patternFor(query, analyzer);
+    }
+
+    /** Like {@link #patternFor(String)}, but accepts a pre-configured analyzer (e.g. one with extra enrich policies). */
+    private static UnmappedFieldsPattern patternFor(String query, TestAnalyzer analyzer) {
+        return patternOf(analyzer.statement(setUnmappedLoadAll(query)));
+    }
+
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
         for (String name : names) {
             assertThat("expected [" + name + "] to be kept", pattern.matches(name), is(true));
@@ -388,11 +659,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     private static void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
-            assertThat(
-                "expected no UnmappedFieldsAttribute on " + relation,
-                CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class),
-                empty()
-            );
+            assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }
     }
 
@@ -420,7 +687,14 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static UnmappedFieldsPattern patternOf(LogicalPlan plan) {
-        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
-        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();
+        return unmappedFieldsPattern(EsqlTestUtils.singleValue(plan.collect(EsRelation.class)));
+    }
+
+    private static UnmappedFieldsPattern unmappedFieldsPattern(LogicalPlan plan) {
+        return EsqlTestUtils.singleValue(unmappedFieldsAttributes(plan)).pattern();
+    }
+
+    private static List<UnmappedFieldsAttribute> unmappedFieldsAttributes(LogicalPlan plan) {
+        return CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class);
     }
 }

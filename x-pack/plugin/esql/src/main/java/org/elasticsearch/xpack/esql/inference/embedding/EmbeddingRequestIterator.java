@@ -43,23 +43,21 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     private final DataType dataType;
     private final TimeValue timeout;
 
-    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, TimeValue timeout) {
-        super(inferenceId, TaskType.EMBEDDING, textBlock);
+    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, int batchSize, TimeValue timeout) {
+        super(inferenceId, TaskType.EMBEDDING, textBlock, batchSize);
         this.dataType = dataType;
         this.timeout = timeout;
     }
 
     @Override
-    protected BulkInferenceRequestItem buildRequestItem(String text, PositionValueCountsBuilder pvcs) {
-        if (text == null) {
+    protected BulkInferenceRequestItem buildRequestItem(List<String> texts, PositionValueCountsBuilder pvcs) {
+        if (texts.isEmpty()) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        InferenceString inferenceString = new InferenceString(dataType, text);
-        EmbeddingRequest embeddingRequest = new EmbeddingRequest(
-            List.of(new InferenceStringGroup(inferenceString)),
-            InputType.UNSPECIFIED,
-            Map.of()
-        );
+        List<InferenceStringGroup> inputs = texts.stream()
+            .map(text -> new InferenceStringGroup(new InferenceString(dataType, text)))
+            .toList();
+        EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of());
         return new BulkInferenceRequestItem(
             new EmbeddingAction.Request(
                 inferenceId,
@@ -75,13 +73,18 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     /**
      * Factory for creating {@link EmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, DataType dataType, TimeValue timeout)
-        implements
-            BulkInferenceRequestItemIterator.Factory {
+    record Factory(
+        String inferenceId,
+        TaskType taskType,
+        ExpressionEvaluator textEvaluator,
+        DataType dataType,
+        int batchSize,
+        TimeValue timeout
+    ) implements BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, timeout);
+            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, batchSize, timeout);
         }
 
         @Override

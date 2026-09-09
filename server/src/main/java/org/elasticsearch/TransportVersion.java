@@ -460,7 +460,17 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             );
             Map<String, TransportVersion> allVersionsByName = streamVersions.stream()
                 .filter(tv -> tv.name() != null)
-                .collect(Collectors.toMap(TransportVersion::name, v -> v));
+                .collect(Collectors.toMap(TransportVersion::name, v -> v, (v1, v2) -> {
+                    throw new IllegalStateException(
+                        "Duplicate transport version name ["
+                            + v1.name()
+                            + "] defined with ids ["
+                            + v1.id()
+                            + "] and ["
+                            + v2.id()
+                            + "]"
+                    );
+                }));
             addTransportVersions(streamVersions, allVersions).sort(TransportVersion::compareTo);
 
             // set version lookup by release before adding serverless versions
@@ -483,7 +493,17 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
             // set the transport version lookups
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
-            ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
+            ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity(), (v1, v2) -> {
+                throw new IllegalStateException(
+                    "Duplicate transport version id ["
+                        + v1.id()
+                        + "] defined by ["
+                        + (v1.name() != null ? v1.name() : "unreferable")
+                        + "] and ["
+                        + (v2.name() != null ? v2.name() : "unreferable")
+                        + "]"
+                );
+            }));
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
 
             CURRENT = ALL_VERSIONS.getLast();

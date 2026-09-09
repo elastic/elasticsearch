@@ -33,8 +33,9 @@ public final class OrcReaderCounters {
 
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
+    private final LongAdder totalReadCpuNanos = new LongAdder();
 
-    // Footer cache (JVM-wide ParsedFooterCache)
+    // Footer cache (reader-shared ParsedFooterCache)
     private final LongAdder footerCacheHits = new LongAdder();
     private final LongAdder footerCacheMisses = new LongAdder();
 
@@ -92,6 +93,12 @@ public final class OrcReaderCounters {
         }
     }
 
+    public void addReadCpuNanos(long nanos) {
+        if (nanos > 0) {
+            totalReadCpuNanos.add(nanos);
+        }
+    }
+
     /**
      * Records one footer-cache lookup: {@code hit == true} when the parsed ORC tail was reused,
      * {@code false} when this caller parsed and inserted it.
@@ -118,7 +125,8 @@ public final class OrcReaderCounters {
             sortedPredicates,
             columnsProjected,
             columnsTotal,
-            totalReadNanos.sum()
+            totalReadNanos.sum(),
+            totalReadCpuNanos.sum()
         );
     }
 }

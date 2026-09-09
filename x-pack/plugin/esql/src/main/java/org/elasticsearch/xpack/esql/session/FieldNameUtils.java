@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -507,7 +508,9 @@ public class FieldNameUtils {
             || p instanceof CompoundOutputEval<?>
             || p instanceof UnresolvedIpLocation
             || p instanceof Rename
+            || p instanceof Row
             || p instanceof TopN
+            || p instanceof Row
             || p instanceof UnresolvedSourceRelation) == false;
     }
 

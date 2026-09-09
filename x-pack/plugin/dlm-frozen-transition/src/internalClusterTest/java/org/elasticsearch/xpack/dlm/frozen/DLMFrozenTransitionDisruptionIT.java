@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -77,6 +78,8 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -846,18 +849,28 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     /**
-     * Asserts that no error has been recorded in the DLM error store for the given index.
-     * Awaits transition completion before checking error store.
+     * Asserts that the frozen transition did not record an error for the given index.
+     * Awaits transition completion before checking the error store.
+     * <p>
+     * The regular data stream lifecycle service shares the error store with the frozen transition
+     * and force merges the rolled-over backing index concurrently with these disruption tests. When a
+     * test deletes the index while that force merge is in flight, the lifecycle service can record a
+     * transient error, which it clears on its next run once the index is gone (see #157257). Such
+     * entries are unrelated to the frozen transition under test and are tolerated here; any other
+     * error entry fails the assertion.
      */
     private void assertNoErrorRecorded(String candidateIndex) throws Exception {
         awaitTransitionCompletion(candidateIndex);
         DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
         DataStreamLifecycleErrorStore errorStore = transitionService.getTransitionExecutor().getErrorStore();
-        assertThat(
-            "No error should be recorded for a gracefully-skipped index",
-            errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
-            nullValue()
-        );
+        ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex);
+        if (error != null) {
+            assertThat(
+                "Only a transient lifecycle force-merge error is tolerated for a gracefully-skipped index, but was: " + error,
+                error.error(),
+                anyOf(containsString("Force merge request only had"), containsString("failed to forcemerge"))
+            );
+        }
     }
 
     /**

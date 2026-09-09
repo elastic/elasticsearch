@@ -1271,7 +1271,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
             IndexVersion.current()
         );
-        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
             IndexSettings indexSettings = new IndexSettings(
                 newIndexMeta(columnarMode.getName() + "-index", settings, fromGate),
@@ -1287,7 +1287,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
-        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        // General columnar modes default to false (keyword, high-cardinality).
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
             IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
@@ -1297,8 +1297,10 @@ public class IndexSettingsTests extends ESTestCase {
             );
         }
 
-        // All other modes default to true (text + keyword subfield)
-        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+        // All other modes, including vector columnar, default to true (text).
+        for (IndexMode otherMode : Arrays.stream(IndexMode.availableModes())
+            .filter(m -> m != IndexMode.COLUMNAR && m != IndexMode.LOGSDB_COLUMNAR)
+            .toList()) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
             if (otherMode == IndexMode.TIME_SERIES) {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
@@ -1307,6 +1309,36 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(
                 "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
                 indexSettings.getDynamicStringsAutoText()
+            );
+        }
+    }
+
+    public void testDynamicStringsAutoKeywordSubfieldDefaultByIndexMode() {
+        // Strict columnar modes already store every field in a doc-values column, so they do not add the keyword multi-field.
+        for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_keyword_subfield should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
+            );
+        }
+
+        for (IndexMode otherMode : List.of(
+            IndexMode.STANDARD,
+            IndexMode.LOGSDB,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        )) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_keyword_subfield should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoKeywordSubfield()
             );
         }
     }

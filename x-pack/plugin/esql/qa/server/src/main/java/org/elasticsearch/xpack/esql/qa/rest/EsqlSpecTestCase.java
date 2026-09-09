@@ -200,6 +200,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public void setup() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
+            ensureRemoteClustersConnected();
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
             createInferenceEndpointsIfSupported();
@@ -212,6 +213,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 this::clusterHasCapability,
                 indicesToLoad()
             );
+            // wait until the newly created indices are ready to search
+            ensureHealth(client(), "", request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("wait_for_no_initializing_shards", "true");
+                request.addParameter("wait_for_no_relocating_shards", "true");
+                request.addParameter("timeout", "60s");
+                request.addParameter("level", "shards");
+            });
             return null;
         });
         // Views can be created before or after ingest, since index resolution is currently only done on the combined query.
@@ -236,6 +245,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             VIEWS.reset();
         }
     }
+
+    /**
+     * Hook, run once per JVM at the start of data ingestion, for suites that need a remote cluster to be connected before
+     * any data load or query is issued.
+     */
+    protected void ensureRemoteClustersConnected() throws Exception {}
 
     public boolean logResults() {
         return false;
@@ -500,6 +515,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             );
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
         }
+        if (testCase.expectedApproximationApplied != null && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, (Boolean) answer.get("approximation_applied"));
+        }
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -537,6 +555,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
+        }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
+            if (rarely()) {
+                pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(1, 256));
+            } else {
+                pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(256, 4096));
+            }
         }
     }
 

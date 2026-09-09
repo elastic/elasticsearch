@@ -821,8 +821,6 @@ public class EscfColumnBuilderTests extends ESTestCase {
         assertEquals(List.of(1L, 2L, 3L), unionArrayLongs(col, 1));
     }
 
-    // ── Helpers ──
-
     private static List<Long> unionArrayLongs(EscfColumn col, int row) {
         ArrayReader r = col.getArrayValue(row);
         List<Long> out = new ArrayList<>();

@@ -204,6 +204,11 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     }
                     return ESTestCase.randomBoolean();
                 }
+
+                @Override
+                protected boolean supportsOnFailure() {
+                    return oldClusterHasFeature(MapperFeatures.DOC_VALUES_ON_FAILURE);
+                }
             }))
             .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))
             .withDataSourceHandlers(List.of(new ASCIIStringsHandler()));

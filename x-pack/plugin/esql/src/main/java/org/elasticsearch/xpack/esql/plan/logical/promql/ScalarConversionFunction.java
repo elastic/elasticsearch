@@ -32,6 +32,11 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean isIdentityTransparent() {
+        return true;
+    }
+
+    @Override
     protected NodeInfo<PromqlFunctionCall> info() {
         return NodeInfo.create(this, ScalarConversionFunction::new, child(), definition(), parameters());
     }

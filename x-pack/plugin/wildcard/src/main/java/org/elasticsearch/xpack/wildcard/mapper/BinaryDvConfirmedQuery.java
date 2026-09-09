@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Query that provided an arbitrary match across all binary doc values (but only for docs that also
@@ -140,6 +141,31 @@ abstract class BinaryDvConfirmedQuery extends Query {
             approximation,
             field,
             new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery),
+            arrayOrder
+        );
+    }
+
+    /**
+     * Returns a query that runs the provided supplier-based automaton across all binary doc values
+     * (but only for docs that also match a provided approximation query which is key to getting good
+     * performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     * <p>
+     * The {@code description} is used as the equality proxy for query-cache identity; it must be derived
+     * deterministically from the pattern list and case-sensitivity flag that produced the automaton.
+     */
+    public static Query fromAutomaton(
+        Query approximation,
+        String field,
+        Supplier<Automaton> automatonSupplier,
+        String description,
+        boolean arrayOrder
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new SuppliedAutomatonProvider(automatonSupplier, description),
             arrayOrder
         );
     }
@@ -413,6 +439,44 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public Automaton getAutomaton(String field) {
             return fuzzyQuery.getAutomata().automaton;
+        }
+    }
+
+    /**
+     * Wraps an already-built automaton supplier. Equality keys on {@code description} only because
+     * {@link Supplier} has no value-based equality; the description must be derived deterministically
+     * from the pattern list and case-sensitivity flag that produced the automaton.
+     */
+    private static final class SuppliedAutomatonProvider implements AutomatonProvider {
+        private final Supplier<Automaton> supplier;
+        private final String description;
+
+        SuppliedAutomatonProvider(Supplier<Automaton> supplier, String description) {
+            this.supplier = Objects.requireNonNull(supplier);
+            this.description = Objects.requireNonNull(description);
+        }
+
+        @Override
+        public Automaton getAutomaton(String field) {
+            return supplier.get();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SuppliedAutomatonProvider that = (SuppliedAutomatonProvider) o;
+            return Objects.equals(description, that.description);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(description);
+        }
+
+        @Override
+        public String toString() {
+            return description;
         }
     }
 }

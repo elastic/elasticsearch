@@ -114,6 +114,10 @@ public class ApproximationPlan {
      */
     public static final String CERTIFIED_COLUMN_PREFIX = "_approximation_certified(";
 
+    public static boolean isApproximationColumn(String name) {
+        return name.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) || name.startsWith(CERTIFIED_COLUMN_PREFIX);
+    }
+
     public static Map<NameId, Map<String, Object>> createColumnMetadata(List<Attribute> attributes) {
         var resolved = new HashMap<NameId, Map<String, Object>>();
         for (Attribute attribute : attributes) {

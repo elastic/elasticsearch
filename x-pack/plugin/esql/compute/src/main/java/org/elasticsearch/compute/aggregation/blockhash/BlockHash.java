@@ -318,4 +318,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
     }
+
+    /**
+     * Optionally hints to the blockhash to ensure the given capacity.
+     * The blockhash may ignore the hint or resize upfront as an optimization
+     * to avoid multiple resizes as the capacity is reached.
+     */
+    public void ensureCapacity(int size) {
+
+    }
 }

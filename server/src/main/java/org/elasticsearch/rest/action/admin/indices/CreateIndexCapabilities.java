@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.SliceIndexing;
 
 import java.util.HashSet;
@@ -39,6 +40,11 @@ public class CreateIndexCapabilities {
      */
     private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
+    /**
+     * Support vectordb_columnar index mode
+     */
+    private static final String VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY = "vectordb_columnar_index_mode";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
@@ -54,6 +60,12 @@ public class CreateIndexCapabilities {
      * yaml tests can gate on it and skip on builds where slice indexing is unavailable.
      */
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
+
+    /**
+     * Support for {@code doc_values.on_failure=ignore}. Always advertised now that the feature is no longer behind a flag; kept so
+     * mixed-version yaml tests still skip against older nodes where the capability was not yet advertised.
+     */
+    private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
     public static final Set<String> CAPABILITIES;
 
@@ -71,6 +83,10 @@ public class CreateIndexCapabilities {
         );
         caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
+        caps.add(DOC_VALUES_ON_FAILURE_CAPABILITY);
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTORDB_COLUMNAR_INDEX_MODE_CAPABILITY);
+        }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }

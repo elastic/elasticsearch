@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -62,6 +63,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      */
     private final String format;
     /**
+     * Factory hold released from {@link #close()} so a producer that finishes during pipeline
+     * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     */
+    private final Releasable onOperatorClose;
+    /**
      * Reference point for the time-to-first-row measurement, captured when this SCAN OPERATOR is constructed
      * (per driver, after planning and discovery) — NOT at query start. The measurement is therefore a per-scan
      * proxy: a query with several external-source scans records one observation per scan.
@@ -83,11 +90,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         String scheme,
         String format
     ) {
+        this(buffer, driverContext, externalSourceMetrics, scheme, format, () -> {});
+    }
+
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        DriverContext driverContext,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        String format,
+        Releasable onOperatorClose
+    ) {
         this.buffer = Objects.requireNonNull(buffer, "buffer");
         this.driverContext = Objects.requireNonNull(driverContext, "driverContext");
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
         this.format = format;
+        this.onOperatorClose = onOperatorClose == null ? () -> {} : onOperatorClose;
     }
 
     @Override
@@ -149,9 +168,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        emitPendingWarnings();
-        recordParseAndSplits();
-        finish();
+        try {
+            emitPendingWarnings();
+            recordParseAndSplits();
+            finish();
+        } finally {
+            onOperatorClose.close();
+        }
     }
 
     /**

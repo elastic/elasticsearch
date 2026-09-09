@@ -82,6 +82,8 @@ public class MlJobIT extends ESRestTestCase {
             ).equals(warnings) == false
         )
         .build();
+    private static final String SHARED_RESULTS_FIRST_INDEX = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+        + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 
     @Override
     protected Settings restClientSettings() {
@@ -99,8 +101,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"given-farequote-config-job\""));
         assertThat(responseAsString, containsString("\"results_index_name\":\"shared\""));
 
-        String mlIndicesResponseAsString = getMlResultsIndices();
-        assertThat(mlIndicesResponseAsString, containsString("green open .ml-anomalies-shared-000001"));
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
 
         String aliasesResponseAsString = getAliases();
         LogManager.getLogger(MlRestTestStateCleaner.class).warn(aliasesResponseAsString);
@@ -541,13 +542,7 @@ public class MlJobIT extends ESRestTestCase {
 
         putJob(jobId1, Strings.format(jobTemplate, byFieldName1));
 
-        String mlIndicesResponseAsString = getMlResultsIndices();
-        assertThat(
-            mlIndicesResponseAsString,
-            containsString(
-                "green open " + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
-            )
-        );
+        ensureGreen(SHARED_RESULTS_FIRST_INDEX);
 
         // Check the index mapping contains the first by_field_name
         Request getResultsMappingRequest = new Request(

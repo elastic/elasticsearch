@@ -38,8 +38,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
-import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.joining;
 
@@ -92,7 +92,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 dateNanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS,
                 aggregatorMode,
                 aggregators,
-                () -> {
+                dc -> {
                     // Use TimeSeriesBlockHash for groups over the [tsid, timestamp] pair, to reduce the group overhead.
                     if (groups.size() == 2) {
                         var g1 = groups.get(0);
@@ -104,7 +104,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         }
                     }
                     // Broken optimizations are allowed as the inputs are vectors.
-                    return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
+                    return BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, true);
                 },
                 targetChunkRows,
                 driverContext
@@ -131,13 +131,18 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         DateFieldMapper.Resolution timeResolution,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        Supplier<BlockHash> blockHash,
+        Function<DriverContext, BlockHash> blockHash,
         int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext, null);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        return this;
     }
 
     @Override

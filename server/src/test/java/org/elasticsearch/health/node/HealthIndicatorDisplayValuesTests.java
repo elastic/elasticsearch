@@ -42,6 +42,26 @@ import static org.mockito.Mockito.when;
 
 public class HealthIndicatorDisplayValuesTests extends ESTestCase {
 
+    public void testGetRepositoryDisplayNameForMultiProjectClusters() {
+        ProjectId projectId = randomUniqueProjectId();
+        String repositoryName = randomAlphaOfLengthBetween(1, 20);
+        assertEquals(
+            projectId.id() + "/" + repositoryName,
+            HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repositoryName, true)
+        );
+    }
+
+    public void testGetRepositoryDisplayNameForSingleProjectClusters() {
+        ProjectId projectId = randomBoolean() ? randomUniqueProjectId() : null;
+        String repositoryName = randomAlphaOfLengthBetween(1, 20);
+        assertEquals(repositoryName, HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repositoryName, false));
+    }
+
+    public void testGetRepositoryDisplayNameWithNullProjectId() {
+        String repositoryName = randomAlphaOfLengthBetween(1, 20);
+        assertEquals(repositoryName, HealthIndicatorDisplayValues.getRepositoryDisplayName(null, repositoryName, randomBoolean()));
+    }
+
     public void testGetNodeName() {
         String nodeId = randomAlphaOfLength(10);
         String nodeName = randomAlphaOfLength(8);

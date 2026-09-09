@@ -143,7 +143,9 @@ public final class ParallelHashAggregationOperator implements Operator {
         page.allowPassingToDifferentDriver();
         in.addPage(page);
         final int pendingPages = in.size();
-        // add more workers if the current workers are not fast enough to process pages
+        // Avoid scheduling too many workers in quick succession to process only a few pages:
+        // scale up when the backlog grows by half the pages-per-worker target, and reset the
+        // baseline when it shrinks by a full target so scaling can resume.
         if (pendingPages - lastPendingPages >= pagesPerWorker / 2) {
             lastPendingPages = pendingPages;
             final int desiredWorkers = Math.min(Math.floorDiv(pendingPages, pagesPerWorker), workers.length);
@@ -161,6 +163,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 processInputPagesWithMainThread();
             }
         } else if (lastPendingPages - pendingPages >= pagesPerWorker) {
+            // Reset after the pending-page decreases by pages-per-worker, allowing to scale up again.
             lastPendingPages = pendingPages;
         }
         addInputNanos += (System.nanoTime() - startNanos);

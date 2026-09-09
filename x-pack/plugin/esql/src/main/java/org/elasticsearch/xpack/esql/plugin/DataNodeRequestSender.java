@@ -373,8 +373,7 @@ abstract class DataNodeRequestSender {
 
     private static Exception unwrapFailure(ShardId shardId, Exception e) {
         e = e instanceof TransportException te ? FailureCollector.unwrapTransportException(te) : e;
-        if (TransportActions.isShardNotAvailableException(e)
-            && !(ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException)) {
+        if (TransportActions.isShardNotAvailableException(e) && !(ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error. ShardRestoringException is excluded so its 409 status is preserved.
             var ex = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());

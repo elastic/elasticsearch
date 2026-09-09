@@ -35,12 +35,13 @@ public final class NumericPipeline {
         return blockSize;
     }
 
-    /** The default chain: delta, offset, GCD, then FOR bit-packing. */
+    /** The default chain: delta, offset, GCD, outliers set aside, then FOR bit-packing. */
     public static NumericPipeline defaultPipeline(int blockSize) {
         return new NumericPipeline(
-            // Transforms are stateless, so the shared singletons are reused; the terminal owns scratch
-            // buffers and must stay per-pipeline.
-            new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            // Stateless transforms are shared singletons; the terminal and Patched own scratch buffers
+            // and must stay per-pipeline. Patched runs last, so it sees the values the terminal is about
+            // to pack and can choose the width they mostly need.
+            new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE, new PatchedTransform() },
             new ForTerminal(blockSize),
             blockSize
         );
@@ -52,7 +53,12 @@ public final class NumericPipeline {
      */
     public static NumericPipeline monotonicLongPipeline(int blockSize) {
         return new NumericPipeline(
-            new BlockTransform[] { new SplitDeltaTransform(), DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE },
+            new BlockTransform[] {
+                new SplitDeltaTransform(),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE,
+                new PatchedTransform() },
             new ForTerminal(blockSize),
             blockSize
         );
@@ -139,6 +145,7 @@ public final class NumericPipeline {
                 case GcdTransform.ID -> GcdTransform.INSTANCE;
                 case SplitDeltaTransform.ID -> new SplitDeltaTransform();
                 case AlpDoubleTransform.ID -> new AlpDoubleTransform(blockSize);
+                case PatchedTransform.ID -> new PatchedTransform();
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };
         }

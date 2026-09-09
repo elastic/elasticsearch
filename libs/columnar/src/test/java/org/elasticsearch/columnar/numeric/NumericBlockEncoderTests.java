@@ -141,7 +141,10 @@ public class NumericBlockEncoderTests extends ESTestCase {
         int blockSize = randomValidBlockSize();
         NumericPipeline pipeline = NumericPipeline.defaultPipeline(blockSize);
         assertEquals(ForTerminal.ID, pipeline.terminalId());
-        assertArrayEquals(new byte[] { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID }, pipeline.transformIds());
+        assertArrayEquals(
+            new byte[] { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID, PatchedTransform.ID },
+            pipeline.transformIds()
+        );
     }
 
     public void testRebuiltPipelineRoundTrips() throws IOException {

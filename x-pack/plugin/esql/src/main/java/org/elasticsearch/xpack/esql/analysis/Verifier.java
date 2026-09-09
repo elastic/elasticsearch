@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -576,7 +578,7 @@ public class Verifier {
                     fail(
                         p,
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                            + "STATS, INLINE STATS, LOOKUP JOIN and ENRICH commands; [{}] is not supported yet",
+                            + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH and FORK commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -602,7 +604,8 @@ public class Verifier {
             // LookupJoin (not Join) because verification runs on the analyzed plan, before SurrogateLogicalPlan expansion,
             // so a LOOKUP JOIN is still a LookupJoin node here and other Join subclasses (InlineJoin etc.) are not admitted.
             || plan instanceof LookupJoin
-            || plan instanceof Enrich;
+            || plan instanceof Enrich
+            || (plan instanceof Fork && (plan instanceof UnionAll) == false);
     }
 
     /**

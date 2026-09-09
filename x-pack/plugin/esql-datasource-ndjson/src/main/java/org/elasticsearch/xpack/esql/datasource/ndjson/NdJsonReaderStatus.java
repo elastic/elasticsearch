@@ -63,8 +63,6 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
         builder.field("format", format());
         builder.field("rows_emitted", rowsEmitted);
         builder.field("parse_errors", parseErrors);
-        builder.field("read_nanos", readNanos);
-        builder.field("read_cpu_nanos", readCpuNanos);
         return builder;
     }
 }

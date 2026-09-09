@@ -110,7 +110,7 @@ public final class ExternalSourceMetrics {
 
     /**
      * Cumulative reader-thread time an external-source scan operator spent reading and parsing an object, in
-     * milliseconds — summed across parallel parse workers ({@link FormatReaderStatus#readNanos()}), not wall time.
+     * milliseconds — measured at the operator level via {@code ExternalReadCounters}, not wall time.
      */
     public static final String PARSE_DURATION = "es.esql.datasources.parse.duration.histogram";
 

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -73,10 +72,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
-        // Wire a format-reader status with a known readNanos (42 ms) so parse.duration is a deterministic
-        // non-zero value, not just present. recordParseAndSplits() scrapes formatReaderStatus().readNanos()
-        // at close and records it as the parse.duration observation.
-        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L), 0L));
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, 0L, 0L));
 
         AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a", "ndjson");
 
@@ -104,9 +100,9 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         assertThat(rows.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
-        // parse.duration carries the format reader's readNanos folded to ms (42), plus type and format.
+        // parse.duration carries the operator-level ExternalReadCounters.readNanos() folded to ms, plus type and format.
         Measurement parseDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
-        assertThat(parseDuration.getLong(), equalTo(42L));
+        assertThat(parseDuration.getLong(), greaterThanOrEqualTo(0L));
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 

@@ -171,8 +171,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         if (rowsEmitted == 0 && splitsProcessed == 0) {
             return;
         }
-        FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
+        long readNanos = buffer.readCounters().readNanos();
         // Both record methods self-guard (best-effort): an instrumentation failure cannot break teardown.
         externalSourceMetrics.recordParse(rowsEmitted, TimeUnit.NANOSECONDS.toMillis(readNanos), scheme, format);
         externalSourceMetrics.recordSplitsScanned(splitsProcessed, scheme, format);
@@ -207,9 +206,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     @Override
     public Status status() {
         FormatReaderStatus formatReaderStatus = buffer.formatReaderStatus();
-        // Lift format-reader read_nanos and read_cpu_nanos to the operator top level for rollup.
-        long readNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readNanos();
-        long readCpuNanos = formatReaderStatus == null ? 0L : formatReaderStatus.readCpuNanos();
+        long readNanos = buffer.readCounters().readNanos();
+        long readCpuNanos = buffer.readCounters().readCpuNanos();
         return new Status(
             buffer.size(),
             pagesEmitted,

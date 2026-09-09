@@ -18,14 +18,17 @@ import org.elasticsearch.xcontent.ToXContentFragment;
  * whichever format produced the profile.
  * <p>
  * Modeled as a {@link NamedWriteable} rather than a generic {@code Map} so the fields stay
- * machine-readable across versions — the operator already scrapes {@link #readNanos()} to roll
- * format-reader time up into the operator status, and a {@code Map} on the wire is a one-way door
- * (converting it to a typed shape after release is a wire-compatibility break). The
+ * machine-readable across versions — a {@code Map} on the wire is a one-way door (converting it
+ * to a typed shape after release is a wire-compatibility break). The
  * {@code esql_external_source_profile} transport version that gates this payload is unreleased,
  * so the typed shape ships from the first release that carries it.
  * <p>
- * The three accessors are the fields every format shares; format-specific counters live on each
+ * The two accessors are the fields every format shares; format-specific counters live on each
  * implementation and surface through its {@link ToXContentFragment#toXContent} body.
+ * <p>
+ * Wall-clock and CPU read time are no longer tracked inside format readers — they are measured
+ * at the operator level via {@code ExternalReadCounters} and reported on
+ * {@code AsyncExternalSourceOperator.Status} directly.
  */
 public interface FormatReaderStatus extends NamedWriteable, ToXContentFragment {
 
@@ -34,13 +37,4 @@ public interface FormatReaderStatus extends NamedWriteable, ToXContentFragment {
 
     /** Rows the reader emitted into the operator. */
     long rowsEmitted();
-
-    /** Cumulative producer-thread wall time spent inside the format reader (open, decode, decompress). */
-    long readNanos();
-
-    /**
-     * CPU time the reader spent on the producer thread (no IO wait), nanoseconds.
-     * Returns 0 if {@link java.lang.management.ThreadMXBean#isCurrentThreadCpuTimeSupported()} is false.
-     */
-    long readCpuNanos();
 }

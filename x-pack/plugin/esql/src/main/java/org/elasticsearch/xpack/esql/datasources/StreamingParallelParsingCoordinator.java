@@ -48,7 +48,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -146,7 +145,8 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope.PROJECTED,
             WarningSinks.NONE,
             StreamingSegmentatorAdmission.unbounded(),
-            new NoopCircuitBreaker("streaming-parse-test")
+            new NoopCircuitBreaker("streaming-parse-test"),
+            null
         );
     }
 
@@ -225,7 +225,8 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
-            new NoopCircuitBreaker("streaming-parse-test")
+            new NoopCircuitBreaker("streaming-parse-test"),
+            null
         );
     }
 
@@ -253,7 +254,8 @@ public final class StreamingParallelParsingCoordinator {
         StripeColumnScope statsColumnScope,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        @Nullable ExternalReadCounters readCounters
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -302,7 +304,8 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             admission,
-            breaker
+            breaker,
+            readCounters
         );
     }
 
@@ -457,8 +460,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final InputStream decompressedStream;
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
-        /** CPU nanos accumulated across segmentator and all parser threads; delivered to {@link #originalReader} on close. */
-        private final AtomicLong coordinatorCpuNanos = new AtomicLong();
+        @Nullable
+        private final ExternalReadCounters readCounters;
         /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
         private final SegmentableFormatReader originalReader;
 
@@ -501,7 +504,8 @@ public final class StreamingParallelParsingCoordinator {
                 statsColumnScope,
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
-                new NoopCircuitBreaker("streaming-parse-test")
+                new NoopCircuitBreaker("streaming-parse-test"),
+                null
             );
         }
 
@@ -522,7 +526,8 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope statsColumnScope,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
-            CircuitBreaker breaker
+            CircuitBreaker breaker,
+            @Nullable ExternalReadCounters readCounters
         ) {
             this.admission = admission;
             this.breaker = breaker;
@@ -567,6 +572,7 @@ public final class StreamingParallelParsingCoordinator {
             this.tasksOutstanding = new AtomicInteger(1);
 
             this.decompressedStream = decompressedStream;
+            this.readCounters = readCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
@@ -693,7 +699,7 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private void runSegmentator(InputStream stream, int chunkSize) {
-            long startCpu = ThreadCpuTimer.currentNanos();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             byte[] carry = null;
             int carryLen = 0;
             int chunkIndex = 0;
@@ -838,8 +844,8 @@ public final class StreamingParallelParsingCoordinator {
                 firstError.compareAndSet(null, e);
                 signalReady();
             } finally {
-                if (startCpu >= 0) {
-                    coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
+                if (readCounters != null) {
+                    readCounters.record(-1L, startCpuNanos);
                 }
                 closeStream();
                 // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
@@ -1045,7 +1051,7 @@ public final class StreamingParallelParsingCoordinator {
                 // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
                 // carries a coverage.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-                long startCpu = ThreadCpuTimer.currentNanos();
+                long startCpuNanos = ThreadCpuTimer.currentNanos();
                 try (bound) {
                     try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                         while (pages.hasNext()) {
@@ -1056,8 +1062,8 @@ public final class StreamingParallelParsingCoordinator {
                         }
                     }
                 } finally {
-                    if (startCpu >= 0) {
-                        coordinatorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpu));
+                    if (readCounters != null) {
+                        readCounters.record(-1L, startCpuNanos);
                     }
                 }
             } catch (Exception e) {
@@ -1554,7 +1560,6 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
-            originalReader.acceptReadCpuNanos(coordinatorCpuNanos.get());
             // Backstop: if the segmentator was never promoted from the admission queue (still pending
             // when the timeout fired) or if any code path did not call closeStream() themselves,
             // release the stream now. In the timeout and interrupt paths tasksOutstanding may still

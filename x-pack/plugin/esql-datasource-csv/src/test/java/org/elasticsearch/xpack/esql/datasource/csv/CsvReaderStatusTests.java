@@ -27,14 +27,7 @@ public class CsvReaderStatusTests extends AbstractWireSerializingTestCase<CsvRea
 
     @Override
     protected CsvReaderStatus createTestInstance() {
-        return new CsvReaderStatus(
-            randomFrom("csv", "tsv"),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new CsvReaderStatus(randomFrom("csv", "tsv"), randomNonNegativeLong(), randomNonNegativeLong(), randomBoolean(), 0L, 0L);
     }
 
     @Override
@@ -43,21 +36,15 @@ public class CsvReaderStatusTests extends AbstractWireSerializingTestCase<CsvRea
             instance.format(),
             instance.rowsEmitted(),
             instance.parseErrors(),
-            instance.headerDetected(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong()),
-            instance.readCpuNanos()
+            instance.headerDetected() == false,
+            0L,
+            0L
         );
     }
 
     public void testToXContent() throws IOException {
-        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true, 150L, 34L);
-        assertThat(
-            toJson(status),
-            equalTo(
-                "{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true,\"read_nanos\":150,"
-                    + "\"read_cpu_nanos\":34}"
-            )
-        );
+        CsvReaderStatus status = new CsvReaderStatus("tsv", 100L, 3L, true, 0L, 0L);
+        assertThat(toJson(status), equalTo("{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true}"));
     }
 
     private static String toJson(CsvReaderStatus status) throws IOException {

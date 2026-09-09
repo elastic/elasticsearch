@@ -2957,6 +2957,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 0L,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -2984,6 +2985,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null,
                 null,
                 null
@@ -3026,6 +3028,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null,
                 null,
                 null
@@ -3071,7 +3074,21 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                null
+            )
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -3139,7 +3156,21 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         RuntimeException thrown = expectThrows(
             RuntimeException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+            () -> factory.openWithParallelism(
+                cdr,
+                object,
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                false,
+                true,
+                true,
+                null,
+                0L,
+                null,
+                null,
+                null,
+                null
+            )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
         assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
@@ -3167,6 +3198,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 true,
                 null,
                 0L,
+                null,
                 null,
                 null,
                 null
@@ -3219,6 +3251,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 false,
                 null,
                 baseFileOffset,
+                null,
                 null,
                 null,
                 null

@@ -73,7 +73,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -1093,7 +1092,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeColumnScope.PROJECTED,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
-                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")
+                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test"),
+                        null
                     )
                 );
             }
@@ -1183,7 +1183,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                null
             );
             expectThrows(CircuitBreakingException.class, () -> {
                 while (it.hasNext()) {
@@ -1236,7 +1237,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                null
             );
             while (it.hasNext()) {
                 it.next().releaseBlocks();
@@ -1793,42 +1795,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 }
             }
             assertEquals(recordCount, totalRows);
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    public void testAcceptReadCpuNanosCalledOnClose() throws Exception {
-        int lineCount = 100;
-        String content = buildContent(lineCount);
-        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        AtomicLong capturedNanos = new AtomicLong(-1L);
-
-        ExecutorService executor = Executors.newFixedThreadPool(4);
-        try {
-            LineFormatReader baseReader = new LineFormatReader(1024) {
-                @Override
-                public void acceptReadCpuNanos(long nanos) {
-                    capturedNanos.set(nanos);
-                }
-            };
-            try (
-                CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
-                    baseReader,
-                    stream,
-                    List.of("line"),
-                    50,
-                    4,
-                    executor,
-                    ErrorPolicy.STRICT
-                )
-            ) {
-                while (it.hasNext()) {
-                    it.next().releaseBlocks();
-                }
-            }
-            // close() must have called acceptReadCpuNanos (initial value was -1)
-            assertTrue("acceptReadCpuNanos must be called on close", capturedNanos.get() >= 0);
         } finally {
             executor.shutdownNow();
         }

@@ -17,8 +17,6 @@ public final class NdJsonReaderCounters {
 
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
-    private final LongAdder totalReadNanos = new LongAdder();
-    private final LongAdder totalReadCpuNanos = new LongAdder();
 
     public void addRowsEmitted(long delta) {
         if (delta > 0) {
@@ -32,19 +30,7 @@ public final class NdJsonReaderCounters {
         }
     }
 
-    public void addReadNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadNanos.add(nanos);
-        }
-    }
-
-    public void addReadCpuNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadCpuNanos.add(nanos);
-        }
-    }
-
     public NdJsonReaderStatus snapshot() {
-        return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum(), totalReadNanos.sum(), totalReadCpuNanos.sum());
+        return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum(), 0L, 0L);
     }
 }

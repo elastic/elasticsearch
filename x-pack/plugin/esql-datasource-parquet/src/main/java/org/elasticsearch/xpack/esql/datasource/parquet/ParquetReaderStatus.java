@@ -115,11 +115,6 @@ public record ParquetReaderStatus(
     }
 
     @Override
-    public long readNanos() {
-        return readNanos;
-    }
-
-    @Override
     public long readCpuNanos() {
         return readCpuNanos;
     }
@@ -147,8 +142,6 @@ public record ParquetReaderStatus(
         builder.field("late_materialization_enabled", lateMaterializationEnabled);
         builder.field("late_materialization_used", lateMaterializationUsed);
         builder.field("predicate_columns", predicateColumns);
-        builder.field("read_nanos", readNanos);
-        builder.field("read_cpu_nanos", readCpuNanos);
         if (columns.isEmpty() == false) {
             builder.startObject("columns");
             // TreeMap for deterministic column ordering; readMap yields an unordered map on the wire.

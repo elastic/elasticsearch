@@ -407,23 +407,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
         assertIsolated("read_nanos", readNanos, numQueries);
         assertIsolated("read_cpu_nanos", readCpuNanos, numQueries);
-        for (String node : internalCluster().getNodeNames()) {
-            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
-            if (planExecutor.dataSourceModule() == null) {
-                continue;
-            }
-            FormatReaderRegistry registry = planExecutor.dataSourceModule().formatReaderRegistry();
-            FormatReader singletonReader = registry.findByName(readerName);
-            if (singletonReader == null) {
-                continue;
-            }
-            FormatReaderStatus snap = singletonReader.statusSnapshot();
-            if (snap == null) {
-                continue;
-            }
-            assertEquals("registry singleton read_nanos must be zero on node " + node, 0L, snap.readNanos());
-            assertEquals("registry singleton read_cpu_nanos must be zero on node " + node, 0L, snap.readCpuNanos());
-        }
     }
 
     private static void assertIsolated(String metric, long[] values, int numQueries) {

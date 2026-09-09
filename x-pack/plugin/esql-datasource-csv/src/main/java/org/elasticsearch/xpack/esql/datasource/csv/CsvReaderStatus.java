@@ -57,13 +57,13 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
     }
 
     @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+    public long readCpuNanos() {
+        return readCpuNanos;
     }
 
     @Override
-    public long readCpuNanos() {
-        return readCpuNanos;
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -72,8 +72,6 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
         builder.field("rows_emitted", rowsEmitted);
         builder.field("parse_errors", parseErrors);
         builder.field("header_detected", headerDetected);
-        builder.field("read_nanos", readNanos);
-        builder.field("read_cpu_nanos", readCpuNanos);
         return builder;
     }
 }

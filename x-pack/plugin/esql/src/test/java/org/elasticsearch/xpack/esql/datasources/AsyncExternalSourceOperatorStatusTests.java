@@ -85,19 +85,14 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     private static FormatReaderStatus randomFormatReader() {
         return switch (between(0, 2)) {
             case 0 -> null;
-            case 1 -> new NdJsonReaderStatus(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            );
+            case 1 -> new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), 0L, 0L);
             case 2 -> new CsvReaderStatus(
                 randomFrom("csv", "tsv"),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomBoolean(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
+                0L,
+                0L
             );
             default -> throw new UnsupportedOperationException();
         };
@@ -179,8 +174,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
                     + "\"bytes_read\":8192,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
-                    + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0,"
-                    + "\"read_cpu_nanos\":0}}"
+                    + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0}}"
             )
         );
     }
@@ -359,12 +353,12 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             9L,
             10L,
             3L,
-            new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 34_567L),
+            new CsvReaderStatus("tsv", 42L, 3L, true, 0L, 0L),
             Map.of(),
             true
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);
-        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 34_567L)));
+        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 0L, 0L)));
         assertThat(copy.partial(), equalTo(true));
     }
 }

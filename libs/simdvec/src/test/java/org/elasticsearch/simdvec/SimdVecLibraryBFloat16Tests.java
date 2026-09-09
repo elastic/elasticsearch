@@ -555,8 +555,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
 
     /** The adjacent bf16 value one ulp further from zero; {@code bf16Value} must itself be a bf16 value. */
     static float nextBFloat16AwayFromZero(float bf16Value) {
-        short bits = BFloat16.floatToBFloat16(bf16Value);
-        return BFloat16.bFloat16ToFloat((short) (bits + 1));
+        return Float.intBitsToFloat(Float.floatToRawIntBits(bf16Value) + 0x10000);
     }
 
     private static void copyToBFloat16Segment(float[] fa, MemorySegment segment, long offset) {

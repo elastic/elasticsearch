@@ -69,10 +69,11 @@ import java.util.List;
  *       {@code Project}, but that closure is never serialized, and the task action never sees it.</li>
  * </ol>
  *
- * <p>The refs are read <em>inside</em> that provider (the ownership decision depends on them), which makes
- * {@code flakiness-refs.json} a configuration-cache input: a changed refs file invalidates the entry and the
- * ownership decision is recomputed. That is the correct trade - a frozen ownership decision served from a
- * stale entry would silently resolve nothing for a newly-touched project.
+ * <p>The model provider does <em>not</em> read the refs. It used to, because the ownership probe decided how
+ * much to capture; now the capture is unconditional, so the model depends only on this project. The refs are
+ * still a configuration-cache input in their own right - they are a separate {@code @Input} on the task
+ * ({@link FlakinessResolveProjectTask#getRefsJson()}) - so a changed refs file invalidates the entry and the
+ * resolution is recomputed, which is the property that matters.
  *
  * <p>Everything read here belongs to <em>this</em> project: no {@code getRootProject()},
  * {@code getAllprojects()}, {@code getSubprojects()} or cross-project task lookup, so the shape stays
@@ -110,10 +111,7 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 
         Directory repoRoot = project.getLayout().getSettingsDirectory();
         Provider<String> refsJson = project.getProviders().fileContents(repoRoot.file(refsPath)).getAsText();
-
-        // Evaluated at configuration-cache store time (see class javadoc), never at plain configuration time
-        // and never at execution time.
-        Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project, refsJson.getOrNull())));
+        Provider<String> modelJson = project.provider(() -> FlakinessJson.writeProjectModel(snapshot(project)));
 
         String base = TARGETS_DIR + "/" + fileBaseName(project.getPath());
         project.getTasks().register(TASK_NAME, FlakinessResolveProjectTask.class, t -> {
@@ -151,12 +149,15 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
     }
 
     /**
-     * Snapshot this project's flakiness model, but only in full if this project actually owns one of the refs
-     * (see the class javadoc). Invoked from the provider above, i.e. at configuration-cache store time, which
-     * is what makes the {@code Test}-task facts post-mutation correct. Reuses {@link FlakinessProjectModel}'s
-     * existing per-source-set and per-{@code Test}-task readers.
+     * Snapshot this project's flakiness model in full. It takes no refs: the model describes the project, not
+     * the request, and nothing in it depends on which refs a run happens to carry (that was only true while
+     * the ownership probe gated the capture - see "Why every project captures its full model" above).
+     *
+     * <p>Invoked from the provider above, i.e. at configuration-cache store time, which is what makes the
+     * {@code Test}-task facts post-mutation correct. Reuses {@link FlakinessProjectModel}'s existing
+     * per-source-set and per-{@code Test}-task readers.
      */
-    static FlakinessJson.ProjectModel snapshot(Project project, String refsJson) {
+    static FlakinessJson.ProjectModel snapshot(Project project) {
         String projectPath = project.getPath();
         Path projectDir = project.getProjectDir().toPath();
 

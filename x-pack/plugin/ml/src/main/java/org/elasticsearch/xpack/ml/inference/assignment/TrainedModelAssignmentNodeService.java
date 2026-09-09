@@ -483,10 +483,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     }
 
     private void markOrphanStoppingRouteStopped(String deploymentId, String currentNode) {
-        if (deploymentIdToTask.containsKey(deploymentId)) {
-            gracefullyStopDeployment(deploymentId, currentNode);
-            return;
-        }
+        assert deploymentIdToTask.containsKey(deploymentId) == false : "orphan STOPPING path requires no local deployment task";
         logger.info(
             () -> format(
                 "[%s] Marking orphan STOPPING route as STOPPED on shutting down node %s (no local deployment task)",

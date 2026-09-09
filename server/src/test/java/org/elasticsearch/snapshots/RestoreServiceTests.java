@@ -787,6 +787,9 @@ public class RestoreServiceTests extends ESTestCase {
         );
     }
 
+    /**
+     * Tests that calling restoreOverOpenIndices a second time with the same restoreUUID is a no-op.
+     */
     public void testRestoreOverOpenIndicesIdempotentRetryIsANoOp() throws Exception {
         final String restoreUUID = UUIDs.randomBase64UUID();
         withOpenIndexRestoreHarness(fixture -> {
@@ -856,7 +859,7 @@ public class RestoreServiceTests extends ESTestCase {
     /**
      * Builds a real, single-node {@link ClusterService} (via {@link ClusterServiceUtils}) with one open index, and a {@link RestoreService}
      * wired to it. Dependencies that the open-index restore validation path never reaches (index creation, mapping/version verification
-     * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops; constructing the real
+     * beyond a pass-through, shard limits, system indices, file settings) are mocked or stubbed with no-ops. Constructing the real
      * equivalents would require an unrelated mapper/x-content registry setup this test does not exercise.
      */
     private void withOpenIndexRestoreHarness(OpenIndexRestoreTestBody body) throws Exception {

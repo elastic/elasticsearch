@@ -821,9 +821,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * The snapshot-deletion race, deletion-wins outcome: if the source snapshot is already being deleted when the restore-over reaches the
-     * master, the restore must be rejected before it publishes anything, leaving the destination unchanged. This is the same
-     * {@code ensureSnapshotNotDeleted} guard every restore honors, verified here for the open-index path.
+     * Tests that restoring over an open index fails if the index is being deleted.
      */
     public void testRestoreOverOpenIndexRejectedWhileSourceSnapshotIsBeingDeleted() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -832,15 +830,14 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         createRepositoryAndSnapshottedIndex();
 
         // Resolve the exact restore target up front. Once the deletion starts, it removes the source snapshot's blobs, so resolving it
-        // again
-        // would fail for the unrelated reason that the snapshot is gone; this test is specifically about the in-progress-deletion guard.
+        // again would fail for the unrelated reason that the snapshot is gone. This test is specifically about the in-progress-deletion
+        // guard.
         final SnapshotInfo snapshotInfo = getSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
         final Snapshot snapshot = new Snapshot(REPOSITORY_NAME, snapshotInfo.snapshotId());
         final RestoreService.OpenIndexRestoreTarget target = openIndexTarget(INDEX_NAME);
 
-        // Hold the deletion of the source snapshot in progress: block the master before it finalizes the repository update that would
-        // remove
-        // the deletion entry, so SnapshotDeletionsInProgress still lists the source snapshot when the restore is submitted.
+        // Hold the deletion of the source snapshot in progress. Block the master before it finalizes the repository update that would
+        // remove the deletion entry, so SnapshotDeletionsInProgress still lists the source snapshot when the restore is submitted.
         blockMasterOnWriteIndexFile(REPOSITORY_NAME);
         final ActionFuture<AcknowledgedResponse> blockedDeletion = startDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME);
         try {
@@ -871,9 +868,9 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * The snapshot-deletion race, restore-wins outcome: once the restore-over has published its {@link RestoreInProgress} entry, a delete of
-     * the source snapshot is rejected while that restore is still running, so the snapshot the restore depends on cannot be removed out from
-     * under it. Once the restore completes and its entry clears, the snapshot could be deleted normally again.
+     * The snapshot-deletion race, restore-wins outcome: once the restore-over has published its {@link RestoreInProgress} entry, a delete
+     * of the source snapshot is rejected while that restore is still running, so the snapshot the restore depends on cannot be removed out
+     * from under it. Once the restore completes and its entry clears, the snapshot could be deleted normally again.
      */
     public void testDeletingSourceSnapshotIsRejectedWhileRestoreOverOpenIndexIsInFlight() throws Exception {
         internalCluster().startMasterOnlyNode();

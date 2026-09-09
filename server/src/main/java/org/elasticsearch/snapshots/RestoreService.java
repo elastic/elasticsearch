@@ -604,17 +604,17 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * A single destination for {@link #restoreOverOpenIndices}: the exact identity of the existing open index to restore over, the
-     * repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
+     * A single destination for {@link #restoreOverOpenIndices}. This represents the exact identity of the existing open index to restore
+     * over, the repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
      *
      * @param destinationIndex      the exact current identity (name and index UUID) of the open index to restore over, resolved by the
      *                              caller before submitting the restore, so that an index deleted and recreated under the same name is
      *                              never silently adopted
      * @param snapshotIndexId       the repository-side identity of the index to restore from within the snapshot
-     * @param snapshotIndexMetadata the {@link IndexMetadata} exactly as recorded in the snapshot; the caller is not responsible for applying
-     *                              {@link RestoreService#indexMetadataRestoreTransformer}, {@link RestoreService#restoreOverOpenIndices}
-     *                              applies it internally, the same as {@link RestoreService#restoreSnapshot} does for every other index
-     *                              restored from a snapshot
+     * @param snapshotIndexMetadata the {@link IndexMetadata} exactly as recorded in the snapshot. The caller is not responsible for
+     *                              applying {@link RestoreService#indexMetadataRestoreTransformer} because
+     *                              {@link RestoreService#restoreOverOpenIndices} applies it internally, the same as
+     *                              {@link RestoreService#restoreSnapshot} does for every other index restored from a snapshot
      */
     public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
 
@@ -622,18 +622,18 @@ public final class RestoreService implements ClusterStateApplier {
      * Restores over already-open destination indices from pre-resolved targets, in one cluster-state update that atomically applies the
      * restored metadata and a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery routing, adds the
      * correlated {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so a conflict on any
-     * one target — most notably an active snapshot of the destination, a transient condition that should be retried once the snapshot
-     * finishes — leaves every destination unchanged.
+     * one target, such as an active snapshot of the destination, leaves every destination unchanged.
      * <p>
-     * Unlike {@link #restoreSnapshot}, this does not resolve indices by name against a {@link RestoreSnapshotRequest}: the caller supplies
-     * the exact resolved {@link Index} identities and snapshot metadata for every target directly, bypassing request-based resolution.
-     * Renaming, feature states, global state restore, and partial restore are not supported here.
+     * Unlike {@link #restoreSnapshot}, this does not resolve indices by name against a {@link RestoreSnapshotRequest}. The caller supplies
+     * the exact resolved {@link Index} identities and snapshot metadata for every target directly. Renaming, feature states, global state
+     * restore, and partial restore are not supported here.
      * <p>
      * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated {@link RestoreInProgress}
-     * entry and is a no-op rather than a second initialization. This caller-supplied, stable UUID is what makes an idempotent retry safe:
-     * the intended production caller is a durable, resumable executor that owns a stable identifier across retries and failovers and passes
-     * it here as the restore UUID, so re-submitting after the first attempt already committed does not initialize the restore a second time.
-     * This is the sole difference from the public {@link #restoreSnapshot} path, which always mints a fresh random restore UUID.
+     * entry and is a no-op rather than a second initialization. This caller-supplied stable UUID is what makes an idempotent retry safe.
+     * The intended production caller is a durable, resumable executor (like a persistent task) that owns a stable identifier across retries
+     * and failovers and passes it here as the restore UUID, so re-submitting after the first attempt is already committed does not
+     * initialize the restore a second time. This is the main difference from the public {@link #restoreSnapshot} path, which always creates
+     * a random restore UUID.
      *
      * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      */

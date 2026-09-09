@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximat
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -326,18 +325,18 @@ public class ApproximationPlan {
 
         Double confidenceLevel = settings.confidenceLevel();
 
-        // Collect all plans inside FORK branches that cannot be approximated
+        // Collect all plans inside merge branches that cannot be approximated
         // (as indicated by: queryProperties.forkBranchProperties[i] == null).
         // When rewriting the query, don't rewrite any such plans.
         Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
         if (queryProperties.forkBranchProperties() != null) {
-            List<Fork> forks = logicalPlan.collect(Fork.class);
-            assert forks.size() == 1;
-            Fork fork = forks.getFirst();
-            assert fork.children().size() == queryProperties.forkBranchProperties().size();
-            for (int i = 0; i < fork.children().size(); i++) {
+            List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
+            assert mergePlans.size() == 1;
+            MergePlan mergePlan = mergePlans.getFirst();
+            assert mergePlan.children().size() == queryProperties.forkBranchProperties().size();
+            for (int i = 0; i < mergePlan.children().size(); i++) {
                 if (queryProperties.forkBranchProperties().get(i) == null) {
-                    fork.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
+                    mergePlan.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
                 }
             }
         }
@@ -1005,8 +1004,8 @@ public class ApproximationPlan {
      * (non-sampled) aggregate value in that fork branch.
      */
     public static LogicalPlan substituteSampleProbabilityInForkBranch(LogicalPlan logicalPlan, double sampleProbability, int branchIndex) {
-        logicalPlan = logicalPlan.transformUp(Fork.class, fork -> {
-            List<LogicalPlan> children = new ArrayList<>(fork.children());
+        logicalPlan = logicalPlan.transformUp(MergePlan.class, mergePlan -> {
+            List<LogicalPlan> children = new ArrayList<>(mergePlan.children());
             assert branchIndex >= 0 && branchIndex < children.size();
 
             LogicalPlan child = children.get(branchIndex);
@@ -1019,7 +1018,7 @@ public class ApproximationPlan {
             }
 
             children.set(branchIndex, child);
-            return fork.replaceSubPlans(children).refreshOutput();
+            return mergePlan.replaceSubPlans(children).refreshOutput();
         });
         logicalPlan = new PruneColumns().apply(logicalPlan);
         logicalPlan.setOptimized();

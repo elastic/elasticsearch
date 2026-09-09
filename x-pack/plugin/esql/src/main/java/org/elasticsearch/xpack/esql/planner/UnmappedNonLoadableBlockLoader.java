@@ -11,36 +11,37 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 /**
- * Reads an unmapped field from {@code _source} as {@code aggregate_metric_double}. Missing values
- * are null; a present value that is not an AMD object fails the query.
+ * Reads a field whose type has no implicit conversion from {@code KEYWORD}, so it cannot be reconstructed from {@code _source}. A
+ * document without the field reads as null; one that carries a value fails the query rather than dropping the value silently.
  */
-final class UnmappedAmdBlockLoader implements BlockLoader {
+final class UnmappedNonLoadableBlockLoader implements BlockLoader {
 
     private final String fieldName;
+    private final DataType dataType;
     private final Set<String> sourcePaths;
     private final IgnoredSourceFormat ignoredSourceFormat;
 
-    UnmappedAmdBlockLoader(String fieldName, Set<String> sourcePaths, IgnoredSourceFormat ignoredSourceFormat) {
+    UnmappedNonLoadableBlockLoader(String fieldName, DataType dataType, Set<String> sourcePaths, IgnoredSourceFormat ignoredSourceFormat) {
         this.fieldName = fieldName;
+        this.dataType = dataType;
         this.sourcePaths = sourcePaths;
         this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
-        return factory.aggregateMetricDoubleBuilder(expectedCount);
+        return factory.nulls(expectedCount);
     }
 
     @Override
@@ -50,7 +51,7 @@ final class UnmappedAmdBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
-        return new Reader(breaker, fieldName);
+        return new Reader(breaker, fieldName, dataType);
     }
 
     @Override
@@ -70,58 +71,37 @@ final class UnmappedAmdBlockLoader implements BlockLoader {
 
     @Override
     public String toString() {
-        return "UnmappedAmdBlockLoader[" + fieldName + "]";
+        return "UnmappedNonLoadableBlockLoader[" + fieldName + "]";
     }
 
     private static final class Reader extends BlockStoredFieldsReader {
         private final String fieldName;
+        private final DataType dataType;
 
-        Reader(CircuitBreaker breaker, String fieldName) {
+        Reader(CircuitBreaker breaker, String fieldName, DataType dataType) {
             super(breaker);
             this.fieldName = fieldName;
+            this.dataType = dataType;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            appendAmd((AggregateMetricDoubleBuilder) builder, fieldName, storedFields.source().extractValue(fieldName, null));
+            if (storedFields.source().extractValue(fieldName, null) != null) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Field [%s] of type [%s] is unmapped in this index and has no implicit conversion from KEYWORD, "
+                            + "so its _source value cannot be loaded",
+                        fieldName,
+                        dataType.typeName()
+                    )
+                );
+            }
+            builder.appendNull();
         }
 
         @Override
         public String toString() {
-            return "UnmappedAmdBlockLoader.Reader[" + fieldName + "]";
-        }
-    }
-
-    private static void appendAmd(AggregateMetricDoubleBuilder builder, String fieldName, Object value) {
-        if (value == null) {
-            builder.appendNull();
-            return;
-        }
-        if (value instanceof Map<?, ?> map) {
-            appendDouble(builder.min(), map.get(Metric.MIN.getLabel()));
-            appendDouble(builder.max(), map.get(Metric.MAX.getLabel()));
-            appendDouble(builder.sum(), map.get(Metric.SUM.getLabel()));
-            appendCount(builder.count(), map.get(Metric.COUNT.getLabel()));
-            return;
-        }
-        throw new IllegalArgumentException(
-            Strings.format("Cannot load field [%s] as aggregate_metric_double from _source; got [%s]", fieldName, value)
-        );
-    }
-
-    private static void appendDouble(BlockLoader.DoubleBuilder builder, Object value) {
-        if (value instanceof Number n) {
-            builder.appendDouble(n.doubleValue());
-        } else {
-            builder.appendNull();
-        }
-    }
-
-    private static void appendCount(BlockLoader.IntBuilder builder, Object value) {
-        if (value instanceof Number n) {
-            builder.appendInt(Math.toIntExact(n.longValue()));
-        } else {
-            builder.appendNull();
+            return "UnmappedNonLoadableBlockLoader.Reader[" + fieldName + "]";
         }
     }
 }

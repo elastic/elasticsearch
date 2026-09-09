@@ -70,8 +70,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedAmdEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -1214,7 +1214,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case UnionPlan unionPlan -> resolveUnionPlan(unionPlan, context.unmappedResolution());
+                case UnionPlan unionPlan -> resolveUnionPlan(unionPlan, context);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1782,7 +1782,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveUnionPlan(UnionPlan unionPlan, UnmappedResolution unmappedResolution) {
+        private LogicalPlan resolveUnionPlan(UnionPlan unionPlan, AnalyzerContext context) {
+            UnmappedResolution unmappedResolution = context.unmappedResolution();
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
@@ -1832,36 +1833,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
-                    // LOAD_ALL subqueries: a KEYWORD/LONG/AMD mapped on a sibling is a named union column, not a $$UM extra.
-                    // Load it from _source here instead of Eval-null. Unmapped _source is KEYWORD, so LONG also gets
-                    // an implicit ToLong. AMD has no KEYWORD converter: copy as PotentiallyUnmappedAmdEsField so the
-                    // local optimizer keeps it and execution extracts AMD from _source (missing → null, incompatible
-                    // JSON → runtime error). Independent EsRelations; FORK never sees this shape.
+                    // LOAD_ALL subqueries: a field mapped on a sibling branch is a named union column, not a $$UM extra, so read it
+                    // from _source here rather than Eval-null it. The branches read independent indices, a shape FORK never has.
+                    // _source only yields keyword, so a type without an implicit keyword cast is marked non-loadable instead: it
+                    // reads as null where the document lacks the field and fails at runtime where the document carries a value.
                     if (unionPlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
                         && branchCanSurfaceLoadedField(logicalPlan)
                         && attr instanceof FieldAttribute fa
                         && fa instanceof UnsupportedAttribute == false
-                        && (fa.dataType() == KEYWORD || fa.dataType() == LONG || fa.dataType() == AGGREGATE_METRIC_DOUBLE)
                         && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
-                        && fa.field() instanceof PotentiallyUnmappedAmdEsField == false
+                        && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField == false
                         && fa.field() instanceof MissingEsField == false) {
-                        if (fa.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                        FieldAttribute loaded = unmappedKeyword(attr);
+                        AbstractConvertFunction cast = implicitCastFromKeyword(fa.dataType(), loaded, context.configuration());
+                        if (cast != null) {
+                            toLoad.add(loaded);
+                            if (cast.isNoop() == false) {
+                                aliases.add(new Alias(source, attr.name(), cast));
+                            }
+                        } else {
                             toLoad.add(
                                 new FieldAttribute(
                                     source,
                                     fa.parentName(),
                                     fa.qualifier(),
                                     fa.name(),
-                                    new PotentiallyUnmappedAmdEsField(fa.field())
+                                    new PotentiallyUnmappedNonLoadableEsField(fa.field())
                                 )
                             );
-                        } else {
-                            FieldAttribute loaded = unmappedKeyword(attr);
-                            toLoad.add(loaded);
-                            if (fa.dataType() == LONG) {
-                                aliases.add(new Alias(source, attr.name(), new ToLong(source, loaded)));
-                            }
                         }
                         continue;
                     }
@@ -1876,14 +1876,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
-                List<FieldAttribute> amdReplacements = List.of();
+                List<FieldAttribute> nonLoadableReplacements = List.of();
                 if (unionPlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields()) {
-                    amdReplacements = convertExplicitlyLoadedUnmappedToSiblingType(source, logicalPlan, outputUnion, aliases);
+                    nonLoadableReplacements = convertExplicitlyLoadedUnmappedToSiblingType(
+                        source,
+                        logicalPlan,
+                        outputUnion,
+                        aliases,
+                        context.configuration()
+                    );
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
-                if (toLoad.isEmpty() == false || amdReplacements.isEmpty() == false) {
-                    List<FieldAttribute> replacements = amdReplacements;
+                if (toLoad.isEmpty() == false || nonLoadableReplacements.isEmpty() == false) {
+                    List<FieldAttribute> replacements = nonLoadableReplacements;
                     LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
                         if (esr.indexMode() == IndexMode.LOOKUP) {
                             return esr;
@@ -1903,7 +1909,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                         return esr;
                     });
-                    // KEEP/Project still holds the PUNK; swap it everywhere so the union type is AMD, not keyword.
+                    // KEEP/Project still holds the PUNK; swap it everywhere so the union type is the sibling's, not keyword.
                     if (replacements.isEmpty() == false) {
                         Map<String, FieldAttribute> byName = new HashMap<>(replacements.size());
                         for (FieldAttribute replacement : replacements) {
@@ -1985,42 +1991,66 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * When this branch already loaded an unmapped field as keyword (KEEP/mention) and a sibling maps it as LONG or AMD,
-         * convert here so the union type matches: ToLong, or swap the PUNK for {@link PotentiallyUnmappedAmdEsField}.
+         * When this branch already read an unmapped field from {@code _source} as keyword (KEEP/mention) and a sibling maps it as
+         * another type, convert here so both branches agree on the union column's type. Returns the replacements for types with no
+         * implicit keyword cast, which cannot be converted and are marked non-loadable instead.
          */
         private static List<FieldAttribute> convertExplicitlyLoadedUnmappedToSiblingType(
             Source source,
             LogicalPlan logicalPlan,
             List<Attribute> outputUnion,
-            List<Alias> aliases
+            List<Alias> aliases,
+            Configuration configuration
         ) {
             Set<String> aliased = new HashSet<>();
             for (Alias alias : aliases) {
                 aliased.add(alias.name());
             }
-            List<FieldAttribute> amdReplacements = new ArrayList<>();
+            List<FieldAttribute> nonLoadableReplacements = new ArrayList<>();
             for (Attribute attr : outputUnion) {
                 if (attr instanceof FieldAttribute fa
                     && fa instanceof UnsupportedAttribute == false
-                    && aliased.contains(fa.name()) == false) {
+                    && aliased.contains(fa.name()) == false
+                    && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+                    && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField == false
+                    && fa.field() instanceof MissingEsField == false) {
                     FieldAttribute punk = punkFieldNamed(logicalPlan, fa.name());
                     if (punk == null) {
                         continue;
                     }
-                    if (fa.dataType() == LONG
-                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
-                        && fa.field() instanceof MissingEsField == false) {
-                        aliases.add(new Alias(source, fa.name(), new ToLong(source, punk)));
+                    AbstractConvertFunction cast = implicitCastFromKeyword(fa.dataType(), punk, configuration);
+                    if (cast == null) {
+                        nonLoadableReplacements.add(punk.withField(new PotentiallyUnmappedNonLoadableEsField(fa.field())));
+                    } else if (cast.isNoop() == false) {
+                        aliases.add(new Alias(source, fa.name(), cast));
                         aliased.add(fa.name());
-                    } else if (fa.dataType() == AGGREGATE_METRIC_DOUBLE
-                        && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
-                        && fa.field() instanceof MissingEsField == false
-                        && fa.field() instanceof PotentiallyUnmappedAmdEsField == false) {
-                            amdReplacements.add(punk.withField(new PotentiallyUnmappedAmdEsField(fa.field())));
-                        }
+                    }
                 }
             }
-            return amdReplacements;
+            return nonLoadableReplacements;
+        }
+
+        /**
+         * The implicit cast that surfaces {@code loaded}, an unmapped field read from {@code _source} and therefore always keyword, as
+         * {@code targetType}. Returns {@code null} when no such cast exists (e.g., {@code text}, {@code aggregate_metric_double}); a
+         * keyword target needs no cast, so the returned function is a {@link ConvertFunction#isNoop() no-op} there.
+         */
+        private static AbstractConvertFunction implicitCastFromKeyword(
+            DataType targetType,
+            FieldAttribute loaded,
+            Configuration configuration
+        ) {
+            // ToDenseVector reads hexadecimal strings, but an unmapped dense_vector arrives from _source as an array of numbers
+            // (#152184), so the implicit cast would yield garbage. Same carve-out as ResolveTwoLeggedPunksInEsRelation.
+            if (targetType == DENSE_VECTOR) {
+                return null;
+            }
+            var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
+            if (convertFactory == null) {
+                return null;
+            }
+            AbstractConvertFunction convert = convertFactory.apply(loaded.source(), loaded, configuration);
+            return convert.supportedTypes().contains(KEYWORD) ? convert : null;
         }
 
         private static FieldAttribute punkFieldNamed(LogicalPlan plan, String name) {

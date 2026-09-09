@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedAmdEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -27,13 +27,18 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class PotentiallyUnmappedAmdEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedAmdEsField> {
+public class PotentiallyUnmappedNonLoadableEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedNonLoadableEsField> {
+    /** Types reached by this marker: mapped on a sibling branch, with no implicit conversion from KEYWORD. */
+    private static DataType randomNonLoadableType() {
+        return randomFrom(DataType.AGGREGATE_METRIC_DOUBLE, DataType.TEXT);
+    }
+
     @Override
-    protected PotentiallyUnmappedAmdEsField createTestInstance() {
-        return new PotentiallyUnmappedAmdEsField(
+    protected PotentiallyUnmappedNonLoadableEsField createTestInstance() {
+        return new PotentiallyUnmappedNonLoadableEsField(
             new EsField(
                 randomAlphaOfLength(4),
-                DataType.AGGREGATE_METRIC_DOUBLE,
+                randomNonLoadableType(),
                 randomProperties(4),
                 randomBoolean(),
                 randomBoolean(),
@@ -43,41 +48,38 @@ public class PotentiallyUnmappedAmdEsFieldTests extends AbstractEsFieldTypeTests
     }
 
     @Override
-    protected PotentiallyUnmappedAmdEsField mutateInstance(PotentiallyUnmappedAmdEsField instance) {
+    protected PotentiallyUnmappedNonLoadableEsField mutateInstance(PotentiallyUnmappedNonLoadableEsField instance) {
         String name = instance.getName();
+        DataType dataType = instance.getDataType();
         Map<String, EsField> properties = instance.getProperties();
-        if (randomBoolean()) {
-            name = randomAlphaOfLength(name.length() + 1);
-        } else {
-            properties = randomValueOtherThan(properties, () -> randomProperties(4));
+        switch (between(0, 2)) {
+            case 0 -> name = randomAlphaOfLength(name.length() + 1);
+            case 1 -> dataType = randomValueOtherThan(dataType, PotentiallyUnmappedNonLoadableEsFieldTests::randomNonLoadableType);
+            case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
+            default -> throw new AssertionError("unreachable");
         }
-        return new PotentiallyUnmappedAmdEsField(
-            new EsField(
-                name,
-                DataType.AGGREGATE_METRIC_DOUBLE,
-                properties,
-                instance.isAggregatable(),
-                instance.isAlias(),
-                instance.getTimeSeriesFieldType()
-            )
+        return new PotentiallyUnmappedNonLoadableEsField(
+            new EsField(name, dataType, properties, instance.isAggregatable(), instance.isAlias(), instance.getTimeSeriesFieldType())
         );
     }
 
+    /** The marker carries the sibling's mapped type rather than assuming one, so serialization must round-trip it. */
     public void testSerializesAsEsFieldToOldNodes() throws IOException {
-        PotentiallyUnmappedAmdEsField field = new PotentiallyUnmappedAmdEsField(
-            new EsField("name", DataType.AGGREGATE_METRIC_DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        DataType dataType = randomNonLoadableType();
+        PotentiallyUnmappedNonLoadableEsField field = new PotentiallyUnmappedNonLoadableEsField(
+            new EsField("name", dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
 
         EsField current = copy(field, TransportVersion.current());
-        assertThat(current, instanceOf(PotentiallyUnmappedAmdEsField.class));
+        assertThat(current, instanceOf(PotentiallyUnmappedNonLoadableEsField.class));
         assertThat(current.getName(), equalTo("name"));
-        assertThat(current.getDataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertThat(current.getDataType(), equalTo(dataType));
 
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_amd_es_field"));
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_non_loadable_es_field"));
         EsField oldCopy = copy(field, old);
         assertThat(oldCopy.getClass(), equalTo(EsField.class));
         assertThat(oldCopy.getName(), equalTo("name"));
-        assertThat(oldCopy.getDataType(), equalTo(DataType.AGGREGATE_METRIC_DOUBLE));
+        assertThat(oldCopy.getDataType(), equalTo(dataType));
     }
 
     private EsField copy(EsField field, TransportVersion version) throws IOException {

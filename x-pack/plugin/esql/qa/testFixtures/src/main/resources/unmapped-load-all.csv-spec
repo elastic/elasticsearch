@@ -1747,7 +1747,8 @@ Connection error?        | null         | 2024-10-23T13:53:55.832Z | 173.21.3.15
 Connected to 10.1.0.1!   | null         | 2024-10-23T13:55:01.543Z | 173.21.3.15       | 1756466                | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// Mapped LONG is loaded from _source on the unmapped sibling and implicitly cast; date/ip stay Eval-null.
+// date, ip and long all have an implicit cast from keyword, so all three load from _source on the unmapped sibling: the two
+// indices hold the same documents, so every row comes back twice.
 loadAllSubqueryMappedLongLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -1759,19 +1760,19 @@ ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-null                     | null         | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-null                     | null         | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-null                     | null         | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-null                     | null         | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-null                     | null         | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-null                     | null         | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-null                     | null         | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 // Same as above with branches swapped: mapped columns still precede extras.
@@ -1786,22 +1787,40 @@ ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-null                     | null         | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-null                     | null         | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-null                     | null         | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
-null                     | null         | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
-null                     | null         | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
-null                     | null         | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
-null                     | null         | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// Suffix glob so LOAD_ALL extras stay enabled without also keeping AMD metric subfields (tx.min/max/sum/value_count).
+// text has no implicit cast from keyword; text_state_nonexistent has no txt in _source, so there is nothing to fail on.
+// The failing case (a sibling that does carry a value) is in 298_unmapped_load_all_subquery_non_loadable.yml.
+loadAllSubqueryMappedTextNullsOnSiblingWithoutSourceValue
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM text_state_mapped), (FROM text_state_nonexistent)
+| KEEP doc_id, txt
+| SORT doc_id
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+nonexistent-1  | null
+;
+
+// Suffix glob so LOAD_ALL extras stay enabled without also keeping the metric subfields (tx.min/max/sum/value_count).
 loadAllSubqueryMappedAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -1888,7 +1907,8 @@ null
 null
 ;
 
-// Without the DROP, integer _source for this AMD field fails at execution (298_unmapped_load_all_subquery_amd.yml).
+// Without the DROP, the integer _source value for this field fails at execution
+// (298_unmapped_load_all_subquery_non_loadable.yml).
 loadAllSubqueryDropAmdOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
@@ -1984,7 +2004,7 @@ null                     | null         | 5033754             | null            
 null                     | null         | 1756466             | null                   | null                  | null                    | null                            | null
 ;
 
-// Mapped AMD first so the union type is AMD; KEEP on the unmapped index is swapped to PotentiallyUnmappedAmdEsField.
+// Mapped AMD first so the union type is AMD; KEEP on the unmapped index is swapped to PotentiallyUnmappedNonLoadableEsField.
 loadAllSubqueryKeepAmdLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command

@@ -87,8 +87,8 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedAmdEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedNonLoadableEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -311,10 +311,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
-        // LOAD_ALL subquery: sibling AMD copied as PotentiallyUnmappedAmdEsField. No KEYWORD converter;
-        // extract AMD from _source: missing → null, incompatible JSON → runtime error.
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedAmdEsField) {
-            return ValuesSourceReaderOperator.load(unmappedAmdBlockLoader(shardContext, getFieldName(fa)));
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedNonLoadableEsField) {
+            return ValuesSourceReaderOperator.load(unmappedNonLoadableBlockLoader(shardContext, getFieldName(fa), fa.dataType()));
         }
         if (attr instanceof UnmappedFieldsAttribute ufa) {
             // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
@@ -460,9 +458,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
     }
 
-    private static BlockLoader unmappedAmdBlockLoader(DefaultShardContext context, String name) {
+    private static BlockLoader unmappedNonLoadableBlockLoader(DefaultShardContext context, String name, DataType dataType) {
         Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
-        return new UnmappedAmdBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
+        return new UnmappedNonLoadableBlockLoader(name, dataType, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
     }
 
     /** A hack to pretend an unmapped field still exists. */

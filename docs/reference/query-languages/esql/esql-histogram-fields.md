@@ -115,19 +115,6 @@ Because `PERCENTILE` works on the histogram directly, you can query any percenti
 runtime without having to pre-define bucket boundaries at index time. This is a key advantage
 of the `exponential_histogram` type over classic fixed-bucket approaches.
 
-You can combine multiple aggregations in a single query to get a complete picture of the
-distribution. For example, to compare the minimum, median, 99th percentile, and maximum of
-major garbage collection durations:
-
-```esql
-FROM metrics-*
-| WHERE jvm.gc.action == "end of major GC"
-| STATS MAX(jvm.gc.duration),
-        PERCENTILE(jvm.gc.duration, 99),
-        MEDIAN(jvm.gc.duration),
-        MIN(jvm.gc.duration)
-```
-
 ### Using `TS` with histogram fields
 
 [`TS`](/reference/query-languages/esql/commands/ts.md) is the recommended source command

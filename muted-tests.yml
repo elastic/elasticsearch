@@ -652,9 +652,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors {historical}
   issue: https://github.com/elastic/elasticsearch/issues/157827
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=mapping/42_doc_values_on_failure/index.mapping.doc_values.on_failure=ignore applies to nullability violations (logsdb_columnar)}
-  issue: https://github.com/elastic/elasticsearch/issues/157829
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohexTests
   method: testEvaluateInManyThreads {TestCase=geo_shape with literal precision and bounds}
   issue: https://github.com/elastic/elasticsearch/issues/157840
@@ -705,9 +702,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testPeerRecoveryTrimsLocalTranslog
   issue: https://github.com/elastic/elasticsearch/issues/158303
-- class: org.elasticsearch.index.IndexModuleTests
-  method: testQueryCacheDisabledByDefaultForStrictlyColumnarMode
-  issue: https://github.com/elastic/elasticsearch/issues/158305
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testFetchTooManyBigFields
   issue: https://github.com/elastic/elasticsearch/issues/158349
@@ -720,9 +714,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  method: testPrewarmAndHandoffTaskAreChildrenOfStartRelocationTask
-  issue: https://github.com/elastic/elasticsearch/issues/158470
 - class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
   method: testMultipleEntriesForSameMetricAcrossStreams
   issue: https://github.com/elastic/elasticsearch/issues/147170
@@ -774,3 +765,5 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/158762
+- class: org.elasticsearch.simdjson.internal.parsers.StringParserTests
+  issue: https://github.com/elastic/elasticsearch/issues/158799

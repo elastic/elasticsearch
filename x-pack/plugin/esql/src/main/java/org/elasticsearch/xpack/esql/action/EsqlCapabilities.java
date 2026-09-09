@@ -3892,6 +3892,12 @@ public class EsqlCapabilities {
         TS_STATS_LITERAL_AGG_FIX,
 
         /**
+         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
+         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
+         */
+        REMOTE_FETCH_TOPN_FETCH_PHASE,
+
+        /**
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
         KNN_RUNTIME_FIELD(Build.current().isSnapshot()),

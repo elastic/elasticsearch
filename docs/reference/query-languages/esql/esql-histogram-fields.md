@@ -230,7 +230,7 @@ Exponential histograms skip empty buckets.
 Use the [casting operator (`::`)](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) to convert between histogram types inline:
 
 - `field::exponential_histogram` converts to an exponential histogram. This is the recommended
-  default.
+  default because `exponential_histogram` is the native type used for newly ingested metrics.
 - `field::tdigest` converts to a T-Digest. Use this when you know the data was originally stored
   as T-Digest centroids.
 

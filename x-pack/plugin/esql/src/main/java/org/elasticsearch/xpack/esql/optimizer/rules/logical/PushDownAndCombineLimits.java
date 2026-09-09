@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -57,7 +58,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 || unary instanceof Project
                 || unary instanceof RegexExtract
                 || unary instanceof CompoundOutputEval<?>
-                || unary instanceof InferencePlan<?>) {
+                || unary instanceof InferencePlan<?>
+                || unary instanceof Highlight) {
                 if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
                     return limit;

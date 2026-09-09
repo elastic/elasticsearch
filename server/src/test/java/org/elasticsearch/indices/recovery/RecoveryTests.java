@@ -141,7 +141,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             // delete #1
             orgReplica.advanceMaxSeqNoOfUpdatesOrDeletes(1); // manually advance msu for this delete
-            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id");
+            orgReplica.applyDeleteOperationOnReplica(1, primaryTerm, 2, "id", null);
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
@@ -456,7 +456,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
 

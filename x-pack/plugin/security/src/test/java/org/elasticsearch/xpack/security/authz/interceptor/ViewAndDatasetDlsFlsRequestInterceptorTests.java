@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -43,9 +44,8 @@ public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
     private ThreadContext threadContext;
     private Authentication authentication;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadContextAndAuth() {
         threadContext = new ThreadContext(Settings.EMPTY);
         authentication = AuthenticationTestHelper.builder()
             .user(new User("test-user", "test-role"))

@@ -516,6 +516,7 @@ public class TransformTask extends AllocatedPersistentTask
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         context.close();
         transformScheduler.deregisterTransform(getTransformId());
+        transformNode.deregisterTransform(getTransformId());
         markAsCompleted();
     }
 
@@ -572,6 +573,7 @@ public class TransformTask extends AllocatedPersistentTask
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
             transformScheduler.deregisterTransform(getTransformId());
+            transformNode.deregisterTransform(getTransformId());
 
             if (transformNode.isShuttingDown().orElse(false)) {
                 logger.atDebug()

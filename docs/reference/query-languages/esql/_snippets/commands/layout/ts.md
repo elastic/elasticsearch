@@ -49,8 +49,14 @@ or [`TS_INFO`](/reference/query-languages/esql/commands/ts-info.md).
 
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
-is assumed and used implicitly. For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time). To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
+`TS` selects a default based on the field type. Numeric fields use
+[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md),
+while histogram fields are merged
+{applies_to}`stack: preview 9.3, ga 9.4`.
+For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time).
+To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
+For histogram examples, refer to
+[Work with histogram metrics](#work-with-histogram-metrics).
 ::::
 
 You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
@@ -111,6 +117,37 @@ equally to the outer average:
 TS metrics
 | STATS AVG(AVG_OVER_TIME(cpu_usage)) BY cluster, TBUCKET(1 minute)
 ```
+
+## Work with histogram metrics [work-with-histogram-metrics]
+
+```{applies_to}
+stack: preview 9.3, ga 9.4
+```
+
+Histogram metrics contain distributions rather than individual numeric samples. With `TS`,
+use regular [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
+such as `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`, `MEDIAN`, and `PERCENTILE` directly on
+histogram metrics. `TS` implicitly merges the histograms for each time series before
+aggregating across time series. Using `*_OVER_TIME` functions on histogram fields is typically not useful.
+
+For an `exponential_histogram` or `tdigest` field, the following query calculates the number of
+garbage collection events, along with their average and 99th-percentile duration, in each time bucket:
+
+```esql
+TS metrics-*
+| WHERE TRANGE(1 hour)
+| STATS count = COUNT(jvm.gc.duration),
+        avg = AVG(jvm.gc.duration),
+        p99 = PERCENTILE(jvm.gc.duration, 99)
+  BY jvm.gc.action, TBUCKET(5 minutes)
+```
+
+If your metric has mixed types (for example, newer indices use `exponential_histogram`, while legacy indices use `histogram`)
+or has the type `histogram`, you must add an explicit cast: `jvm.gc.duration::exponential_histogram`.
+Typically, `::exponential_histogram` is the right choice, unless you know that your metric actually stores T-Digest data.
+
+You can use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) to inspect
+the field type.
 
 ## Grouping time series [grouping-time-series]
 
@@ -200,7 +237,7 @@ TS metrics
 
 ### Aggregate with implicit LAST_OVER_TIME
 
-The following two queries are equivalent, returning the average of the last memory usage values per time series. If a query is missing an inner (time series) aggregation function, `LAST_OVER_TIME()` is assumed and used implicitly:
+The following two queries are equivalent, returning the average of the last memory usage values per time series. If a query on a numeric field is missing an inner (time series) aggregation function, `LAST_OVER_TIME()` is assumed and used implicitly:
 
 ```esql
 TS metrics | STATS AVG(memory_usage)

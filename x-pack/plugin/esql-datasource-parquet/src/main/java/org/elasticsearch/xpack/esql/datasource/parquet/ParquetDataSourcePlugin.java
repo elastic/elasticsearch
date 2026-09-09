@@ -42,20 +42,20 @@ import java.util.Set;
 public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     /**
-     * Per-dataset configuration keys accepted by the Parquet format reader.
-     * Must stay in sync with {@code ParquetFormatReader.RECOGNIZED_KEYS}; verified
-     * by {@code ParquetFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
+     * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register
+     * eagerly at module construction; reader-declared ones register lazily, inside the supplier that instantiates
+     * the reader. An extension declared only there is therefore unclaimable until something forces that reader
+     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims no per-dataset
+     * configuration keys.
      */
-    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("optimized_reader", "late_materialization");
-
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(FormatSpec.of(FormatNameResolver.FORMAT_PARQUET, ".parquet", FORMAT_CONFIG_KEYS));
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), Set.of()));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(s, blockFactory));
     }
 
     @Override

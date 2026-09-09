@@ -27,6 +27,8 @@ import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SliceIdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,6 +48,74 @@ public class TermsSliceQueryTests extends ESTestCase {
         QueryUtils.checkEqual(query1, query2);
         QueryUtils.checkUnequal(query1, query3);
         QueryUtils.checkUnequal(query1, query4);
+    }
+
+    public void testTermFilterIsPartOfIdentity() {
+        TermsSliceQuery allTerms = new TermsSliceQuery("field1", 1, 10, TermsSliceQuery.TermFilter.ALL_TERMS);
+        TermsSliceQuery slicedTerms = new TermsSliceQuery("field1", 1, 10, TermsSliceQuery.TermFilter.SLICED_ID_TERMS);
+        // The three-argument constructor selects ALL_TERMS.
+        QueryUtils.checkEqual(allTerms, new TermsSliceQuery("field1", 1, 10));
+        QueryUtils.checkUnequal(allTerms, slicedTerms);
+    }
+
+    /**
+     * A slice-enabled {@code _id} indexes two terms per document (a search term and a compound term), so hashing
+     * every term would place a document into two partitions. {@link TermsSliceQuery.TermFilter#SLICED_ID_TERMS} hashes
+     * only the search term, so the partitions still cover every document exactly once.
+     */
+    public void testSlicedIdTermsCoverEachDocumentExactlyOnce() throws Exception {
+        final int numDocs = randomIntBetween(100, 200);
+        final Directory dir = newDirectory();
+        final RandomIndexWriter w = new RandomIndexWriter(random(), dir, new KeywordAnalyzer());
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < numDocs; ++i) {
+            String id = "id-" + i;
+            String slice = "slice-" + randomIntBetween(0, 4);
+            Document doc = new Document();
+            // Mirror SliceIdFieldMapper#preParse: index the search term and the compound term into _id.
+            doc.add(new StringField(IdFieldMapper.NAME, SliceIdFieldMapper.searchTerm(id), Field.Store.NO));
+            doc.add(new StringField(IdFieldMapper.NAME, SliceIdFieldMapper.encodeCompoundId(id, slice), Field.Store.NO));
+            doc.add(new StringField("id", id, Field.Store.YES));
+            w.addDocument(doc);
+            ids.add(id);
+        }
+        final IndexReader reader = w.getReader();
+        final IndexSearcher searcher = newSearcher(reader);
+
+        final int max = randomIntBetween(2, 10);
+        int total = 0;
+        for (int id = 0; id < max; id++) {
+            TermsSliceQuery query = new TermsSliceQuery(IdFieldMapper.NAME, id, max, TermsSliceQuery.TermFilter.SLICED_ID_TERMS);
+            total += searcher.count(query);
+            searcher.search(query, new Collector() {
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    StoredFields storedFields = context.reader().storedFields();
+                    return new LeafCollector() {
+                        @Override
+                        public void setScorer(Scorable scorer) throws IOException {}
+
+                        @Override
+                        public void collect(int doc) throws IOException {
+                            Document d = storedFields.document(doc, Collections.singleton("id"));
+                            // Each document is collected by exactly one partition, so removal must succeed the first time.
+                            assertThat(ids.remove(d.get("id")), equalTo(true));
+                        }
+                    };
+                }
+
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+            });
+        }
+        // Gap-free and duplicate-free: every document counted once across the partitions, none left behind.
+        assertThat(total, equalTo(numDocs));
+        assertThat(ids.size(), equalTo(0));
+        w.close();
+        reader.close();
+        dir.close();
     }
 
     public void testEmpty() throws Exception {

@@ -89,7 +89,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         (byte) 1,
                         centroid
                     );
-                    ESVectorUtil.packAsBinary(scratch, qVector);
+                    ESVectorUtil.pack1BitValues(scratch, qVector);
                     out.writeBytes(qVector, 0, qVector.length);
                     out.writeInt(Float.floatToIntBits(result.lowerInterval()));
                     out.writeInt(Float.floatToIntBits(result.upperInterval()));
@@ -107,7 +107,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.stride4BitValues(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] floatScratch = new float[3];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
@@ -188,7 +188,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                     for (int j = 0; j < bulkSize; j++) {
                         VectorScorerTestUtils.randomVector(random(), vectors[i + j], similarityFunction);
                         results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, scratch, (byte) 1, centroid);
-                        ESVectorUtil.packAsBinary(scratch, qVector);
+                        ESVectorUtil.pack1BitValues(scratch, qVector);
                         out.writeBytes(qVector, 0, qVector.length);
                     }
                     writeCorrections(results, out);
@@ -204,7 +204,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 centroid
             );
             final byte[] quantizeQuery = new byte[4 * length];
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.stride4BitValues(scratch, quantizeQuery);
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] scoresDefault = new float[bulkSize];
             final float[] scoresPanama = new float[bulkSize];

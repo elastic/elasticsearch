@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -360,6 +361,17 @@ public final class MultiRowTestCaseSupplier {
         addSuppliers(cases, minRows, maxRows, "random date range", DataType.DATE_RANGE, () -> {
             LongRangeBlockBuilder.LongRange r = TestCaseSupplier.randomDateRange();
             return r;
+        });
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> doubleRangeCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "random double range", DataType.DOUBLE_RANGE, () -> {
+            DoubleRangeBlockBuilder.DoubleRange range = TestCaseSupplier.randomDoubleRange();
+            return range;
         });
 
         return cases;

@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
@@ -41,7 +42,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
-import static org.elasticsearch.search.SearchService.PIT_RELOCATION_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.indexMetadata;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.makeIdThatRoutesToShard;
@@ -219,7 +219,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testPitRelocationDuringReshard() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -299,7 +298,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testLongLivedPitRelocation() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
@@ -350,7 +348,6 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     }
 
     public void testReshardedLongLivedPitRelocation() {
-        assumeTrue("pit relocation must be enabled", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         var masterNode = startMasterOnlyNode();
         String indexNode = startIndexNode();
         startSearchNode();
@@ -434,6 +431,8 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
+            // Ensure the reaper runs promptly to avoid occasionally finding apparent context leaks during test teardown
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             // Disable so that they don't randomly flush and break our asserts.

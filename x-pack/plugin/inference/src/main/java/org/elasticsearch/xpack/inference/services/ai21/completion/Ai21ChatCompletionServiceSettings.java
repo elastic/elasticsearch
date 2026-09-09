@@ -13,15 +13,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -32,6 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Represents the settings for the AI21 chat completion service.
@@ -60,16 +61,13 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+        var parser = ServiceSettingsOPBuilder.of(
             ignoreUnknownFields,
-            Builder::new
-        );
+            Builder::new,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            Builder::setRateLimitSettings
+        ).build();
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
-        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
-        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
-        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         return parser;
     }
 
@@ -97,7 +95,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS);
         }
     }
 
@@ -184,11 +182,10 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
      */
     private static class Update {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
-
-        static {
-            RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
-        }
+        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
+            Update::new,
+            Update::setRateLimitSettings
+        ).build();
 
         private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
 

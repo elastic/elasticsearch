@@ -1,0 +1,27 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Mappings for eBPF Profiler stacktraces OTel data stream
+  managed: true
+template:
+  settings:
+    index:
+      number_of_shards: 16
+      auto_expand_replicas: "0-1"
+      refresh_interval: 10s
+      routing.allocation.include._tier_preference: data_hot
+      sort:
+        field:
+          - frame.ids
+      mapping:
+        source:
+          mode: synthetic
+  mappings:
+    dynamic: false
+    properties:
+      frame.ids:
+        type: keyword
+        index: false
+      frame.types:
+        type: keyword
+        index: false

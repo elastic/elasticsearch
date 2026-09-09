@@ -19,42 +19,72 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     public abstract void onRecoverySchedulingChange();
 
     @Override
-    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryQueuedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onPeerRecoveryQueuedOnSource() {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedPeerRecoveryDiscardedOnSource() {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onPeerRecoveryStartedOnSource() {
         onRecoverySchedulingChange();
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onPeerRecoveryDequeuedAndStartedOnSource() {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onPeerRecoveryCompletedOnSource() {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
         onRecoverySchedulingChange();
     }
 }

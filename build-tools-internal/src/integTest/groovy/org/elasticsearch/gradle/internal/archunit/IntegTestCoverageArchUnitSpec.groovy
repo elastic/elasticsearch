@@ -154,7 +154,6 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.release.BundleChangelogsTask",
         "org.elasticsearch.gradle.internal.snyk.GenerateSnykDependencyGraph",
         "org.elasticsearch.gradle.internal.snyk.UploadSnykDependenciesGraph",
-        "org.elasticsearch.gradle.internal.test.AntFixture",
         "org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask",
     ] as Set
 

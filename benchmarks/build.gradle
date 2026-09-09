@@ -44,6 +44,7 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api(project(':libs:simdjson'))
   api(project(':libs:h3'))
   api(project(':modules:aggregations'))
   implementation project(':modules:mapper-extras');
@@ -56,6 +57,9 @@ dependencies {
   api(project(':x-pack:plugin:esql-datasource-parquet'))
   api(project(':x-pack:plugin:esql-datasource-orc'))
   api(project(':x-pack:plugin:esql-datasource-ndjson'))
+  // DissectParser for FlattenedFieldExtractBenchmark's `dissect` consumer; esql exposes grok transitively
+  // but keeps dissect as an `implementation` dep, so it is not on the benchmark compile classpath otherwise.
+  implementation project(':libs:dissect')
   // Writer-side dependencies for in-memory Parquet/ORC fixtures used by the format-reader
   // JMH benchmarks. The plugin projects above expose the reader classes only; the writers
   // (ExampleParquetWriter, OrcFile.createWriter) live in the underlying third-party jars
@@ -84,8 +88,8 @@ dependencies {
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
-  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
+  implementation project(path: ':libs:columnar')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
   implementation project(path: ':libs:exponential-histogram')
@@ -106,6 +110,10 @@ dependencies {
   nativeLib(project(':libs:native'))
   implementation project(':modules:bitmap')
   implementation("org.roaringbitmap:RoaringBitmap:1.6.15")
+  // Shared benchmark helpers (Utils, ExtraParam) plus the log4j LoggerFactory bootstrap
+  // and the BenchmarkConfigurationFactory that strips %node_name / %cluster_name from
+  // any .properties log4j config on the classpath. See benchmarks/common/build.gradle.
+  implementation project(':benchmarks:common')
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   annotationProcessor project(':benchmarks:processor')
@@ -123,6 +131,7 @@ tasks.named("compileJava").configure {
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
+  options.compilerArgs.addAll(["--add-reads", "org.elasticsearch.simdjson=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {
@@ -147,11 +156,22 @@ tasks.named("run").configure {
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
+  jvmArgs '--add-modules=jdk.incubator.vector'
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=org.elasticsearch.server/org.elasticsearch.escf=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
   jvmArgs '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
+  // Without this the vectorization providers fall back to their scalar implementations, so a benchmark
+  // over vectorized code measures something the product never runs. Needed on the forked VMs, which are
+  // where the benchmark bodies execute, as well as on the harness that runs them.
+  def vectorArgs = buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21
+    ? ' --add-modules=jdk.incubator.vector'
+    : ''
+  if (vectorArgs) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
   // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
-  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}${vectorArgs}"
 }
 
 tasks.named('test').configure {

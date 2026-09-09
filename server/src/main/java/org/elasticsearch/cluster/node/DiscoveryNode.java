@@ -455,6 +455,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether or not this is a coordinating-only node, i.e., a node configured with {@code node.roles: []} whose only function is
+     * to route requests and reduce results.
+     * <p>
+     * This is deliberately defined as an empty role set as per the Elastic documentation.
+     * @return true if the node has no roles at all, false otherwise
+     */
+    public boolean isCoordinatingOnlyNode() {
+        return roles.isEmpty();
+    }
+
+    /**
      * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
      * <p>
      * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.

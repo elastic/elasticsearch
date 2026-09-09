@@ -12,8 +12,8 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -27,13 +27,13 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     private final float deltaPercent = 0.1f;
     private final int dims;
     private final VectorScorerOSQBenchmark.QuantConfig quantConfig;
-    private final VectorScorerOSQBenchmark.DirectoryType directoryType;
+    private final DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
         VectorScorerOSQBenchmark.QuantConfig quantConfig,
-        VectorScorerOSQBenchmark.DirectoryType directoryType,
+        DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
         this.dims = dims;
@@ -65,7 +65,6 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 bench.teardown();
-                IOUtils.rm(bench.tempDir);
             }
         }
     }
@@ -93,7 +92,6 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 bench.teardown();
-                IOUtils.rm(bench.tempDir);
             }
         }
     }
@@ -188,7 +186,6 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             return bulkResult;
         } finally {
             bench.teardown();
-            IOUtils.rm(bench.tempDir);
         }
     }
 

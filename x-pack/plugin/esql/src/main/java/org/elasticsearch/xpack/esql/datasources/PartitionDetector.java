@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Pluggable strategy for detecting partition columns from file paths.
@@ -17,7 +16,7 @@ import java.util.Map;
  */
 public interface PartitionDetector {
 
-    PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config);
+    PartitionMetadata detect(List<StorageEntry> files);
 
     String name();
 }

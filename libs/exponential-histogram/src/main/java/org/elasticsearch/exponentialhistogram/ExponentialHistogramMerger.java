@@ -212,23 +212,17 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
-        zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
         FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
         try {
 
-            buffer.setZeroBucket(zeroBucket);
             buffer.setSum(a.sum() + b.sum());
             buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
             buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
 
             int targetScale = Math.min(factory.maxScale, Math.min(a.scale(), b.scale()));
 
-            // We might exceed our limit for the total number of buckets for the targetScale.
-            // We try the merge optimistically, assuming that everything fits.
-            // If we fail, we reduce the target scale to make everything fit.
-
-            mergeBucketsInto(negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
+            mergeBucketsInto(zeroBucket, negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
             FixedCapacityExponentialHistogram temp = result;
             result = buffer;
             buffer = temp;
@@ -238,6 +232,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     }
 
     private void mergeBucketsInto(
+        ZeroBucket zeroBucket,
         CopyableBucketIterator negBucketsA,
         CopyableBucketIterator posBucketsA,
         CopyableBucketIterator negBucketsB,
@@ -260,6 +255,8 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             countCombineFunction
         );
 
+        output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
+
         // We might exceed our limit for the total number of buckets for the targetScale.
         // We try the merge optimistically, assuming that everything fits.
         // If we fail, we reduce the target scale to make everything fit and redo the merge
@@ -276,6 +273,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             output.resetBuckets(targetScale);
             positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale, countCombineFunction);
             negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale, countCombineFunction);
+
+            output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
+
             overflowCount = putBuckets(output, negativeMerged, false, null);
             overflowCount += putBuckets(output, positiveMerged, true, null);
 
@@ -432,6 +432,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
         try {
             mergeBucketsInto(
+                subtractedZeroBucket,
                 a.negativeBuckets().iterator(),
                 a.positiveBuckets().iterator(),
                 negBucketsB,
@@ -440,7 +441,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 bucketDifferenceOperator,
                 buffer
             );
-            buffer.setZeroBucket(subtractedZeroBucket);
 
             // we might have clamped negative buckets away, so we need to scale down the remaining buckets to compensate for that
             long desiredTargetCount = aValueCount - bValueCount;

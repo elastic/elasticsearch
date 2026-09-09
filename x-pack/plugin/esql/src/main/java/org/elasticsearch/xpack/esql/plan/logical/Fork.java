@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -149,7 +152,45 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+    }
+
+    private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {
+        UnmappedFieldsAttribute ufa = unmappedFieldsAttributeFromChildren();
+        if (ufa == null) {
+            return converted;
+        }
+        for (int i = 0; i < converted.size(); i++) {
+            if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the FORK union.
+                converted.set(i, ufa.withId(converted.get(i).id()));
+                break;
+            }
+        }
+        return converted;
+    }
+
+    @Nullable
+    private UnmappedFieldsAttribute unmappedFieldsAttributeFromChildren() {
+        UnmappedFieldsAttribute first = null;
+        UnmappedFieldsPattern union = UnmappedFieldsPattern.NONE;
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (attr instanceof UnmappedFieldsAttribute childUfa) {
+                    if (first == null) {
+                        first = childUfa;
+                    }
+                    union = union.union(childUfa.pattern());
+                }
+            }
+        }
+        if (first == null) {
+            return null;
+        }
+        if (union.equals(first.pattern())) {
+            return first;
+        }
+        return new UnmappedFieldsAttribute(first.source(), first.dataType(), first.nullable(), first.id(), first.synthetic(), union);
     }
 
     @Override
@@ -265,8 +306,8 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork fork = (Fork) plan;
 
-        fork.forEachDown(Fork.class, otherFork -> {
-            if (fork == otherFork) {
+        forEachForkSkippingSubqueries(fork, otherFork -> {
+            if (otherFork == fork) {
                 return;
             }
 
@@ -307,5 +348,21 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 }
             }
         });
+    }
+
+    /**
+     * Traverses the plan tree downward, invoking {@code action} for each {@link Fork} encountered,
+     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
+     * The right side is a separate query scope; a FORK inside it is independent of any FORK in the
+     * enclosing query.
+     */
+    static void forEachForkSkippingSubqueries(LogicalPlan plan, Consumer<Fork> action) {
+        if (plan instanceof Fork fork) {
+            action.accept(fork);
+        }
+        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            forEachForkSkippingSubqueries(child, action);
+        }
     }
 }

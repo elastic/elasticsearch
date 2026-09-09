@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154016
-summary: Fix one of the causes of losing warnings
-type: bug

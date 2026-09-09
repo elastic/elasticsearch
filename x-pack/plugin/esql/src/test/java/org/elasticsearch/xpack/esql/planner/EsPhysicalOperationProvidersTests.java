@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -24,6 +26,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -44,10 +47,12 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
@@ -67,6 +72,7 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
@@ -204,6 +210,46 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via
+     * {@link UnmappedKeywordBlockLoader}, whose stored-field spec must request only that field's own source paths.
+     */
+    public void testUnmappedKeywordBlockLoaderRequestsOnlyItsOwnSourcePath() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
+
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "unmapped_kw",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        // Gated on OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE: a release build must still dispatch KeywordFieldType's own loaders, so
+        // there is no source-path spec to assert there. Without this branch the test fails under -Dbuild.snapshot=false.
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled() == false) {
+            assertThat(blockLoader, not(instanceOf(UnmappedKeywordBlockLoader.class)));
+            return;
+        }
+        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(
+            "unmapped keyword loader must filter _source to its own path rather than request the whole document",
+            blockLoader.rowStrideStoredFieldSpec(),
+            equalTo(StoredFieldsSpec.withSourcePaths(IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("unmapped_kw")))
+        );
+    }
+
     public void testTemporalityForMissingSetting() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("metric_temporality").field("type", "keyword").endObject())),
@@ -317,7 +363,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             MappedFieldType.FieldExtractPreference.NONE
         );
         var fieldInfo = provider.extractFields(fieldExtractExec).getFirst();
-        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
     private static Settings tsdbSettings(String temporalityFieldName) {

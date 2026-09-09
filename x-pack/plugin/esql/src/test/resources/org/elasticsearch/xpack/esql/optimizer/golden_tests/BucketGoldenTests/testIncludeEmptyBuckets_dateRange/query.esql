@@ -1,0 +1,3 @@
+FROM employees
+| STATS c = COUNT(*)
+  BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z", {"include_empty_buckets": true})

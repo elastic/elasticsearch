@@ -14,8 +14,9 @@ import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
-import org.elasticsearch.compute.operator.ScoreOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -50,10 +51,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -73,9 +76,12 @@ import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQue
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -286,7 +292,7 @@ public abstract class FullTextFunction extends Function
         // because join is not pushed down into subqueries yet.
         boolean checkCommandsBeforeExpression = isLookupJoinOnCondition
             || checkFullTextFunctionsAboveSubqueries
-            || hasSubqueryInChildrenPlans(plan) == false;
+            || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
             if (isLookupJoinOnCondition == false) {
                 List.of(QueryString.class, Kql.class).forEach(functionClass -> {
@@ -306,17 +312,33 @@ public abstract class FullTextFunction extends Function
                 });
             }
 
+            // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
+            // row (it is the sub-query side of a left join), so it does not block pushing the full-text function down to Lucene.
+            //
+            // The two walks below cover the two shapes INLINE STATS takes: this verifier runs once on the
+            // analyzed plan, which always contains InlineStats, and again on the optimized plan, where SubstituteSurrogatePlans
+            // has replaced every InlineStats with an InlineJoin.
+            //
+            // On the InlineJoin side, look anywhere in the right-hand subtree rather than just at its root: an aggregate
+            // expression (e.g. MAX(id) + 1) leaves the Aggregate wrapped in a Project/Eval once ReplaceAggregateAggExpressionWithEval
+            // has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
+            // and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
+            Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
+            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,
                 FullTextFunction.class,
                 lp -> (lp instanceof Limit == false)
-                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof MvExpand == false)
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
-                    && (lp instanceof Dedup == false),
+                    && (lp instanceof Dedup == false)
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -446,7 +468,17 @@ public abstract class FullTextFunction extends Function
         return null;
     }
 
-    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+    /**
+     * The {@code analysisRegistry} is only available in the post-analysis pass; the post-optimization re-run passes
+     * {@code null}, so registry-backed checks must be skipped when it is absent.
+     */
+    protected void fieldVerifier(
+        LogicalPlan plan,
+        FullTextFunction function,
+        Expression field,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Failures failures
+    ) {
         // Only run the check if the current node contains the full-text function
         // This is to avoid running the check multiple times in the same plan
         // Field can be null when the field does not exist in the mapping
@@ -613,12 +645,19 @@ public abstract class FullTextFunction extends Function
      * @return the query builder to be used in the {@link LuceneQueryEvaluator}
      */
     protected QueryBuilder evaluatorQueryBuilder() {
-        // Use the same query builder as for the translation by default
-        return queryBuilder();
+        QueryBuilder builder = queryBuilder();
+        if (builder != null) {
+            return builder;
+        }
+        // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
+        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
+        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
+        return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
 
     @Override
-    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
         return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
     }
 
@@ -684,6 +723,20 @@ public abstract class FullTextFunction extends Function
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
+                // After optimization, if a coordinator-executed join still sits anywhere beneath this filter
+                // (not just as a direct child), the push-down optimizer could not move the filter to the data
+                // nodes. Full-text functions require a Lucene shard context that the coordinator does not have.
+                if (f.anyMatch(p -> p instanceof Join join && join.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot be used in a WHERE clause that references both data-side and lookup-side "
+                                + "fields after LOOKUP JOIN _coordinator:",
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
             }
         };
     }
@@ -697,26 +750,18 @@ public abstract class FullTextFunction extends Function
      * Check if the full-text function exists only in the current node (not in child nodes)
      */
     private static boolean isInCurrentNode(LogicalPlan plan, FullTextFunction function) {
-        final Holder<Boolean> found = new Holder<>(false);
-        plan.forEachExpression(FullTextFunction.class, ftf -> {
-            if (ftf == function) {
-                found.set(true);
-            }
-        });
-        return found.get();
+        return plan.expressions().stream().anyMatch(e -> e.anyMatch(c -> c == function));
     }
 
     /**
      * Checks if there is a subquery in the children plans.
      */
     private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {
-        Holder<Boolean> hasSubquery = new Holder<>(false);
-        plan.forEachDown(p -> {
-            if (p instanceof UnionAll) {
-                hasSubquery.set(true);
-            }
-        });
-        return hasSubquery.get();
+        return plan.anyMatch(p -> p instanceof UnionAll);
+    }
+
+    private static boolean hasFilterPushdownTarget(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof UnionAll || p instanceof Highlight);
     }
 
     /**

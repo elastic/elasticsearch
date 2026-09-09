@@ -179,7 +179,7 @@ public class MockTransport extends StubbableTransport {
 
     @SuppressWarnings("unchecked")
     public <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(long requestId) {
-        return (TransportResponseHandler<T>) getResponseHandlers().onResponseReceived(requestId, listener);
+        return (TransportResponseHandler<T>) getResponseHandlers().onResponseReceived(requestId, listener, -1);
     }
 
     public Connection createConnection(DiscoveryNode node) {

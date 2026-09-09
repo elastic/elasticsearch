@@ -2165,6 +2165,26 @@ s2point1:l | s_mv:l | s_param:l | s_expr:l | s_expr_null:l | languages:i
 1          | 4      | 4         | 1        | 0             | null
 ;
 
+countDistinctPrecisionAboveIntegerRangeLong
+required_capability: fn_count_distinct_precision_clamp
+
+FROM employees
+| STATS d = COUNT_DISTINCT(emp_no, 4294967297);
+
+d:long
+100
+;
+
+countDistinctPrecisionAboveIntegerRangeUnsignedLong
+required_capability: fn_count_distinct_precision_clamp
+
+FROM employees
+| STATS d = COUNT_DISTINCT(emp_no, 18446744073709551615);
+
+d:long
+100
+;
+
 evalOverridingKey
 FROM employees
 | EVAL k = languages
@@ -2409,7 +2429,7 @@ y:long | x:keyword
 
 
 shadowingTheGroup
-skip_flattened_rewrite: field_extract_multivalue_null
+skip_flattened_rewrite: field_extract_shadowing_warning
 required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
@@ -3022,7 +3042,6 @@ max:integer
 ;
 
 groupingFilterIsAlwaysTrue
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3039,7 +3058,6 @@ max:integer | job_positions:keyword
 ;
 
 groupingFilterIsAlwaysFalse
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3056,7 +3074,6 @@ null        | H
 ;
 
 groupingFilterSometimesMatches
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: per_agg_filtering
 FROM employees
 | MV_EXPAND job_positions
@@ -3603,7 +3620,6 @@ VALUES(color):keyword | color:keyword
 ;
 
 filterOrdinalValues
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_filter_ordinals
 from employees 
 | MV_EXPAND job_positions
@@ -4734,4 +4750,68 @@ FROM employees
 
 s1:long | s2:long
 null    | null
+;
+
+isNotNullInferenceNotAppliedThroughIsNotNull1
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| WHERE (languages IS NULL) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// "languages IS NULL" never returns null
+// so "(languages IS NULL) IS NOT NULL" is always true
+// so every row is counted
+c:long
+100
+;
+
+isNotNullInferenceNotAppliedThroughIsNotNull2
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| EVAL a = salary > 50000, b = languages > 3
+| WHERE (a OR b) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// languages > 3 is true/false for 90 employees
+// languages > 3 is null for 10 employees
+// of those cases:
+// salary > 50000 is true for 4 employees (true OR null = true)
+// salary > 50000 is false for 6 employees (false OR null = null)
+// so the final result should be 94 employees
+c:long
+94
+;
+
+isNotNullInferenceNotAppliedThroughIsNotNull3
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| WHERE (salary + COALESCE(languages, 0)) IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+// "salary + COALESCE(languages, 0)" never returns null
+// so "(salary + COALESCE(languages, 0)) IS NOT NULL" is always true
+// so every row is counted
+c:long
+100
+;
+
+isNotNullInference
+required_capability: fix_infer_is_not_null_allowlist
+FROM employees
+| EVAL money = 2 * salary
+| DROP salary
+| MV_EXPAND job_positions
+| EVAL x = money IS NOT NULL
+| WHERE x
+| KEEP x
+| LIMIT 3
+;
+
+x:boolean
+true
+true
+true
 ;

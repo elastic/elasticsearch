@@ -84,7 +84,7 @@ public class VectorScorerTestUtils {
             centroid
         );
         // pack and store document bit vector
-        ESVectorUtil.packAsBinary(quantizationScratch, toIndex);
+        ESVectorUtil.pack1BitValues(quantizationScratch, toIndex);
 
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
@@ -113,7 +113,7 @@ public class VectorScorerTestUtils {
         );
 
         // pack and store the 4bit query vector
-        ESVectorUtil.transposeHalfByte(quantizationScratch, toQuery);
+        ESVectorUtil.stride4BitValues(quantizationScratch, toQuery);
         assert r.quantizedComponentSum() >= 0 && r.quantizedComponentSum() <= 0xffff;
 
         return new VectorData(toQuery, r.lowerInterval(), r.upperInterval(), r.additionalCorrection(), (short) r.quantizedComponentSum());
@@ -251,9 +251,9 @@ public class VectorScorerTestUtils {
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
         if (indexBits == 1 && queryBits == 1) {
-            ESVectorUtil.packAsBinary(scratch, quantizeQuery);
+            ESVectorUtil.pack1BitValues(scratch, quantizeQuery);
         } else if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+            ESVectorUtil.stride4BitValues(scratch, quantizeQuery);
         } else {
             ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
         }

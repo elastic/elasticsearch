@@ -51,6 +51,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.ConcurrentMultipartHelper;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -84,11 +85,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -242,9 +240,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 @Override
                 protected void onFailure() {
-                    if (Strings.hasText(uploadId.get())) {
-                        abortMultiPartUpload(purpose, uploadId.get(), absoluteBlobKey);
-                    }
+                    abortMultiPartUploadOnFailure(purpose, uploadId.get(), absoluteBlobKey);
                 }
             }
         ) {
@@ -296,6 +292,32 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var abortMultipartUploadRequest = abortMultipartUploadRequestBuilder.build();
         try (var clientReference = blobStore.clientReference()) {
             clientReference.client().abortMultipartUpload(abortMultipartUploadRequest);
+        }
+    }
+
+    /// Attempt to abort the given MPU, logging any failures without throwing anything out of this method. Suitable for use when trying to
+    /// clean up a MPU because some earlier operation failed, because in a `finally` block or similar this will allow the original failure
+    /// to propagate.
+    ///
+    /// @param uploadId identifies the multipart upload to abort; if blank (e.g. because the MPU succeeded) then this method is a no-op
+    private void abortMultiPartUploadOnFailure(OperationPurpose purpose, String uploadId, String blobName) {
+        if (Strings.hasText(uploadId) == false) {
+            return;
+        }
+
+        try {
+            abortMultiPartUpload(purpose, uploadId, blobName);
+        } catch (Exception e) {
+            if (e instanceof SdkServiceException sdkServiceException
+                && sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                // NOT_FOUND is what we wanted
+                logger.atDebug().withThrowable(e).log("multipart upload of [{}] with ID [{}] not found on abort", blobName, uploadId);
+            } else {
+                // aborting the upload on failure is a best-effort cleanup step - if it fails then we must just move on
+                logger.atWarn()
+                    .withThrowable(e)
+                    .log("failed to clean up multipart upload of [{}] with ID [{}] after earlier failure", blobName, uploadId);
+            }
         }
     }
 
@@ -363,10 +385,8 @@ class S3BlobContainer extends AbstractBlobContainer {
             return;
         }
         ensureMultiPartUploadSize(blobSize);
-        final long partSize = blobStore.bufferSizeInBytes();
-        final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
-        final int nbParts = multiparts.v1().intValue();
-        final long lastPartSize = multiparts.v2();
+        final long chunkSize = blobStore.bufferSizeInBytes();
+        final int nbParts = ConcurrentMultipartHelper.numberOfParts(blobSize, chunkSize);
         boolean succeeded = false;
         final String uploadId;
         try (var clientReference = blobStore.clientReference()) {
@@ -379,64 +399,22 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
         try {
             final CompletedPart[] completedParts = new CompletedPart[nbParts];
-            final AtomicInteger nextPart = new AtomicInteger(1);
-            final CountDownLatch latch = new CountDownLatch(nbParts);
-            final AtomicReference<Throwable> firstError = new AtomicReference<>();
-
-            final Runnable worker = () -> {
-                int partNum;
-                while ((partNum = nextPart.getAndIncrement()) <= nbParts) {
-                    if (firstError.get() == null) {
-                        final boolean lastPart = (partNum == nbParts);
-                        final long curPartSize = lastPart ? lastPartSize : partSize;
-                        final long offset = (long) (partNum - 1) * partSize;
-                        try {
-                            final UploadPartRequest uploadRequest = createPartUploadRequest(
-                                purpose,
-                                uploadId,
-                                partNum,
-                                absoluteBlobKey,
-                                curPartSize,
-                                lastPart
-                            );
-                            final InputStream stream = provider.apply(offset, curPartSize);
-                            try (stream; var clientReference = blobStore.clientReference()) {
-                                final UploadPartResponse uploadResponse = clientReference.client()
-                                    .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, curPartSize));
-                                completedParts[partNum - 1] = CompletedPart.builder()
-                                    .partNumber(partNum)
-                                    .eTag(uploadResponse.eTag())
-                                    .build();
-                            }
-                        } catch (Throwable t) {
-                            firstError.compareAndSet(null, t);
-                        }
-                    }
-                    latch.countDown();
+            ConcurrentMultipartHelper.runConcurrentParts(blobSize, chunkSize, executor, (partNum, offset, partSize, lastPart) -> {
+                final UploadPartRequest uploadRequest = createPartUploadRequest(
+                    purpose,
+                    uploadId,
+                    partNum + 1,
+                    absoluteBlobKey,
+                    partSize,
+                    lastPart
+                );
+                final InputStream stream = provider.apply(offset, partSize);
+                try (stream; var clientReference = blobStore.clientReference()) {
+                    final UploadPartResponse uploadResponse = clientReference.client()
+                        .uploadPart(uploadRequest, RequestBody.fromInputStream(stream, partSize));
+                    completedParts[partNum] = CompletedPart.builder().partNumber(partNum + 1).eTag(uploadResponse.eTag()).build();
                 }
-            };
-
-            for (int i = 0; i < nbParts - 1; i++) {
-                try {
-                    executor.execute(worker);
-                } catch (Exception e) {
-                    // We ignore exceptions since the calling thread will process unclaimed tasks
-                }
-            }
-            // Calling thread also processes tasks
-            worker.run();
-
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                firstError.compareAndSet(null, e);
-            }
-
-            final Throwable error = firstError.get();
-            if (error != null) {
-                throw new IOException("Failed to upload parts for [" + blobName + "]", error);
-            }
+            });
 
             final var completeRequestBuilder = CompleteMultipartUploadRequest.builder()
                 .bucket(blobStore.bucket())
@@ -460,26 +438,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new IOException("Unable to upload object [" + blobName + "] using concurrent multipart upload", e);
         } finally {
             if (succeeded == false) {
-                try {
-                    abortMultiPartUpload(purpose, uploadId, absoluteBlobKey);
-                } catch (Exception e) {
-                    if (e instanceof SdkServiceException sdkServiceException
-                        && sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                        // NOT_FOUND is what we wanted
-                        logger.atDebug()
-                            .withThrowable(e)
-                            .log("multipart upload of [{}] with ID [{}] not found on abort", absoluteBlobKey, uploadId);
-                    } else {
-                        // aborting the upload on failure is a best-effort cleanup step - if it fails then we must just move on
-                        logger.atWarn()
-                            .withThrowable(e)
-                            .log(
-                                "failed to clean up multipart upload of [{}] with ID [{}] after earlier failure",
-                                absoluteBlobKey,
-                                uploadId
-                            );
-                    }
-                }
+                abortMultiPartUploadOnFailure(purpose, uploadId, absoluteBlobKey);
             }
         }
     }
@@ -793,30 +752,11 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long lastPartSize = multiparts.v2();
         assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
 
-        final List<Runnable> cleanupOnFailureActions = new ArrayList<>(1);
         final String bucketName = s3BlobStore.bucket();
+        String uploadId = "";
         try {
-            final String uploadId;
             try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
                 uploadId = clientReference.client().createMultipartUpload(createMultipartUpload(purpose, operation, blobName)).uploadId();
-                cleanupOnFailureActions.add(() -> {
-                    try {
-                        abortMultiPartUpload(purpose, uploadId, blobName);
-                    } catch (Exception e) {
-                        if (e instanceof SdkServiceException sdkServiceException
-                            && sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                            // NOT_FOUND is what we wanted
-                            logger.atDebug()
-                                .withThrowable(e)
-                                .log("multipart upload of [{}] with ID [{}] not found on abort", blobName, uploadId);
-                        } else {
-                            // aborting the upload on failure is a best-effort cleanup step - if it fails then we must just move on
-                            logger.atWarn()
-                                .withThrowable(e)
-                                .log("failed to clean up multipart upload of [{}] with ID [{}] after earlier failure", blobName, uploadId);
-                        }
-                    }
-                });
             }
             if (Strings.isEmpty(uploadId)) {
                 throw new IOException("Failed to initialize multipart operation for " + blobName);
@@ -864,14 +804,14 @@ class S3BlobContainer extends AbstractBlobContainer {
             try (var clientReference = s3BlobStore.clientReference()) {
                 clientReference.client().completeMultipartUpload(completeMultipartUploadRequest);
             }
-            cleanupOnFailureActions.clear();
+            uploadId = ""; // skip cleanup
         } catch (final SdkException e) {
             if (e instanceof SdkServiceException sse && sse.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                 throw new NoSuchFileException(blobName, null, e.getMessage());
             }
             throw new IOException("Unable to upload or copy object [" + blobName + "] using multipart upload", e);
         } finally {
-            cleanupOnFailureActions.forEach(Runnable::run);
+            abortMultiPartUploadOnFailure(purpose, uploadId, blobName);
         }
     }
 

@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.inference.logging;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -200,12 +199,11 @@ public class Throttler implements Closeable {
         }
 
         private void log(String enrichedMessage) {
-            LogBuilder builder = throttledLogger.atLevel(level);
             if (throwable != null) {
-                builder = builder.withThrowable(throwable);
+                throttledLogger.log(level, () -> enrichedMessage, throwable);
+            } else {
+                throttledLogger.log(level, enrichedMessage);
             }
-
-            builder.log(enrichedMessage);
         }
 
         private static boolean hasRepeatedLogsToEmit(long numSkippedLogCalls) {

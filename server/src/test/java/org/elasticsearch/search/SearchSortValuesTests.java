@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -23,6 +24,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class SearchSortValuesTests extends AbstractXContentSerializingTestCase<SearchSortValues> {
 
@@ -117,6 +120,25 @@ public class SearchSortValuesTests extends AbstractXContentSerializingTestCase<S
             builder.endObject();
             assertEquals("{}", Strings.toString(builder));
         }
+    }
+
+    public void testUnformattableBytesRefSortValueThrowsIllegalArgument() {
+        DocValueFormat noByteFormat = new DocValueFormat() {
+            @Override
+            public String getWriteableName() {
+                return "test_no_bytes_format";
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+            // format(BytesRef) is not overridden, so it inherits the UnsupportedOperationException default
+        };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchSortValues(new Object[] { new BytesRef("val") }, new DocValueFormat[] { noByteFormat })
+        );
+        assertThat(e.getMessage(), containsString("test_no_bytes_format"));
+        assertThat(e.getMessage(), containsString("does not support sorting"));
     }
 
     @Override

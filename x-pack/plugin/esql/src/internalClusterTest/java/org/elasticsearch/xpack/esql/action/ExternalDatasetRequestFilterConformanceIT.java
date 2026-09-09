@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -18,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -51,6 +57,11 @@ import static org.hamcrest.Matchers.equalTo;
  * coincides with scalar equality; the multivalue any-value semantics are pinned by the translator's unit tests.
  */
 public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // real HTTP transport is required for the REST-layer tests
+    }
 
     private static final int ROWS = 40;
     private static final String INDEX = "conf_idx";
@@ -350,8 +361,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} fails the whole query
-     * with a 400 naming the construct — the supported clause does not rescue it, and no widened superset is applied.
+     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm
+     * fails the whole query with a 400 naming the construct — the supported clause does not rescue it.
      */
     public void testUnsupportedConstructFailsTheQuery() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
@@ -361,5 +372,78 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         assertThat(cause.getMessage(), containsString("[wildcard]"));
         assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /**
+     * Non-required should arm with an unsupported construct must NOT fail the query in fail-closed mode: the applied
+     * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
+     */
+    public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
+        // bool { must:[term], should:[wildcard] } — should is non-required because must is present and no msm override.
+        QueryBuilder filter = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("status", 300))
+            .should(QueryBuilders.wildcardQuery("tags", "t*"));
+        // Must not throw; rows matching status=300 must be returned.
+        List<Object> ids = selectedIds(dataset, filter);
+        assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
+    }
+
+    // ---- REST layer tests: prove the URL param is parsed by RestEsqlQueryAction and flows through ----
+
+    /**
+     * REST: without {@code allow_partial_dsl_filter}, an unsupported DSL construct fails the query with HTTP 400.
+     * This proves the default is fail-closed through the HTTP parsing path.
+     */
+    public void testRestParamDefaultFailsClosed() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id",
+              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+            }
+            """, dataset));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter=false} is explicit fail-closed — same as the default.
+     */
+    public void testRestParamFalseExplicit() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("allow_partial_dsl_filter", "false");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id",
+              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+            }
+            """, dataset));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter=true} returns HTTP 200 with a {@code Warning} response header naming the
+     * dropped construct. This proves the URL param is parsed by {@link RestEsqlQueryAction} and flows through
+     * {@code EsqlSession} to {@code RequestFilterRewriter}.
+     */
+    public void testRestParamTrueAppliesPartially() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.addParameter("allow_partial_dsl_filter", "true");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id",
+              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+            }
+            """, dataset));
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<String> warnings = response.getWarnings();
+        assertTrue(
+            "expected a warning about the dropped [wildcard] construct; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
+        );
     }
 }

@@ -126,6 +126,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             indexSettings(1, 1)
                 // Start with the shard replica on searchNodeA.
                 .put("index.routing.allocation.exclude._name", searchNodeB)
+                // disable background refresh, so we can accurately control the creation of new VBCC and the dependencies between them
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build()
         );
         ensureGreen(indexName);
@@ -135,7 +137,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
 
         // Set up some data to be read.
         final int numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(indexName, numDocsToIndex);
+        indexDocs(indexName, numDocsToIndex);
+        refresh(indexName);
         flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
         final ShardId shardId = findSearchShard(indexName).shardId();
@@ -162,7 +165,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
             // Run some indexing and create a new commit. Then force merge down to a single segment (in another new commit). Newer commits
             // can reference information in older commit, rather than copying everything: force merge will ensure older commits are not
             // retained for this reason.
-            indexDocsAndRefresh(indexName, numDocsToIndex);
+            indexDocs(indexName, numDocsToIndex);
+            refresh(indexName);
             flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
             logger.info("--> Blob store shard commit generations before force-merge: " + listBlobsTermAndGenerations(shardId));

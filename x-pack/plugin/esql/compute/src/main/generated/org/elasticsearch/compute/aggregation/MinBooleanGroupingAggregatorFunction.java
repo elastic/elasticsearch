@@ -36,7 +36,7 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
 
   MinBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new BooleanArrayState(driverContext.bigArrays(), MinBooleanAggregator.init());
+    this.state = new BooleanArrayState(driverContext.bigArrays(), driverContext.breaker(), MinBooleanAggregator.init());
     this.driverContext = driverContext;
   }
 

@@ -48,7 +48,7 @@ public class RestDeleteActionTests extends RestActionTestCase {
         });
         RestRequest deleteRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", sliceValue))
+            .withParams(Map.of("index", "test", "id", "1", "slice", sliceValue))
             .build();
         dispatchRequest(deleteRequest);
     }
@@ -57,51 +57,51 @@ public class RestDeleteActionTests extends RestActionTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest deleteRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1", "routing", "r1"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1", "routing", "r1"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(deleteRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [_slice]"));
+        assertThat(e.getMessage(), containsString("[routing] is not allowed together with [slice]"));
     }
 
     public void testSliceParamRejectedWhenFeatureDisabled() {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest deleteRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(deleteRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("request does not support [_slice]"));
+        assertThat(e.getMessage(), containsString("request does not support [slice]"));
     }
 
     public void testSliceParamRejectedWhenInvalid() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest deleteRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "_all"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "_all"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(deleteRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("invalid [slice] value"));
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest deleteRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.DELETE)
             .withPath("/test/_doc/1")
-            .withParams(Map.of("index", "test", "id", "1", "_slice", "s1,s2"))
+            .withParams(Map.of("index", "test", "id", "1", "slice", "s1,s2"))
             .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(deleteRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("invalid [slice] value"));
     }
 }

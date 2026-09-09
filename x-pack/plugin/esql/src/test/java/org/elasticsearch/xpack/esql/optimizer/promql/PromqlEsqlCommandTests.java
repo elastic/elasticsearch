@@ -364,14 +364,10 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             """);
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
-        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
 
         Rounding timeBucketUnprepared = tsAggregate.timeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
-        Rounding outputTimeBucketUnprepared = tsAggregate.outputTimeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
         assertThat(timeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
-        assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
         assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
-        assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
     }
 
     public void testOffsetShiftsTimestampForward() {

@@ -887,6 +887,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
         shouldBeSupported.remove(DataType.DATE_RANGE);
+        shouldBeSupported.remove(DataType.DOUBLE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
         if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
@@ -1268,7 +1269,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("values_loaded", greaterThanOrEqualTo(0))
             .entry("rows_emitted", greaterThanOrEqualTo(0L))
             .entry("bytes_read", greaterThanOrEqualTo(0L))
-            .entry("read_nanos", greaterThanOrEqualTo(0L));
+            .entry("read_nanos", greaterThanOrEqualTo(0L))
+            .entry("read_cpu_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1442,9 +1444,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     String name = signature(o);
                     if (name.equals("LuceneSourceOperator")) {
                         // AUTO routes to DOC (docs_threshold_auto_partitioning=20 is below this
-                        // index's 1000 docs), but the DOC partitioner floors slice size at
-                        // MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index must stay on a
-                        // single slice — the previous behavior over-split tiny indices.
+                        // index's 1000 docs), but the DOC partitioner caps slices at
+                        // totalDocs / MIN_DOCS_PER_SLICE (50_000), so this 1000-doc index —
+                        // even when Lucene flushed multiple segments — must stay on a single
+                        // slice rather than opening one bin per segment.
                         MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
                             .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
                             .extraOk();
@@ -1491,6 +1494,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
         profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
         profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
+        if (profile.containsKey("read_cpu_nanos")) {
+            profile.put("read_cpu_nanos", ((Number) profile.get("read_cpu_nanos")).longValue());
+        }
     }
 
     static String signature(Map<String, Object> o) {
@@ -1513,7 +1519,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("bytes_read", greaterThanOrEqualTo(0))
-                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                .extraOk();
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))

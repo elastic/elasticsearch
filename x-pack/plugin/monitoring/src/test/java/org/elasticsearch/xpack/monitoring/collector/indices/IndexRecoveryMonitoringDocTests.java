@@ -49,10 +49,8 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
     private RecoveryResponse mockRecoveryResponse;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initRecoveryResponseMock() throws Exception {
         mockRecoveryResponse = mock(RecoveryResponse.class);
     }
 
@@ -114,13 +112,16 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             false,
             RecoverySource.PeerRecoverySource.INSTANCE,
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         ).initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
         shardRecoveryStates.put("_shard_0", singletonList(recoveryState));
 
+        // Start the recovery before stopping its timer, so we report and test a non-0 total time
+        recoveryState.setStage(RecoveryState.Stage.INIT);
         final RecoveryState.Timer timer = recoveryState.getTimer();
         timer.stop();
 
@@ -160,7 +161,9 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                     "id": 0,
                     "type": "PEER",
                     "stage": "INIT",
+                    "local_retries": 0,
                     "primary": false,
+                    "priority": "UNASSIGNED_EXPECTED",
                     "start_time_in_millis": %s,
                     "stop_time_in_millis": %s,
                     "total_time_in_millis": %s,

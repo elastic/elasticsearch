@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 155782
+summary: Upgrade Google Cloud Storage client to 2.71.0
+type: upgrade

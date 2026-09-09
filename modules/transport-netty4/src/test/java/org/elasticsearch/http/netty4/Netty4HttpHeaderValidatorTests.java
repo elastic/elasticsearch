@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.ArrayDeque;
 import java.util.Objects;
@@ -43,9 +44,8 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         new ValidationRequest(httpRequest, channel, listener)
     );
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initValidator() throws Exception {
         validatorRequestQueue = new LinkedBlockingQueue<>();
         channel = new EmbeddedChannel(
             new Netty4HttpHeaderValidator(

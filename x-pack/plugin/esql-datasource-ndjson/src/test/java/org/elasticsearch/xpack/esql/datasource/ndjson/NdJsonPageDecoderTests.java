@@ -20,8 +20,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -42,12 +42,13 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, schema-shape conflicts,
- * declared formats, and block-builder allocation sizing. Sibling {@link NdJsonPageIteratorTests}
- * covers end-to-end correctness across types.
+ * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, how a record's shape maps onto the
+ * schema's columns, declared formats, and block-builder allocation sizing. Sibling
+ * {@link NdJsonPageIteratorTests} covers end-to-end correctness across types.
  */
 public class NdJsonPageDecoderTests extends ESTestCase {
 
@@ -59,7 +60,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Non-strict {@link ErrorPolicy} shape-conflict tests below emit response-header warnings via
+     * The non-strict {@link ErrorPolicy} tests below emit response-header warnings via
      * {@code HeaderWarning.addWarning(...)}; drop them so the parent {@code ensureNoWarnings} post-check passes.
      */
     @After
@@ -259,14 +260,14 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * leaf columns must be filled with null for that row instead of throwing a {@link NullPointerException}.
      * Regression test for https://github.com/elastic/elasticsearch/issues/152574. A JSON {@code null} is a common,
      * legitimate shape (e.g. an intermittently-null nested object) and stays silent under every {@link ErrorPolicy}
-     * — unlike an actual scalar value where an object was expected, which is a genuine schema conflict (see
-     * {@link #testScalarWhereNestedObjectExpectedStrictFails}).
+     * Unlike an actual scalar value where an object was expected, that is skipped and null-filled under every
+     * {@link ErrorPolicy}, including STRICT.
      * <p>
-     * This drives the decoder with an explicit dotted schema, i.e. the planner-resolved (bound) read-schema path
+     * This drives the decoder with an explicit dotted schema, i.e., the planner-resolved (bound) read-schema path
      * where {@code address} exists only as a nested-object prefix. It deliberately does not go through per-file
-     * schema inference: when a mixed object/scalar field is <em>sampled</em>, inference now resolves a single shape
-     * (see {@link NdJsonSchemaInferrerTests}); that inference interaction is exercised end-to-end in the iterator
-     * tests.
+     * schema inference. A sampled file that mixes a scalar and an object at the same name infers both the
+     * scalar column and the dotted children (see {@link NdJsonSchemaInferrerTests#testScalarAndObjectCoexist});
+     * that interaction is exercised end-to-end in the iterator tests.
      */
     public void testNullWhereNestedObjectExpected() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n"
@@ -295,40 +296,847 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A scalar value where a nested object was expected (the schema only knows dotted leaf columns for this field,
-     * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
-     * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
-     * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
-     * field and both shapes rather than silently null-filling. Before that fix, this
-     * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
-     * {@code testNullOrScalarWhereNestedObjectExpected}).
+     * A column whose schema name is dotted ({@code a.b}) must be reachable when a record spells it as a single flat
+     * JSON key ({@code {"a.b":1}}), not only as the nested object ({@code {"a":{"b":1}}}). Indexing the same bytes
+     * dot-expands the flat spelling into the nested field, so a schema-on-read of the file must agree: the value is
+     * decoded into the same output column, never silently null.
      */
-    public void testScalarWhereNestedObjectExpectedStrictFails() {
-        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n" + "{\"address\": \"unstructured\"}\n";
+    public void testFlatDottedFieldSpellingDecodesIntoDottedColumn() throws IOException {
+        String ndjson = "{\"a.b\":1}\n{\"a.b\":2}\n";
 
-        EsqlIllegalArgumentException ex = expectThrows(
-            EsqlIllegalArgumentException.class,
-            () -> decodePage(
-                ndjson,
-                List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
-                ErrorPolicy.STRICT
-            )
-        );
-        assertThat(ex.getMessage(), Matchers.containsString("address"));
-        assertThat(ex.getMessage(), Matchers.containsString("a string"));
-        assertThat(ex.getMessage(), Matchers.containsString("an object"));
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertFalse("flat a.b present at row 0", ab.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertFalse("flat a.b present at row 1", ab.isNull(1));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+        }
     }
 
     /**
-     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
-     * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
-     * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
-     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin).
+     * A file mixing both spellings across records ({@code {"a":{"b":1}}} then {@code {"a.b":2}}) must decode every
+     * record into the one output column, regardless of which spelling each record used.
      */
-    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
+    public void testMixedDottedAndNestedSpellingsAcrossRecords() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1}}\n{\"a.b\":2}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertFalse("nested a.b present at row 0", ab.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertFalse("flat a.b present at row 1", ab.isNull(1));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A deeper dotted column ({@code a.b.c}) must resolve from a flat spelling of any depth: fully flat
+     * ({@code {"a.b.c":1}}), fully nested ({@code {"a":{"b":{"c":2}}}}), and a mixed flat-prefix-plus-nested-
+     * remainder ({@code {"a.b":{"c":3}}}). All reach the one output column.
+     */
+    public void testDeepDottedColumnResolvesFromEverySpelling() throws IOException {
+        String ndjson = "{\"a.b.c\":1}\n{\"a\":{\"b\":{\"c\":2}}}\n{\"a.b\":{\"c\":3}}\n{\"a\":{\"b.c\":4}}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b.c", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock abc = page.getBlock(0);
+            for (int p = 0; p < 4; p++) {
+                assertFalse("a.b.c present at row " + p, abc.isNull(p));
+                assertEquals(p + 1L, abc.getLong(abc.getFirstValueIndex(p)));
+            }
+        }
+    }
+
+    /**
+     * A scalar {@code languages} beside {@code languages.long} shares one node that is both a leaf and a prefix.
+     * The flat key {@code "languages.long"} reaches {@code languages → long} via {@code resolveDottedPath}. Both
+     * columns decode from a single record.
+     */
+    public void testScalarSiblingAndDottedColumnBothDecode() throws IOException {
+        String ndjson = "{\"languages\":5,\"languages.long\":42}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("languages", DataType.LONG), attribute("languages.long", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock languages = page.getBlock(0);
+            LongBlock languagesLong = page.getBlock(1);
+            assertEquals(5L, languages.getLong(languages.getFirstValueIndex(0)));
+            assertEquals(42L, languagesLong.getLong(languagesLong.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A flat dotted key nested deeper than the schema's leaf ({@code a.b.c} against a scalar schema leaf
+     * {@code a.b}) is unreachable: the path walk cannot continue past the leaf (a leaf has no children), so the
+     * key is treated as unprojected and the cell is null, exactly as an unknown field null-fills.
+     */
+    public void testFlatKeyDeeperThanSchemaLeafIsNull() throws IOException {
+        String ndjson = "{\"a.b.c\":1}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            assertTrue("a.b unreachable from deeper flat key -> null", ab.isNull(0));
+        }
+    }
+
+    /**
+     * An array of objects at an ancestor of a leaf-and-prefix node ({@code x.a} beside {@code x.a.b}) opens a
+     * multivalue entry on both columns. An element that fills only one of them leaves the other entry empty; that
+     * empty entry is cancelled without claiming, and the end-of-record fill supplies the null so the row stays
+     * one position per column. A sibling {@code id} pins alignment.
+     */
+    public void testSparseObjectArrayOnLeafAndPrefixNullFillsTheUnfilledColumn() throws IOException {
+        String ndjson = "{\"x\":[{\"a\":1}],\"id\":10}\n" + "{\"x\":[{\"a\":{\"b\":2}}],\"id\":20}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("x.a", DataType.LONG), attribute("x.a.b", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock xa = page.getBlock(0);
+            LongBlock xab = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals(1L, xa.getLong(xa.getFirstValueIndex(0)));
+            assertTrue("object-array element with only x.a leaves x.a.b null", xab.isNull(0));
+            assertTrue("object-array element with only x.a.b leaves x.a null", xa.isNull(1));
+            assertEquals(2L, xab.getLong(xab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A later object at a leaf-and-prefix node whose scalar is already claimed still populates dotted children.
+     * {@code {"a.b":1,"a":{"b":{"c":2}}}} with columns {@code a.b} and {@code a.b.c} fills both; a sibling
+     * {@code id} pins alignment.
+     * <p>
+     * The second record reaches the plain node {@code a} twice, which needs a heterogeneous array rather than the
+     * key {@code a} twice: a node is reachable from one object by exactly one spelling, so two occurrences of a
+     * plain node within a record are either two array elements or a repeated literal key, and the repeated key is
+     * rejected (see {@link #testRepeatedLiteralKeyIsRejected}). A dotted node has both spellings and so takes the
+     * first record's form.
+     */
+    public void testLaterObjectAtClaimedDualNodeStillDecodesDescendants() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":{\"b\":{\"c\":2}},\"id\":10}\n" + "{\"a\":[1,{\"b\":2}],\"id\":20}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("a.b", DataType.LONG),
+                    attribute("a.b.c", DataType.LONG),
+                    attribute("a", DataType.LONG),
+                    attribute("id", DataType.LONG)
+                )
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock abc = page.getBlock(1);
+            LongBlock a = page.getBlock(2);
+            LongBlock id = page.getBlock(3);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(0)));
+            assertTrue(a.isNull(0));
+            assertTrue(abc.isNull(1));
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(1)));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A later empty array on a prefix must not append a second position on a descendant a flat spelling already
+     * filled. {@code {"a.b":1,"a":[]}} keeps {@code a.b=1} aligned with {@code id}.
+     */
+    public void testLaterEmptyArrayOnPrefixDoesNotAddPosition() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[],\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A later array of objects at a leaf-and-prefix node whose scalar is already claimed still populates
+     * dotted children, the same as a later object does: {@code {"a.b":1,"a":{"b":[{"c":2}]}}} fills {@code a.b}
+     * from the flat spelling and {@code a.b.c} from the array element. A sibling {@code id} pins alignment.
+     */
+    public void testLaterObjectArrayAtClaimedDualNodeStillDecodesDescendants() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":{\"b\":[{\"c\":2}]},\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("a", DataType.LONG),
+                    attribute("a.b", DataType.LONG),
+                    attribute("a.b.c", DataType.LONG),
+                    attribute("id", DataType.LONG)
+                )
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            LongBlock ab = page.getBlock(1);
+            LongBlock abc = page.getBlock(2);
+            LongBlock id = page.getBlock(3);
+            assertTrue(a.isNull(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, abc.getLong(abc.getFirstValueIndex(0)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A later array of objects on a prefix merges into a descendant a flat spelling already filled:
+     * {@code {"a.b":1,"a":[{"b":2}]}} yields {@code [1, 2]} on {@code a.b}, one position, aligned with {@code id}.
+     */
+    public void testLaterObjectArrayOnPrefixMergesIntoClaimedDescendant() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"b\":2}],\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(2, ab.getValueCount(0));
+            int first = ab.getFirstValueIndex(0);
+            assertEquals(1L, ab.getLong(first));
+            assertEquals(2L, ab.getLong(first + 1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * An empty array contributes nothing and does not claim the leaf's cell, so a later spelling in the same
+     * record still fills it: ingest with {@code subobjects: false} indexes {@code {"a.b":[],"a":[{"b":1}]}} as
+     * {@code a.b=[1]}, not as a null (see {@code NdJsonIngestParityTests}). Claiming the cell eagerly would both
+     * pin the column to null against that value and, since a null cannot be reopened to gain values, leave the
+     * following array with no open entry to append into, which starts a SECOND position for the column and
+     * leaves it one longer than its siblings.
+     * <p>
+     * Both spellings of the empty array reach the same leaf ({@code "a.b":[]} flat, {@code "a":[]} on the
+     * prefix), and the deeper {@code a.b.c} case pins the behavior below the array's own node. A sibling
+     * {@code id} column pins the alignment.
+     */
+    public void testEmptyArrayDoesNotClaimTheCellAgainstALaterValue() throws IOException {
+        String ndjson = "{\"a.b\":[],\"a\":[{\"b\":1}],\"id\":10}\n" + "{\"a\":[],\"a.b\":2,\"id\":20}\n" + "{\"a.b\":[],\"id\":30}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals("[] must not add a position of its own", 3, ab.getPositionCount());
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue("[] alone leaves the cell to the end-of-record fill", ab.isNull(2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+
+        String deeper = "{\"a.b.c\":[],\"a\":[{\"b\":{\"c\":1}}],\"id\":10}\n";
+        try (Page page = decodePage(deeper, List.of(attribute("a.b.c", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock abc = page.getBlock(0);
+            assertEquals(1L, abc.getLong(abc.getFirstValueIndex(0)));
+            assertEquals(10L, ((LongBlock) page.getBlock(1)).getLong(0));
+        }
+    }
+
+    /**
+     * An array of empty objects contributes no leaf values and does not claim the cell, so a later spelling
+     * in the same record still fills it. Claiming the empty child entry as null would pin the cell: a null
+     * cannot be reopened, so the later value would be dropped. A JSON null inside an object-array element
+     * and a sibling field that fills a different child are the same empty-entry shape. A sibling {@code id}
+     * column pins the alignment.
+     */
+    public void testEmptyObjectArrayDoesNotClaimTheCellAgainstALaterValue() throws IOException {
+        String ndjson = "{\"a\":[{}],\"a.b\":1,\"id\":10}\n"
+            + "{\"a.b\":2,\"a\":[{}],\"id\":20}\n"
+            + "{\"a\":[{\"b\":null}],\"a.b\":3,\"id\":30}\n"
+            + "{\"a\":[{\"c\":1}],\"a.b\":4,\"id\":40}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertTrue(ac.isNull(0));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue(ac.isNull(1));
+            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertTrue(ac.isNull(2));
+            assertEquals(4L, ab.getLong(ab.getFirstValueIndex(3)));
+            assertEquals(1L, ac.getLong(ac.getFirstValueIndex(3)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+            assertEquals(40L, id.getLong(id.getFirstValueIndex(3)));
+        }
+    }
+
+    /**
+     * A cell nulled by an error policy cannot be widened, so an array of objects on an ancestor finds no open
+     * entry on that leaf. Its values must be dropped rather than appended: appending with no entry open starts a
+     * SECOND position for the column, and {@code Page} only asserts equal position counts, so the record would
+     * otherwise ship crooked in production. The leaf's sibling {@code a.c} in the same array is unaffected.
+     */
+    public void testArrayOnPrefixCannotWidenAPolicyNulledCell() throws IOException {
+        String ndjson = "{\"a.b\":\"notanumber\",\"a\":[{\"b\":1,\"c\":7},{\"b\":2,\"c\":8}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                // Ratio 0.0 disables the ratio check: this record carries more than one bad value and the test is
+                // about the rollback, not about the error budget.
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the nulled leaf must not gain a position of its own", 1, ab.getPositionCount());
+            assertTrue("null_field nulled this cell; the later array cannot widen it", ab.isNull(0));
+            assertEquals(2, ac.getValueCount(0));
+            int first = ac.getFirstValueIndex(0);
+            assertEquals(7L, ac.getLong(first));
+            assertEquals(8L, ac.getLong(first + 1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * Under {@code skip_row} a second bad value in an already-doomed record must still leave its column with a
+     * committed position, because a later spelling of that column reopens the position the column's tracker bit
+     * promises. Reopening one that was never committed drives the builder's position count negative, which trips
+     * an assertion in development and silently corrupts the block in production.
+     * <p>
+     * Both later spellings are covered: the nested object reaches the leaf through the merge path, and the array
+     * reaches it through the append site's reopen. The record itself is dropped, so the surviving row is the
+     * clean one, and what this pins is that decoding the doomed record does not throw.
+     */
+    public void testSkipRowSecondBadValueThenAnotherSpellingDoesNotCorruptTheBuilder() throws IOException {
+        for (String doomed : List.of(
+            "{\"x\":\"bad\",\"a.b\":\"bad\",\"a\":{\"b\":5}}",
+            "{\"x\":\"bad\",\"a.b\":\"bad\",\"a\":[{\"b\":5}]}"
+        )) {
+            String ndjson = doomed + "\n{\"x\":1,\"a.b\":2}\n";
+            try (
+                Page page = decodePage(
+                    ndjson,
+                    List.of(attribute("x", DataType.LONG), attribute("a.b", DataType.LONG)),
+                    // Ratio 0.0 disables the ratio check: the doomed record carries two bad values and this is
+                    // about the builder state, not the error budget.
+                    new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 100, 0.0, false)
+                )
+            ) {
+                assertNotNull(page);
+                assertEquals("the doomed record is dropped whole", 1, page.getPositionCount());
+                LongBlock x = page.getBlock(0);
+                LongBlock ab = page.getBlock(1);
+                assertEquals(1L, x.getLong(x.getFirstValueIndex(0)));
+                assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0)));
+            }
+            assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * A heterogeneous array on a node that is both a leaf and a prefix fills both columns, from whichever
+     * elements address them, and the element order does not change the answer. Both entries are opened, so
+     * neither element kind is dropped for want of somewhere to land; the entry an array turns out not to fill is
+     * cancelled without claiming its cell.
+     */
+    public void testHeterogeneousArrayOnLeafAndPrefixFillsBothColumns() throws IOException {
+        for (String ndjson : List.of("{\"a\":[1,{\"b\":2}],\"id\":10}\n", "{\"a\":[{\"b\":2},1],\"id\":10}\n")) {
+            try (
+                Page page = decodePage(
+                    ndjson,
+                    List.of(attribute("a", DataType.LONG), attribute("a.b", DataType.LONG), attribute("id", DataType.LONG))
+                )
+            ) {
+                assertNotNull(page);
+                assertEquals(1, page.getPositionCount());
+                LongBlock a = page.getBlock(0);
+                LongBlock ab = page.getBlock(1);
+                LongBlock id = page.getBlock(2);
+                assertEquals("the scalar element belongs to the column [a]", 1L, a.getLong(a.getFirstValueIndex(0)));
+                assertEquals("the object element belongs to the column [a.b]", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+                assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            }
+        }
+    }
+
+    /**
+     * The same shape where one kind never appears: the entry opened for the absent kind is empty and must be
+     * cancelled without claiming, leaving the cell to the end-of-record fill rather than committing a second
+     * position for the column.
+     */
+    public void testHomogeneousArrayOnLeafAndPrefixLeavesTheOtherColumnNull() throws IOException {
+        try (
+            Page page = decodePage(
+                "{\"a\":[1,2],\"id\":10}\n",
+                List.of(attribute("a", DataType.LONG), attribute("a.b", DataType.LONG), attribute("id", DataType.LONG))
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            LongBlock ab = page.getBlock(1);
+            assertEquals(2, a.getValueCount(0));
+            assertEquals(1, ab.getPositionCount());
+            assertTrue(ab.isNull(0));
+        }
+    }
+
+    /**
+     * A coercion failure inside an array poisons the position, and {@code cancelAndNullPositionEntry} rolls every
+     * column under that array back to a null. A column whose reopen was refused (see
+     * {@link #testArrayOnPrefixCannotWidenAPolicyNulledCell}) has no entry to roll back and already holds that
+     * null, so it must be left alone: {@code cancelPositionEntry} asserts when no entry is open. Under
+     * {@code null_field} the record survives with both {@code a.*} cells null and {@code id} intact.
+     */
+    public void testPoisonedArrayWithRefusedReopenRollsBackCleanly() throws IOException {
+        String ndjson = "{\"a.b\":\"notanumber\",\"a\":[{\"b\":1,\"c\":\"alsobad\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                // Ratio 0.0 disables the ratio check: this record carries more than one bad value and the test is
+                // about the rollback, not about the error budget.
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            assertTrue(((LongBlock) page.getBlock(0)).isNull(0));
+            assertTrue("the poisoned array nulls the whole position for this column", ((LongBlock) page.getBlock(1)).isNull(0));
+            assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * The same record as {@link #testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling} with the two keys
+     * swapped, which must give the same columns. Here the array comes first, so it opens an entry for {@code a.b}
+     * speculatively and no element ever writes it; that empty entry is cancelled without claiming the cell, which
+     * is what leaves the later flat {@code "a.b":1} free to fill it. Claiming it would pin the cell to null and
+     * make the answer depend on key order.
+     */
+    public void testObjectArrayPoisonBeforeTheFlatSpellingLeavesItFillable() throws IOException {
+        String ndjson = "{\"a\":[{\"c\":\"notanumber\"}],\"a.b\":1,\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the poisoned array never wrote a.b, so the flat spelling still fills it", 1L, ab.getLong(0));
+            assertTrue("null_field nulls the leaf the array actually wrote", ac.isNull(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * A coercion failure inside an object array nulls only the leaves that array opened or wrote. A sibling a
+     * flat spelling already committed, and that this array never mentioned, keeps its value: the array is not a
+     * spelling of that sibling, so rolling it back would throw away a value ingest would keep.
+     * {@code {"a.b":1,"a":[{"c":"notanumber"}]}} therefore leaves {@code a.b=1} and nulls {@code a.c}. A sibling
+     * {@code id} column pins the alignment.
+     */
+    public void testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"c\":\"notanumber\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock ac = page.getBlock(1);
+            LongBlock id = page.getBlock(2);
+            assertEquals("the array never wrote a.b; the committed flat value must survive the sibling poison", 1L, ab.getLong(0));
+            assertTrue("null_field nulls the leaf the array actually wrote", ac.isNull(0));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * When the same object array that poisons one leaf also wrote the claimed sibling, that sibling is part of
+     * the poisoned merge and both cells are null: {@code {"a.b":1,"a":[{"b":2,"c":"notanumber"}]}} nulls
+     * {@code a.b} and {@code a.c}. Distinct from
+     * {@link #testObjectArrayPoisonDoesNotNullAnUntouchedClaimedSibling}, where the array never mentioned
+     * {@code a.b}.
+     */
+    public void testObjectArrayPoisonNullsASiblingThisArrayWrote() throws IOException {
+        String ndjson = "{\"a.b\":1,\"a\":[{\"b\":2,\"c\":\"notanumber\"}],\"id\":10}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(attribute("a.b", DataType.LONG), attribute("a.c", DataType.LONG), attribute("id", DataType.LONG)),
+                new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false)
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            assertTrue("a.b took a value from the poisoned array, so the merged cell is null", ((LongBlock) page.getBlock(0)).isNull(0));
+            assertTrue(((LongBlock) page.getBlock(1)).isNull(0));
+            assertEquals(10L, ((LongBlock) page.getBlock(2)).getLong(0));
+        }
+    }
+
+    /**
+     * A declared column that appears only as JSON null is present in the file. The cell is still null, but
+     * {@code close()} must not emit an absent-declared-column warning.
+     */
+    public void testJsonNullMarksDeclaredColumnPresent() throws IOException {
+        String ndjson = "{\"a.b\":null}\n{\"a\":{\"b\":null}}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("a.b", DataType.LONG)),
+                null,
+                1024,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://decode",
+                new NdJsonReaderCounters(),
+                warnings::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                LongBlock ab = page.getBlock(0);
+                assertTrue(ab.isNull(0));
+                assertTrue(ab.isNull(1));
+            }
+        }
+        assertTrue("JSON null is a present key, not an absent column: " + warnings, warnings.isEmpty());
+    }
+
+    /**
+     * A record spelling one dotted column more than once ({@code {"a":{"b":1},"a.b":2}}, either order) contributes
+     * every occurrence to one cell as a multivalue, which is the value list indexing that same document produces.
+     * The column still occupies exactly one position, so it stays aligned with its siblings; a sibling {@code id}
+     * column pins that.
+     * <p>
+     * Two DIFFERENT names addressing one column is the whole of what merges here. Naming one field twice is a
+     * repeat rather than a second spelling, has no single interpretation, and is rejected: see
+     * {@link #testRepeatedLiteralKeyIsRejected}.
+     */
+    public void testSameRecordDuplicateSpellingsMergeIntoMultivalue() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n" + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            long[][] expected = { { 1L, 2L }, { 3L, 4L } };
+            for (int p = 0; p < 2; p++) {
+                assertEquals("value count at row " + p, 2, ab.getValueCount(p));
+                int first = ab.getFirstValueIndex(p);
+                assertEquals("first value at row " + p, expected[p][0], ab.getLong(first));
+                assertEquals("second value at row " + p, expected[p][1], ab.getLong(first + 1));
+            }
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * An array occurrence contributes each of its elements to the merged cell rather than one nested value, so a
+     * scalar spelling beside an array spelling flattens exactly as two arrays would.
+     */
+    public void testSameRecordDuplicateSpellingsFlattenArrayOccurrence() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":[2,3],\"id\":10}\n" + "{\"a.b\":[4,5],\"a\":{\"b\":6},\"id\":20}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(3, ab.getValueCount(0));
+            int first = ab.getFirstValueIndex(0);
+            assertEquals(1L, ab.getLong(first));
+            assertEquals(2L, ab.getLong(first + 1));
+            assertEquals(3L, ab.getLong(first + 2));
+            assertEquals(3, ab.getValueCount(1));
+            int second = ab.getFirstValueIndex(1);
+            assertEquals(4L, ab.getLong(second));
+            assertEquals(5L, ab.getLong(second + 1));
+            assertEquals(6L, ab.getLong(second + 2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A JSON null for one spelling must not block a real value from the other spelling of the same dotted column
+     * in one record ({@code {"a":{"b":null},"a.b":2}} and the reverse both yield the value). A record providing
+     * only a null still nulls the cell, and the value/null cases stay aligned with a sibling column.
+     */
+    public void testSameRecordDuplicateNullDoesNotBlockValue() throws IOException {
+        String ndjson = "{\"a\":{\"b\":null},\"a.b\":2,\"id\":10}\n"
+            + "{\"a.b\":3,\"a\":{\"b\":null},\"id\":20}\n"
+            + "{\"a\":{\"b\":null},\"id\":30}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals("null-then-value -> value", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals("value-then-null -> value", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue("only-null -> null", ab.isNull(2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+    }
+
+    /**
+     * The same-record duplicate resolves silently under {@link ErrorPolicy#STRICT}: two spellings of one dotted
+     * column are legitimate names for the same field (the shape indexes cleanly), so the query must not fail. A
+     * sibling {@code id} column pins that the merge did not skew the row under fail-fast.
+     */
+    public void testSameRecordDuplicateSpellingsDoesNotFailStrict() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.STRICT)) {
+            assertNotNull(page);
+            assertEquals(1, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(2, ab.getValueCount(0));
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0) + 1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * An empty array {@code []} contributes no value and does not claim the row, exactly like a plain JSON null:
+     * the other spelling of the column in the same record supplies the value, in either order. This matches
+     * ingest with {@code subobjects: false}, which indexes {@code {"a.b":[],"a":{"b":2}}} as {@code a.b=[2]}
+     * (see {@code NdJsonIngestParityTests}). A sibling {@code id} column pins alignment.
+     */
+    public void testSameRecordDuplicateEmptyArrayDoesNotClaimRow() throws IOException {
+        String ndjson = "{\"a.b\":[],\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":[],\"id\":20}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals("[] first, value second", 2L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(1, ab.getValueCount(0));
+            assertEquals("value first, [] second", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertEquals(1, ab.getValueCount(1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A bad value in any occurrence nulls the whole merged cell under a lenient policy, in either order: a cell the
+     * policy already nulled cannot be widened by a later good spelling, and a later bad spelling poisons the
+     * position the good one had opened. The all-or-nothing outcome matches the array contract, where one
+     * unrepresentable element nulls the entry rather than committing it in part. A sibling {@code id} column pins
+     * that neither direction skewed the row.
+     */
+    public void testSameRecordDuplicateCoercionFailureNullsWholeCell() throws IOException {
+        String ndjson = "{\"a.b\":\"bad\",\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":\"bad\",\"id\":20}\n";
+
+        try (
+            Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.PERMISSIVE)
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertTrue("bad value first -> null", ab.isNull(0));
+            assertTrue("bad value second -> null", ab.isNull(1));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * The same-record duplicate must keep the dotted column aligned with its siblings on the lenient (per-record
+     * scratch) decode path too, not just fail-fast. The lenient path builds each row in scratch builders and
+     * copies one position per record, so a per-column position skew from a duplicate would corrupt the copy;
+     * asserting a sibling {@code id} column at every row detects that skew. A lenient policy must not error on the
+     * duplicate either.
+     */
+    public void testSameRecordDuplicateSpellingsAlignsOnLenientPath() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n" + "{\"id\":20}\n" + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":30}\n";
+
+        try (
+            Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)), ErrorPolicy.PERMISSIVE)
+        ) {
+            assertNotNull(page);
+            assertEquals(3, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertTrue("no a.b in row 1 -> null", ab.isNull(1));
+            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(2)));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
+            assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Repeated literal field names. A record that names one field twice within an object has no single
+    // interpretation, so it is rejected rather than merged, which is what indexing it would do. The
+    // detection is Jackson's (see NdJsonUtils.JSON_FACTORY) and lands in the whole-line failure class
+    // routed through onNdjsonLineParseError. Repeats that are NOT this — two different spellings of one
+    // column, or one name across array elements or records — still merge; see
+    // testSameRecordDuplicateSpellingsMergeIntoMultivalue.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Under STRICT, every shape of the repeat fails the query: a plain name, a dotted name spelled flat, and a
+     * name repeated inside a nested object. The message names the row and the phase, and carries Jackson's own
+     * "Duplicate field" text. The kind is "Ambiguous" rather than "Malformed" because the JSON parses.
+     */
+    public void testRepeatedLiteralKeyIsRejected() {
+        assertRepeatedKeyRejectedUnderStrict("{\"b\":1,\"b\":2,\"id\":10}\n", "b", List.of(attribute("b", DataType.LONG)));
+        assertRepeatedKeyRejectedUnderStrict("{\"a.b\":1,\"a.b\":2,\"id\":10}\n", "a.b", List.of(attribute("a.b", DataType.LONG)));
+        assertRepeatedKeyRejectedUnderStrict("{\"a\":{\"b\":1,\"b\":2}}\n", "b", List.of(attribute("a.b", DataType.LONG)));
+    }
+
+    private void assertRepeatedKeyRejectedUnderStrict(String ndjson, String repeatedName, List<Attribute> projection) {
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (Page page = decodePage(ndjson, projection)) {
+                assertNull("unreachable: the repeat must fail before a page is returned", page);
+            }
+        });
+        assertThat(e.getMessage(), Matchers.containsString("Ambiguous NDJSON at logical row [1] (decodeObject)"));
+        assertThat(e.getMessage(), Matchers.containsString("Duplicate field '" + repeatedName + "'"));
+        assertThat(e.getMessage(), Matchers.containsString("set error_mode=skip_row (or null_field)"));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * Both non-strict modes drop the line, {@code null_field} included. That mode's contract is per value, and a
+     * repeat has no one cell to null: each value is fine on its own and it is the record's shape that is
+     * ambiguous, which is the same "structural row error" case a wrong-width CSV row is. Dropping also agrees
+     * with indexing the record, which rejects the whole document.
+     */
+    public void testRepeatedLiteralKeyDropsLineUnderNonStrictModes() throws IOException {
+        for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+            String ndjson = "{\"v\":1}\n{\"v\":2,\"v\":3}\n{\"v\":4}\n";
+            List<String> warnings = new ArrayList<>();
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://duplicate",
+                    counters,
+                    warnings::add
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(page);
+                LongBlock v = page.getBlock(0);
+                assertEquals(policy + ": the repeat is dropped, not null-filled", 2, v.getPositionCount());
+                assertFalse("a dropped line must not leave a null position behind", v.isNull(0));
+                assertFalse("a dropped line must not leave a null position behind", v.isNull(1));
+                assertEquals(1L, v.getLong(0));
+                assertEquals(4L, v.getLong(1));
+            }
+            // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
+            assertEquals(policy + ": one summary + one detail warning", 2, warnings.size());
+            assertThat(warnings.get(1), Matchers.containsString("Ambiguous NDJSON at logical row [2] (decodeObject)"));
+            assertThat(warnings.get(1), Matchers.containsString("Duplicate field 'v'"));
+            assertEquals(policy + ": the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The repeat is caught on a field no column projects, which is what makes the drop projection-INDEPENDENT:
+     * Jackson checks every name the tokeniser reads, and skipping an unprojected value advances through
+     * {@code nextToken}. A detector that only watched projected columns would answer this query and drop the
+     * record for a query that happened to project {@code x}, and the row count would then depend on the
+     * projection.
+     */
+    public void testRepeatedLiteralKeyIsRejectedOnAnUnprojectedField() throws IOException {
+        String ndjson = "{\"v\":1}\n{\"v\":2,\"x\":3,\"x\":4}\n{\"v\":5}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock v = page.getBlock(0);
+            assertEquals("the line drops even though nothing projects [x]", 2, v.getPositionCount());
+            assertEquals(1L, v.getLong(0));
+            assertEquals(5L, v.getLong(1));
+        }
+        drainWarnings();
+    }
+
+    /**
+     * A scalar where the schema only knows dotted leaf columns for this field (e.g. {@code address.city}/
+     * {@code address.zip}) is not a conflict: the schema knows no column named {@code address}, so the scalar names
+     * nothing projected and null-fills the row's dotted columns exactly as an unknown field does. Not even STRICT fails.
+     */
+    public void testScalarWhereNestedObjectExpectedIsNotAConflict() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
-            + "{\"address\": \"unstructured\", \"id\": 2}\n"
-            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
+            + "{\"address\": \"unstructured\", \"id\": 2}\n";
 
         try (
             Page page = decodePage(
@@ -338,58 +1146,22 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                     attribute("address.zip", DataType.KEYWORD),
                     attribute("id", DataType.INTEGER)
                 ),
-                ErrorPolicy.LENIENT
+                ErrorPolicy.STRICT
             )
         ) {
             assertNotNull(page);
-            // The scalar-where-object record is dropped whole under skip_row; the two structured records survive.
             assertEquals(2, page.getPositionCount());
             BytesRefBlock city = page.getBlock(0);
             BytesRefBlock zip = page.getBlock(1);
             IntBlock id = page.getBlock(2);
             BytesRef scratch = new BytesRef();
             assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
+            assertTrue(city.isNull(1));
+            assertTrue(zip.isNull(1));
             assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
-            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(1, scratch)));
-            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(1, scratch)));
-            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
+            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
         }
-
-        List<String> warnings = drainWarnings();
-        assertFalse("expected a client warning for the shape conflict", warnings.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("address")));
-    }
-
-    /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns}, but with a
-     * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
-     * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
-     * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
-     */
-    public void testScalarWhereNestedObjectExpectedLenientRoutesThroughWarningSink() throws IOException {
-        String ndjson = "{\"address\": {\"city\": \"NYC\"}, \"id\": 1}\n" + "{\"address\": \"unstructured\", \"id\": 2}\n";
-        List<String> sunk = new ArrayList<>();
-        try (
-            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
-                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
-                List.of(attribute("address.city", DataType.KEYWORD), attribute("id", DataType.INTEGER)),
-                null,
-                1024,
-                blockFactory,
-                ErrorPolicy.LENIENT,
-                "test://decode",
-                NdJsonUtils.JSON_FACTORY,
-                sunk::add
-            )
-        ) {
-            try (Page page = decoder.decodePage()) {
-                assertNotNull(page);
-            }
-        }
-
-        assertFalse("expected a client warning routed through the sink", sunk.isEmpty());
-        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("address")));
-        assertTrue("no message should reach the thread-local response headers when a sink is supplied", drainWarnings().isEmpty());
+        assertTrue("no shape conflict, so no warning", drainWarnings().isEmpty());
     }
 
     /**
@@ -476,11 +1248,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
      * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
-     * scalars is a distinct, supported shape — not the record-level scalar/object conflict
-     * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
-     * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
-     * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
-     * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
+     * scalars is omitted from the multi-value entry under every {@link ErrorPolicy}, including {@code STRICT}.
+     * Covers leading-object, mid-object, and all-object arrays against a scalar {@code id} column that pins
+     * the expected row count.
      */
     public void testArrayOfScalarsWithObjectElements() throws IOException {
         String ndjson = "{\"tags\": [\"a\", {\"x\": 1}, \"b\"], \"id\": 1}\n"
@@ -658,7 +1428,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5L, block.getLong(block.getFirstValueIndex(1)));
         }
         drainWarnings();
-        expectThrows(EsqlIllegalArgumentException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
+        expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
     }
 
     /**
@@ -945,6 +1715,717 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
         assertEquals("one summary + one detail warning for the dropped row", 2, warnings.size());
         assertThat(warnings.get(1), Matchers.containsString("notanumber"));
+    }
+
+    /**
+     * Under {@code skip_row}, a scalar coercion failure (a non-numeric string where a LONG is expected) drops the
+     * entire record — the same contract the array coercion skip_row test asserts for multi-value positions.
+     * Input: two records; the second has an uncoercible value in column {@code n}. Only the first record survives.
+     */
+    public void testScalarCoercionFailureDropsRowUnderSkipRow() throws IOException {
+        String ndjson = "{\"n\": 42, \"k\": \"good\"}\n{\"n\": \"not_a_number\", \"k\": \"bad\"}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("n", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://scalar-skip",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock nBlock = page.getBlock(0);
+            BytesRefBlock kBlock = page.getBlock(1);
+            assertEquals("poisoned row is dropped, one remains", 1, page.getPositionCount());
+            assertFalse(nBlock.isNull(0));
+            assertEquals(42L, nBlock.getLong(nBlock.getFirstValueIndex(0)));
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("good"), BytesRef.deepCopyOf(kBlock.getBytesRef(0, scratch)));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the dropped row", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
+    /**
+     * Under {@code null_field}, a scalar coercion failure nulls only the cell where coercion failed; the rest of the
+     * record survives. Companion to {@link #testScalarCoercionFailureDropsRowUnderSkipRow} for the permissive path.
+     * Input: two records; the second has an uncoercible value in column {@code n}. Both rows survive; the bad cell is null.
+     */
+    public void testScalarCoercionFailureNullsFieldUnderNullField() throws IOException {
+        String ndjson = "{\"n\": 42, \"k\": \"good\"}\n{\"n\": \"not_a_number\", \"k\": \"bad\"}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("n", DataType.LONG), attribute("k", DataType.KEYWORD)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://scalar-null-field",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock nBlock = page.getBlock(0);
+            BytesRefBlock kBlock = page.getBlock(1);
+            assertEquals("both rows survive under null_field", 2, page.getPositionCount());
+            assertFalse("row 0 n is not null", nBlock.isNull(0));
+            assertEquals(42L, nBlock.getLong(nBlock.getFirstValueIndex(0)));
+            assertTrue("row 1 n is null (coercion failed)", nBlock.isNull(1));
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("good"), BytesRef.deepCopyOf(kBlock.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("bad"), BytesRef.deepCopyOf(kBlock.getBytesRef(1, scratch)));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the nulled cell", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("not_a_number"));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // StreamReadConstraints violations. Jackson enforces its read limits in the TOKEN SCANNER, so
+    // these never reach a decode arm or the per-cell coercionFailure sink — they belong to the
+    // whole-line class routed through onNdjsonLineParseError. See that method's javadoc for why
+    // null_field drops the line here instead of nulling a cell.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A JSON number token longer than {@code StreamReadConstraints.getMaxNumberLength()} (1000). */
+    private static String oversizedNumberRecord() {
+        return "{\"v\":" + "1".repeat(1200) + "}";
+    }
+
+    /** A field name longer than {@code getMaxNameLength()} (50000), on a field that is NOT projected. */
+    private static String oversizedFieldNameRecord() {
+        return "{\"" + "n".repeat(60_000) + "\":1,\"v\":5}";
+    }
+
+    /** Array nesting deeper than {@code getMaxNestingDepth()} (1000). */
+    private static String excessiveNestingRecord() {
+        int depth = 1100;
+        return "{\"v\":" + "[".repeat(depth) + "1" + "]".repeat(depth) + "}";
+    }
+
+    /**
+     * fail_fast: an oversized number token aborts the read through the whole-line contract every other
+     * whole-line failure uses, carrying Jackson's own limit text. Without the constraint arm the raw
+     * {@code StreamConstraintsException} escapes {@code decodePage} and is typed by
+     * {@code ExternalFailures.surface}, leaving {@code error_mode} no say on any mode. The
+     * {@code Over-limit} label distinguishes a record that is well-formed but past a parser limit from
+     * one that is genuinely malformed.
+     */
+    public void testOversizedNumberTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+    }
+
+    /** null_field: the offending line is dropped (not null-filled) and both good lines survive. */
+    public void testOversizedNumberTokenDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.PERMISSIVE, "Number value length");
+    }
+
+    /** skip_row: identical outcome to null_field — the whole-line class cannot null a cell. */
+    public void testOversizedNumberTokenDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /**
+     * The name-length limit trips on a field the query never projected, so there is no cell to null even
+     * in principle — the case that rules a per-cell treatment out for this class.
+     */
+    public void testOversizedFieldNameDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedFieldNameRecord(), ErrorPolicy.PERMISSIVE, "Name length");
+    }
+
+    /** The depth limit trips on structure rather than on any value; same whole-line outcome. */
+    public void testExcessiveNestingDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(excessiveNestingRecord(), ErrorPolicy.LENIENT, "Document nesting depth");
+    }
+
+    /** fail_fast on a non-number limit, pinning that the routing is class-level rather than number-specific. */
+    public void testExcessiveNestingFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
+    }
+
+    /**
+     * The scanner reaches the token before projection is consulted, so an over-long number in a column the
+     * query never asked for still takes the line. Worth pinning because the opposite is the intuitive guess:
+     * a user who does not project {@code other} would expect its contents not to matter at all.
+     */
+    public void testOversizedNumberInAnUnprojectedFieldDropsLine() throws IOException {
+        assertConstraintViolationDropsLine("{\"v\":5,\"other\":" + "1".repeat(1200) + "}", ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /** Same, for a token nested inside an array rather than sitting directly under a field. */
+    public void testOversizedNumberInsideAnArrayDropsLine() throws IOException {
+        assertConstraintViolationDropsLine("{\"v\":[9," + "1".repeat(1200) + "]}", ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /**
+     * A record can fail twice — a per-cell coercion failure, then a constraint violation raised while the rest
+     * of the record is drained — and must still cost the budget once. {@code max_errors} and
+     * {@code max_error_ratio} are documented in records ("maximum malformed rows"), and
+     * {@code coercionFailure} already enforces charge-once among per-cell failures; the whole-line sink has to
+     * honour the same invariant or a single bad line can exhaust a budget of two.
+     * <p>
+     * Both warnings are still emitted. Under {@code null_field} the coercion warning says the cell was nulled
+     * and the record kept, which the constraint violation then overrides by dropping the record whole — so
+     * suppressing the second would leave the client with a warning that no longer describes the outcome.
+     */
+    public void testARecordFailingBothPerCellAndWholeLineIsChargedOnce() throws IOException {
+        for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+            String ndjson = "{\"v\":1}\n{\"v\":\"notanumber\",\"other\":" + "1".repeat(1200) + "}\n{\"v\":3}\n";
+            List<String> warnings = new ArrayList<>();
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://double-charge",
+                    counters,
+                    warnings::add
+                );
+                Page page = decoder.decodePage()
+            ) {
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": the doubly-bad line is dropped", 2, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(3L, block.getLong(1));
+            }
+            assertEquals(policy.modeName() + ": one line, one charge", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The charge-once flag is per record, not sticky across records. The second line here is a BARE token, so
+     * its violation is raised by the record-opening {@code nextToken} — which runs before the rest of the
+     * per-record state is cleared. Resetting the flag with that other state instead of ahead of the token read
+     * would let the first line's charge suppress the second's, and a file of consecutive bad lines would cost
+     * the budget once in total. Asserts only the charge count: what the parser does with the line after a bare
+     * record is a separate, pre-existing question ({@link #testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery}).
+     */
+    public void testConsecutiveFailingLinesAreEachCharged() throws IOException {
+        String ndjson = "{\"v\":\"notanumber\"}\n" + "1".repeat(1200) + "\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://consecutive",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertTrue("both lines are bad, so nothing is committed", page == null || page.getPositionCount() == 0);
+        }
+        assertEquals("two distinct bad lines, two charges", 2L, counters.snapshot().parseErrors());
+    }
+
+    /**
+     * Demonstrates the type-independence the rest of this block argues structurally: the violation is raised
+     * while the token is scanned, before any {@code DataType} dispatch, so a keyword column loses the same
+     * line a numeric column does. If the routing ever regressed to a per-arm fix in the numeric decoders,
+     * this is the cell that would catch it.
+     */
+    public void testOversizedNumberDropsLineForAKeywordColumn() throws IOException {
+        String ndjson = "{\"v\":\"a\"}\n" + oversizedNumberRecord() + "\n{\"v\":\"b\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.KEYWORD, ErrorPolicy.LENIENT)) {
+            BytesRefBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("a"), BytesRef.deepCopyOf(block.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("b"), BytesRef.deepCopyOf(block.getBytesRef(1, scratch)));
+        }
+    }
+
+    /**
+     * Recovery on the byte-array path re-anchors by scanning for the next line terminator from the failed
+     * parser's byte offset. That offset lands inside the bad line for a constraint violation, so the record
+     * that follows it must still decode — a resync that skipped it would lose good data silently.
+     */
+    public void testConstraintViolationRecoversOnByteArrayPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                bytes,
+                0,
+                bytes.length,
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://constraint-bytes",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, both good lines survive", 2, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        assertThat(warnings.get(1), Matchers.containsString("Number value length"));
+    }
+
+    /**
+     * The streaming path recovers through {@code NdJsonUtils.moveToNextLine} rather than by re-anchoring in a
+     * byte array. Two good lines follow the bad one so the assertion fails if recovery lands anywhere but the
+     * very next record.
+     */
+    public void testConstraintViolationRecoversOnStreamingPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n{\"v\":4}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, all three good lines survive", 3, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+            assertEquals(4L, block.getLong(2));
+        }
+    }
+
+    /**
+     * A constraint violation is an ordinary member of the non-strict error budget, not a free pass: with
+     * {@code max_errors: 0} the first one trips the budget and fails the read.
+     */
+    public void testConstraintViolationCountsAgainstErrorBudget() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
+        assertThat(e.getMessage(), Matchers.containsString("NDJSON error budget exceeded"));
+    }
+
+    /**
+     * Bad data is the client's, not ours, so every strict NDJSON read failure answers 400. This asserts the
+     * status directly rather than the exception type, because the status is the contract users actually see and
+     * the type is only how we carry it. Carrying any of these in the {@code QlServerException} family instead —
+     * which has no {@code status()} override and so answers 500 — would page someone over a malformed input file.
+     * The two genuine invariant failures in this class (missing lenient scratch builders) deliberately stay
+     * server-class and are not listed here.
+     */
+    public void testEveryStrictReadFailureIsAClientError() {
+        String oversized = "{\"v\":" + "1".repeat(1200) + "}\n";
+        String badValue = "{\"v\":\"notanumber\"}\n";
+
+        assertEquals(
+            "whole-line parse failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "per-cell coercion failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "error budget exhausted",
+            RestStatus.BAD_REQUEST,
+            expectThrows(
+                ParsingException.class,
+                () -> decodeOneColumn(oversized, DataType.LONG, new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false))
+            ).status()
+        );
+    }
+
+    /**
+     * The fail-fast loop guards two call sites: the {@code nextToken} that opens a record, and {@code
+     * decodeObject}. Every other strict test here lands on the second. A bare oversized token on its own line —
+     * no enclosing object — is scanned by the record-opening {@code nextToken}, so this is the only test that
+     * exercises the first. The {@code [nextToken]} phase label in the message is what proves which site ran; a
+     * violation routed through {@code decodeObject} would read {@code [decodeObject]} instead.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON at logical row [2] (nextToken)"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * The limit is a cliff, and this pins which side of it does what. A number that overflows {@code long} but
+     * stays under {@code getMaxNumberLength()} is scanned successfully and fails per CELL — the row survives with
+     * that one column null. One digit past the limit the scanner never yields the token at all, so the whole line
+     * goes. Same column, same {@code error_mode}, two different outcomes; a reader hitting the second case should
+     * not be surprised into thinking the first case was in play.
+     */
+    public void testNumberLengthLimitIsTheBoundaryBetweenPerCellAndPerLine() throws IOException {
+        String underLimit = "9".repeat(999);
+        String overLimit = "9".repeat(1001);
+
+        try (Page page = decodeOneColumn("{\"v\":" + underLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("under the limit the row survives with a null cell", 2, block.getPositionCount());
+            assertTrue("the over-long-but-scannable number nulls its cell", block.isNull(0));
+            assertEquals(7L, block.getLong(1));
+        }
+
+        try (Page page = decodeOneColumn("{\"v\":" + overLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("past the limit the whole line goes", 1, block.getPositionCount());
+            assertEquals(7L, block.getLong(0));
+        }
+    }
+
+    /**
+     * The decode loops catch the constraint violation at two sites: around {@code decodeObject}, and around the
+     * {@code nextToken} that opens a record. A bare oversized scalar on its own line — no enclosing object — trips
+     * the second one, which every other test here leaves unexercised.
+     * <p>
+     * Asserted differentially against a bare scalar that is perfectly VALID (elastic/esql-planning#1731 fix):
+     * both must drop only the bad line and keep the record that follows it. This is a paired assertion so that
+     * fixing one arm while leaving the other behind fails this test immediately — the two must always agree.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery() throws IOException {
+        String oversized = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":3}\n";
+        String validBareScalar = "{\"v\":1}\n12345\n{\"v\":3}\n";
+
+        try (
+            Page constraintPage = decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.PERMISSIVE);
+            Page baselinePage = decodeOneColumn(validBareScalar, DataType.LONG, ErrorPolicy.PERMISSIVE)
+        ) {
+            LongBlock constraintBlock = constraintPage.getBlock(0);
+            LongBlock baselineBlock = baselinePage.getBlock(0);
+            assertEquals("baseline: both good records survive", 2, baselineBlock.getPositionCount());
+            assertEquals(1L, baselineBlock.getLong(0));
+            assertEquals(3L, baselineBlock.getLong(1));
+            assertEquals(
+                "an oversized bare token must recover exactly as a valid bare scalar does",
+                baselineBlock.getPositionCount(),
+                constraintBlock.getPositionCount()
+            );
+            assertEquals(1L, constraintBlock.getLong(0));
+            assertEquals(3L, constraintBlock.getLong(1));
+        }
+    }
+
+    /**
+     * A bare JSON number on its own NDJSON line (elastic/esql-planning#1731) must drop only itself. The record
+     * that follows it must survive — before the fix, the recovery logic consumed the line terminator while
+     * scanning the number, then scanned forward again and swallowed the following record.
+     * <p>
+     * Covers both non-strict policies and uses the streaming ({@link java.io.InputStream}) path.
+     */
+    public void testBareNumberDropsSelf() throws IOException {
+        String ndjson = "{\"v\":1}\n42\n{\"v\":2}\n{\"v\":3}\n";
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-number-streaming",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": bare number drops only itself — three records survive", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(policy.modeName() + ": the bare number is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * Same as {@link #testBareNumberDropsSelf} but exercises the byte-array path, which recovers through
+     * {@link NdJsonPageDecoder#nextLineStartByteAfter} rather than {@link NdJsonUtils#moveToNextLine}.
+     */
+    public void testBareNumberDropsSelfByteArray() throws IOException {
+        String ndjson = "{\"v\":1}\n42\n{\"v\":2}\n{\"v\":3}\n";
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    bytes,
+                    0,
+                    bytes.length,
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-number-bytes",
+                    counters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + ": page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": bare number drops only itself — three records survive", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(policy.modeName() + ": the bare number is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The line-number comparison in {@link NdJsonUtils#moveToNextLine} detects that Jackson already crossed a line
+     * boundary while tokenizing a bare number. Jackson increments its line counter on {@code '\n'} and bare
+     * {@code '\r'}, so the detection works for LF, CR, and CRLF line endings.
+     * <p>
+     * CR risk: a bare CR followed by {@code '\n'} (CRLF) could leave a dangling {@code '\n'} in the
+     * released buffer if Jackson's scanner only consumed the {@code '\r'} — but Jackson's byte-stream reader
+     * reads the {@code '\n'} too when it follows immediately (CRLF → one line break), so the buffer starts
+     * at the next record after both bytes, not just after the {@code '\r'}.
+     */
+    public void testBareNumberWithCrAndCrlfLineEndings() throws IOException {
+        for (String eol : List.of("\r", "\r\n")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String tag = eol.equals("\r") ? "CR" : "CRLF";
+                String ndjson = "{\"v\":1}" + eol + "42" + eol + "{\"v\":2}" + eol + "{\"v\":3}" + eol;
+                byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+
+                // Streaming path
+                NdJsonReaderCounters streamCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        new ByteArrayInputStream(bytes),
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://bare-number-" + tag.toLowerCase(Locale.ROOT) + "-streaming",
+                        streamCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " streaming: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(policy.modeName() + " " + tag + " streaming: bare number drops only itself", 3, block.getPositionCount());
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " streaming: the bare number is charged exactly once",
+                    1L,
+                    streamCounters.snapshot().parseErrors()
+                );
+
+                // Byte-array path
+                NdJsonReaderCounters bytesCounters = new NdJsonReaderCounters();
+                try (
+                    NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                        bytes,
+                        0,
+                        bytes.length,
+                        null,
+                        List.of(attribute("v", DataType.LONG)),
+                        null,
+                        10,
+                        blockFactory,
+                        policy,
+                        "test://bare-number-" + tag.toLowerCase(Locale.ROOT) + "-bytes",
+                        bytesCounters
+                    );
+                    Page page = decoder.decodePage()
+                ) {
+                    assertNotNull(policy.modeName() + " " + tag + " byte-array: page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(policy.modeName() + " " + tag + " byte-array: bare number drops only itself", 3, block.getPositionCount());
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+                assertEquals(
+                    policy.modeName() + " " + tag + " byte-array: the bare number is charged exactly once",
+                    1L,
+                    bytesCounters.snapshot().parseErrors()
+                );
+            }
+        }
+    }
+
+    /**
+     * Bare scalars other than numbers — quoted strings, booleans, null, arrays — already recovered correctly
+     * before elastic/esql-planning#1731, because their tokenizers do not consume the line terminator as a
+     * lookahead byte. Verifies the fix did not regress them.
+     */
+    public void testOtherBareScalarsRecoverCorrectly() throws IOException {
+        String suffix = "\n{\"v\":2}\n{\"v\":3}\n";
+        for (String bareScalar : List.of("\"hello\"", "true", "false", "null", "[1,2,3]")) {
+            for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+                String ndjson = "{\"v\":1}\n" + bareScalar + suffix;
+                try (Page page = decodeOneColumn(ndjson, DataType.LONG, policy)) {
+                    assertNotNull(policy.modeName() + " bare " + bareScalar + ": page must not be null", page);
+                    LongBlock block = page.getBlock(0);
+                    assertEquals(
+                        policy.modeName() + " bare " + bareScalar + ": drops only itself — three records survive",
+                        3,
+                        block.getPositionCount()
+                    );
+                    assertEquals(1L, block.getLong(0));
+                    assertEquals(2L, block.getLong(1));
+                    assertEquals(3L, block.getLong(2));
+                }
+            }
+        }
+    }
+
+    /**
+     * An oversized bare number (one that trips {@code StreamReadConstraints}' number-length limit during
+     * {@code nextToken}) must also drop only itself, not the following record.
+     * Both the streaming and byte-array paths are exercised, under both non-strict policies.
+     */
+    public void testConstraintViolationOnBareNumberDropsSelf() throws IOException {
+        String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":2}\n{\"v\":3}\n";
+        for (ErrorPolicy policy : List.of(ErrorPolicy.PERMISSIVE, ErrorPolicy.LENIENT)) {
+            // Streaming path
+            NdJsonReaderCounters streamingCounters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-constraint-streaming",
+                    streamingCounters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + " streaming: page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + " streaming: oversized bare number drops only itself", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(
+                policy.modeName() + " streaming: the oversized number is charged exactly once",
+                1L,
+                streamingCounters.snapshot().parseErrors()
+            );
+
+            // Byte-array path
+            byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+            NdJsonReaderCounters bytesCounters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    bytes,
+                    0,
+                    bytes.length,
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://bare-constraint-bytes",
+                    bytesCounters
+                );
+                Page page = decoder.decodePage()
+            ) {
+                assertNotNull(policy.modeName() + " byte-array: page must not be null", page);
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + " byte-array: oversized bare number drops only itself", 3, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(2L, block.getLong(1));
+                assertEquals(3L, block.getLong(2));
+            }
+            assertEquals(
+                policy.modeName() + " byte-array: the oversized number is charged exactly once",
+                1L,
+                bytesCounters.snapshot().parseErrors()
+            );
+        }
+    }
+
+    /**
+     * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
+     * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
+     * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own
+     * constraint violation).
+     */
+    /**
+     * {@code expectedDetail} names the limit but deliberately omits the numbers Jackson interpolates into its
+     * message. Jackson formats them with the default locale, so under a locale with non-Western digits (the
+     * randomized runner picks one often enough — {@code -Dtests.locale=fa-IR} reproduces it) "1200" arrives as
+     * "\u06F1\u06F2\u06F0\u06F0" and a digit-bearing assertion fails for no real reason. The limit name alone still proves the
+     * passthrough this is checking.
+     */
+    private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String expectedDetail) throws IOException {
+        String ndjson = "{\"v\":1}\n" + badRecord + "\n{\"v\":3}\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://constraint",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(0));
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(1));
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
+        assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(warnings.get(1), Matchers.containsString(expectedDetail));
+        assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
     }
 
     /**
@@ -1283,4 +2764,5 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
         assertScratchIsRecordSized(breaker, 2);
     }
+
 }

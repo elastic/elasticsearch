@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpResponseException;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -43,6 +45,8 @@ import java.util.concurrent.Executor;
  *       async and byte-read implementations that are more efficient than the default InputStream
  *       wrappers. Note: the async path is executor-based (blocking a worker thread), not truly
  *       non-blocking like {@code HttpClient.sendAsync()} or {@code S3AsyncClient}.</li>
+ *   <li>{@link #readBytesAsyncReleasesExecutor()} — returns {@code false} for the same reason;
+ *       Phase-2 split discovery must not uncap fan-out on GCS.</li>
  * </ul>
  */
 public final class GcsStorageObject extends AbstractMeteredStorageObject {
@@ -219,7 +223,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = factory.allocate(len);
+            drb = factory.allocateWritableWindow(len);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -282,9 +286,38 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         return true;
     }
 
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return false;
+    }
+
     @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")
     private static int readFromChannel(ReadChannel reader, ByteBuffer target) throws IOException {
         return reader.read(target);
+    }
+
+    /**
+     * Best-effort extraction of a {@code Retry-After} hint from the GCS exception cause chain.
+     * Works for HTTP JSON transport (cause chain contains {@link HttpResponseException}); returns 0
+     * for gRPC transport or when the header is absent.
+     * <p>
+     * Walks the full chain rather than stopping on the first {@link HttpResponseException} that lacks the
+     * header, so a nested exception carrying the header is still found even if an outer wrapper has none.
+     */
+    static long retryAfterMsFromChain(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof HttpResponseException hre) {
+                HttpHeaders headers = hre.getHeaders();
+                if (headers != null) {
+                    String retryAfter = headers.getRetryAfter();
+                    if (retryAfter != null) {
+                        return ExternalUnavailableException.parseRetryAfterMs(retryAfter);
+                    }
+                }
+                // No header on this HRE — keep walking in case a deeper exception carries one.
+            }
+        }
+        return 0L;
     }
 
     /**
@@ -298,8 +331,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         if (cause instanceof StorageException se) {
             if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
                 return new ExternalUnavailableException(
                     throttling,
+                    retryAfterMs,
                     cause,
                     "GCS store unavailable reading [{}] (HTTP {})",
                     path,
@@ -310,7 +345,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return new IOException("Object not found: " + path, cause);
             }
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path + ": " + GcsFailureDetail.of(cause), cause);
     }
 
     /**
@@ -343,7 +378,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path + ": " + GcsFailureDetail.of(e), e);
             }
         }
     }
@@ -360,7 +395,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 setNotFound();
                 return;
             }
-            throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
+            throw new IOException(
+                "Failed to get metadata for " + path + " (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
+                e
+            );
         }
 
         if (objectExists) {

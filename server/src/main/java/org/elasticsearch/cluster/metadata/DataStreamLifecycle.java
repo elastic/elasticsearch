@@ -75,6 +75,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
     private static final String DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE =
         "Failure store lifecycle does not support downsampling, please remove the downsampling configuration.";
+    public static final String FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE =
+        "Failure store lifecycle does not support freezing, please remove the frozen_after configuration.";
     public static final String DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR =
         "Downsampling method can only be set when there is at least one downsampling round.";
 

@@ -169,6 +169,7 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
+                context.isSourceColumnarStored(),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -237,6 +238,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
+            boolean isSourceColumnarStored,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -244,7 +246,17 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(
+                path,
+                isSourceSynthetic,
+                isDataStream,
+                parentObjectContainsDimensions,
+                dynamic,
+                mergeReason,
+                true,
+                false,
+                isSourceColumnarStored
+            );
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -254,6 +266,7 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
+                isSourceColumnarStored(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -398,12 +411,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder.endObject();
     }
 
-    @Override
-    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
-        if (patchLoader == null) {
-            return null;
-        }
+    /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */
+    SourceLoader.SyntheticVectorsLoader wrapSyntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader patchLoader) {
         return context -> {
             var leaf = patchLoader.leaf(context);
             if (leaf == null) {
@@ -500,7 +509,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 this.columnar = true;
                 this.columnarChildren.clear();
                 this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
-                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
+                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
                 return parentDoc -> {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
@@ -522,7 +531,7 @@ public class NestedObjectMapper extends ObjectMapper {
             this.columnar = false;
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-            this.leafSourceLoader = sourceLoader.leaf(leafReader, null);
+            this.leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), null);
 
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);

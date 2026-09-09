@@ -10,110 +10,63 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorerSupplier;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
- * A query that matches documents whose binary doc values contain a specific term. Only works with binary doc values
- * encoded using {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount}.
+ * A query that matches documents whose binary doc values contain a specific term. It adds the whole-blob
+ * {@code tryContainsIterator} fast path on top of the {@link AbstractBinaryDocValuesQuery} scanning path.
  */
-public final class BinaryDocValuesContainsTermQuery extends Query {
-    final String fieldName;
-    final BytesRef containsTerm;
-    // See AbstractBinaryDocValuesQuery#arrayOrderInlineNull: selects the inline-null decoder for the multi-valued fallback path.
-    final boolean arrayOrderInlineNull;
+public final class BinaryDocValuesContainsTermQuery extends AbstractBinaryDocValuesQuery {
 
-    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, boolean arrayOrderInlineNull) {
-        this.fieldName = Objects.requireNonNull(fieldName);
+    private final BytesRef containsTerm;
+
+    BinaryDocValuesContainsTermQuery(String fieldName, BytesRef containsTerm, BinaryDocValuesFormat binaryFormat) {
+        super(fieldName, bytes -> contains(bytes, containsTerm), binaryFormat);
         this.containsTerm = Objects.requireNonNull(containsTerm);
-        this.arrayOrderInlineNull = arrayOrderInlineNull;
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        float matchCost = matchCost();
-        // Captured for the binary doc values decode checkpoint below. This query is reached via rewrite() so it gets its own weight and
-        // must establish the breaker itself.
-        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
-        return new ConstantScoreWeight(this, boost) {
-
-            @Override
-            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                if (values == null) {
-                    return null;
-                }
-
-                // Checkpoint now that a binary doc values reader has been opened for this surviving clause/segment pair.
-                ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
-
-                // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
-                // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
-                // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
-                // linear scaling under sub-segment slicing (DataPartitioning.DOC).
-                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-
-                // tryContainsIterator scans the whole doc blob (including the multi-valued length-prefix framing), so it is only correct
-                // for single-valued fields where no length prefixes exist.
-                final DocIdSetIterator containsIter = (countsSkipper == null || countsSkipper.maxValue() == 1)
-                    && values instanceof BlockLoader.OptionalColumnAtATimeReader direct ? direct.tryContainsIterator(containsTerm) : null;
-
-                final DocIdSetIterator iterator;
+    protected DocIdSetIterator getDocIdSetIterator(LeafReaderContext context, float matchCost) throws IOException {
+        final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+        if (values == null) {
+            return null;
+        }
+        // A payload blob is never a bare value, so the whole-blob scan below can never apply to one — and there is no
+        // .counts companion to look up on the way to finding that out. super decodes the payload instead.
+        if (binaryFormat != BinaryDocValuesFormat.COLUMNAR_PAYLOAD) {
+            // tryContainsIterator scans the whole doc blob including the multi-valued length-prefix framing, so it is only
+            // correct for single-valued fields where no length prefixes exist.
+            final DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(fieldName + COUNT_FIELD_SUFFIX);
+            if ((countsSkipper == null || countsSkipper.maxValue() == 1)
+                && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                final DocIdSetIterator containsIter = direct.tryContainsIterator(containsTerm);
                 if (containsIter != null) {
-                    iterator = containsIter;
-                } else {
-                    Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
-                    final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                    iterator = arrayOrderInlineNull
-                        ? AbstractBinaryDocValuesQuery.arrayOrderInlineNullIterator(values, counts, predicate, matchCost())
-                        : AbstractBinaryDocValuesQuery.multiValuedIterator(values, counts, predicate, matchCost());
+                    return containsIter;
                 }
-                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }
-
-            @Override
-            public boolean isCacheable(LeafReaderContext ctx) {
-                return DocValues.isCacheable(ctx, fieldName);
-            }
-        };
+        }
+        return super.getDocIdSetIterator(context, matchCost);
     }
 
-    float matchCost() {
+    @Override
+    protected float matchCost() {
         return 10;
     }
 
     @Override
-    public void visit(QueryVisitor visitor) {
-        if (visitor.acceptField(fieldName)) {
-            visitor.visitLeaf(this);
-        }
-    }
-
     public String toString(String field) {
-        return "BinaryDocValuesContainsTermQuery(fieldName=" + field + ",containsTerm=" + containsTerm + ")";
+        return "BinaryDocValuesContainsTermQuery(fieldName=" + fieldName + ",containsTerm=" + containsTerm + ")";
     }
 
     @Override
@@ -125,12 +78,14 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
             return false;
         }
         BinaryDocValuesContainsTermQuery that = (BinaryDocValuesContainsTermQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && Objects.equals(containsTerm, that.containsTerm);
+        return Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(containsTerm, that.containsTerm)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, containsTerm);
+        return Objects.hash(classHash(), fieldName, containsTerm, binaryFormat);
     }
 
     public static boolean contains(BytesRef value, BytesRef term) {

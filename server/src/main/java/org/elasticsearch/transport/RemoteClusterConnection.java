@@ -78,6 +78,8 @@ public final class RemoteClusterConnection implements Closeable {
         );
         this.remoteConnectionManager = new RemoteConnectionManager(
             clusterAlias,
+            config.originProjectId(),
+            config.linkedProjectId(),
             credentialsManager,
             createConnectionManager(profile, transportService)
         );

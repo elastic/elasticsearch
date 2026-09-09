@@ -68,6 +68,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean useTransportTls = false;
 
+    private Integer nodeCount = null;
+
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
@@ -136,7 +138,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Option(
         option = "using-otel-sdk",
-        description = "Use the OTel SDK for metrics export instead of the APM agent. "
+        description = "Use the OTel SDK for metrics and traces export instead of the APM agent. "
             + "Can be combined with --with-apm-server (uses built-in mock server) or alone, manually "
             + "setting telemetry.export.endpoint."
     )
@@ -237,6 +239,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return useTransportTls;
     }
 
+    @Option(option = "nodes", description = "Number of nodes to start in the cluster (default: 1)")
+    public void setNodeCount(String nodeCount) {
+        this.nodeCount = Integer.parseInt(nodeCount);
+    }
+
+    @Input
+    @Optional
+    public Integer getNodeCount() {
+        return nodeCount;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -251,6 +264,11 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
+        if (nodeCount != null) {
+            for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.setNumberOfNodes(nodeCount);
+            }
+        }
         boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
@@ -298,16 +316,19 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 }
                 if (usingOtelSdk) {
                     node.systemProperty("telemetry.otel.metrics.enabled", "true");
+                    node.systemProperty("telemetry.otel.traces.enabled", "true");
                     node.setting("telemetry.metrics.enabled", "true");
                 }
                 if (mockServer != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    // Sample everything so spans are actually emitted. On the OTel SDK path this also feeds the
+                    // default of telemetry.tracing.sample_rate (which otherwise defaults to 0.001).
+                    node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                     if (usingOtelSdk) {
-                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getPort());
+                        node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
                     } else {
-                        node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                         node.setting("telemetry.agent.transaction_max_spans", "100");
                         node.setting("telemetry.agent.metrics_interval", "10s");
                     }

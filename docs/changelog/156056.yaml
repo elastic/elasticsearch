@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 156056
+summary: Update AI index datastream template to remove columnar mode
+type: bug

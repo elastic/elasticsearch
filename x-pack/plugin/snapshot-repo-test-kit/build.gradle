@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name = 'snapshot-repo-test-kit'
@@ -15,6 +16,18 @@ base {
 dependencies {
   compileOnly project(xpackModule('core'))
   internalClusterTestImplementation testArtifact(project(xpackModule('core')))
+  yamlRestTestImplementation project(':test:yaml-rest-runner')
+  clusterPlugins files(tasks.named('bundlePlugin'))
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
+  }
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 addQaCheckDependencies(project)

@@ -219,6 +219,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // JVMs and are unaffected.
             test.systemProperty("es.queryable_built_in_roles_enabled", "false");
 
+            // Logging is shut down explicitly, so disable Log4j's own shutdown hook as we do in jvm.options
+            test.systemProperty("log4j.shutdownHookEnabled", "false");
+
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");
             test.systemProperty("io.netty.noKeySetOptimization", "true");

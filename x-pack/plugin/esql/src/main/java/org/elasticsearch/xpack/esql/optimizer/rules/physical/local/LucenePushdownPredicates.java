@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -94,10 +95,13 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
-        // Potentially unmapped fields are not pushabled: the field may be unmapped on some shards, and pushing down would produce wrong
+        // Potentially unmapped fields are not pushable: the field may be unmapped on some shards, and pushing down would produce wrong
         // results (e.g., missing rows when the predicate is pushed to Lucene).
+        // FunctionEsField values are synthesized by the block loader (e.g. LENGTH(kwd), field_extract(...)); there is no indexed Lucene
+        // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
         if (exp instanceof FieldAttribute fa
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
             && fa.getExactInfo().hasExact()
             && isIndexedAndHasDocValues(fa)) {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);

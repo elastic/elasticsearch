@@ -56,7 +56,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -218,11 +217,9 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
-                if (trackExecutorBytesRead) {
-                    this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
-                    executor = this.metricsAwareExecutor;
-                }
+                // Always wrap: cache metrics must be collected on worker threads regardless of the directory_metrics flag.
+                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
+                executor = this.metricsAwareExecutor;
 
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
@@ -551,7 +548,7 @@ final class DefaultSearchContext extends SearchContext {
             .filter(value -> value.isEmpty() == false)
             .toList();
         if (sliceTerms.isEmpty()) {
-            return new MatchNoDocsQuery("empty [_slice] routing");
+            return new MatchNoDocsQuery("empty [slice] routing");
         }
         final QueryBuilder sliceFilterQuery = sliceTerms.size() == 1
             ? new TermQueryBuilder(RoutingFieldMapper.NAME, sliceTerms.get(0))

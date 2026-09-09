@@ -19,30 +19,58 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 /// they care about.
 public interface RecoverySchedulingListener {
 
+    /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we can throttle relocations more tightly
+    /// than recoveries from unassigned shards. Applies only to incoming recoveries, recorded on the target, not to outgoing peer
+    /// recoveries.
+    enum PriorityGroup {
+        UNASSIGNED,
+        RELOCATION,
+    }
+
     /// Listener that ignores every lifecycle event.
     RecoverySchedulingListener NOOP = new RecoverySchedulingListener() {};
 
-    /// Called when a recovery is directly cancelled by the master node, before it even reached the queue.
-    default void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when an incoming recovery is directly cancelled on the target by the master node, before it even reached the queue.
+    default void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {}
 
-    /// Called when a recovery is queued on this data node.
-    default void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when an incoming recovery is queued on the target.
+    default void onRecoveryQueuedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
 
-    /// Called when a queued recovery is discarded without having ever run.
-    default void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when an outgoing peer recovery is queued on the source.
+    default void onPeerRecoveryQueuedOnSource() {}
 
-    /// Called when a queued recovery is directly cancelled by the master node, before it started running.
-    default void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when a queued incoming recovery is discarded on the target without having ever run.
+    default void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
 
-    /// Called when a recovery has been dispatched for execution on this data node.
-    default void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when a queued outgoing peer recovery is discarded on the source without having ever run.
+    default void onQueuedPeerRecoveryDiscardedOnSource() {}
 
-    /// Called when a previously queued recovery is dequeued and dispatched for execution on this data node.
-    default void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when a queued incoming recovery is directly cancelled on the target by the master node, before it started running.
+    default void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
 
-    /// Called when started recovery is directly cancelled by the master node.
-    default void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when an outgoing peer recovery has been dispatched for execution on the source.
+    default void onPeerRecoveryStartedOnSource() {}
 
-    /// Called when a running recovery finishes (success, failure or aborted).
-    default void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {}
+    /// Called when a previously queued incoming recovery is dequeued and dispatched for execution on the target.
+    default void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
+
+    /// Called when a previously queued outgoing peer recovery is dequeued and dispatched for execution on the source.
+    default void onPeerRecoveryDequeuedAndStartedOnSource() {}
+
+    /// Called when started incoming recovery is directly cancelled on the target by the master node.
+    default void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {}
+
+    /// Called when a running incoming recovery finishes (success, failure or aborted) on the target.
+    default void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
+
+    /// Called when a running outgoing peer recovery finishes (success, failure or aborted) on the source.
+    default void onPeerRecoveryCompletedOnSource() {}
+
+    /// Called when this node starts holding new recoveries back due to a recovery gate; `gateName` identifies the gate. Paired with
+    /// [#onRecoveriesUnblocked].
+    default void onRecoveriesBlocked(String gateName) {}
+
+    /// Called when this node stops holding recoveries back, reporting how long the block lasted (ms). Carries no gate name: the gate
+    /// that started the block (reported by [#onRecoveriesBlocked]) is not necessarily the one that held it last.
+    default void onRecoveriesUnblocked(long blockedTimeMillis) {}
 }

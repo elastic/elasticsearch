@@ -29,10 +29,12 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -200,6 +202,20 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING = Setting.intSetting(
         "index.highlight.max_analyzed_offset",
         1000000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * A setting describing the maximum number of fragments a highlight request may ask for. Highlighters size their
+     * internal structures according to the requested number of fragments, so an unbounded value lets a single request
+     * allocate enough memory to destabilize the node. The default of 10000 fragments is well above what is useful for
+     * presenting results to a user, while remaining cheap to allocate.
+     */
+    public static final Setting<Integer> MAX_NUMBER_OF_FRAGMENTS_SETTING = Setting.intSetting(
+        "index.highlight.max_number_of_fragments",
+        10000,
         1,
         Property.Dynamic,
         Property.IndexScope
@@ -699,7 +715,7 @@ public final class IndexSettings {
     );
 
     /**
-     * Enables slice semantics for the index. When enabled, APIs accept {@code _slice} and treat it as routing.
+     * Enables slice semantics for the index. When enabled, APIs accept {@code slice} and treat it as routing.
      */
     public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
         @Override
@@ -854,6 +870,56 @@ public final class IndexSettings {
         }
         return "false";
     }, Property.IndexScope, Property.Final);
+
+    /**
+     * Internal, feature-flagged setting that turns on the implicit flattened {@code _unmapped} sink absorbing unmapped fields.
+     * Only permitted in strict columnar index modes; rejected (as an unknown setting) when the feature flag is off.
+     * Temporary scaffolding: to be removed once all sink read paths land, when enablement becomes feature flag + strict columnar mode
+     * with no per-index opt-out. Do not document or expose this setting.
+     */
+    public static final Setting<Boolean> FLATTENED_UNMAPPED_FIELDS_ENABLED = Setting.boolSetting(
+        "index.mapping.flattened_unmapped_fields.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean enabled) {
+                if (enabled && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "unknown setting [%s] please check that any required plugins are installed, "
+                                + "or check the breaking changes documentation for removed settings",
+                            FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    var indexMode = (IndexMode) settings.get(MODE);
+                    if (indexMode.isStrictColumnar() == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted in strict columnar index modes. Current mode: [%s].",
+                                FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(),
+                                indexMode.getName()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(MODE).iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
@@ -1040,6 +1106,19 @@ public final class IndexSettings {
         }
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
+
+    /**
+     * Controls whether the ColumNAR doc values codec is used for a given index, as an explicit opt-in.
+     * Defaults to {@code false}. This setting is only registered while the {@code columnar_codec} feature
+     * flag is enabled, so a release build without the flag does not expose it; the full gating is enforced
+     * in {@code ColumnarDocValuesFormatSelector}.
+     */
+    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.columnar_codec.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1246,12 +1325,29 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Whether a dynamically mapped string that becomes a {@code text} field also gets an automatic {@code .keyword}
+     * multi-field. Only consulted when {@link #DYNAMIC_STRINGS_AUTO_TEXT} is enabled, since otherwise the string is
+     * mapped as a keyword to begin with.
+     * <p>
+     * Strict columnar modes default to {@code false}: the text field already has its own doc-values column there, which
+     * serves value retrieval, aggregations and sorting, so the keyword multi-field would store a second copy of every
+     * dynamic string. Exact, case-sensitive term filtering still requires mapping such a field explicitly.
+     */
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_keyword_subfield",
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar() == false),
+        value -> {},
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
-    private final int numberOfShards;
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1290,6 +1386,7 @@ public final class IndexSettings {
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
     private final boolean sliceEnabled;
+    private final boolean flattenedUnmappedFieldsEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1319,6 +1416,7 @@ public final class IndexSettings {
     private volatile float postFilterSelectivityThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
+    private volatile int maxNumberOfFragments;
     private volatile boolean weightMatchesEnabled;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
@@ -1337,6 +1435,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private volatile boolean dynamicStringsAutoText;
+    private volatile boolean dynamicStringsAutoKeywordSubfield;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1348,6 +1447,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
+    private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1435,6 +1535,10 @@ public final class IndexSettings {
         return sliceEnabled;
     }
 
+    public boolean isFlattenedUnmappedFieldsEnabled() {
+        return flattenedUnmappedFieldsEnabled;
+    }
+
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1469,7 +1573,6 @@ public final class IndexSettings {
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
-        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
         if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
             && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
@@ -1524,11 +1627,13 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
+        maxNumberOfFragments = scopedSettings.get(MAX_NUMBER_OF_FRAGMENTS_SETTING);
         weightMatchesEnabled = scopedSettings.get(WEIGHT_MATCHES_MODE_ENABLED_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
+        flattenedUnmappedFieldsEnabled = scopedSettings.get(FLATTENED_UNMAPPED_FIELDS_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1569,6 +1674,8 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -1607,6 +1714,7 @@ public final class IndexSettings {
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
+        dynamicStringsAutoKeywordSubfield = DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1645,7 +1753,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-            mergeSchedulerConfig::setMaxThreadAndMergeCount
+            (maxThreadCount, maxMergeCount) -> {
+                mergeSchedulerConfig.setMaxThreadAndMergeCount(maxThreadCount, maxMergeCount);
+                warnIfMergeSchedulerMaxThreadCountClamped();
+            }
         );
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
@@ -1667,6 +1778,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NUMBER_OF_FRAGMENTS_SETTING, this::setHighlightMaxNumberOfFragments);
         scopedSettings.addSettingsUpdateConsumer(WEIGHT_MATCHES_MODE_ENABLED_SETTING, this::setWeightMatchesEnabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -1703,6 +1815,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1795,7 +1908,7 @@ public final class IndexSettings {
      * Returns the number of shards this index has.
      */
     public int getNumberOfShards() {
-        return numberOfShards;
+        return indexMetadata.getNumberOfShards();
     }
 
     /**
@@ -1984,6 +2097,15 @@ public final class IndexSettings {
     }
 
     /**
+     * Logs when an applied {@code max_thread_count} was clamped to {@code max_merge_count}.
+     * Call only from paths that own a live index (create or a real settings update), not from
+     * throwaway {@link IndexSettings} constructions used for validation.
+     */
+    public void warnIfMergeSchedulerMaxThreadCountClamped() {
+        mergeSchedulerConfig.warnIfMaxThreadCountClamped(logger);
+    }
+
+    /**
      * Returns the max result window for search requests, describing the maximum value of from + size on a query.
      */
     public int getMaxResultWindow() {
@@ -2069,6 +2191,17 @@ public final class IndexSettings {
 
     private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+    }
+
+    /**
+     *  Returns the maximum number of fragments a highlight request may ask for
+     */
+    public int getHighlightMaxNumberOfFragments() {
+        return this.maxNumberOfFragments;
+    }
+
+    private void setHighlightMaxNumberOfFragments(int maxNumberOfFragments) {
+        this.maxNumberOfFragments = maxNumberOfFragments;
     }
 
     public boolean isWeightMatchesEnabled() {
@@ -2390,6 +2523,16 @@ public final class IndexSettings {
     }
 
     /**
+     * Checks if this index opts into the ColumNAR doc values codec, as resolved from
+     * {@link #COLUMNAR_CODEC_ENABLED_SETTING}.
+     *
+     * @return {@code true} if the index opts into ColumNAR; {@code false} otherwise.
+     */
+    public boolean isColumnarCodecEnabled() {
+        return columnarCodecEnabled;
+    }
+
+    /**
      * @return Whether the ES 8.12 postings format should be used.
      */
     public boolean useEs812PostingsFormat() {
@@ -2487,5 +2630,17 @@ public final class IndexSettings {
      */
     public boolean getDynamicStringsAutoText() {
         return dynamicStringsAutoText;
+    }
+
+    private void setDynamicStringsAutoKeywordSubfield(boolean enabled) {
+        this.dynamicStringsAutoKeywordSubfield = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if a dynamically mapped {@code text} field should get an automatic {@code .keyword}
+     * multi-field. Only meaningful when {@link #getDynamicStringsAutoText()} is enabled.
+     */
+    public boolean getDynamicStringsAutoKeywordSubfield() {
+        return dynamicStringsAutoKeywordSubfield;
     }
 }

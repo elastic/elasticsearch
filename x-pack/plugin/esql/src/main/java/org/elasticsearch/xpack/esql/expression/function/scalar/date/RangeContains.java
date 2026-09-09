@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.io.IOException;
@@ -30,9 +32,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 
 /**
- * RANGE_CONTAINS(a, b) -> boolean
+ * {@code RANGE_CONTAINS(a, b) -> boolean}.
  * Returns true if the first argument contains the second.
  * Equivalent to {@code RANGE_WITHIN(b, a)} — this function lowers to {@link RangeWithin} via
  * {@link OnlySurrogateExpression#surrogate()} on the coordinator, so it has no evaluator of its own.
@@ -40,9 +44,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
  * <ul>
  *   <li>(date_range, date): range contains point</li>
  *   <li>(date_range, date_range): first range contains second (second fully contained by first)</li>
+ *   <li>(double_range, double): range contains point</li>
+ *   <li>(double_range, double_range): first range contains second (second fully contained by first)</li>
  * </ul>
  */
-public class RangeContains extends EsqlScalarFunction implements OnlySurrogateExpression {
+public class RangeContains extends EsqlScalarFunction implements OnlySurrogateExpression, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeContains.class)
         .binary(RangeContains::new)
         .name("range_contains");
@@ -52,6 +58,9 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date_range", "date|date_range" }, returnType = "boolean"),
+            @Signature(params = { "double_range", "double|double_range" }, returnType = "boolean") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         briefSummary = "Returns true if a date range contains a given date or sub-range.",
@@ -68,8 +77,12 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
     )
     public RangeContains(
         Source source,
-        @Param(name = "left", type = { "date_range" }, description = "Container range.") Expression left,
-        @Param(name = "right", type = { "date", "date_range" }, description = "Value to test (point or range).") Expression right
+        @Param(name = "left", type = { "date_range", "double_range" }, description = "Container range.") Expression left,
+        @Param(
+            name = "right",
+            type = { "date", "date_range", "double", "double_range" },
+            description = "Value to test (point or range)."
+        ) Expression right
     ) {
         super(source, List.of(left, right));
         this.left = left;
@@ -105,8 +118,38 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution first = isType(left, dt -> dt == DATE_RANGE, sourceText(), FIRST, "date_range");
-        TypeResolution second = isType(right, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), SECOND, "date", "date_range");
+        TypeResolution first = isType(
+            left,
+            dt -> dt == DATE_RANGE || dt == DOUBLE_RANGE,
+            sourceText(),
+            FIRST,
+            "date_range",
+            "double_range"
+        );
+        DataType expectedScalarType = switch (left.dataType()) {
+            case DATE_RANGE -> DATETIME;
+            case DOUBLE_RANGE -> DOUBLE;
+            default -> null;
+        };
+        TypeResolution second = expectedScalarType == null
+            ? isType(
+                right,
+                dt -> dt == DATE_RANGE || dt == DATETIME || dt == DOUBLE_RANGE || dt == DOUBLE,
+                sourceText(),
+                SECOND,
+                "date",
+                "date_range",
+                "double",
+                "double_range"
+            )
+            : isType(
+                right,
+                dt -> dt == expectedScalarType || dt == left.dataType(),
+                sourceText(),
+                SECOND,
+                expectedScalarType.esType(),
+                left.dataType().esType()
+            );
         return first.and(second);
     }
 

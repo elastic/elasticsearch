@@ -43,10 +43,8 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
 
     private List<IndexStats> indicesStats;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initIndicesStats() throws Exception {
         indicesStats = Collections.singletonList(
             new IndexStats(
                 "index-0",

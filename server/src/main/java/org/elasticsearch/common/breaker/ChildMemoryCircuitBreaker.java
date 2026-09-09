@@ -70,6 +70,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Per-phase retained query memory charged by {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery}. */
     public static final String CATEGORY_QUERY = "query";
 
+    /** Fetch-phase retained memory. */
+    public static final String CATEGORY_FETCH = "fetch";
+
     /** Query-construction reservation for compiled wildcard automata. */
     public static final String CATEGORY_WILDCARD = "wildcard";
 
@@ -82,12 +85,17 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Up-front reservation made by {@link PreallocatedCircuitBreakerService} (label is {@code preallocate[<detail>]}). */
     public static final String CATEGORY_PREALLOCATE = "preallocate";
 
+    /** Coordinating-node buffer for multi-search sub-responses (label is {@code msearch[<detail>]}). */
+    public static final String CATEGORY_MSEARCH = "msearch";
+
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
+        CATEGORY_FETCH,
         CATEGORY_WILDCARD,
         CATEGORY_REGEXP,
         CATEGORY_RANGE,
-        CATEGORY_PREALLOCATE
+        CATEGORY_PREALLOCATE,
+        CATEGORY_MSEARCH
     );
 
     /**

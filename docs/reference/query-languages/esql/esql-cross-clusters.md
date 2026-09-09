@@ -413,6 +413,13 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 ```
 
 
+## LOOKUP JOIN across clusters [ccq-lookup-join]
+
+{{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support) is supported in cross-cluster queries. By default, {{esql}} resolves the lookup index on every cluster in the query and each cluster joins against its own local index with that name. In this case, the lookup index must exist on every cluster being queried. This follows the same pattern as [remote mode Enrich](#esql-enrich-remote).
+
+{applies_to}`stack: preview 9.6+` If the lookup index is missing from one or more remote clusters, use [coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) to join against a local cluster lookup index copy.
+
+
 ## Excluding clusters or indices from {{esql}} query [ccq-exclude]
 
 Use exclusions in the `FROM` command to omit an entire remote cluster or specific indices from a query.
@@ -488,6 +495,55 @@ Running multiple versions of {{es}} in the same cluster beyond the duration of a
 
 For more information about upgrades, see [Upgrading {{es}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 
+
+## Limitations [ccq-limitations]
+
+### Inference endpoints [ccq-inference-endpoints]
+
+The `RERANK` and `COMPLETION` commands, and the `TEXT_EMBEDDING` and `EMBEDDING` functions, always run on the cluster that receives the query. Their inference endpoint must exist on that same cluster, even when every document comes from a remote. If it does not, the query fails with `Inference endpoint not found`.
+
+{applies_to}`stack: preview 9.4` This also applies to `MMR` when its query vector comes from an inference function rather than from a literal or an existing vector field.
+
+Querying a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field works the other way around: each cluster generates query embeddings using its own `search_inference_id`, so the endpoint must exist on the cluster that holds the data.
+
+A query that does both needs endpoints on both clusters. The following reads no local data at all, and still requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:
+
+```esql
+FROM my_remote_cluster:my-index
+| WHERE semantic_field : "query text"
+| RERANK "query text" ON title WITH { "inference_id": "rerank-1" }
+```
+
+Querying a `semantic_text` field across clusters requires every participating cluster to run 9.3.1 or later. Against an older remote the query fails with an error naming the required version.
+
+### Relevance scores across clusters [ccq-scores]
+
+Full-text scores are computed per shard, from that shard's own term statistics. {{esql}} has no equivalent of the Query DSL `dfs_query_then_fetch` search type, so nothing reconciles those statistics — within a cluster or across them. The shards of one index usually hold similar enough data for this to go unnoticed. Separate clusters often do not.
+
+Scores from different clusters are therefore not directly comparable, and the effect grows as the corpora diverge in size or vocabulary. A term that is rare on one cluster and common on another produces systematically higher scores on the first, regardless of how relevant its documents actually are. This affects `SORT _score`, any `WHERE` clause comparing `_score` against a fixed threshold, and the set of candidates that reaches a later `RERANK`.
+
+Only lexical scoring is affected by corpus statistics. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields on stored per-token weights. Their scores do not vary with corpus statistics, but they are comparable across clusters only when the fields use the same embedding model and equivalent similarity or scoring configuration.
+
+{applies_to}`stack: preview 9.2-9.4, ga 9.5+` This carries into [`FUSE`](/reference/query-languages/esql/commands/fuse.md). The default `RRF` method compares ranks rather than score magnitudes, so it is less exposed to the difference, though not immune: those ranks are themselves produced by the scores above. `LINEAR` combines the score values directly, and rescales them only if you set its `normalizer` option, which defaults to `none`. Prefer `RRF` in cross-cluster queries.
+
+### `dense_vector` fields [ccq-dense-vector]
+
+`dense_vector` fields are only available when every cluster in the query runs 9.2.0 or later. If any cluster is older, the fields are treated as unsupported for the whole query, including on clusters that do support them.
+
+A query that uses `KNN`, `TO_DENSE_VECTOR`, or one of the `V_*` similarity functions keeps the fields enabled instead, and any cluster that cannot handle the type reports a failure for its own shards. By default the remaining clusters still return their results, marked partial. If `allow_partial_results` is disabled, that failure fails the whole query.
+
+### `LOOKUP JOIN` after other commands [ccq-lookup-join-limits]
+
+A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying cluster. That is any pipeline-breaking command — `STATS`, `INLINE STATS`, `SORT`, `LIMIT`, `TS_INFO`, and `METRICS_INFO` among them — and any command that only ever runs there, such as `CHANGE_POINT`, `FORK`, `FUSE`, `RERANK`, `COMPLETION`, `MMR`, and coordinator-side `ENRICH`. Refer to [`LOOKUP JOIN` coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) for the workaround and its own constraints.
+
+### Views across clusters [ccq-views]
+
+### Datasets across clusters
+```{applies_to}
+stack: experimental =9.5
+```
+
+You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
 

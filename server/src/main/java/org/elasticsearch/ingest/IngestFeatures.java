@@ -21,6 +21,9 @@ public class IngestFeatures implements FeatureSpecification {
     private static final NodeFeature RANDOM_SAMPLING = new NodeFeature("random_sampling", true);
     private static final NodeFeature INGEST_APPEND_IGNORE_EMPTY_VALUES_FIX = new NodeFeature("ingest.append.ignore_empty_values_fix", true);
     public static final NodeFeature DYNAMIC_STRINGS_AUTO_TEXT_SETTING = new NodeFeature("ingest.dynamic_strings.auto_text_setting");
+    // Guards YAML tests for the pipeline size/count limits (see IngestSettings.MAX_PIPELINE_SIZE, MAX_TOTAL_METADATA_SIZE,
+    // MAX_PIPELINES) so they don't run against older nodes in mixed-cluster/BWC tests, which don't have these settings registered.
+    private static final NodeFeature INGEST_PIPELINE_SIZE_LIMITS = new NodeFeature("ingest.pipeline_size_limits", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -35,7 +38,8 @@ public class IngestFeatures implements FeatureSpecification {
             INGEST_APPEND_IGNORE_EMPTY_VALUES,
             RANDOM_SAMPLING,
             INGEST_APPEND_IGNORE_EMPTY_VALUES_FIX,
-            DYNAMIC_STRINGS_AUTO_TEXT_SETTING
+            DYNAMIC_STRINGS_AUTO_TEXT_SETTING,
+            INGEST_PIPELINE_SIZE_LIMITS
         );
     }
 }

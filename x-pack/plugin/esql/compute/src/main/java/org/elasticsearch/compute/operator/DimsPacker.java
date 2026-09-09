@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.Releasables;
 
-final class DimsPacker {
+public final class DimsPacker {
     private static final TopNEncoder ENCODER = TopNEncoder.DEFAULT_UNSORTABLE;
     static final int INITIAL_SIZE_IN_BYTES = 6 * 1024;
 
@@ -242,7 +242,7 @@ final class DimsPacker {
         }
     }
 
-    static BytesRefVector packMultiColumns(DriverContext driverContext, Block[] blocks) {
+    public static BytesRefVector packMultiColumns(DriverContext driverContext, Block[] blocks) {
         int positionCount = blocks[0].getPositionCount();
         try (
             var builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
@@ -272,7 +272,7 @@ final class DimsPacker {
         }
     }
 
-    static Block[] unpackMultiColumns(DriverContext driverContext, BytesRefVector packed, ElementType[] outputTypes) {
+    public static Block[] unpackMultiColumns(DriverContext driverContext, BytesRefVector packed, ElementType[] outputTypes) {
         int positionCount = packed.getPositionCount();
         Block.Builder[] builders = new Block.Builder[outputTypes.length];
         try {

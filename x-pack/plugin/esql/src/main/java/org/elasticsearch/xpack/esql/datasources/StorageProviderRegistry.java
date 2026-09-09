@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
@@ -41,7 +42,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>All non-file providers are automatically wrapped with per-scheme concurrency limiting and retry logic for
  * transient storage failures (503, 429, connection resets, timeouts). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}.
+ * Non-empty WITH-config providers are additionally pooled: {@code createProvider} returns a
+ * lease wrapper whose {@code close()} returns the client to {@link StorageProviderCache}.
  *
  * <p>Concurrency limiters are shared per-scheme and adaptive backoff state is shared per-throttle-scope across all
  * providers (including per-query config providers), because cloud API rate limits are per account/IP, not per client
@@ -65,7 +68,8 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
-    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    // Returns a pool lease per call; overlapping queries share one SDK client, idle clients
+    // expire after 5 minutes from the last return, and in-use clients are never true-closed.
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
@@ -159,6 +163,22 @@ public class StorageProviderRegistry implements Closeable {
         return provider;
     }
 
+    /**
+     * One message for "nothing here reads that scheme", raised wherever the lookup fails. The bare forms this
+     * replaced named neither the schemes that ARE registered nor anything the caller could do, and one spoke of
+     * an "SPI storage factory" -- a noun with no meaning outside this code. Follows the wording of
+     * {@code ExternalSourceResolver}'s {@code UnsupportedSchemeException}, which states the same condition to
+     * the same audience. {@code StorageManager} has a third wording for it, still divergent; collapsing all
+     * three onto one builder is esql-planning#1551.
+     */
+    private IllegalArgumentException unsupportedScheme(String scheme) {
+        Set<String> known = new TreeSet<>(factories.keySet());
+        known.addAll(providers.keySet());
+        return new IllegalArgumentException(
+            "Unsupported storage scheme [" + scheme + "]. No data source plugin on this node reads it. Supported schemes: " + known + "."
+        );
+    }
+
     public boolean hasProvider(String scheme) {
         if (Strings.isNullOrEmpty(scheme)) {
             return false;
@@ -215,7 +235,7 @@ public class StorageProviderRegistry implements Closeable {
 
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
-            throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
+            throw unsupportedScheme(scheme);
         }
 
         // Gate auth=managed_identity on the cluster setting before constructing the provider. This covers the
@@ -263,7 +283,7 @@ public class StorageProviderRegistry implements Closeable {
         }
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
-            throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
+            throw unsupportedScheme(normalizedScheme);
         }
         provider = wrapProvider(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);
@@ -335,6 +355,15 @@ public class StorageProviderRegistry implements Closeable {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
+        } else {
+            // No time budget: cap throttle retries to a small count so a stalled read does not
+            // block for hours. With budget=0 the sanity cap is the only bound; 10 retries matches
+            // pre-cap behaviour and limits worst-case delay to ~5 min.
+            policy = policy.withThrottleConfig(
+                10,
+                RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS,
+                RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS
+            );
         }
         return policy;
     }

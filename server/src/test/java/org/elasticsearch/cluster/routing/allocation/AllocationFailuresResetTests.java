@@ -88,7 +88,8 @@ public class AllocationFailuresResetTests extends ESTestCase {
             true,
             new RecoverySource.EmptyStoreRecoverySource(),
             unassignedInfo,
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
 
         var routingTable = new RoutingTable.Builder().add(

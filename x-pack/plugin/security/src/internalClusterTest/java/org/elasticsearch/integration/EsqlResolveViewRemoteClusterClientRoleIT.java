@@ -60,11 +60,7 @@ public class EsqlResolveViewRemoteClusterClientRoleIT extends SecurityIntegTestC
         assertAcked(
             authedClient.execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    new View("local-view", "FROM my-index | LIMIT 10")
-                )
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View("local-view", "FROM my-index | LIMIT 10"))
             ).actionGet(TEST_REQUEST_TIMEOUT)
         );
 

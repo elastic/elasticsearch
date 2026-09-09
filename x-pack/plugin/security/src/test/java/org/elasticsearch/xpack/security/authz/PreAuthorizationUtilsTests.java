@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -142,6 +148,96 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(false));
+    }
+
+    public void testMaybeSkipChildrenActionAuthorizationAddsParentAuthorizationHeaderForBulkShard() {
+        String action = TransportShardBulkAction.ACTION_NAME;
+
+        Role role = Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.WRITE, "test-*").build();
+
+        AuthorizationContext parentAuthorizationContext = createAuthorizationContext(action, role, IndicesAccessControl.allowAll());
+        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
+
+        maybeSkipChildrenActionAuthorization(securityContext, parentAuthorizationContext);
+        assertThat(securityContext.getParentAuthorization(), notNullValue());
+        assertThat(securityContext.getParentAuthorization().action(), equalTo(action));
+    }
+
+    public void testShouldPreAuthorizeChildByParentActionForBulkShardWrite() {
+        final String parentAction = TransportShardBulkAction.ACTION_NAME;
+        final String childAction = randomWhitelistedChildAction(parentAction);
+
+        ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);
+        Authentication authentication = Authentication.newRealmAuthentication(
+            new User("username1", "role1"),
+            new RealmRef("realm1", "native", "node1")
+        );
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            new ShardId("test-index", randomAlphaOfLength(24), 0),
+            WriteRequest.RefreshPolicy.NONE,
+            new BulkItemRequest[] { new BulkItemRequest(0, new IndexRequest("test-index").id("1")) }
+        );
+        RequestInfo requestInfo = new RequestInfo(authentication, bulkShardRequest, childAction, null, parentAuthorization);
+
+        Role role = Role.builder(RESTRICTED_INDICES, "role1").add(IndexPrivilege.WRITE, "test-*").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(true));
+    }
+
+    public void testShouldPreAuthorizeReroutedBulkShardByParentAction() {
+        final String parentAction = TransportShardBulkAction.ACTION_NAME;
+        final String childAction = TransportShardBulkAction.ACTION_NAME;
+
+        ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);
+        Authentication authentication = Authentication.newRealmAuthentication(
+            new User("username1", "role1"),
+            new RealmRef("realm1", "native", "node1")
+        );
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            new ShardId("test-index", randomAlphaOfLength(24), 0),
+            WriteRequest.RefreshPolicy.NONE,
+            new BulkItemRequest[] { new BulkItemRequest(0, new IndexRequest("test-index").id("1")) }
+        );
+        RequestInfo requestInfo = new RequestInfo(authentication, bulkShardRequest, childAction, null, parentAuthorization);
+
+        Role role = Role.builder(RESTRICTED_INDICES, "role1").add(IndexPrivilege.WRITE, "test-*").build();
+        RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+
+        assertThat(PreAuthorizationUtils.shouldPreAuthorizeChildByParentAction(requestInfo, authzInfo), equalTo(true));
+    }
+
+    public void testShouldRemoveParentAuthorizationFromThreadContextForBulkShard() {
+        final String parentAction = TransportShardBulkAction.ACTION_NAME;
+        SecurityContext securityContextWithParentAuthorization = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
+        securityContextWithParentAuthorization.setParentAuthorization(new ParentActionAuthorization(parentAction));
+
+        assertThat(
+            shouldRemoveParentAuthorizationFromThreadContext(
+                randomWhitelistedChildAction(parentAction),
+                securityContextWithParentAuthorization,
+                false
+            ),
+            equalTo(false)
+        );
+
+        assertThat(
+            shouldRemoveParentAuthorizationFromThreadContext(
+                randomWhitelistedChildAction(parentAction),
+                securityContextWithParentAuthorization,
+                true
+            ),
+            equalTo(true)
+        );
+
+        assertThat(
+            shouldRemoveParentAuthorizationFromThreadContext(
+                randomAlphaOfLengthBetween(3, 8),
+                securityContextWithParentAuthorization,
+                randomBoolean()
+            ),
+            equalTo(true)
+        );
     }
 
     private String randomWhitelistedChildAction(String parentAction) {

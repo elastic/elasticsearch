@@ -60,7 +60,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
  * Task coverage still uses a lightweight filesystem scan of the {@code test} and {@code integTest}
  * source trees because those rules only need simple class-name matching.
  */
-class BuildLogicCoverageArchUnitSpec extends AbstractArchUnitSpec {
+class BuildLogicTestcoverageArchUnitSpec extends AbstractArchUnitSpec {
 
     /** Test class name suffixes accepted as coverage for a task. */
     private static final List<String> TEST_SUFFIXES = ["Tests", "Test", "Spec", "FuncTest", "IT"]

@@ -89,8 +89,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -159,7 +165,9 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.SECURITY_CONFIG_
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.hasProtobufContent;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestRawContent;
 
 public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
@@ -207,6 +215,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String URL_QUERY_FIELD_NAME = "url.query";
     public static final String REQUEST_METHOD_FIELD_NAME = "request.method";
     public static final String REQUEST_BODY_FIELD_NAME = "request.body";
+    public static final String RAW_REQUEST_BODY_FIELD_NAME = "request.raw_body";
+    public static final String RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME = "request.raw_body_content_type";
+    public static final String RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME = "request.raw_body_content_encoding";
     public static final String REQUEST_ID_FIELD_NAME = "request.id";
     public static final String ACTION_FIELD_NAME = "action";
     public static final String INDICES_FIELD_NAME = "indices";
@@ -294,10 +305,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Property.Dynamic
     );
     /**
-     * Maximum rendered JSON length (in characters) that may be included in audit events when
-     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the output of
-     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} rather than the raw
-     * request bytes, so it accounts for format differences (e.g. SMILE expanding to JSON).
+     * Maximum rendered body length (in characters) that may be included in audit events when
+     * {@link #INCLUDE_REQUEST_BODY} is {@code true}. The limit is applied to the representation
+     * written to the log rather than the raw request bytes: the output of
+     * {@link org.elasticsearch.common.xcontent.XContentHelper#convertToJson} for {@code request.body},
+     * or the base64 encoding for {@code request.raw_body}. It therefore accounts for format
+     * differences (e.g. SMILE expanding to JSON, base64 expanding by 4/3).
      * Requests whose rendered body exceeds this limit are rejected with HTTP 413 to keep the
      * audit log a complete record of every accepted request.
      * <p>
@@ -334,7 +347,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         InvalidateApiKeyAction.NAME,
         DeletePrivilegesAction.NAME,
         CreateServiceAccountTokenAction.NAME,
+        CreateUserManagedServiceAccountTokenAction.NAME,
         DeleteServiceAccountTokenAction.NAME,
+        DeleteUserManagedServiceAccountTokenAction.NAME,
+        PutUserManagedServiceAccountAction.NAME,
+        DeleteUserManagedServiceAccountAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
         SetProfileEnabledAction.NAME,
@@ -676,7 +693,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
@@ -810,12 +827,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
-                } else if (msg instanceof CreateServiceAccountTokenRequest) {
-                    assert CreateServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
-                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
-                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest createServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action)
+                        || CreateUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(createServiceAccountTokenRequest).build();
+                } else if (msg instanceof PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) {
+                    assert PutUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(putUserManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) {
+                    assert DeleteUserManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteUserManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action)
+                        || DeleteUserManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();
@@ -1575,6 +1600,35 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(PutUserManagedServiceAccountRequest putUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", putUserManagedServiceAccountRequest.getNamespace())
+                .field("service", putUserManagedServiceAccountRequest.getServiceName())
+                .array("roles", putUserManagedServiceAccountRequest.getRoles().toArray(String[]::new))
+                .field("enabled", putUserManagedServiceAccountRequest.isEnabled())
+                .endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_user_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("user_managed_service_account")
+                .field("namespace", deleteUserManagedServiceAccountRequest.getNamespace())
+                .field("service", deleteUserManagedServiceAccountRequest.getServiceName())
+                .field("force", deleteUserManagedServiceAccountRequest.isForce())
+                .endObject() // user_managed_service_account
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_token");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1729,12 +1783,32 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         LogEntryBuilder withRequestBody(RestRequest request) {
             if (includeRequestBody) {
-                final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
-                if (Strings.hasLength(requestContent)) {
-                    logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                if (hasProtobufContent(request)) {
+                    withRawRequestBody(request);
+                } else {
+                    final String requestContent = restRequestContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+                    if (Strings.hasLength(requestContent)) {
+                        logEntry.with(REQUEST_BODY_FIELD_NAME, requestContent);
+                    }
                 }
             }
             return this;
+        }
+
+        private void withRawRequestBody(RestRequest request) {
+            final String rawContent = restRequestRawContent(request, maxRequestBodyBytes, MAX_REQUEST_BODY_SIZE.getKey());
+            if (Strings.hasLength(rawContent) == false) {
+                return;
+            }
+            logEntry.with(RAW_REQUEST_BODY_FIELD_NAME, rawContent);
+            final String contentType = request.header("Content-Type");
+            if (Strings.hasLength(contentType)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_TYPE_FIELD_NAME, contentType);
+            }
+            final String contentEncoding = request.header("Content-Encoding");
+            if (Strings.hasLength(contentEncoding)) {
+                logEntry.with(RAW_REQUEST_BODY_CONTENT_ENCODING_FIELD_NAME, contentEncoding);
+            }
         }
 
         LogEntryBuilder withRequestId(String requestId) {

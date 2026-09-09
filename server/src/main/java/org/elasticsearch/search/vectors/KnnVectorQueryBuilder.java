@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -613,11 +615,22 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             return List.of();
         }
         final List<Query> autoPrefilters = new ArrayList<>();
-        for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
-            Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(queryBuilder, UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES);
+        for (ScopedPrefilter scopedPrefilter : context.autoPrefilteringScope().getPrefilters()) {
+            if (this == scopedPrefilter.query()) {
+                continue;
+            }
+            Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(
+                scopedPrefilter.query(),
+                UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES
+            );
             if (pruned.isPresent()) {
-                Query query = pruned.get().toQuery(context);
-                autoPrefilters.add(query);
+                // A prefilter is meant to be evaluated in the document space of the query that collected it, which may
+                // sit above this knn query's nested level. Building it here without unwinding would give block join
+                // queries - such as an exists query on a semantic_text field - a child level as their parent filter,
+                // leaving the prefilter matching nothing. The filters are joined down to child documents in doToQuery.
+                try (Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel())) {
+                    autoPrefilters.add(pruned.get().toQuery(context));
+                }
             }
         }
         return autoPrefilters;

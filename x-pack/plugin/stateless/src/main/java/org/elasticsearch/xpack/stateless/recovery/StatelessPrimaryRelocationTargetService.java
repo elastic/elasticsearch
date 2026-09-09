@@ -31,8 +31,6 @@ import java.util.HashMap;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.format;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrewarmRelocationRequest;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING;
 
 /// Target-side stateless primary relocation: prewarm and primary-context handoff.
@@ -68,7 +66,7 @@ public class StatelessPrimaryRelocationTargetService {
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
     }
 
-    void handlePrewarmRelocation(PrewarmRelocationRequest request, ActionListener<Void> listener) {
+    void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             logger.trace("{} prewarming due to primary relocation", request.shardId());
 
@@ -92,7 +90,7 @@ public class StatelessPrimaryRelocationTargetService {
         });
     }
 
-    void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
+    void handlePrimaryContextHandoff(TransportStatelessPrimaryRelocationHandoffAction.Request request, ActionListener<Void> listener) {
         logger.debug("[{}] received primary context handoff request", request.shardId());
         final var statelessCommitService = statelessCommitServiceProvider.get();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());

@@ -51,7 +51,7 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
     // This is not dynamic to simplify the implementation.
     public static final Setting<Boolean> STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED = Setting.boolSetting(
         "stateless.upload.queue_controller.indexing_throttling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

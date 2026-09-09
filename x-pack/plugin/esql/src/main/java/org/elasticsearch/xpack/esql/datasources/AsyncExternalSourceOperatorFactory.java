@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -949,7 +948,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
 
-            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
+            return new AsyncExternalSourceOperator(buffer, driverContext, externalSourceMetrics, path.scheme(), formatReader.formatName());
         } catch (Exception e) {
             releaseOperator();
             throw e;
@@ -1027,7 +1026,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link Builder#build} time.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
-        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
+        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
         return sourceExtractorsFor(driverContext).register(extractor);
     }
 
@@ -1048,17 +1047,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the
-     * driver thread and therefore emits directly to {@link HeaderWarning}. It must not route through
-     * the source buffer: {@code Driver} closes the source operator (draining the buffer's pending
-     * warnings) as soon as it finishes, which can happen before the paired extract operator runs, so
-     * a buffered extractor warning would never be drained.
+     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the driver thread and
+     * therefore deposits straight into that driver's {@link DriverContext} sink — the channel
+     * {@code DriverCompletionInfo} carries back from whatever node ran the scan, so the warning reaches the client
+     * whether or not that node is the coordinator. It must not route through the source buffer: {@code Driver} closes
+     * the source operator (draining the buffer's pending warnings) as soon as it finishes, which can happen before the
+     * paired extract operator runs, so a buffered extractor warning would never be drained.
      */
-    private Consumer<String> driverThreadInformationalWarningSink() {
+    private Consumer<String> driverThreadInformationalWarningSink(DriverContext driverContext) {
         return warning -> {
             String toRecord = informationalWarningBudget.accept(warning);
             if (toRecord != null) {
-                HeaderWarning.addWarning(toRecord);
+                driverContext.addWarning(toRecord);
             }
         };
     }
@@ -2027,10 +2027,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
-                String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                StorageObject fullObj = fileLengthStr != null
-                    ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
-                    : storageProvider.newObject(fileSplit.path());
+                StorageObject fullObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
                 attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
@@ -2081,7 +2078,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Cache per file path to avoid redundant metadata fetches across splits of the same file.
                     List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
                     if (cachedSchema == null) {
-                        SourceMetadata meta = fileReader.metadata(storageProvider.newObject(fileSplit.path()));
+                        SourceMetadata meta = fileReader.metadata(FileSplitProvider.newObjectForFile(storageProvider, fileSplit));
                         if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                             cachedSchema = meta.schema();
                         }
@@ -2226,10 +2223,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
-                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                    StorageObject obj = fileLengthStr != null
-                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
-                        : storageProvider.newObject(fs.path());
+                    StorageObject obj = FileSplitProvider.newObjectForFile(storageProvider, fs);
                     // Batch path reads several objects together — attach each before readAll() opens them.
                     attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
@@ -2294,14 +2288,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         CloseableIterator<Page> pages = null;
         try {
-            StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            StoragePath filePath = files.path(fileIndex);
+            long size = files.size(fileIndex);
+            long mtime = files.lastModifiedMillis(fileIndex);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
             List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
+                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(filePath);
                 if (info != null) {
                     mapping = info.mapping();
                     perFileReadSchema = info.fileSchema().attributes();
@@ -2362,7 +2359,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, filePath);
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;
@@ -2914,7 +2911,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         stream,
-                        obj,
+                        decompressing,
                         cols,
                         batchSize,
                         parsingParallelism,

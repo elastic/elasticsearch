@@ -29,8 +29,7 @@ import java.util.stream.Collectors;
  * error introduced by the clamping.
  */
 class NodeHeapMemoryShardMovementSimulator {
-    private final ObjectLongMap<String> totalUsageDeltaByNode;
-    private final ObjectLongMap<String> hostedShardUsageDeltaByNode;
+    private final ObjectLongMap<String> usageDeltaByNode;
     private final Map<String, NodeHeapMetrics> initialNodeHeapMetrics;
     private final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
     private final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
@@ -46,8 +45,7 @@ class NodeHeapMemoryShardMovementSimulator {
         this.estimatedShardHeapUsages = estimatedShardHeapUsages;
         this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
         this.routingNodes = routingNodes;
-        this.totalUsageDeltaByNode = new ObjectLongHashMap<>();
-        this.hostedShardUsageDeltaByNode = new ObjectLongHashMap<>();
+        this.usageDeltaByNode = new ObjectLongHashMap<>();
     }
 
     void simulateShardStarted(ShardRouting shard, boolean includeIndexUsage) {
@@ -67,7 +65,7 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         // Use any shard ID since index stats are the same.
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
-        totalUsageDeltaByNode.addTo(nodeId, shardAndIndexHeap.indexHeapUsageBytes());
+        usageDeltaByNode.addTo(nodeId, shardAndIndexHeap.indexHeapUsageBytes());
     }
 
     void simulateRemoveIndexFromNode(String nodeId, Index index) {
@@ -77,7 +75,7 @@ class NodeHeapMemoryShardMovementSimulator {
         }
         // Use any shard ID since index stats are the same.
         var shardAndIndexHeap = estimatedShardHeapUsages.getOrDefault(new ShardId(index, 0), defaultShardHeapUsageForShardsWithoutMetrics);
-        totalUsageDeltaByNode.addTo(nodeId, -1 * shardAndIndexHeap.indexHeapUsageBytes());
+        usageDeltaByNode.addTo(nodeId, -1 * shardAndIndexHeap.indexHeapUsageBytes());
     }
 
     private enum Modification {
@@ -113,9 +111,8 @@ class NodeHeapMemoryShardMovementSimulator {
             }
         }
 
-        // Update the deltas for the node
-        totalUsageDeltaByNode.addTo(routingNode.nodeId(), indexUsageDelta + shardUsageDelta);
-        hostedShardUsageDeltaByNode.addTo(routingNode.nodeId(), shardUsageDelta);
+        // Update the delta for the node
+        usageDeltaByNode.addTo(routingNode.nodeId(), indexUsageDelta + shardUsageDelta);
     }
 
     /**
@@ -123,22 +120,19 @@ class NodeHeapMemoryShardMovementSimulator {
      */
     Map<String, NodeHeapMetrics> getSimulatedHeapMetrics() {
         // If there was no shard movement, just return the unchanged metrics
-        if (totalUsageDeltaByNode.isEmpty()) {
+        if (usageDeltaByNode.isEmpty()) {
             return initialNodeHeapMetrics;
         }
         return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-            if (totalUsageDeltaByNode.containsKey(entry.getKey())) {
+            if (usageDeltaByNode.containsKey(entry.getKey())) {
                 NodeHeapMetrics initialMetrics = entry.getValue();
                 final var adjustedTotalUsage = Math.max(
                     0,
-                    Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), totalUsageDeltaByNode.get(entry.getKey()))
+                    Math.addExact(initialMetrics.nodeHeapEstimates().totalHeapUsage(), usageDeltaByNode.get(entry.getKey()))
                 );
                 final var adjustedHostedShardsUsage = Math.max(
                     0,
-                    Math.addExact(
-                        initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(),
-                        hostedShardUsageDeltaByNode.get(entry.getKey())
-                    )
+                    Math.addExact(initialMetrics.nodeHeapEstimates().hostedShardsHeapUsage(), usageDeltaByNode.get(entry.getKey()))
                 );
                 return new NodeHeapMetrics(
                     initialMetrics.nodeId(),

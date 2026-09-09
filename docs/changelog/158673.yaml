@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158673
+summary: Retry S3 open-time transport faults
+type: bug

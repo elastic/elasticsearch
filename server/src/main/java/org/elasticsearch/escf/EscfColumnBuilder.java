@@ -36,10 +36,6 @@ import java.util.Arrays;
  * <b>positional</b> surface ({@code setX(row, value)}, non-decreasing rows) plus element-append
  * ({@code beginArray}/{@code appendX}/{@code endArray}). Both share one {@code lastWrittenRow} cursor.
  *
- * <p>Owns recycler-backed buffers until {@link #finish(int)} moves them into the returned
- * {@link EscfColumnData}, so a builder should be declared in a try-with-resources header and
- * finished inside the block; see {@link #close()}.
- *
  * <p>Not thread-safe.
  */
 public final class EscfColumnBuilder implements Releasable {
@@ -70,7 +66,6 @@ public final class EscfColumnBuilder implements Releasable {
     private boolean arrayOpen;
     /** When set via {@link #lockScalar}, asserts that every scalar write uses this exact kind. {@code -1} = unrestricted. */
     private byte lockedKind = -1;
-    /** Set once {@link #finish} has moved this builder's buffers into an {@link EscfColumnData}; makes {@link #close()} a no-op. */
     private boolean finished;
 
     public EscfColumnBuilder(CollisionPolicy policy) {
@@ -463,10 +458,6 @@ public final class EscfColumnBuilder implements Releasable {
     /**
      * Determines the column kind and serialises it. An all-absent (or empty) column finishes as
      * {@link EscfColumnKind#LONG} with an all-absent bitset.
-     *
-     * <p>Ownership of this builder's buffers moves to the returned column: {@link #close()} becomes a
-     * no-op after this method returns successfully, and the buffers are released by closing the
-     * returned {@link EscfColumnData}.
      */
     public EscfColumnData finish(int docCount) {
         assert arrayOpen == false : "finish while an array is open";

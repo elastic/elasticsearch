@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageLite;
 
 import org.apache.logging.log4j.LogManager;
@@ -16,10 +17,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +40,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     private static final Logger logger = LogManager.getLogger(AbstractOTLPTransportAction.class);
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
+    protected final long maxExpandedContentLength;
 
     @Inject
     public AbstractOTLPTransportAction(
@@ -43,10 +48,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(name, transportService, actionFilters, OTLPActionRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
+        this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -77,6 +84,14 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 }
             }));
 
+        } catch (InvalidProtocolBufferException e) {
+            logger.debug("invalid OTLP protobuf payload", e);
+            listener.onFailure(
+                new ElasticsearchStatusException("Invalid OTLP protobuf payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
+            );
+        } catch (ElasticsearchStatusException e) {
+            logger.debug("failed to execute otlp request", e);
+            listener.onFailure(e);
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);
             listener.onFailure(e);
@@ -132,6 +147,26 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
      */
     protected abstract ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder)
         throws IOException;
+
+    /**
+     * Accounts for the memory used by a generated {@link IndexRequest} and rejects the request if the running total would exceed
+     * {@link HttpTransportSettings#SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH}. Resource/scope attributes and labels are
+     * copied into every document, so {@link IndexRequest#ramBytesUsed()} reflects that fan-out.
+     *
+     * @param totalExpandedBytes bytes already accounted for from previously built index requests
+     * @param indexRequest       the newly built index request
+     * @return the updated running total including {@code indexRequest}
+     */
+    protected long accountExpandedContent(long totalExpandedBytes, IndexRequest indexRequest) {
+        long updatedTotal = totalExpandedBytes + indexRequest.ramBytesUsed();
+        if (updatedTotal > maxExpandedContentLength) {
+            throw new ElasticsearchStatusException(
+                "OTLP request rejected: expanded content would exceed limit [" + maxExpandedContentLength + "] bytes",
+                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            );
+        }
+        return updatedTotal;
+    }
 
     private void handlePartialSuccess(
         BulkResponse bulkItemResponses,

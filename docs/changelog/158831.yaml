@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 158831
+summary: Reject restricted indices in Manage Roles
+type: bug

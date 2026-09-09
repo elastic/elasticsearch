@@ -119,7 +119,7 @@ of the `exponential_histogram` type over classic fixed-bucket approaches.
 
 [`TS`](/reference/query-languages/esql/commands/ts.md) is the recommended source command
 for time series data. Before your aggregation runs, `TS` performs an implicit per-series
-merge: all histogram documents within each time series are combined into a single histogram,
+merge: all histogram documents within each time bucket and series are combined into a single histogram,
 and the metric's temporality (delta or cumulative) is respected during the merge. The outer
 aggregation then operates on these merged per-series histograms.
 

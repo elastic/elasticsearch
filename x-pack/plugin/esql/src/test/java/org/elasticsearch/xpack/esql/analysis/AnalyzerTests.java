@@ -6545,29 +6545,20 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testHighlightImplicitQueryStopsAtNonUnaryBarriers() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        var blocked = allOf(
-            containsString("HIGHLIGHT cannot borrow the WHERE before"),
-            containsString("does not preserve documents")
-        );
-        supportsHighlight(basic().addLanguagesLookup()).error(
-            """
-                FROM test
-                | WHERE MATCH(first_name, "x")
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code
-                | HIGHLIGHT ON first_name
-                """,
-            allOf(blocked, containsString("LOOKUP JOIN languages_lookup ON language_code"))
-        );
-        supportsHighlight(basic()).error(
-            """
-                FROM test
-                | WHERE MATCH(first_name, "x")
-                | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
-                | HIGHLIGHT ON first_name
-                """,
-            allOf(blocked, containsString("FORK (WHERE emp_no > 1) (WHERE emp_no > 2)"))
-        );
+        var blocked = allOf(containsString("HIGHLIGHT cannot borrow the WHERE before"), containsString("does not preserve documents"));
+        supportsHighlight(basic().addLanguagesLookup()).error("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | HIGHLIGHT ON first_name
+            """, allOf(blocked, containsString("LOOKUP JOIN languages_lookup ON language_code")));
+        supportsHighlight(basic()).error("""
+            FROM test
+            | WHERE MATCH(first_name, "x")
+            | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+            | HIGHLIGHT ON first_name
+            """, allOf(blocked, containsString("FORK (WHERE emp_no > 1) (WHERE emp_no > 2)")));
     }
 
     /**

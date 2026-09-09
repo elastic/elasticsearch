@@ -16,19 +16,55 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- * The per-project (configuration-cache compatible) topology carries a project's whole model through a task
- * {@code @Input} string, so the two envelopes it introduces - {@link FlakinessJson.ProjectModel} and
- * {@link FlakinessJson.ProjectTargetsFile} - must round-trip exactly.
+ * Unit tests for every envelope this feature reads or writes: the {@code flakiness-refs.json} the TypeScript
+ * side produces, the plan the runner consumes, and the two per-project envelopes the
+ * configuration-cache-compatible topology introduces ({@link FlakinessJson.ProjectModel} and
+ * {@link FlakinessJson.ProjectTargetsFile}), which must round-trip exactly.
  *
- * <p>The interesting part is {@link Path}: unlike the wire records reaching TypeScript, these envelopes stay
- * inside Java and therefore reuse {@link SourceSetInfo}/{@link TestTaskInfo} verbatim, {@code Path} fields and
- * all. This pins that Jackson's built-in {@code java.nio.file.Path} handling really does survive the trip -
- * if it did not, every resolved {@code outputDir} and {@code srcDir} would silently change meaning.
+ * <p>The interesting part of the per-project envelopes is {@link Path}: unlike the wire records reaching
+ * TypeScript, they stay inside Java and therefore reuse {@link SourceSetInfo}/{@link TestTaskInfo} verbatim,
+ * {@code Path} fields and all. These pin that Jackson's built-in {@code java.nio.file.Path} handling really
+ * does survive the trip - if it did not, every resolved {@code outputDir} and {@code srcDir} would silently
+ * change meaning.
  */
-public class FlakinessPerProjectJsonTests {
+public class FlakinessJsonTests {
+
+    /** Every ref shape the TypeScript detectors can emit has to parse into its typed field. */
+    @Test
+    public void testParsesEveryRefShapeFromTheRefsFile() {
+        String refsJson = """
+            { "mergeBase": "abc123",
+              "refs": [
+                { "source": "changed-file", "path": "server/src/test/java/org/elasticsearch/FooTests.java" },
+                { "source": "unmute", "className": "org.foo.BarTests", "method": "test {yaml=x/y}" },
+                { "source": "explicit", "spec": "org.foo.BazTests.testX" } ] }
+            """;
+
+        FlakinessJson.RefsFile refs = FlakinessJson.parseRefs(refsJson);
+
+        assertThat(refs.mergeBase(), equalTo("abc123"));
+        assertThat(refs.refs(), hasSize(3));
+        assertThat(refs.refs().get(0).path(), equalTo("server/src/test/java/org/elasticsearch/FooTests.java"));
+        assertThat(refs.refs().get(1).method(), equalTo("test {yaml=x/y}"));
+        assertThat(refs.refs().get(2).spec(), equalTo("org.foo.BazTests.testX"));
+    }
+
+    /**
+     * A build failure still has to produce a well-formed plan: the runner reads {@code buildFailed} to decide
+     * whether to report an infra failure rather than a test failure.
+     */
+    @Test
+    public void testWritesAFailedPlanWithItsReason() {
+        String json = FlakinessJson.writePlan(FlakinessPlan.buildFailed("precompile"));
+
+        assertThat(json.contains("\"buildFailed\" : true"), is(true));
+        assertThat(json.contains("\"reason\" : \"precompile\""), is(true));
+    }
 
     @Test
     public void testProjectModelRoundTripsIncludingPaths() {
@@ -81,8 +117,9 @@ public class FlakinessPerProjectJsonTests {
         FlakinessJson.ProjectTargetsFile file = new FlakinessJson.ProjectTargetsFile(
             ":libs:dissect",
             List.of(new FlakinessJson.RefTarget(2, target)),
-            List.of(Path.of("/repo/libs/dissect/build/classes/java/main"), Path.of("/repo/libs/dissect/build/classes/java/test"))
-        , List.of());
+            List.of(Path.of("/repo/libs/dissect/build/classes/java/main"), Path.of("/repo/libs/dissect/build/classes/java/test")),
+            List.of()
+        );
 
         FlakinessJson.ProjectTargetsFile back = FlakinessJson.parseProjectTargets(FlakinessJson.writeProjectTargets(file));
 

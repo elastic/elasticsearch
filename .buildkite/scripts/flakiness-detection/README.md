@@ -276,4 +276,4 @@ build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
   FlakinessJson                                        Jackson (de)serialization of the contracts
 ```
 
-Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && npx vitest run scripts/flakiness-detection`. The Java resolver's unit tests are in `build-tools-internal` (`FlakinessResolverTests`): `./gradlew :build-tools-internal:test --tests "org.elasticsearch.gradle.internal.flakiness.FlakinessResolverTests"`.
+Per-module test files (`*.test.ts`) sit alongside their source. Run with `cd .buildkite && npx vitest run scripts/flakiness-detection`. The Java resolver's unit tests are in `build-tools-internal`, one test class per production class: `./gradlew :build-tools-internal:test --tests "org.elasticsearch.gradle.internal.flakiness.*"`.

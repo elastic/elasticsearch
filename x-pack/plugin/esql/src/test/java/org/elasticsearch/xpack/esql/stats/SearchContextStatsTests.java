@@ -729,18 +729,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         final Directory dir = newDirectory();
         final DirectoryReader reader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-            writer.addDocument(
-                List.of(
-                    new StringField("kw", "A", Field.Store.NO),
-                    new SortedSetDocValuesField("kw", new BytesRef("A"))
-                )
-            );
-            writer.addDocument(
-                List.of(
-                    new StringField("kw", "B", Field.Store.NO),
-                    new SortedSetDocValuesField("kw", new BytesRef("B"))
-                )
-            );
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO), new SortedSetDocValuesField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(new StringField("kw", "B", Field.Store.NO), new SortedSetDocValuesField("kw", new BytesRef("B"))));
             writer.forceMerge(1);
             reader = writer.getReader();
         }

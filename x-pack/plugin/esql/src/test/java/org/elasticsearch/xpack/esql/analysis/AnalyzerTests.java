@@ -4760,10 +4760,16 @@ public class AnalyzerTests extends ESTestCase {
         books().error(
             "FROM books | DENSE_VECTOR title",
             containsString(
-                "no inference endpoint is available for the DENSE_VECTOR command: none of "
-                    + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
-                    + " is available with the task type [text_embedding, embedding]. "
-                    + "Specify an endpoint using the [inference_id] option."
+                "no inference endpoint is available for the DENSE_VECTOR command: "
+                    + "["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]; ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]. Specify an endpoint using the [inference_id] option."
             )
         );
     }
@@ -4780,6 +4786,29 @@ public class AnalyzerTests extends ESTestCase {
 
         DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
         assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * When no candidate is usable, the failure explains each one: an absent candidate reports its resolution error, and a
+     * present candidate whose task type the input cannot use reports that task type. Here the EIS candidate embeds sparsely and
+     * the ML candidate is absent.
+     */
+    public void testDenseVectorNoDefaultInferenceIdReportsWhyEachCandidateFails() {
+        assumeDenseVectorCommandEnabled();
+        books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .error(
+                "FROM books | DENSE_VECTOR title",
+                containsString(
+                    "no inference endpoint is available for the DENSE_VECTOR command: "
+                        + "["
+                        + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                        + "]: task type [sparse_embedding] is not supported; ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]: unresolved inference ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]. Specify an endpoint using the [inference_id] option."
+                )
+            );
     }
 
     public void testDenseVectorUnknownColumnFails() {

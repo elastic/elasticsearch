@@ -66,7 +66,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     /**
      * Built-in default inference endpoint used when the query provides no {@code inference_id} (via {@code WITH}) and no
      * cluster-level default ({@code esql.command.dense_vector.default_inference_id}) is configured. This is the E5 text
-     * embedding endpoint that is registered on ML-capable nodes, so it works with zero configuration.
+     * embedding endpoint that is registered on ML-capable nodes, so it works with zero configuration. The literal is repeated
+     * here, as with {@link #EIS_JINA_V5_INFERENCE_ID}, because the inference plugin is not on this module's compile classpath.
      */
     public static final String DEFAULT_INFERENCE_ID = ".multilingual-e5-small-elasticsearch";
 
@@ -79,8 +80,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     public static final String EIS_JINA_V5_INFERENCE_ID = ".jina-embeddings-v5-text-small";
 
     /**
-     * Endpoints tried in order when {@link #inferenceIdIsFallback()} holds, to pick one that exists on this deployment. Both are
-     * dense text embedding endpoints, so either can serve a {@code text} input.
+     * Built-in endpoints a fallback ({@link #inferenceIdIsFallback()}) tries, in order: the first one this deployment has that
+     * can serve the input is chosen, so the choice is deterministic. Two are listed because deployments differ —
+     * {@link #EIS_JINA_V5_INFERENCE_ID} (Elastic Inference Service) is reachable on serverless, which runs no ML nodes and so
+     * lacks {@link #DEFAULT_INFERENCE_ID}. Both embed dense text, so either serves a {@code text} input.
      */
     public static final List<String> DEFAULT_INFERENCE_ID_CANDIDATES = List.of(EIS_JINA_V5_INFERENCE_ID, DEFAULT_INFERENCE_ID);
 
@@ -110,9 +113,9 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     private final List<Attribute> generatedFields;
 
     /**
-     * Whether {@link #inferenceId()} holds {@link #DEFAULT_INFERENCE_ID} because neither the query nor the cluster setting named
-     * an endpoint, as opposed to a query naming that same endpoint explicitly. The id alone cannot tell the two apart, since
-     * {@link Literal#equals} ignores source.
+     * Whether {@link #inferenceId()} holds {@link #DEFAULT_INFERENCE_ID} because neither the command nor the cluster setting
+     * named an endpoint, as opposed to the command naming that same endpoint explicitly. The id alone cannot tell the two
+     * apart, since {@link Literal#equals} ignores source.
      */
     private final boolean inferenceIdIsFallback;
 

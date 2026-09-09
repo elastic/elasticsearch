@@ -2793,23 +2793,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * (see {@link InferencePlan#candidateInferenceIds()}), so the chosen endpoint carries a validated task type; resolution
          * runs once, and an endpoint first named here could not be checked.
          * <p>
-         * Returns the plan carrying a resolution error, naming the candidates, when this deployment has none of them.
+         * Returns the plan carrying a resolution error that names each candidate and why it was rejected, when this deployment
+         * can use none of them.
          */
         private DenseVector selectDefaultInferenceId(DenseVector denseVector, AnalyzerContext context) {
             EnumSet<TaskType> acceptedTaskTypes = denseVector.acceptedTaskTypes();
+            List<String> rejections = new ArrayList<>(DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES.size());
             for (String candidate : DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES) {
                 ResolvedInference resolvedInference = context.inferenceResolution().getResolvedInference(candidate);
-                if (resolvedInference != null && acceptedTaskTypes.contains(resolvedInference.taskType())) {
+                if (resolvedInference == null) {
+                    rejections.add("[" + candidate + "]: " + context.inferenceResolution().getError(candidate));
+                } else if (acceptedTaskTypes.contains(resolvedInference.taskType()) == false) {
+                    rejections.add("[" + candidate + "]: task type [" + resolvedInference.taskType() + "] is not supported");
+                } else {
                     return denseVector.withInferenceId(Literal.keyword(denseVector.inferenceId().source(), candidate));
                 }
             }
 
             String error = "no inference endpoint is available for the "
                 + denseVector.nodeName()
-                + " command: none of "
-                + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
-                + " is available with the task type "
-                + acceptedTaskTypes
+                + " command: "
+                + String.join("; ", rejections)
                 + ". Specify an endpoint using the ["
                 + InferencePlan.INFERENCE_ID_OPTION_NAME
                 + "] option.";

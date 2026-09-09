@@ -253,22 +253,18 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
 
     public void testDenseVectorReportsWhenNoCandidateEndpointExists() {
         // This cluster hosts neither candidate, which is the state a deployment is in before either is available. The failure
-        // names both candidates and the option to set.
+        // names each candidate with why it was rejected, and the option to set.
         var query = String.format(Locale.ROOT, """
             FROM %s
             | DENSE_VECTOR title
             """, TEST_INDEX);
 
         VerificationException e = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "no inference endpoint is available for the DENSE_VECTOR command: none of "
-                    + DenseVector.DEFAULT_INFERENCE_ID_CANDIDATES
-                    + " is available with the task type [text_embedding, embedding]. "
-                    + "Specify an endpoint using the [inference_id] option."
-            )
-        );
+        String message = e.getMessage();
+        assertThat(message, containsString("no inference endpoint is available for the DENSE_VECTOR command:"));
+        assertThat(message, containsString("[" + DenseVector.EIS_JINA_V5_INFERENCE_ID + "]:"));
+        assertThat(message, containsString("[" + DenseVector.DEFAULT_INFERENCE_ID + "]:"));
+        assertThat(message, containsString("Specify an endpoint using the [inference_id] option."));
     }
 
     public void testDenseVectorImageRequiresExplicitInferenceId() {

@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
@@ -145,7 +146,7 @@ public class VectorScorerBQBenchmark {
         int indexVectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
 
         path = Files.createTempDirectory("VectorScorerBQBenchmark");
-        directory = directoryType.newDirectory(path);
+        directory = DirectoryFactory.newDirectory(directoryType, path);
 
         try (IndexOutput out = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (var indexData : data.indexVectors) {

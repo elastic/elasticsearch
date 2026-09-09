@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+import org.elasticsearch.gradle.internal.test.TestUtil
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
@@ -15,6 +16,7 @@ apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 apply plugin: 'elasticsearch.native-library-build'
+apply plugin: 'elasticsearch.jmh'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -32,6 +34,24 @@ dependencies {
   testFixturesImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
+
+  // JMH benchmark source set. jmh-core, jopt-simple, commons-math3, :benchmarks:common,
+  // :benchmarks:processor and :test:framework (the latter for benchmarkTest only) are
+  // added by elasticsearch.jmh; everything below is what this module needs on top.
+  benchmarkImplementation testFixtures(project(':libs:simdvec'))
+  benchmarkImplementation project(':server')
+  // VectorTestUtils lives in :test:framework main and is used from benchmark bodies, not
+  // only from correctness tests, so :test:framework must also be on `benchmark`.
+  benchmarkImplementation(project(':test:framework')) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+  // Consumed via DirectoryFactory in this source set. Scoping the x-pack test artifacts
+  // here keeps :benchmarks:common server-free.
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  benchmarkImplementation(testArtifact(project(':x-pack:plugin:stateless')))
+
+  // Only VectorScorerStatelessDirectoryTests reaches into BlobCacheBufferedIndexInput.
+  benchmarkTestImplementation project(':x-pack:plugin:blob-cache')
 }
 
 tasks.named('compileJava').configure {
@@ -70,6 +90,24 @@ tasks.named('test').configure {
   // Required by VectorSystemPropertyTests, which spawns a subprocess via ProcessBuilder.
   // The default ES test system call filter blocks posix_spawn.
   systemProperty "tests.system_call_filter", "false"
+}
+
+tasks.named('benchmark').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
+  // Forward the native library path to the forked JMH VMs where the benchmark bodies run,
+  // not only to the harness. Mirrors benchmarks/build.gradle's `run` task.
+  def nativeLibsPath = TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
+}
+
+tasks.named('benchmarkTest').configure {
+  dependsOn ':libs:native:native-libraries:extractLibs'
+  if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
+  systemProperty 'es.nativelibs.path',
+    TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

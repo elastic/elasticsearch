@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
+import org.elasticsearch.benchmark.vector.store.DirectoryFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
@@ -312,7 +313,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(VectorData data) throws IOException {
-        this.directory = directoryType.newDirectory(createTempDirectory("VectorScorerOSQBenchmark"));
+        this.directory = DirectoryFactory.newDirectory(directoryType, createTempDirectory("VectorScorerOSQBenchmark"));
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {

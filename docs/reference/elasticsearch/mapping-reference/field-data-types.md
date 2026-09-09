@@ -116,6 +116,9 @@ Dates
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
 :   Records sparse vectors of float values.
 
+[`rank_vectors`](/reference/elasticsearch/mapping-reference/rank-vectors.md)
+:   Records multiple dense vectors per document for late-interaction (max-sim) reranking.
+
 [`rank_feature`](/reference/elasticsearch/mapping-reference/rank-feature.md)
 :   Records a numeric feature to boost hits at query time.
 

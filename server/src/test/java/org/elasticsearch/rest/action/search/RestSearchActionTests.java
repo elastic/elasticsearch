@@ -350,7 +350,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
                 }
 
                 @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
                     ActionType<Response> actionType,
                     Request req,
                     ActionListener<Response> listener
@@ -390,7 +390,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
                 }
 
                 @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
                     ActionType<Response> actionType,
                     Request req,
                     ActionListener<Response> listener

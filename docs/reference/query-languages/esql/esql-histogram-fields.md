@@ -306,17 +306,12 @@ immediately in {{esql}}.
 
 ## Limitations
 
-- **No sorting.** Sorting on histogram fields is not allowed. Use [`SORT`](/reference/query-languages/esql/commands/sort.md) on aggregated results
-  (like `RANGE_MIN(bucket)`) instead of on the histogram field itself.
-- **No `RATE`.** The [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) function does not support histogram fields. If you need rate-like
-  computations, use other aggregation functions on the histogram directly.
-- **No `VALUES`.** The [`VALUES`](/reference/query-languages/esql/functions-operators/aggregation-functions/values.md) aggregation does not support histogram types.
-- **No multivalue functions.** Functions like [`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md), [`MV_LAST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_last.md), and [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_count.md) reject
-  histogram fields.
-- **Approximate counts.** Counts and percentiles derived from histogram fields are estimates
-  because the underlying data structures store distributions, not exact values.
-- **`TO_STRING` gap.** [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md) works on `exponential_histogram` and `histogram` fields but
-  does not currently support `tdigest`.
+- Sorting on histogram fields is not allowed. Use [`SORT`](/reference/query-languages/esql/commands/sort.md) on aggregated results (like `RANGE_MIN(bucket)`) instead of on the histogram field itself.
+- [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) does not accept histogram fields. Use other aggregation functions on the histogram directly.
+- [`VALUES`](/reference/query-languages/esql/functions-operators/aggregation-functions/values.md) does not accept histogram types.
+- Multivalue functions like [`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md), [`MV_LAST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_last.md), and [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_count.md) reject histogram fields.
+- Counts and percentiles derived from histogram fields are estimates because the underlying data structures store distributions, not exact values.
+- [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md) works on `exponential_histogram` and `histogram` fields but does not currently support `tdigest`.
 
 ## Further reading
 

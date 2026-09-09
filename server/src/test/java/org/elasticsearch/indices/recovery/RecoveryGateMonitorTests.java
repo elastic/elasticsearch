@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryGate.Decision;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
+import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.RECHECK_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryGateMonitorTests extends ESTestCase {
@@ -217,6 +219,38 @@ public class RecoveryGateMonitorTests extends ESTestCase {
         assertFalse(taskQueue.hasDeferredTasks());
     }
 
+    public void testRecheckIntervalSettingUpdatesDynamically() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var initialInterval = TimeValue.timeValueMillis(between(1, 100_000));
+        final var updatedInterval = TimeValue.timeValueMillis(initialInterval.millis() + between(1, 100_000));
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder()
+                .put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true)
+                .put(RECHECK_INTERVAL_SETTING.getKey(), initialInterval)
+                .build(),
+            Set.of(ENABLE_RECOVERY_GATES_SETTING, RECHECK_INTERVAL_SETTING)
+        );
+        final var monitor = new RecoveryGateMonitor(
+            () -> List.of(() -> Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30))),
+            taskQueue.getThreadPool(),
+            clusterSettings
+        );
+
+        monitor.addCallback(RecoveryGate.Outcome.RUN, () -> fail("gate should remain blocked"));
+        taskQueue.runAllRunnableTasks();
+        assertThat(taskQueue.getLatestDeferredExecutionTime(), equalTo(initialInterval.millis()));
+
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true)
+                .put(RECHECK_INTERVAL_SETTING.getKey(), updatedInterval)
+                .build()
+        );
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(taskQueue.getLatestDeferredExecutionTime(), equalTo(initialInterval.millis() + updatedInterval.millis()));
+    }
+
     private static RecoveryGateMonitor newMonitor(DeterministicTaskQueue taskQueue, AtomicReference<Decision> decision) {
         return newMonitor(taskQueue, List.of(decision::get));
     }
@@ -228,7 +262,7 @@ public class RecoveryGateMonitorTests extends ESTestCase {
     private static ClusterSettings clusterSettingsWithGatesEnabled() {
         return new ClusterSettings(
             Settings.builder().put(ENABLE_RECOVERY_GATES_SETTING.getKey(), true).build(),
-            Set.of(ENABLE_RECOVERY_GATES_SETTING)
+            Set.of(ENABLE_RECOVERY_GATES_SETTING, RECHECK_INTERVAL_SETTING)
         );
     }
 }

@@ -16,6 +16,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -436,6 +437,10 @@ public abstract class Engine implements Closeable {
                     }
                     case BYTE -> {
                         ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
+                        count += values != null ? values.size() : 0;
+                    }
+                    case FLOAT16 -> {
+                        Float16VectorValues values = atomicReader.getFloat16VectorValues(info.name);
                         count += values != null ? values.size() : 0;
                     }
                 }

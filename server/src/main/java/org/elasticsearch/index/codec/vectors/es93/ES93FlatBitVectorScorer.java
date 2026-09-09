@@ -69,6 +69,15 @@ class ES93FlatBitVectorScorer implements FlatVectorsScorer {
         throw new IllegalArgumentException("Unsupported vector type");
     }
 
+    @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
+        throw new IllegalArgumentException("Unsupported vector type");
+    }
+
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final byte[] query;
         private final ByteVectorValues byteValues;

@@ -93,6 +93,15 @@ class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     }
 
     @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
+        return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
+    }
+
+    @Override
     public String toString() {
         return "ES816BinaryFlatVectorsScorer(nonQuantizedDelegate=" + nonQuantizedDelegate + ")";
     }

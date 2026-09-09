@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.LeafReader;
@@ -226,6 +227,15 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            Float16VectorValues vectorValues = super.getFloat16VectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
         public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
@@ -235,6 +245,14 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
+                notifier.onKnnVectorsUsed(field);
+            }
+        }
+
+        @Override
+        public void searchNearestVectors(String field, short[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);

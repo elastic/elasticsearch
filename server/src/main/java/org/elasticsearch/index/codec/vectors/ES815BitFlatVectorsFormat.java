@@ -108,6 +108,15 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         ) throws IOException {
             throw new IllegalArgumentException("Unsupported vector type");
         }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(
+            VectorSimilarityFunction similarityFunction,
+            KnnVectorValues vectorValues,
+            short[] target
+        ) throws IOException {
+            throw new IllegalArgumentException("Unsupported vector type");
+        }
     }
 
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -414,6 +415,11 @@ final class ColumnarSourceWriter {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
             throw new UnsupportedOperationException();
         }
 

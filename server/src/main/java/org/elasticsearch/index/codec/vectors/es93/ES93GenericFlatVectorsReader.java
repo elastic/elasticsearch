@@ -16,6 +16,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
@@ -136,6 +137,11 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getFloat16VectorValues(field);
+    }
+
+    @Override
     public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
         return genericReaders.getReaderForField(findField(field)).getRandomVectorScorer(field, target);
     }
@@ -146,12 +152,22 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getRandomVectorScorer(field, target);
+    }
+
+    @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         genericReaders.getReaderForField(findField(field)).search(field, target, knnCollector, acceptDocs);
     }
 
     @Override
     public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        genericReaders.getReaderForField(findField(field)).search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
+    public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         genericReaders.getReaderForField(findField(field)).search(field, target, knnCollector, acceptDocs);
     }
 

@@ -61,6 +61,7 @@ public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
                         sl.getSlice(),
                         (FloatVectorValues) vectorValues
                     );
+                    case FLOAT16 -> Optional.empty();
                 };
             }
             if (scorer.isPresent()) {
@@ -98,6 +99,15 @@ public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
         if (scorer.isPresent()) {
             return scorer.get();
         }
+        return FALLBACK.getRandomVectorScorer(similarityFunction, vectorValues, target);
+    }
+
+    @Override
+    public RandomVectorScorer getRandomVectorScorer(
+        VectorSimilarityFunction similarityFunction,
+        KnnVectorValues vectorValues,
+        short[] target
+    ) throws IOException {
         return FALLBACK.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 

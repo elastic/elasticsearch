@@ -19,6 +19,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
@@ -462,6 +463,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            return getDelegate().getFloat16VectorValues(field);
+        }
+
+        @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
             return getDelegate().getByteVectorValues(field);
         }
@@ -473,6 +479,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, short[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 

@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -176,6 +177,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            return reader.getFloat16VectorValues(field);
+        }
+
+        @Override
         public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
             return reader.getFlatVectorScorer(field);
         }
@@ -191,6 +197,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloat16VectorValues(field).scorer(target));
+        }
+
+        @Override
         public void finishMerge() throws IOException {
             reader.finishMerge();
         }
@@ -202,6 +213,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
             return reader.getRandomVectorScorer(field, target);
         }
 
@@ -298,6 +314,12 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, byte[] query)
+            throws IOException {
+            return delegate.getRandomVectorScorer(sim, values, query);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, short[] query)
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }

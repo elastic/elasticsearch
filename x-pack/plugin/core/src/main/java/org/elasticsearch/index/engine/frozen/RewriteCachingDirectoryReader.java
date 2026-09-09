@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -311,6 +312,11 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -322,6 +328,11 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void searchNearestVectors(String field, short[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             throw new UnsupportedOperationException();
         }
 

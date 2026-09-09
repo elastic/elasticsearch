@@ -15,6 +15,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.KnnVectorValues;
@@ -161,6 +162,21 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            if (queryCancellation.isEnabled() == false) {
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
+            }
+            in.searchNearestVectors(field, target, wrapWithTimeoutCheck(collector), acceptDocs);
+        }
+
+        @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            queryCancellation.checkCancelled();
+            return in.getFloat16VectorValues(field);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, short[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             if (queryCancellation.isEnabled() == false) {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;

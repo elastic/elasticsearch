@@ -564,6 +564,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         switch (encoding) {
             case BYTE -> CentroidOps.BYTE.accumulateAll((ClusteringVectorValues<byte[]>) vectorValues, accumulator);
             case FLOAT32 -> CentroidOps.FLOAT.accumulateAll((ClusteringVectorValues<float[]>) vectorValues, accumulator);
+            case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
         }
     }
 
@@ -938,6 +939,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     }
                     vectorsOut.writeBytes(floatBuffer.array(), floatBuffer.array().length);
                 }
+                case FLOAT16 -> throw new IllegalStateException("IEEE FLOAT16 is not supported");
             }
             if (docsOut != null) {
                 docsOut.writeInt(iterator.docID());

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -211,6 +212,11 @@ class DocumentLeafReader extends LeafReader {
     }
 
     @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
         throw new UnsupportedOperationException();
     }
@@ -257,6 +263,11 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void searchNearestVectors(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {
         throw new UnsupportedOperationException();
     }
 

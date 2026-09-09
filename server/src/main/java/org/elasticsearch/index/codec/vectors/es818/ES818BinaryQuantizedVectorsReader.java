@@ -29,6 +29,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
@@ -224,6 +225,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     @Override
+    public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
+        return rawVectorsReader.getRandomVectorScorer(field, target);
+    }
+
+    @Override
     public void checkIntegrity() throws IOException {
         rawVectorsReader.checkIntegrity();
         CodecUtil.checksumEntireFile(quantizedVectorData);
@@ -262,6 +268,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        return rawVectorsReader.getFloat16VectorValues(field);
+    }
+
+    @Override
     public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         rawVectorsReader.search(field, target, knnCollector, acceptDocs);
     }
@@ -269,6 +280,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         scoreAndCollectAll(knnCollector, acceptDocs, getFloatVectorValues(field).scorer(target));
+    }
+
+    @Override
+    public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        rawVectorsReader.search(field, target, knnCollector, acceptDocs);
     }
 
     @Override

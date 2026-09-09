@@ -27,6 +27,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
@@ -224,6 +225,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        throw new IllegalStateException(field + " only supports float vectors");
+    }
+
+    @Override
     public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
         return vectorScorer;
     }
@@ -250,6 +256,11 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
+        throw new UnsupportedOperationException(field + " only supports float vectors");
+    }
+
+    @Override
+    public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
         throw new UnsupportedOperationException(field + " only supports float vectors");
     }
 

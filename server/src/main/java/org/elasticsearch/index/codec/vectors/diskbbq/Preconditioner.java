@@ -249,6 +249,7 @@ public class Preconditioner {
                     System.arraycopy(byteScratch, 0, vector, 0, dim);
                 }
             }
+            case FLOAT16 -> throw new IllegalArgumentException("IEEE FLOAT16 is not supported");
         }
     }
 

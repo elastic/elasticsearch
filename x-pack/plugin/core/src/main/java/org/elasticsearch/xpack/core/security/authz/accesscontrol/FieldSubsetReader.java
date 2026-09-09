@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -556,6 +557,18 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+        if (hasField(field)) {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+        }
+    }
+
+    @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        return hasField(field) ? super.getFloat16VectorValues(field) : null;
+    }
+
+    @Override
+    public void searchNearestVectors(String field, short[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
         }

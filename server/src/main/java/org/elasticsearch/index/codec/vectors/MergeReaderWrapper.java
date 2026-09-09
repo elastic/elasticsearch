@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
@@ -50,6 +51,11 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
+    public RandomVectorScorer getRandomVectorScorer(String field, short[] target) throws IOException {
+        return mainReader.getRandomVectorScorer(field, target);
+    }
+
+    @Override
     public void checkIntegrity() throws IOException {
         mainReader.checkIntegrity();
     }
@@ -65,12 +71,22 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
+    public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        return mainReader.getFloat16VectorValues(field);
+    }
+
+    @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
     @Override
     public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
+    public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 

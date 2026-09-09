@@ -15,6 +15,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -103,6 +104,12 @@ public class CrankyDirectoryReader extends FilterDirectoryReader {
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             beCranky();
             return super.getFloatVectorValues(field);
+        }
+
+        @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            beCranky();
+            return super.getFloat16VectorValues(field);
         }
 
         @Override

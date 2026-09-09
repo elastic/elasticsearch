@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -91,6 +92,11 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+            return reader.getFloat16VectorValues(field);
+        }
+
+        @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
             scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloatVectorValues(field).scorer(target));
         }
@@ -98,6 +104,11 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
             scoreAndCollectAll(knnCollector, acceptDocs, reader.getByteVectorValues(field).scorer(target));
+        }
+
+        @Override
+        public void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getFloat16VectorValues(field).scorer(target));
         }
 
         @Override

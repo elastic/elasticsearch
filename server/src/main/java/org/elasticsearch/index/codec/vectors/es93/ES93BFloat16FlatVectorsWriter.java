@@ -162,6 +162,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             case BYTE -> throw new IllegalStateException(
                 "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
             );
+            case FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.FLOAT16
+            );
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
@@ -187,6 +190,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
             case BYTE -> throw new IllegalStateException(
                 "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.BYTE
+            );
+            case FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldData.fieldInfo.name + ": " + VectorEncoding.FLOAT16
             );
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
@@ -214,6 +220,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeVectorData(vectorData, mergeFloatVectorValues(fieldInfo, mergeState));
             case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
+            case FLOAT16 -> throw new IllegalStateException(
+                "Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.FLOAT16
+            );
         };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
         writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
@@ -452,6 +461,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                     }
                 };
                 case BYTE -> throw new IllegalStateException("Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.BYTE);
+                case FLOAT16 -> throw new IllegalStateException(
+                    "Incorrect encoding for field " + fieldInfo.name + ": " + VectorEncoding.FLOAT16
+                );
             };
         }
 

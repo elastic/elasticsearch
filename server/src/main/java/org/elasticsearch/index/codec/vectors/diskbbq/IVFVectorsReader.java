@@ -16,6 +16,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
@@ -366,6 +367,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return getReaderForField(field).getByteVectorValues(field);
     }
 
+    @Override
+    public final Float16VectorValues getFloat16VectorValues(String field) throws IOException {
+        return getReaderForField(field).getFloat16VectorValues(field);
+    }
+
     /**
      * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
      */
@@ -405,6 +411,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
+    }
+
+    @Override
+    public final void search(String field, short[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        getReaderForField(field).search(field, target, knnCollector, acceptDocs);
     }
 
     /**

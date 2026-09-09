@@ -232,15 +232,22 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         final double minShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMinShardWriteLoadThreshold();
         final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
         if (isShardWriteLoadContributionNegligible(minShardWriteLoadThreshold, shardWriteLoad)) {
+            final var threadPoolUsageStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+            final double totalNodeWriteLoad = threadPoolUsageStats.averageThreadPoolUtilization() * threadPoolUsageStats
+                .totalThreadPoolThreads();
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "Node [%s] is hot-spotting, but shard [%s] has write load [%.5f] at or below the minimum threshold [%.5f] to "
-                    + "consider for movement",
+                """
+                    Node [%s] is hot-spotting, but shard [%s] has write load [%.5f], which is at or below the minimum threshold [%.5f].
+                    The total node write-load is [%.5f]; this shard contributes only [%.2f%%] of the total, so moving it would
+                    do little to resolve the hot-spot.""",
                 node.getShortNodeDescription(),
                 shardRouting.shardId(),
                 shardWriteLoad,
-                minShardWriteLoadThreshold
+                minShardWriteLoadThreshold,
+                totalNodeWriteLoad,
+                (shardWriteLoad / totalNodeWriteLoad) * 100
             );
         }
 

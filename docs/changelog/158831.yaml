@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 158831
+summary: "Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege."
+type: bug

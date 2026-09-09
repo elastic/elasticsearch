@@ -38,9 +38,13 @@ import java.util.Arrays;
  * value {@code i} reads its block and walks the lengths within it — which keeps the offset table a fraction
  * of the size a per-value table would be.
  *
- * <p>A block holds its lengths one of two ways, chosen by how long its values are: beside each value, where
- * a length and its value compress together as one pattern, or packed at the block's head, where walking past
- * a long value to reach the next one would cost more than the packing saves.
+ * <p>A block records its values one of three ways, chosen per block by what the values in it look like.
+ * <b>Inline</b> puts each length beside its own value, where a length and its value compress together as one
+ * pattern. <b>Packed</b> puts the lengths at one fixed width at the block's head, where walking past a long
+ * value to reach the next one would cost more than the packing saves. <b>Runs</b> stores each distinct value
+ * once with how many values in a row hold it, for a block whose values repeat — the shape a column sorted on
+ * this field takes. The block's first byte says which of the three was picked, and {@link #knownMarker} is
+ * what the reader trusts it against.
  *
  * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
  * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
@@ -199,7 +203,11 @@ public final class ValueStream {
         }
 
         /**
-         * Emits the buffered block in whichever of the two layouts is smaller for it.
+         * Emits the buffered block in whichever of the three layouts fits it.
+         *
+         * <p><b>Runs</b> stores each distinct value once with how many values in a row hold it. It is taken
+         * first and only where it is genuinely smaller, sized against what inline would store rather than
+         * guessed at from how the values look.
          *
          * <p><b>Packed</b> puts the lengths at one fixed width ahead of the bytes, so the block's values are
          * placed by a running sum of numbers already in hand rather than by a walk that reads each value to
@@ -255,7 +263,6 @@ public final class ValueStream {
             chunks.append(pendingBytes, 0, pendingLength);
         }
 
-        /** How many runs of equal values the staged block holds, counted over the values already in hand. */
         /**
          * Finds the runs the staged values hold, recording where each one's bytes start, how long they are
          * and how many values carry them. This is the only walk that compares bytes; sizing the two forms

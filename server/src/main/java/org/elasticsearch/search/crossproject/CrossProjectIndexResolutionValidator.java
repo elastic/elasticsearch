@@ -109,7 +109,11 @@ public class CrossProjectIndexResolutionValidator {
         List<String> remoteViews = new ArrayList<>();
         for (Exception remoteEx : remoteExceptions.values()) {
             Throwable cause = ExceptionsHelper.unwrapCause(remoteEx);
-            if (cause instanceof RemoteViewNotSupportedException viewException) {
+            // Both shapes are read: a project that predates remote-dataset invisibility answers with the aggregate
+            // when it matched both kinds, and only its views half can be acted on here.
+            if (cause instanceof RemoteResourceNotSupportedException resourceException) {
+                remoteViews.addAll(resourceException.views());
+            } else if (cause instanceof RemoteViewNotSupportedException viewException) {
                 remoteViews.addAll(viewException.views());
             }
         }

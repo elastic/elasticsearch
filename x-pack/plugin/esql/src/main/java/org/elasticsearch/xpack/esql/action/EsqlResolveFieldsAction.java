@@ -82,8 +82,12 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         }
 
         // A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
-        // resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here; clear
-        // the option so this cluster's datasets stay out of what the request's patterns match either way.
+        // resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here, and
+        // by the time this runs the security layer has already resolved the request under that flag
+        // (EsqlResolveFieldsRequest is IndicesRequest.Replaceable, and IndicesAndAliasesResolver reads resolveDatasets),
+        // so a dataset name can already be sitting in indices(). Clearing the option stops field-caps resolving it; the
+        // lenient ALLOW_UNAVAILABLE_TARGETS that ES|QL resolution uses is then what drops the name rather than failing
+        // on it.
         FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
         fieldCapsRequest.indicesOptions(
             IndicesOptions.builder(fieldCapsRequest.indicesOptions())

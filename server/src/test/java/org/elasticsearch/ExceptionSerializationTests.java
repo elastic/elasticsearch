@@ -910,7 +910,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
         ids.put(194, org.elasticsearch.action.SliceMissingException.class);
-        ids.put(195, null); // was RemoteDatasetNotSupportedException, a remote dataset is invisible rather than an error
+        ids.put(195, org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException.class);
         ids.put(196, org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class);
         ids.put(197, org.elasticsearch.indices.recovery.RecoveryCancelledException.class);
 

@@ -229,7 +229,11 @@ public class EsqlCCSUtils {
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                if (cause instanceof RemoteViewNotSupportedException viewEx) {
+                // Both shapes are read: a peer that predates remote-dataset invisibility answers with the aggregate
+                // when it matched both kinds, and only its views half can be acted on here.
+                if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
+                    views.addAll(resourceEx.views());
+                } else if (cause instanceof RemoteViewNotSupportedException viewEx) {
                     views.addAll(viewEx.views());
                 }
             }

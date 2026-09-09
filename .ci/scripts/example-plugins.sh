@@ -19,5 +19,8 @@ resolve_java_home() {
 
 cd $WORKSPACE/plugins/examples
 
-JAVA_HOME=$(resolve_java_home) \
-  $WORKSPACE/.ci/scripts/run-gradle.sh $@
+JAVA_HOME=$(resolve_java_home)
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
+
+"$WORKSPACE/.ci/scripts/run-gradle.sh" "$@"

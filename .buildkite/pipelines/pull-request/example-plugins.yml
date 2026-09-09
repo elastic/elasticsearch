@@ -4,6 +4,8 @@ config:
     - build-tools/.*
     - build-tools-internal/.*
     - plugins/examples/.*
+    - \.buildkite/pipelines/pull-request/example-plugins\.yml
+    - \.ci/scripts/example-plugins\.sh
 steps:
   - label: example-plugins
     command: |-

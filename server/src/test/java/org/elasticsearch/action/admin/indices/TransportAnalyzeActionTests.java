@@ -130,11 +130,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 public Reader create(Reader reader) {
                     return new TrickleCharFilter(reader);
                 }
-
-                @Override
-                public Object sharingKey() {
-                    return this;
-                }
             }
 
             @Override

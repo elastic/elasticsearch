@@ -32,6 +32,6 @@ public final class FsDirectoryFactoryAgent {
 
     public static void premain(String agentArgs, Instrumentation inst) {
         inst.addTransformer(new FsDirectoryFactoryTransformer());
-        System.err.println("[fs-patch-agent] Attached; FsDirectoryFactory transformer registered");
+        System.out.println("[fs-patch-agent] Attached; FsDirectoryFactory transformer registered");
     }
 }

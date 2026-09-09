@@ -74,7 +74,7 @@ final class FsDirectoryFactoryTransformer implements ClassFileTransformer {
         String sha = sha256Hex(classfileBuffer);
 
         if (stockHashes.contains(sha)) {
-            System.err.println("[fs-patch-agent] Patched " + className);
+            System.out.println("[fs-patch-agent] Patched " + className);
             return patchedBytes;
         }
         if (Arrays.equals(classfileBuffer, patchedBytes)) {

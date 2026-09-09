@@ -59,6 +59,7 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.Translog;
@@ -462,7 +463,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .promotableToPrimary(true)
             .mapperService(mapperService)
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(MergeMetrics.NOOP)
+            .shardMetrics(ShardMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }
@@ -648,7 +649,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             })
             .primaryTermSupplier(primaryTermSupplier)
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(MergeMetrics.NOOP)
+            .shardMetrics(ShardMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -773,7 +774,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             })
             .primaryTermSupplier(directory.getCurrentCommit()::primaryTerm)
             .engineResetLock(new EngineResetLock())
-            .mergeMetrics(MergeMetrics.NOOP)
+            .shardMetrics(ShardMetrics.NOOP)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

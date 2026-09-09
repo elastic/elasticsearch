@@ -557,7 +557,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             indexSettings.getSettings(),
             cacheClusterService.getClusterSettings(),
             threadPool,
-            BlobCacheMetrics.NOOP,
+            TestUtils.NOOP_BLOB_CACHE_METRICS,
             StatelessCacheEvictionPolicyType.createEvictionPolicy(
                 indexSettings.getSettings(),
                 cacheClusterService,

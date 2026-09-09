@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -208,7 +207,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     nodeEnvironment,
                     settings,
                     threadPool,
-                    BlobCacheMetrics.NOOP,
+                    TestUtils.NOOP_BLOB_CACHE_METRICS,
                     clusterService,
                     indicesService,
                     new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
@@ -698,7 +697,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     threadPool,
-                    BlobCacheMetrics.NOOP,
+                    TestUtils.NOOP_BLOB_CACHE_METRICS,
                     capturingPolicy,
                     System::nanoTime,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -994,7 +993,7 @@ public class SearchDirectoryTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     threadPool,
-                    BlobCacheMetrics.NOOP,
+                    TestUtils.NOOP_BLOB_CACHE_METRICS,
                     capturingPolicy,
                     System::nanoTime,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,

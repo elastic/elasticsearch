@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.stateless.cache.reader;
 
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.junit.Before;
 
@@ -55,7 +55,7 @@ public class CacheFileReaderStoreMetricsTests extends ESTestCase {
             cacheFile,
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, FILE_LENGTH),
-            BlobCacheMetrics.NOOP,
+            TestUtils.NOOP_BLOB_CACHE_METRICS,
             System::currentTimeMillis,
             REGION_SIZE,
             IOContext.DEFAULT,

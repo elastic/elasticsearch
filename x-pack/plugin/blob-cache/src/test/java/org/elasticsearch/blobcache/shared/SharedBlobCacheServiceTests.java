@@ -41,6 +41,7 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,7 +97,9 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Force
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.LowestFrequencyEviction;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.Promote;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LockAcquireSite.SlotAssignment;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.telemetry.InstrumentType.DOUBLE_HISTOGRAM;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_HISTOGRAM;
@@ -140,7 +143,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(
@@ -234,7 +237,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -271,7 +274,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -337,7 +340,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             {
@@ -410,7 +413,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -459,7 +462,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                new BlobCacheMetrics(new RecordingMeterRegistry())
+                new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -505,7 +508,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         ExecutorService ioExecutor = Executors.newCachedThreadPool();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -612,7 +615,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -657,7 +660,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -698,7 +701,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingMeterRegistry)
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
             )
         ) {
             final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> activeRegions = new HashMap<>();
@@ -763,7 +766,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -801,7 +804,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -841,7 +844,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -893,7 +896,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final ShardId protectedShard = randomShardId();
@@ -957,7 +960,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             for (var entry : regionCountPerShard.entrySet()) {
@@ -998,7 +1001,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -1052,7 +1055,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final ShardId shard1 = randomShardId();
@@ -1083,7 +1086,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         // we have 8 regions
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1198,7 +1201,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      */
     public void testInitialDecaysPartitionsFreeList() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         final int numRegions = between(10, 100);
         final int initialDecays = between(1, 10);
         int initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
@@ -1270,7 +1273,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * With initial_decays=0 no decay is imposed when consuming the initial free list; epoch stays 0 until eviction triggers decay.
      */
     public void testInitialDecaysZeroDisablesFreeListDecay() throws IOException {
-        BlobCacheMetrics metrics = new BlobCacheMetrics(new RecordingMeterRegistry());
+        BlobCacheMetrics metrics = new BlobCacheMetrics(new RecordingMeterRegistry(), NOOP_TIME_PROVIDER);
         final int numRegions = between(10, 100);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1327,7 +1330,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1381,7 +1384,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1434,7 +1437,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             var keys = new ArrayList<TestCacheKey>(numRegions);
@@ -1483,7 +1486,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      */
     public void testMassiveDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -1580,7 +1583,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             CyclicBarrier ready = new CyclicBarrier(threads);
@@ -1813,7 +1816,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             assertEquals(val1.getBytes(), cacheService.getStats().size());
@@ -1831,7 +1834,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             assertEquals(val2.getBytes(), cacheService.getStats().size());
@@ -1857,7 +1860,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> cacheEntries = new HashMap<>();
@@ -1976,7 +1979,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 new DefaultEvictionPolicy<>()
             )
@@ -2073,7 +2076,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingEvicted)
+                new BlobCacheMetrics(recordingEvicted, NOOP_TIME_PROVIDER)
             )
         ) {
             // fill the cache: every entry lands at frequency 1, leaving the lowest-frequency (0) list empty
@@ -2131,7 +2134,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recordingNone),
+                new BlobCacheMetrics(recordingNone, NOOP_TIME_PROVIDER),
                 neverEvict
             )
         ) {
@@ -2221,7 +2224,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 freeingPolicy
             )
@@ -2320,7 +2323,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 protectFirstSkip
             )
@@ -2434,7 +2437,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(freqScanTimeTakenNanos),
                 protectByKey
             )
@@ -2729,7 +2732,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                new BlobCacheMetrics(recording),
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER),
                 () -> clock.addAndGet(clockStepNanos),
                 new DefaultEvictionPolicy<>()
             )
@@ -2777,7 +2780,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             {
@@ -2925,7 +2928,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             {
@@ -3149,7 +3152,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             {
@@ -3325,7 +3328,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             {
@@ -3523,7 +3526,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3623,7 +3626,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3705,7 +3708,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP,
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER),
                 new DefaultEvictionPolicy<>()
             ) {
                 @Override
@@ -3748,7 +3751,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 threadPool.executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3874,7 +3877,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -3948,7 +3951,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             assertEquals(2, cacheService.freeRegionCount());
@@ -4024,7 +4027,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             assertEquals(2, cacheService.freeRegionCount());
@@ -4098,7 +4101,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4141,7 +4144,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4206,7 +4209,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4283,7 +4286,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4357,7 +4360,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4420,7 +4423,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4477,7 +4480,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4544,7 +4547,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ioExecutor,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4612,7 +4615,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheFile = cacheService.getCacheFile(
@@ -4657,7 +4660,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4721,6 +4724,146 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testTryReadAfterBackfillUsesRegionTimestamp() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 10));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+            );
+
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+            assertEquals(
+                backfill,
+                cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP).timestampMillis()
+            );
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, cacheFile.timestampMillis());
+
+            recording.getRecorder().resetCalls();
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(new byte[1]), 0));
+            recording.getRecorder().collect();
+
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a future/negative age → 15_minutes.
+            // Using CacheFile.timestampMillis would incorrectly keep attributing the hit to "other".
+            List<Measurement> reads = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.read.total");
+            assertEquals(1L, sumTimestampAge(reads, "15_minutes"));
+            assertEquals(1L, sumTimestampAge(reads, "other"));
+        }
+    }
+
+    public void testPopulateMissAfterBackfillUsesRegionTimestamp() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 10));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recording = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new BlobCacheMetrics(recording, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+            );
+            cacheService.get(cacheKey, fileLength, 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), key -> key.equals(cacheKey) ? backfill : null);
+
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            recording.getRecorder().resetCalls();
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+            recording.getRecorder().collect();
+
+            // NOOP_TIME_PROVIDER reports now=0, so a positive backfilled timestamp is a future/negative age → 15_minutes.
+            List<Measurement> misses = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.miss.total");
+            assertEquals(1L, sumTimestampAge(misses, "15_minutes"));
+            assertEquals(0L, sumTimestampAge(misses, "other"));
+        }
+    }
+
+    private static long sumTimestampAge(List<Measurement> measurements, String bucket) {
+        return measurements.stream()
+            .filter(m -> bucket.equals(m.attributes().get(REGION_TIMESTAMP_AGE_ATTRIBUTE_KEY)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
     // Verify that madvise can be applied on the read path (cache hit) even when the region was
     // populated by a warming/prefetch service that did not call madvise. This simulates the pattern
     // where CacheFileReader.doRead calls channel.madvise(advice) in the RangeAvailableHandler.
@@ -4743,7 +4886,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -4813,7 +4956,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             // Step 1: populate a region and set MADV_RANDOM via the fill handler (simulates .vec file)
@@ -4898,7 +5041,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER)
             )
         ) {
             final var cacheKey = generateCacheKey();

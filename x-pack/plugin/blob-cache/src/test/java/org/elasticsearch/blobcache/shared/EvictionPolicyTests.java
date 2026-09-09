@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.NOOP_TIME_PROVIDER;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +67,7 @@ public class EvictionPolicyTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP,
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER),
                 policy
             )
         ) {
@@ -179,7 +181,7 @@ public class EvictionPolicyTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP,
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER),
                 policy
             )
         ) {
@@ -292,7 +294,7 @@ public class EvictionPolicyTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP,
+                new BlobCacheMetrics(MeterRegistry.NOOP, NOOP_TIME_PROVIDER),
                 policy
             )
         ) {

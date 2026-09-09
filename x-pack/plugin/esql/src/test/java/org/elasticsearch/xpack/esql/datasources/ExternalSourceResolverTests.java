@@ -574,6 +574,23 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg);
     }
 
+    public void testStatsFileTypesOfPrefersInferredTypesOverPinnedFileSchema() {
+        SchemaReconciliation.FileSchemaInfo pinned = new SchemaReconciliation.FileSchemaInfo(
+            new ExternalSchema(List.of(attr("val", DataType.DOUBLE))),
+            null,
+            null,
+            Map.of("val", DataType.LONG)
+        );
+        assertEquals(Map.of("val", DataType.LONG), ExternalSourceResolver.statsFileTypesOf(pinned));
+
+        SchemaReconciliation.FileSchemaInfo nothingRetyped = new SchemaReconciliation.FileSchemaInfo(
+            new ExternalSchema(List.of(attr("val", DataType.LONG))),
+            null,
+            null
+        );
+        assertEquals(Map.of("val", DataType.LONG), ExternalSourceResolver.statsFileTypesOf(nothingRetyped));
+    }
+
     // ===== Stats partial / file-count flag tests =====
 
     /**

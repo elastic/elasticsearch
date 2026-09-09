@@ -333,6 +333,43 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Counterpart to {@link #testDocValuesOnlyKeywordIsNotDetectedAsSingleValued}: a keyword field
+     * with {@code index: false} and no {@code USE_DOC_VALUES_SKIPPER} where <em>every</em> document
+     * has exactly one value must still NOT be reported as single-valued. Without a skipper or a
+     * terms index there is no way to confirm single-valuedness, so the code conservatively returns
+     * {@code false}.
+     */
+    public void testDocValuesOnlySingleValuedKeywordIsNotDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(new SortedSetDocValuesField("kw", new BytesRef("B"))));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = ((DirectoryReader) reader).leaves().get(0).reader();
+            assertNull("index:false keyword without skipper must have no terms", leafReader.terms("kw"));
+            assertNull("index:false keyword without skipper must have no DocValuesSkipper", leafReader.getDocValuesSkipper("kw"));
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertFalse(
+                "keyword field without terms or skipper must not be reported as single-valued even when all docs have one value",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Verifies that a multi-valued numeric field without a points index or a doc-values skipper
      * ({@code index: false} in standard mode without {@code use_doc_values_skipper}) is never
      * reported as single-valued. Without the fix, {@code getPointValues()} returning {@code null}
@@ -589,6 +626,51 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * Verifies that when a keyword field is present in only some segments (absent in others), the
+     * null skipper for the empty segments is correctly treated as "no values — not multi-valued",
+     * and {@code isSingleValue} still returns {@code true} as long as every segment that <em>does</em>
+     * have data is single-valued.
+     * <p>
+     * The existing {@link #testSkipperKeywordSingleValuedIsDetectedAsSingleValued} always calls
+     * {@code forceMerge(1)}, so the per-leaf tester's {@code skipper == null} branch is never
+     * exercised for keywords. This test keeps two segments: one with keyword data and one without.
+     */
+    public void testSkipperKeywordSingleValuedWithAbsentSegmentIsDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": { "kw": { "type": "keyword", "index": false } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            // Segment 1: single-valued keyword documents → skipper reports maxValueCount == 1.
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("A"))));
+            writer.addDocument(List.of(SortedSetDocValuesField.indexedField("kw", new BytesRef("B"))));
+            writer.commit();
+            // Segment 2: a document with no keyword field → getDocValuesSkipper("kw") returns null.
+            writer.addDocument(List.of());
+            // Intentionally no forceMerge so the two segments remain separate.
+            reader = writer.getReader();
+        }
+
+        try {
+            assertEquals("must have exactly two leaf segments", 2, reader.leaves().size());
+            LeafReader seg1 = reader.leaves().get(0).reader();
+            LeafReader seg2 = reader.leaves().get(1).reader();
+            assertNotNull("segment 1 must have a DocValuesSkipper for 'kw'", seg1.getDocValuesSkipper("kw"));
+            assertNull("segment 2 must have no DocValuesSkipper for 'kw' (field absent)", seg2.getDocValuesSkipper("kw"));
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertTrue(
+                "single-valued keyword field absent in some segments must still be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Keyword-field counterpart of {@link #testSkipperNumericMultiValuedIsNotDetectedAsSingleValued}:
      * a multi-valued keyword field backed by a doc-values skipper must not be reported as single-valued,
      * so {@code COUNT(kw)} is not incorrectly pushed down to a doc-count exists query.
@@ -621,6 +703,58 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
             assertFalse(
                 "multi-valued skipper keyword field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
+     * Verifies the {@code hasTerms()} detection path for keyword fields: a standard keyword field
+     * with {@code index: true} (the default) is detected as single-valued via the inverted-index
+     * check ({@code sumDocFreq == docCount}). All two new skipper-based keyword tests use
+     * {@code index: false}, so the terms branch was previously untested.
+     * <p>
+     * Note that with {@code USE_DOC_VALUES_SKIPPER} disabled, the mapper uses
+     * {@code FIELD_TYPE} (index options set, no skip index), so {@code IndexType} reports
+     * {@code hasTerms=true} and {@code hasDocValuesSkipper=false} — the skipper branch in
+     * {@code detectSingleValue} is not reachable for this field type.
+     */
+    public void testIndexedKeywordSingleValuedIsDetectedAsSingleValued() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(
+                    new StringField("kw", "A", Field.Store.NO),
+                    new SortedSetDocValuesField("kw", new BytesRef("A"))
+                )
+            );
+            writer.addDocument(
+                List.of(
+                    new StringField("kw", "B", Field.Store.NO),
+                    new SortedSetDocValuesField("kw", new BytesRef("B"))
+                )
+            );
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            Terms terms = leafReader.terms("kw");
+            assertNotNull("indexed keyword must have a terms index", terms);
+            assertEquals("every doc has one value, so sumDocFreq must equal docCount", terms.getSumDocFreq(), terms.getDocCount());
+
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(
+                "single-valued indexed keyword field must be reported as single-valued via the terms check",
                 stats.isSingleValue(new FieldAttribute.FieldName("kw"))
             );
         } finally {

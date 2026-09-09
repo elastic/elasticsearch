@@ -38,7 +38,7 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
 
   MinLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), MinLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), MinLongAggregator.init());
     this.driverContext = driverContext;
   }
 

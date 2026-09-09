@@ -230,7 +230,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         // with little-to-no write-load, for example; shards of system indices, or shards of data stream indices other than
         // the current write-index. It makes no sense to shuffle these around when a node is hot-spotting.
         final double minShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMinShardWriteLoadThreshold();
-        final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting, 0.0);
+        final double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
         if (isShardWriteLoadContributionNegligible(minShardWriteLoadThreshold, shardWriteLoad)) {
             return allocation.decision(
                 Decision.YES,
@@ -274,8 +274,15 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         }
     }
 
-    private double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting, double defaultValue) {
-        return allocation.clusterInfo().getShardWriteLoads().getOrDefault(shardRouting.shardId(), defaultValue);
+    /**
+     * Get the write-load for the specified shard
+     *
+     * @param allocation The RoutingAllocation instance
+     * @param shardRouting The shard whose write-load is being requested
+     * @return The write-load for the specified shard, or 0.0 if no write-load has been reported
+     */
+    private double getShardWriteLoad(RoutingAllocation allocation, ShardRouting shardRouting) {
+        return allocation.clusterInfo().getShardWriteLoads().getOrDefault(shardRouting.shardId(), 0.0);
     }
 
     /**

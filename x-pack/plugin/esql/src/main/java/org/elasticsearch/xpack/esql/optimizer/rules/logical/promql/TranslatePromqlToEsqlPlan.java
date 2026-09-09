@@ -1015,9 +1015,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 .filter(attribute -> attribute instanceof FieldAttribute field && field.isDimension())
                 .filter(attribute -> attribute instanceof TimeSeriesMetadataAttribute == false)
                 .toList();
-            // The leaf exposes every required packing and every dimension the relation has. A required label the
-            // relation lacks is simply absent; the consumer null-fills it from its own header.
-            Header header = new Header(new LinkedHashSet<>(mapFinite(dimensions)), required.skips());
+            // Expose only required labels that exist on the relation. Consumers null-fill any required label that is absent.
+            Header header = required.project(mapFinite(dimensions));
             return new IntermediateResult(input, header, expr, stepAttr(), matcher);
         }
 

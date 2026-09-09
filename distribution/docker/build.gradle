@@ -93,6 +93,19 @@ configurations {
   filebeat_x86_64
   metricbeat_aarch64
   metricbeat_x86_64
+  fsPatchAgent {
+    canBeConsumed = false
+    canBeResolved = true
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
+  fsPatchAgentSupplement {
+    canBeConsumed = false
+    canBeResolved = true
+  }
 }
 
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
@@ -109,6 +122,8 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  fsPatchAgent project(':distribution:tools:fs-patch-agent')
+  fsPatchAgentSupplement project(path: ':distribution:tools:fs-patch-agent', configuration: 'supplement')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -451,6 +466,17 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       into("plugins") {
         from configurations.allPlugins
+      }
+
+      into("lib/tools/fs-patch-agent") {
+        from configurations.fsPatchAgent
+        rename ~/^fs-patch-agent-.*\.jar$/, 'fs-patch-agent.jar'
+        // The supplement jar is already named fs-directory-patch.jar, so the rename above leaves it untouched.
+        from configurations.fsPatchAgentSupplement
+      }
+
+      into("config/jvm.options.d") {
+        from projectDir.resolve("src/docker/cloud-ess/fs-patch-agent.options")
       }
 
       from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {

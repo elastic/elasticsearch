@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.http.client.fluent.Request;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ProcessInfo;
@@ -1212,6 +1213,68 @@ public class DockerTests extends PackagingTestCase {
             assertThat(Path.of("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
             assertThat(Path.of("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
         });
+    }
+
+    /**
+     * Check that the Cloud ESS image bundles the fs-patch-agent jars and the --patch-module option, all owned by root.
+     */
+    public void test401CloudImageBundlesPatchAgent() {
+        assumeTrue("Only Cloud ESS images bundle the fs-patch-agent", distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        assertThat(Path.of("/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-patch-agent.jar"), file("root", "root", null));
+        assertThat(Path.of("/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-directory-patch.jar"), file("root", "root", null));
+        assertThat(Path.of("/usr/share/elasticsearch/config/jvm.options.d/fs-patch-agent.options"), file("root", "root", null));
+    }
+
+    /**
+     * Smoke test that attaching the fs-patch-agent (via ES_JAVA_OPTS) together with the bundled
+     * --patch-module option does not break a normal startup / index / search.
+     *
+     * <p>Note: this image is built FROM the locally-built cloud image, whose server jar already
+     * contains the patched FsDirectoryFactory (and FsDirectoryFactory$2). The agent therefore
+     * no-ops (the bytes are already patched, so no "[fs-patch-agent] Patched" line is emitted) and
+     * --patch-module merely re-supplies a class already present in the module. The genuine
+     * stock-patching path is exercised only when a stock official 8.16.x image is re-released with
+     * this layer. Here we verify the wiring is sound: the agent attaches and the store path
+     * (default hybridfs -> disableRandomAdvice -> FsDirectoryFactory$2) opens and is queryable.
+     */
+    public void test402CloudImagePatchAgentWiringIsSound() throws Exception {
+        assumeTrue("Only Cloud ESS images bundle the fs-patch-agent", distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+
+        installation = runContainer(
+            distribution(),
+            builder().envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar("ES_JAVA_OPTS", "-javaagent:/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-patch-agent.jar")
+        );
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        // Creating the index opens a shard through FsDirectoryFactory; searching forces reads
+        // (openInput) through the FsDirectoryFactory$2 wrapper. A broken --patch-module path or a
+        // transformer that threw would surface as a failed request here.
+        final Path caCert = ServerUtils.getCaCert(installation);
+        ServerUtils.makeRequest(
+            Request.Put("https://localhost:9200/patch-agent-it/_doc/1?refresh=true")
+                .bodyString("{\"title\":\"patched\"}", ContentType.APPLICATION_JSON),
+            "elastic",
+            PASSWORD,
+            caCert
+        );
+        final String search = ServerUtils.makeRequest(
+            Request.Get("https://localhost:9200/patch-agent-it/_search?q=title:patched"),
+            "elastic",
+            PASSWORD,
+            caCert
+        );
+        assertThat(search, containsString("\"title\":\"patched\""));
+
+        final Result containerLogs = getContainerLogs();
+        assertThat(
+            "Expected the agent to log that it attached",
+            containerLogs.stdout() + containerLogs.stderr(),
+            containsString("[fs-patch-agent] Attached")
+        );
+
+        removeContainer();
     }
 
     private List<String> listPlugins() {

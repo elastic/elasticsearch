@@ -1,0 +1,9 @@
+## Injects the new FsDirectoryFactory$2 class (shipped in fs-directory-patch.jar) into the
+## org.elasticsearch.server module. org.elasticsearch.index.store is owned by that named module,
+## so the class cannot be added via the class path -- it must be patched into the module itself.
+##
+## This is paired with the fs-patch-agent -javaagent (attached by the control plane via
+## ES_JAVA_OPTS), which substitutes the four pre-existing FsDirectoryFactory* classes. Without the
+## agent attached, the stock FsDirectoryFactory never references $2, so this option is a harmless
+## no-op.
+--patch-module=org.elasticsearch.server=/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-directory-patch.jar

@@ -10,4 +10,6 @@ RUN chmod 0444 /opt/plugins/archive/*
 FROM ${base_image}
 
 COPY --from=builder /opt/plugins /opt/plugins
+COPY --chown=0:0 lib/tools/fs-patch-agent /usr/share/elasticsearch/lib/tools/fs-patch-agent
+COPY --chown=0:0 config/jvm.options.d/fs-patch-agent.options /usr/share/elasticsearch/config/jvm.options.d/fs-patch-agent.options
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive

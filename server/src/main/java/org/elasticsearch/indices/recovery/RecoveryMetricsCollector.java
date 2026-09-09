@@ -11,7 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -46,7 +45,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
-    public static final String RECOVERY_DIRECT_CANCELLATIONS_ELAPSED_TIME_METRIC = "es.recovery.shard.directcancellations.elapsed.time";
+    public static final String RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC = "es.recovery.shard.directcancellations.work.time";
     public static final String RECOVERY_GATE_BLOCKED_CURRENT_METRIC = "es.recovery.gate.blocked.current";
     public static final String RECOVERY_GATE_BLOCKED_TOTAL_METRIC = "es.recovery.gate.blocked.total";
     public static final String RECOVERY_GATE_BLOCKED_DURATION_METRIC = "es.recovery.gate.blocked.time";
@@ -67,7 +66,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
-    private final LongHistogram shardRecoveryDirectCancellationsElapsedTimeMetric;
+    private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
     private final LongGaugeMetric recoveryGateBlockedCurrentMetric;
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
@@ -129,10 +128,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
             "unit"
         );
-        shardRecoveryDirectCancellationsElapsedTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_DIRECT_CANCELLATIONS_ELAPSED_TIME_METRIC,
+        shardRecoveryDirectCancellationsWorkTimeMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_DIRECT_CANCELLATIONS_WORK_TIME_METRIC,
             "For shard recoveries that have been directly cancelled by the master after starting, "
-                + "the elapsed time between starting and cancelling",
+                + "the elapsed time between starting and cancelling, i.e. the lost work time",
             "ms"
         );
         recoveryGateBlockedCurrentMetric = LongGaugeMetric.create(
@@ -184,8 +183,13 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
-        // Record this as queued in metrics for simplicity, we can refine the distinction later on if needed
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, null));
+        // For simplicity, we record this in metrics as QUEUED and in stage CREATED, even though we actually cancelled before we got there.
+        // It is a race whether we hit this path or onQueuedRecoveryCancelledOnTarget so it seems reasonable to record both the same.
+        // We can refine the distinction later on if needed.
+        shardRecoveryDirectCancellationsMetric.incrementBy(
+            1,
+            directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, Stage.CREATED)
+        );
     }
 
     @Override
@@ -229,7 +233,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             );
             case PEER -> queuedPeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
         }
-        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, null));
+        shardRecoveryDirectCancellationsMetric.incrementBy(
+            1,
+            directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED, Stage.CREATED)
+        );
     }
 
     @Override
@@ -260,7 +267,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     @Override
     public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type, Stage stage, long elapsedTimeMillis) {
         shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED, stage));
-        shardRecoveryDirectCancellationsElapsedTimeMetric.record(elapsedTimeMillis);
+        shardRecoveryDirectCancellationsWorkTimeMetric.record(elapsedTimeMillis);
     }
 
     @Override
@@ -312,16 +319,9 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private static Map<String, Object> directCancellationMetricLabels(
         RecoverySource.Type type,
         RecoverySchedulingState state,
-        @Nullable RecoveryState.Stage stage
+        RecoveryState.Stage stage
     ) {
-        return Map.of(
-            "es_recovery_type",
-            type.name(),
-            "es_recovery_scheduling_state",
-            state.name(),
-            "es_recovery_stage",
-            stage != null ? stage.name() : "none"
-        );
+        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name(), "es_recovery_stage", stage.name());
     }
 
     private enum RecoverySchedulingState {

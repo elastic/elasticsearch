@@ -698,15 +698,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 );
             }
             coercionWarnings().add(
-                "Column ["
-                    + columnName
-                    + "] in file ["
-                    + storageObject.path()
-                    + "] has type ["
-                    + fileType
-                    + "] incompatible with planner type ["
-                    + target
-                    + "]; returning nulls for this column"
+                SkipWarnings.incompatiblePlannerTypeColumnMessage(columnName, storageObject.path().toString(), fileType, target)
             );
             return factory.newConstantNullBlock(count);
         } finally {

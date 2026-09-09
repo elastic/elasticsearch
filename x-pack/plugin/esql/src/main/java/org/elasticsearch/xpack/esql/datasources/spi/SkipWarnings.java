@@ -68,6 +68,35 @@ public class SkipWarnings {
     }
 
     /**
+     * Per-file summary when an on-disk column type cannot be represented by the planner type
+     * and the column is returned as null. {@code fileKind} is the format-owned label
+     * ({@code "Parquet file"}, {@code "ORC file"}) or {@code "File"} when the caller is
+     * format-neutral.
+     */
+    public static String incompatiblePlannerTypeFileSummary(String fileKind, String fileLocation) {
+        return fileKind
+            + " ["
+            + fileLocation
+            + "] has columns whose on-disk type is incompatible with the planner type; they are returned as null";
+    }
+
+    /**
+     * Per-column detail for the same condition. Shared by the Parquet and ORC readers and the
+     * FIRST_FILE_WINS resolve-time rewrite so exact-string warning dedup stays reliable.
+     */
+    public static String incompatiblePlannerTypeColumnMessage(String columnName, String fileLocation, Object fileType, Object plannerType) {
+        return "Column ["
+            + columnName
+            + "] in file ["
+            + fileLocation
+            + "] has type ["
+            + fileType
+            + "] incompatible with planner type ["
+            + plannerType
+            + "]; returning nulls for this column";
+    }
+
+    /**
      * The single "further warnings suppressed" line emitted once per collector when the per-event
      * cap is exceeded. Exposed as the one source of truth for the overflow text so a central budget
      * that caps the same channel (see {@code InformationalWarningBudget}) emits a byte-identical

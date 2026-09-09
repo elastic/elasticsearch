@@ -20,10 +20,11 @@ import java.util.Map;
  * single-file gets an identity-mapped one-entry map; multi-file modes get FFW/STRICT/UBN
  * shaped maps from {@link SchemaReconciliation}).
  *
- * @param warnings raw Hive-partition shadow-column warning bodies collected during this resolve.
- *                 Coordinator-only; {@code EsqlSession} merges them into {@code DriverCompletionInfo}
- *                 so {@code TransportEsqlQueryAction#toResponse} can emit them as client {@code Warning}
- *                 headers. Empty when nothing was shadowed.
+ * @param warnings raw warning bodies collected during this resolve: Hive-partition shadow columns,
+ *                 and FIRST_FILE_WINS columns a footer read returns as null because the planner type
+ *                 cannot represent the file type. Coordinator-only; {@code EsqlSession} merges them
+ *                 into {@code DriverCompletionInfo} so {@code TransportEsqlQueryAction#toResponse}
+ *                 can emit them as client {@code Warning} headers. Empty when nothing was collected.
  */
 public record ExternalSourceResolution(Map<String, ResolvedSource> resolved, List<String> warnings) {
 

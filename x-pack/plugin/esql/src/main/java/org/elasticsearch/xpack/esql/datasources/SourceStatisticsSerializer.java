@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -283,8 +284,9 @@ public final class SourceStatisticsSerializer {
     /**
      * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
      * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
-     * the extremum cannot be trusted: a declared retype, a text pin, or a text FIRST_FILE_WINS column whose
-     * file type the anchor cannot represent (the reader decides per value, so the harvest is not all-null).
+     * the extremum cannot be trusted: a declared retype, a text pin, a text FIRST_FILE_WINS column whose
+     * file type the anchor cannot represent, or an {@code UNSIGNED_LONG} planner type folding a signed
+     * integer harvest.
      */
     public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
         statsMap.remove(columnMinKey(columnName));
@@ -300,17 +302,56 @@ public final class SourceStatisticsSerializer {
      * type). Returns a new map; {@code statsMap} is not mutated. {@code row_count} is unchanged.
      */
     public static Map<String, Object> rewriteColumnAsAllNull(Map<String, Object> statsMap, String columnName) {
-        if (statsMap == null || statsMap.isEmpty()) {
+        return rewriteColumnsAsAllNull(statsMap, List.of(columnName));
+    }
+
+    /**
+     * Same contract as {@link #rewriteColumnAsAllNull(Map, String)} for every name in {@code columnNames},
+     * with one map copy.
+     */
+    public static Map<String, Object> rewriteColumnsAsAllNull(Map<String, Object> statsMap, Collection<String> columnNames) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
             return statsMap;
         }
         Map<String, Object> out = new HashMap<>(statsMap);
         Object rowCount = out.get(STATS_ROW_COUNT);
-        out.put(columnValueCountKey(columnName), 0L);
-        out.put(columnNullCountKey(columnName), rowCount instanceof Number n ? n.longValue() : 0L);
-        out.remove(columnMinKey(columnName));
-        out.remove(columnMaxKey(columnName));
-        out.remove(columnMinUnservableKey(columnName));
-        out.remove(columnMaxUnservableKey(columnName));
+        long nulls = rowCount instanceof Number n ? n.longValue() : 0L;
+        for (String columnName : columnNames) {
+            out.put(columnValueCountKey(columnName), 0L);
+            out.put(columnNullCountKey(columnName), nulls);
+            out.remove(columnMinKey(columnName));
+            out.remove(columnMaxKey(columnName));
+            out.remove(columnMinUnservableKey(columnName));
+            out.remove(columnMaxUnservableKey(columnName));
+        }
+        return out;
+    }
+
+    /**
+     * Rewrites each named column's min/max from a raw signed harvest into the {@code UNSIGNED_LONG}
+     * in-memory domain ({@link DeclaredTypeCoercions#coerceToUnsignedLong}). A value that cannot be
+     * coerced poisons that column's extrema so MIN/MAX scan. One map copy. {@code statsMap} is not
+     * mutated.
+     */
+    public static Map<String, Object> encodeColumnExtremaAsUnsignedLong(Map<String, Object> statsMap, Collection<String> columnNames) {
+        if (statsMap == null || statsMap.isEmpty() || columnNames == null || columnNames.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String columnName : columnNames) {
+            try {
+                Object min = out.get(columnMinKey(columnName));
+                if (min instanceof Number n) {
+                    out.put(columnMinKey(columnName), DeclaredTypeCoercions.coerceToUnsignedLong(n));
+                }
+                Object max = out.get(columnMaxKey(columnName));
+                if (max instanceof Number n) {
+                    out.put(columnMaxKey(columnName), DeclaredTypeCoercions.coerceToUnsignedLong(n));
+                }
+            } catch (IllegalArgumentException e) {
+                poisonColumnExtrema(out, columnName);
+            }
+        }
         return out;
     }
 

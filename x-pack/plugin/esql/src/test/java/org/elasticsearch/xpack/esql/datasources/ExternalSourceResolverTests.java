@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -463,9 +465,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Text FIRST_FILE_WINS does not whole-column null-fill, so an unrepresentable column's extrema are
-     * poisoned and its counts stay the harvest.
+     * poisoned and its counts are dropped. The harvest describes a read under each file's own schema,
+     * which the pinned scan does not produce.
      */
-    public void testFfwTextAggregatePoisonsExtremaOfUnrepresentableColumn() {
+    public void testFfwTextAggregateSafeMissesUnrepresentableColumn() {
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
             List.of(
                 fileWithColumn("file:///part-a.csv", DataType.INTEGER, 1L, 2L),
@@ -478,9 +481,86 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNull(agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
         assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
         assertEquals(Boolean.TRUE, agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    /**
+     * Footer FIRST_FILE_WINS keeps a signed integer file under an UNSIGNED_LONG anchor (the scan
+     * coerces in-range values). The uint64 file's footer extrema are already sign-flip-encoded; the
+     * signed harvest is encoded into that domain before the merge so MIN/MAX stay warm.
+     */
+    public void testFfwFooterAggregateEncodesUnsignedLongVersusSignedExtrema() {
+        long encoded0 = DeclaredTypeCoercions.coerceToUnsignedLong(0L);
+        long encoded1 = DeclaredTypeCoercions.coerceToUnsignedLong(1L);
+        long encoded2 = DeclaredTypeCoercions.coerceToUnsignedLong(2L);
+        long encoded200 = DeclaredTypeCoercions.coerceToUnsignedLong(200L);
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.UNSIGNED_LONG, encoded1, encoded2),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, 0L, 200L)
+            ),
+            true
+        );
+        assertNotNull(agg);
+        assertEquals(encoded0, agg.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(encoded200, agg.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(agg.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
         assertEquals(0L, ((Number) agg.get(SourceStatisticsSerializer.columnNullCountKey("x"))).longValue());
         assertEquals(4L, ((Number) agg.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+    }
+
+    public void testFfwFooterAggregateEmitsIncompatibleColumnWarnings() {
+        List<String> warnings = new ArrayList<>();
+        Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            List.of(
+                fileWithColumn("file:///part-a.parquet", DataType.INTEGER, 1L, 2L),
+                fileWithColumn("file:///part-b.parquet", DataType.LONG, -10L, 20L)
+            ),
+            true,
+            warnings::add
+        );
+        assertNotNull(agg);
+        assertEquals(2L, ((Number) agg.get(SourceStatisticsSerializer.columnValueCountKey("x"))).longValue());
+        assertThat(warnings.isEmpty(), equalTo(false));
+        assertThat(warnings.toString(), containsString("incompatible with planner type"));
+        assertThat(warnings.toString(), containsString("part-b.parquet"));
+    }
+
+    public void testResolveTimeWarningsShareOneBudget() throws Exception {
+        int mismatchedFiles = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        List<StorageEntry> listing = new ArrayList<>();
+        List<Attribute> anchor = List.of(attr("year", DataType.KEYWORD), attr("x", DataType.INTEGER));
+        List<Attribute> later = List.of(attr("year", DataType.KEYWORD), attr("x", DataType.LONG));
+        String anchorPath = "s3://bucket/data/year=2024/part-0.parquet";
+        schemasByPath.put(anchorPath, anchor);
+        rowCounts.put(anchorPath, 2L);
+        listing.add(entry(anchorPath, 100));
+        for (int i = 1; i <= mismatchedFiles; i++) {
+            String path = "s3://bucket/data/year=2024/part-" + i + ".parquet";
+            schemasByPath.put(path, later);
+            rowCounts.put(path, 2L);
+            listing.add(entry(path, 100));
+        }
+        ExternalSourceResolution resolution = resolveMultiFileWithStats(
+            "s3://bucket/data/year=*/*.parquet",
+            schemasByPath,
+            rowCounts,
+            listing,
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        );
+        List<String> warnings = resolution.warnings();
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 1, warnings.size());
+        assertThat(warnings.get(warnings.size() - 1), equalTo(SkipWarnings.overflowMessage()));
+        assertThat(warnings.toString(), containsString("incompatible with planner type"));
+        // finishFirstFileWins emits the Hive shadow pair after the footer fold. A per-fold budget
+        // would still admit those two; the resolve-wide budget is already full, so they do not appear.
+        assertThat(warnings.toString(), not(containsString("shadowed by same-named Hive partition keys")));
     }
 
     /**

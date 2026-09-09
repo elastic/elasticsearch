@@ -203,17 +203,28 @@ public class ExternalSourceResolver {
     private final Supplier<ThreadContext.StoredContext> restorableContext;
 
     /**
-     * Hive-partition shadow-column warning messages collected during one {@link #resolve} call's schema-resolution
-     * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
-     * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
-     * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
+     * Warning messages collected during one {@link #resolve} call: Hive-partition shadow columns
+     * (see {@link #warnOnShadowedColumns}) and FIRST_FILE_WINS footer columns rewritten as all-null.
+     * That work runs on {@link #metadataReadExecutor} — a real thread pool in production, so a direct
+     * {@code HeaderWarning.addWarning} call from inside it would land on that executor thread's
+     * {@link ThreadContext} rather than the originating request's, and never reach the client.
      * Messages are instead buffered here and attached to the {@link ExternalSourceResolution} completed by
      * {@link #resolveNextPath}, so {@code EsqlSession} can merge them into {@code DriverCompletionInfo} for
      * {@code TransportEsqlQueryAction#toResponse} to emit on the thread that builds the client response.
      * Cleared at the start of each {@link #resolve} call; safe for concurrent per-file callbacks (see
      * {@link #metadataReadConcurrency}) since it is append-only until the single attach at completion.
+     * Every append must go through {@link #recordPendingWarning} so {@link #pendingWarningBudget}
+     * caps the whole resolve the way {@link AsyncExternalSourceOperatorFactory} caps the later scan.
      */
     private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
+
+    /**
+     * One budget for every resolve-time informational warning of the current {@link #resolve} call
+     * (Hive-partition shadows and FIRST_FILE_WINS footer rewrites). Replaced at the start of each
+     * {@link #resolve}, matching {@link #pendingShadowWarnings}. {@code volatile} so per-file
+     * callbacks on {@link #metadataReadExecutor} see the budget this resolve installed.
+     */
+    private volatile InformationalWarningBudget pendingWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -432,6 +443,7 @@ public class ExternalSourceResolver {
         // clearing here (rather than after the previous call's attach) also covers a resolver instance reused
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
+        pendingWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
 
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
@@ -990,7 +1002,7 @@ public class ExternalSourceResolver {
             // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
             // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1547,7 +1559,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingShadowWarnings::add);
+                result = shadowPartitionCollisions(result, partitionNames, this::recordPendingWarning);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -1606,7 +1618,7 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1870,14 +1882,27 @@ public class ExternalSourceResolver {
      * (Parquet, ORC), so that file's harvest is rewritten to the all-null contract before the merge:
      * {@code value_count = 0}, {@code null_count = row_count}, no extrema. The remaining files' harvests
      * fold normally and the aggregate stays warm. Text readers decide per value under the error policy,
-     * so an unrepresentable column's extrema are poisoned after the merge and its counts stay the harvest.
-     * {@code allMetadata.get(0)} is the anchor ({@link #gatherPerFile} emits listing order).
+     * so an unrepresentable column's extrema and counts are dropped after the merge and {@code COUNT}
+     * / {@code MIN} / {@code MAX} scan. A representable footer file whose harvest extrema are not in
+     * the planner type's in-memory domain ({@code UNSIGNED_LONG} vs a signed integer) has those
+     * extrema encoded into the planner domain before the merge so MIN/MAX stay warm. {@code
+     * allMetadata.get(0)} is the anchor ({@link #gatherPerFile} emits listing order).
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(List<SourceMetadata> allMetadata, boolean implicitNullsForAbsentColumn) {
+        return aggregateFileStatistics(allMetadata, implicitNullsForAbsentColumn, null);
+    }
+
+    @Nullable
+    static Map<String, Object> aggregateFileStatistics(
+        List<SourceMetadata> allMetadata,
+        boolean implicitNullsForAbsentColumn,
+        @Nullable Consumer<String> warningSink
+    ) {
         List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
         Map<String, DataType> anchorTypes = null;
         Set<String> unrepresentableColumns = new HashSet<>();
+        Set<String> extremaIncompatibleColumns = new HashSet<>();
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
@@ -1888,23 +1913,61 @@ public class ExternalSourceResolver {
             if (anchorTypes == null) {
                 anchorTypes = fileTypes;
             } else {
+                List<String> rewriteColumns = null;
+                List<String> encodeColumns = null;
+                SkipWarnings fileSkipWarnings = null;
                 for (Map.Entry<String, DataType> entry : fileTypes.entrySet()) {
                     DataType anchorType = anchorTypes.get(entry.getKey());
-                    if (unrepresentableUnderAnchor(anchorType, entry.getValue())) {
+                    DataType fileType = entry.getValue();
+                    if (unrepresentableUnderAnchor(anchorType, fileType)) {
                         if (implicitNullsForAbsentColumn) {
-                            flat = SourceStatisticsSerializer.rewriteColumnAsAllNull(flat, entry.getKey());
+                            if (rewriteColumns == null) {
+                                rewriteColumns = new ArrayList<>();
+                            }
+                            rewriteColumns.add(entry.getKey());
+                            if (warningSink != null) {
+                                if (fileSkipWarnings == null) {
+                                    fileSkipWarnings = new SkipWarnings(
+                                        SkipWarnings.incompatiblePlannerTypeFileSummary("File", meta.location()),
+                                        warningSink
+                                    );
+                                }
+                                fileSkipWarnings.add(
+                                    SkipWarnings.incompatiblePlannerTypeColumnMessage(entry.getKey(), meta.location(), fileType, anchorType)
+                                );
+                            }
                         } else {
                             unrepresentableColumns.add(entry.getKey());
                         }
+                    } else if (extremaSharePlannerDomain(anchorType, fileType) == false) {
+                        if (implicitNullsForAbsentColumn) {
+                            if (encodeColumns == null) {
+                                encodeColumns = new ArrayList<>();
+                            }
+                            encodeColumns.add(entry.getKey());
+                        } else {
+                            extremaIncompatibleColumns.add(entry.getKey());
+                        }
                     }
+                }
+                if (rewriteColumns != null) {
+                    flat = SourceStatisticsSerializer.rewriteColumnsAsAllNull(flat, rewriteColumns);
+                }
+                if (encodeColumns != null) {
+                    flat = SourceStatisticsSerializer.encodeColumnExtremaAsUnsignedLong(flat, encodeColumns);
                 }
             }
             perFileFlatStats.add(flat);
         }
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(perFileFlatStats, implicitNullsForAbsentColumn);
-        if (merged != null && unrepresentableColumns.isEmpty() == false) {
+        if (merged != null && (unrepresentableColumns.isEmpty() == false || extremaIncompatibleColumns.isEmpty() == false)) {
             merged = new HashMap<>(merged);
             for (String column : unrepresentableColumns) {
+                SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
+                merged.remove(SourceStatisticsSerializer.columnValueCountKey(column));
+                merged.remove(SourceStatisticsSerializer.columnNullCountKey(column));
+            }
+            for (String column : extremaIncompatibleColumns) {
                 SourceStatisticsSerializer.poisonColumnExtrema(merged, column);
             }
         }
@@ -1918,6 +1981,26 @@ public class ExternalSourceResolver {
      */
     private static boolean unrepresentableUnderAnchor(DataType anchorType, DataType fileType) {
         return anchorType != null && anchorType.equals(EsqlDataTypeConverter.commonType(anchorType, fileType)) == false;
+    }
+
+    /**
+     * Whether a later file's harvest extrema are already in the planner type's in-memory domain.
+     * {@code UNSIGNED_LONG} footer min/max are sign-flip-encoded; a signed integer harvest is a raw
+     * {@code Long}. Those must not be same-class-compared.
+     */
+    private static boolean extremaSharePlannerDomain(DataType anchorType, DataType fileType) {
+        if (anchorType == null || fileType == null || anchorType == fileType) {
+            return true;
+        }
+        return isUnsignedLongVersusSignedInteger(anchorType, fileType) == false;
+    }
+
+    private static boolean isUnsignedLongVersusSignedInteger(DataType left, DataType right) {
+        return (left == DataType.UNSIGNED_LONG && isSignedInteger(right)) || (right == DataType.UNSIGNED_LONG && isSignedInteger(left));
+    }
+
+    private static boolean isSignedInteger(DataType type) {
+        return type == DataType.LONG || type == DataType.INTEGER;
     }
 
     /** A file's flat stat map — cached in sourceMetadata(), or embedded from typed statistics() — or null if absent. */
@@ -1994,6 +2077,19 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * Gates one resolve-time informational warning through {@link #pendingWarningBudget} and, if
+     * admitted, appends it to {@link #pendingShadowWarnings}. Hive-partition shadows and
+     * FIRST_FILE_WINS footer rewrites both use this, so one budget bounds the whole {@link #resolve}
+     * call the way {@link AsyncExternalSourceOperatorFactory} bounds the later scan.
+     */
+    private void recordPendingWarning(String warning) {
+        String accepted = pendingWarningBudget.accept(warning);
+        if (accepted != null) {
+            pendingShadowWarnings.add(accepted);
+        }
+    }
+
+    /**
      * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
      * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
@@ -2009,7 +2105,7 @@ public class ExternalSourceResolver {
     ) {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
             // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
@@ -2061,7 +2157,7 @@ public class ExternalSourceResolver {
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
-            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
+            listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, this::recordPendingWarning));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
             // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
@@ -2472,7 +2568,7 @@ public class ExternalSourceResolver {
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
      * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
-     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered
+     * {@code warningSink} — e.g. {@code this::recordPendingWarning} — so the message is buffered
      * onto {@link ExternalSourceResolution} at resolve completion (see {@link #pendingShadowWarnings})
      * and later emitted by {@code TransportEsqlQueryAction#toResponse}. Do not re-add a
      * resolve-time {@code HeaderWarning} flush: that write is discarded when
@@ -2843,7 +2939,7 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, this::recordPendingWarning);
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();

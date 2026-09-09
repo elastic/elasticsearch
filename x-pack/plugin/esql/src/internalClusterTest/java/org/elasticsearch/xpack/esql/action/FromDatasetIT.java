@@ -6218,14 +6218,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
 
         // File B infers LONG from values outside the integer range. The INTEGER anchor cannot represent
-        // that type, so null_field nulls those cells: the scan sees 1, 2, null, null. Cold COUNT harvests
-        // per-file stats; the next COUNT must stay warm and answer 2, not a harvest taken under file B's
-        // own LONG schema.
+        // that type, so null_field nulls those cells: the scan sees 1, 2, null, null. Text harvests
+        // describe each file's own schema, so COUNT cannot fold and must scan; the answer is still 2.
         assertThat(firstRowOf("FROM drift_csv_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
             assertThat(getValuesList(response).get(0), equalTo(List.of(2L)));
-            assertThat(response.documentsFound(), equalTo(0L));
+            assertThat(response.documentsFound(), equalTo(4L));
         }
     }
 

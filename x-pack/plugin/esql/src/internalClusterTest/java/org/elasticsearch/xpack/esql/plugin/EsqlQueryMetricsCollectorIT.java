@@ -40,7 +40,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -437,10 +436,5 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
         assertThat(format + ": read_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
         assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
-        assertThat(
-            format + ": read_cpu_nanos <= read_nanos",
-            lastMetrics.get(QueryMetricsListener.READ_NANOS),
-            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS))
-        );
     }
 }

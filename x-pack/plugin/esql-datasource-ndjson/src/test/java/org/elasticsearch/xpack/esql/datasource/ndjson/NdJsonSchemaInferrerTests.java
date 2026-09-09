@@ -250,6 +250,22 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check(ndjson, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
     }
 
+    /**
+     * A bare JSON number on its own line must not cause the following record to be dropped from the
+     * inference sample (elastic/esql-planning#1731). The record after the bare number is the only
+     * one that carries {@code email}, so if it is silently skipped the inferred schema omits it.
+     * <p>
+     * The bug: {@code nextToken()} succeeds (returning {@code VALUE_NUMBER_INT}), then
+     * {@code inferObjectSchema} throws because the token is not {@code START_OBJECT}. By that point
+     * Jackson has consumed the line terminator as a lookahead byte, leaving the parser positioned at
+     * the start of the following record. The old {@code moveToNextLine} call then scanned forward and
+     * consumed the following record through its own terminator, silently dropping it.
+     */
+    public void testBareNumberDropsSelfDuringInference() throws IOException {
+        String ndjson = "{\"name\":\"John\"}\n42\n{\"email\":\"jane@x.com\"}\n";
+        check(ndjson, field("name", DataType.KEYWORD, true), field("email", DataType.KEYWORD, true));
+    }
+
     /** The same skip for the name-length limit, which trips in a different scanner call than the number limit. */
     public void testOversizedFieldNameSkippedDuringInference() throws IOException {
         String ndjson = "{\"name\": \"John\", \"age\": 30}\n"

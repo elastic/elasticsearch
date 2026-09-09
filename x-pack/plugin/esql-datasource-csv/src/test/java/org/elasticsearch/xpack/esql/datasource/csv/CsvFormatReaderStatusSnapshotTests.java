@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -50,6 +51,7 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String csv = """
             id:long,name:keyword
             1,Alice

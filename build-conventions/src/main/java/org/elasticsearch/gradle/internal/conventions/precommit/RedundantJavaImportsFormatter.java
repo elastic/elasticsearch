@@ -148,8 +148,8 @@ public final class RedundantJavaImportsFormatter implements FormatterFunc, Seria
         }
         String nestedSimpleName = simpleName(name);
         List<Node> usages = typeUsages(cu, nestedSimpleName);
-        // No AST usage: google-java-format already handles a missing token. Keep the import;
-        // it may be javadoc, a method reference this scan misses, or similar.
+        // The token is not used. google-java-format already handles missing tokens, so for now keep the import
+        // as it may be a javadoc, a method reference this scan misses, or similar.
         if (usages.isEmpty()) {
             return false;
         }

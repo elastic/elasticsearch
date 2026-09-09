@@ -267,17 +267,6 @@ recommended.
 Use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) to inspect
 which field types are in use across backing indices.
 
-## Supported operators and expressions
-
-Histogram fields support the following operators and expressions:
-
-- **Equality**: `==` and `!=` compare two histogram values of the same type. Cross-type
-  comparison (for example, `exponential_histogram == tdigest`) is not supported.
-- **Null checks**: `IS NULL` and `IS NOT NULL` work on all histogram types.
-- **Conditional expressions**: [`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md)
-  and [`COALESCE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/coalesce.md)
-  can return histogram values.
-
 ## Ingest OpenTelemetry exponential histograms
 
 To send OpenTelemetry exponential histograms directly to {{es}}, point your OTel SDK or agent

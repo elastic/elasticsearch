@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -161,7 +162,8 @@ public enum FeatureMetric {
         // MarkJoin's enclosing command (WHERE, EVAL, or the STATS whose per-aggregate WHERE produced it) already
         // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
         MarkJoin.class,
-        InnerJoin.class // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
+        InnerJoin.class, // produced by PROMQL vector-matching translation; rolled into the PROMQL counter via PromqlCommand
+        UnionAll.class // synthesized FROM/subquery/view union; SUBQUERY and VIEW metrics cover the user-facing constructs
     );
 
     private Predicate<LogicalPlan> planCheck;

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -29,9 +28,18 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     public static final ActionType<RankEvalResponse> ACTION = new ActionType<>("indices:data/read/rank_eval");
 
+    /**
+     * kNN recall estimation. It lives in this module because it reuses the fan-out-as-one-msearch plumbing and the
+     * {@link RecallAtK} metric that ranking evaluation already provides.
+     */
+    public static final ActionType<KnnEvalResponse> KNN_EVAL_ACTION = new ActionType<>("indices:data/read/knn_eval");
+
     @Override
     public List<ActionHandler> getActions() {
-        return Arrays.asList(new ActionHandler(ACTION, TransportRankEvalAction.class));
+        return Arrays.asList(
+            new ActionHandler(ACTION, TransportRankEvalAction.class),
+            new ActionHandler(KNN_EVAL_ACTION, TransportKnnEvalAction.class)
+        );
     }
 
     @Override
@@ -40,7 +48,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Collections.singletonList(new RestRankEvalAction(clusterSupportsFeature));
+        return List.of(new RestRankEvalAction(clusterSupportsFeature), new RestKnnEvalAction());
     }
 
     @Override

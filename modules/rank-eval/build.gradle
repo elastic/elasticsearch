@@ -17,10 +17,12 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'rank_eval'
+    include '_common', 'cluster', 'indices', 'index', 'bulk', 'rank_eval', 'knn_eval'
   }
 }
 
 dependencies {
   clusterModules project(':modules:lang-mustache')
+  // the knn_eval yaml tests index into a bbq_disk dense_vector field, which only the diskbbq plugin can serve
+  clusterModules project(':x-pack:plugin:diskbbq')
 }

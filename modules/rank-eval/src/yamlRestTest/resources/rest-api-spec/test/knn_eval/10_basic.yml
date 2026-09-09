@@ -1,0 +1,708 @@
+setup:
+  - requires:
+      cluster_features: "mapper.bbq_disk_support"
+      reason: "the bbq_disk index_options this API is meant to be used with"
+
+  - do:
+      indices.create:
+        index: knn_eval_test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              emb:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  # Every document's vector is base + id * step for one fixed base and step, so all 30 vectors sit on a line and the L2 distance
+  # between documents i and j is exactly |i - j| * |step|. The nearest neighbour of document 1 is therefore document 2, with a clear
+  # margin over document 3, which keeps the expected hit ids below independent of any tie breaking.
+  - do:
+      bulk:
+        index: knn_eval_test
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"emb": [-0.5066, -0.5988, -0.7856, 0.2846, -0.2543, -0.982, -0.0682, 0.9076, 0.9207, -0.1837, 0.7398, 0.7174, -0.505, 0.5349, 0.4207, -0.4278, -0.8079, 0.432, 0.766, -0.8993, -0.4932, -0.6579, 0.6501, -0.4784, 0.9356, -0.7755, 0.6813, 0.6655, -0.476, 0.5317, -0.536, 0.9113, 0.5461, 0.1026, -0.2761, 0.6285, -0.3388, -0.7675, -0.6958, -0.5769, -0.436, -0.9055, -0.3174, 0.8529, -0.4445, -0.071, 0.4391, 0.7084, 0.105, 0.123, -0.0026, 0.137, -0.6446, -0.359, -0.1863, -0.6536, 0.6445, -0.632, 0.2302, 0.2349, -0.1278, -0.513, -0.7754, 0.2911]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"emb": [-0.5, -0.5788, -0.823, 0.3178, -0.2104, -0.9877, -0.1049, 0.8614, 0.873, -0.1908, 0.743, 0.6773, -0.4559, 0.5601, 0.4294, -0.3907, -0.7795, 0.4029, 0.7267, -0.9492, -0.5374, -0.6634, 0.6375, -0.4864, 0.9301, -0.7877, 0.6499, 0.6508, -0.5212, 0.5386, -0.5514, 0.8749, 0.591, 0.1444, -0.2363, 0.5984, -0.3707, -0.761, -0.7128, -0.6065, -0.4676, -0.8862, -0.2712, 0.8271, -0.4829, -0.0908, 0.4736, 0.6652, 0.0659, 0.1356, -0.0354, 0.1, -0.6831, -0.3685, -0.2319, -0.6755, 0.6607, -0.6769, 0.1834, 0.2457, -0.1129, -0.5308, -0.7926, 0.243]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"emb": [-0.4934, -0.5588, -0.8604, 0.351, -0.1665, -0.9934, -0.1416, 0.8152, 0.8253, -0.1979, 0.7462, 0.6372, -0.4068, 0.5853, 0.4381, -0.3536, -0.7511, 0.3738, 0.6874, -0.9991, -0.5816, -0.6689, 0.6249, -0.4944, 0.9246, -0.7999, 0.6185, 0.6361, -0.5664, 0.5455, -0.5668, 0.8385, 0.6359, 0.1862, -0.1965, 0.5683, -0.4026, -0.7545, -0.7298, -0.6361, -0.4992, -0.8669, -0.225, 0.8013, -0.5213, -0.1106, 0.5081, 0.622, 0.0268, 0.1482, -0.0682, 0.063, -0.7216, -0.378, -0.2775, -0.6974, 0.6769, -0.7218, 0.1366, 0.2565, -0.098, -0.5486, -0.8098, 0.1949]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"emb": [-0.4868, -0.5388, -0.8978, 0.3842, -0.1226, -0.9991, -0.1783, 0.769, 0.7776, -0.205, 0.7494, 0.5971, -0.3577, 0.6105, 0.4468, -0.3165, -0.7227, 0.3447, 0.6481, -1.049, -0.6258, -0.6744, 0.6123, -0.5024, 0.9191, -0.8121, 0.5871, 0.6214, -0.6116, 0.5524, -0.5822, 0.8021, 0.6808, 0.228, -0.1567, 0.5382, -0.4345, -0.748, -0.7468, -0.6657, -0.5308, -0.8476, -0.1788, 0.7755, -0.5597, -0.1304, 0.5426, 0.5788, -0.0123, 0.1608, -0.101, 0.026, -0.7601, -0.3875, -0.3231, -0.7193, 0.6931, -0.7667, 0.0898, 0.2673, -0.0831, -0.5664, -0.827, 0.1468]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"emb": [-0.4802, -0.5188, -0.9352, 0.4174, -0.0787, -1.0048, -0.215, 0.7228, 0.7299, -0.2121, 0.7526, 0.557, -0.3086, 0.6357, 0.4555, -0.2794, -0.6943, 0.3156, 0.6088, -1.0989, -0.67, -0.6799, 0.5997, -0.5104, 0.9136, -0.8243, 0.5557, 0.6067, -0.6568, 0.5593, -0.5976, 0.7657, 0.7257, 0.2698, -0.1169, 0.5081, -0.4664, -0.7415, -0.7638, -0.6953, -0.5624, -0.8283, -0.1326, 0.7497, -0.5981, -0.1502, 0.5771, 0.5356, -0.0514, 0.1734, -0.1338, -0.011, -0.7986, -0.397, -0.3687, -0.7412, 0.7093, -0.8116, 0.043, 0.2781, -0.0682, -0.5842, -0.8442, 0.0987]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"emb": [-0.4736, -0.4988, -0.9726, 0.4506, -0.0348, -1.0105, -0.2517, 0.6766, 0.6822, -0.2192, 0.7558, 0.5169, -0.2595, 0.6609, 0.4642, -0.2423, -0.6659, 0.2865, 0.5695, -1.1488, -0.7142, -0.6854, 0.5871, -0.5184, 0.9081, -0.8365, 0.5243, 0.592, -0.702, 0.5662, -0.613, 0.7293, 0.7706, 0.3116, -0.0771, 0.478, -0.4983, -0.735, -0.7808, -0.7249, -0.594, -0.809, -0.0864, 0.7239, -0.6365, -0.17, 0.6116, 0.4924, -0.0905, 0.186, -0.1666, -0.048, -0.8371, -0.4065, -0.4143, -0.7631, 0.7255, -0.8565, -0.0038, 0.2889, -0.0533, -0.602, -0.8614, 0.0506]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"emb": [-0.467, -0.4788, -1.01, 0.4838, 0.0091, -1.0162, -0.2884, 0.6304, 0.6345, -0.2263, 0.759, 0.4768, -0.2104, 0.6861, 0.4729, -0.2052, -0.6375, 0.2574, 0.5302, -1.1987, -0.7584, -0.6909, 0.5745, -0.5264, 0.9026, -0.8487, 0.4929, 0.5773, -0.7472, 0.5731, -0.6284, 0.6929, 0.8155, 0.3534, -0.0373, 0.4479, -0.5302, -0.7285, -0.7978, -0.7545, -0.6256, -0.7897, -0.0402, 0.6981, -0.6749, -0.1898, 0.6461, 0.4492, -0.1296, 0.1986, -0.1994, -0.085, -0.8756, -0.416, -0.4599, -0.785, 0.7417, -0.9014, -0.0506, 0.2997, -0.0384, -0.6198, -0.8786, 0.0025]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"emb": [-0.4604, -0.4588, -1.0474, 0.517, 0.053, -1.0219, -0.3251, 0.5842, 0.5868, -0.2334, 0.7622, 0.4367, -0.1613, 0.7113, 0.4816, -0.1681, -0.6091, 0.2283, 0.4909, -1.2486, -0.8026, -0.6964, 0.5619, -0.5344, 0.8971, -0.8609, 0.4615, 0.5626, -0.7924, 0.58, -0.6438, 0.6565, 0.8604, 0.3952, 0.0025, 0.4178, -0.5621, -0.722, -0.8148, -0.7841, -0.6572, -0.7704, 0.006, 0.6723, -0.7133, -0.2096, 0.6806, 0.406, -0.1687, 0.2112, -0.2322, -0.122, -0.9141, -0.4255, -0.5055, -0.8069, 0.7579, -0.9463, -0.0974, 0.3105, -0.0235, -0.6376, -0.8958, -0.0456]}'
+          - '{"index": {"_id": "9"}}'
+          - '{"emb": [-0.4538, -0.4388, -1.0848, 0.5502, 0.0969, -1.0276, -0.3618, 0.538, 0.5391, -0.2405, 0.7654, 0.3966, -0.1122, 0.7365, 0.4903, -0.131, -0.5807, 0.1992, 0.4516, -1.2985, -0.8468, -0.7019, 0.5493, -0.5424, 0.8916, -0.8731, 0.4301, 0.5479, -0.8376, 0.5869, -0.6592, 0.6201, 0.9053, 0.437, 0.0423, 0.3877, -0.594, -0.7155, -0.8318, -0.8137, -0.6888, -0.7511, 0.0522, 0.6465, -0.7517, -0.2294, 0.7151, 0.3628, -0.2078, 0.2238, -0.265, -0.159, -0.9526, -0.435, -0.5511, -0.8288, 0.7741, -0.9912, -0.1442, 0.3213, -0.0086, -0.6554, -0.913, -0.0937]}'
+          - '{"index": {"_id": "10"}}'
+          - '{"emb": [-0.4472, -0.4188, -1.1222, 0.5834, 0.1408, -1.0333, -0.3985, 0.4918, 0.4914, -0.2476, 0.7686, 0.3565, -0.0631, 0.7617, 0.499, -0.0939, -0.5523, 0.1701, 0.4123, -1.3484, -0.891, -0.7074, 0.5367, -0.5504, 0.8861, -0.8853, 0.3987, 0.5332, -0.8828, 0.5938, -0.6746, 0.5837, 0.9502, 0.4788, 0.0821, 0.3576, -0.6259, -0.709, -0.8488, -0.8433, -0.7204, -0.7318, 0.0984, 0.6207, -0.7901, -0.2492, 0.7496, 0.3196, -0.2469, 0.2364, -0.2978, -0.196, -0.9911, -0.4445, -0.5967, -0.8507, 0.7903, -1.0361, -0.191, 0.3321, 0.0063, -0.6732, -0.9302, -0.1418]}'
+          - '{"index": {"_id": "11"}}'
+          - '{"emb": [-0.4406, -0.3988, -1.1596, 0.6166, 0.1847, -1.039, -0.4352, 0.4456, 0.4437, -0.2547, 0.7718, 0.3164, -0.014, 0.7869, 0.5077, -0.0568, -0.5239, 0.141, 0.373, -1.3983, -0.9352, -0.7129, 0.5241, -0.5584, 0.8806, -0.8975, 0.3673, 0.5185, -0.928, 0.6007, -0.69, 0.5473, 0.9951, 0.5206, 0.1219, 0.3275, -0.6578, -0.7025, -0.8658, -0.8729, -0.752, -0.7125, 0.1446, 0.5949, -0.8285, -0.269, 0.7841, 0.2764, -0.286, 0.249, -0.3306, -0.233, -1.0296, -0.454, -0.6423, -0.8726, 0.8065, -1.081, -0.2378, 0.3429, 0.0212, -0.691, -0.9474, -0.1899]}'
+          - '{"index": {"_id": "12"}}'
+          - '{"emb": [-0.434, -0.3788, -1.197, 0.6498, 0.2286, -1.0447, -0.4719, 0.3994, 0.396, -0.2618, 0.775, 0.2763, 0.0351, 0.8121, 0.5164, -0.0197, -0.4955, 0.1119, 0.3337, -1.4482, -0.9794, -0.7184, 0.5115, -0.5664, 0.8751, -0.9097, 0.3359, 0.5038, -0.9732, 0.6076, -0.7054, 0.5109, 1.04, 0.5624, 0.1617, 0.2974, -0.6897, -0.696, -0.8828, -0.9025, -0.7836, -0.6932, 0.1908, 0.5691, -0.8669, -0.2888, 0.8186, 0.2332, -0.3251, 0.2616, -0.3634, -0.27, -1.0681, -0.4635, -0.6879, -0.8945, 0.8227, -1.1259, -0.2846, 0.3537, 0.0361, -0.7088, -0.9646, -0.238]}'
+          - '{"index": {"_id": "13"}}'
+          - '{"emb": [-0.4274, -0.3588, -1.2344, 0.683, 0.2725, -1.0504, -0.5086, 0.3532, 0.3483, -0.2689, 0.7782, 0.2362, 0.0842, 0.8373, 0.5251, 0.0174, -0.4671, 0.0828, 0.2944, -1.4981, -1.0236, -0.7239, 0.4989, -0.5744, 0.8696, -0.9219, 0.3045, 0.4891, -1.0184, 0.6145, -0.7208, 0.4745, 1.0849, 0.6042, 0.2015, 0.2673, -0.7216, -0.6895, -0.8998, -0.9321, -0.8152, -0.6739, 0.237, 0.5433, -0.9053, -0.3086, 0.8531, 0.19, -0.3642, 0.2742, -0.3962, -0.307, -1.1066, -0.473, -0.7335, -0.9164, 0.8389, -1.1708, -0.3314, 0.3645, 0.051, -0.7266, -0.9818, -0.2861]}'
+          - '{"index": {"_id": "14"}}'
+          - '{"emb": [-0.4208, -0.3388, -1.2718, 0.7162, 0.3164, -1.0561, -0.5453, 0.307, 0.3006, -0.276, 0.7814, 0.1961, 0.1333, 0.8625, 0.5338, 0.0545, -0.4387, 0.0537, 0.2551, -1.548, -1.0678, -0.7294, 0.4863, -0.5824, 0.8641, -0.9341, 0.2731, 0.4744, -1.0636, 0.6214, -0.7362, 0.4381, 1.1298, 0.646, 0.2413, 0.2372, -0.7535, -0.683, -0.9168, -0.9617, -0.8468, -0.6546, 0.2832, 0.5175, -0.9437, -0.3284, 0.8876, 0.1468, -0.4033, 0.2868, -0.429, -0.344, -1.1451, -0.4825, -0.7791, -0.9383, 0.8551, -1.2157, -0.3782, 0.3753, 0.0659, -0.7444, -0.999, -0.3342]}'
+          - '{"index": {"_id": "15"}}'
+          - '{"emb": [-0.4142, -0.3188, -1.3092, 0.7494, 0.3603, -1.0618, -0.582, 0.2608, 0.2529, -0.2831, 0.7846, 0.156, 0.1824, 0.8877, 0.5425, 0.0916, -0.4103, 0.0246, 0.2158, -1.5979, -1.112, -0.7349, 0.4737, -0.5904, 0.8586, -0.9463, 0.2417, 0.4597, -1.1088, 0.6283, -0.7516, 0.4017, 1.1747, 0.6878, 0.2811, 0.2071, -0.7854, -0.6765, -0.9338, -0.9913, -0.8784, -0.6353, 0.3294, 0.4917, -0.9821, -0.3482, 0.9221, 0.1036, -0.4424, 0.2994, -0.4618, -0.381, -1.1836, -0.492, -0.8247, -0.9602, 0.8713, -1.2606, -0.425, 0.3861, 0.0808, -0.7622, -1.0162, -0.3823]}'
+          - '{"index": {"_id": "16"}}'
+          - '{"emb": [-0.4076, -0.2988, -1.3466, 0.7826, 0.4042, -1.0675, -0.6187, 0.2146, 0.2052, -0.2902, 0.7878, 0.1159, 0.2315, 0.9129, 0.5512, 0.1287, -0.3819, -0.0045, 0.1765, -1.6478, -1.1562, -0.7404, 0.4611, -0.5984, 0.8531, -0.9585, 0.2103, 0.445, -1.154, 0.6352, -0.767, 0.3653, 1.2196, 0.7296, 0.3209, 0.177, -0.8173, -0.67, -0.9508, -1.0209, -0.91, -0.616, 0.3756, 0.4659, -1.0205, -0.368, 0.9566, 0.0604, -0.4815, 0.312, -0.4946, -0.418, -1.2221, -0.5015, -0.8703, -0.9821, 0.8875, -1.3055, -0.4718, 0.3969, 0.0957, -0.78, -1.0334, -0.4304]}'
+          - '{"index": {"_id": "17"}}'
+          - '{"emb": [-0.401, -0.2788, -1.384, 0.8158, 0.4481, -1.0732, -0.6554, 0.1684, 0.1575, -0.2973, 0.791, 0.0758, 0.2806, 0.9381, 0.5599, 0.1658, -0.3535, -0.0336, 0.1372, -1.6977, -1.2004, -0.7459, 0.4485, -0.6064, 0.8476, -0.9707, 0.1789, 0.4303, -1.1992, 0.6421, -0.7824, 0.3289, 1.2645, 0.7714, 0.3607, 0.1469, -0.8492, -0.6635, -0.9678, -1.0505, -0.9416, -0.5967, 0.4218, 0.4401, -1.0589, -0.3878, 0.9911, 0.0172, -0.5206, 0.3246, -0.5274, -0.455, -1.2606, -0.511, -0.9159, -1.004, 0.9037, -1.3504, -0.5186, 0.4077, 0.1106, -0.7978, -1.0506, -0.4785]}'
+          - '{"index": {"_id": "18"}}'
+          - '{"emb": [-0.3944, -0.2588, -1.4214, 0.849, 0.492, -1.0789, -0.6921, 0.1222, 0.1098, -0.3044, 0.7942, 0.0357, 0.3297, 0.9633, 0.5686, 0.2029, -0.3251, -0.0627, 0.0979, -1.7476, -1.2446, -0.7514, 0.4359, -0.6144, 0.8421, -0.9829, 0.1475, 0.4156, -1.2444, 0.649, -0.7978, 0.2925, 1.3094, 0.8132, 0.4005, 0.1168, -0.8811, -0.657, -0.9848, -1.0801, -0.9732, -0.5774, 0.468, 0.4143, -1.0973, -0.4076, 1.0256, -0.026, -0.5597, 0.3372, -0.5602, -0.492, -1.2991, -0.5205, -0.9615, -1.0259, 0.9199, -1.3953, -0.5654, 0.4185, 0.1255, -0.8156, -1.0678, -0.5266]}'
+          - '{"index": {"_id": "19"}}'
+          - '{"emb": [-0.3878, -0.2388, -1.4588, 0.8822, 0.5359, -1.0846, -0.7288, 0.076, 0.0621, -0.3115, 0.7974, -0.0044, 0.3788, 0.9885, 0.5773, 0.24, -0.2967, -0.0918, 0.0586, -1.7975, -1.2888, -0.7569, 0.4233, -0.6224, 0.8366, -0.9951, 0.1161, 0.4009, -1.2896, 0.6559, -0.8132, 0.2561, 1.3543, 0.855, 0.4403, 0.0867, -0.913, -0.6505, -1.0018, -1.1097, -1.0048, -0.5581, 0.5142, 0.3885, -1.1357, -0.4274, 1.0601, -0.0692, -0.5988, 0.3498, -0.593, -0.529, -1.3376, -0.53, -1.0071, -1.0478, 0.9361, -1.4402, -0.6122, 0.4293, 0.1404, -0.8334, -1.085, -0.5747]}'
+          - '{"index": {"_id": "20"}}'
+          - '{"emb": [-0.3812, -0.2188, -1.4962, 0.9154, 0.5798, -1.0903, -0.7655, 0.0298, 0.0144, -0.3186, 0.8006, -0.0445, 0.4279, 1.0137, 0.586, 0.2771, -0.2683, -0.1209, 0.0193, -1.8474, -1.333, -0.7624, 0.4107, -0.6304, 0.8311, -1.0073, 0.0847, 0.3862, -1.3348, 0.6628, -0.8286, 0.2197, 1.3992, 0.8968, 0.4801, 0.0566, -0.9449, -0.644, -1.0188, -1.1393, -1.0364, -0.5388, 0.5604, 0.3627, -1.1741, -0.4472, 1.0946, -0.1124, -0.6379, 0.3624, -0.6258, -0.566, -1.3761, -0.5395, -1.0527, -1.0697, 0.9523, -1.4851, -0.659, 0.4401, 0.1553, -0.8512, -1.1022, -0.6228]}'
+          - '{"index": {"_id": "21"}}'
+          - '{"emb": [-0.3746, -0.1988, -1.5336, 0.9486, 0.6237, -1.096, -0.8022, -0.0164, -0.0333, -0.3257, 0.8038, -0.0846, 0.477, 1.0389, 0.5947, 0.3142, -0.2399, -0.15, -0.02, -1.8973, -1.3772, -0.7679, 0.3981, -0.6384, 0.8256, -1.0195, 0.0533, 0.3715, -1.38, 0.6697, -0.844, 0.1833, 1.4441, 0.9386, 0.5199, 0.0265, -0.9768, -0.6375, -1.0358, -1.1689, -1.068, -0.5195, 0.6066, 0.3369, -1.2125, -0.467, 1.1291, -0.1556, -0.677, 0.375, -0.6586, -0.603, -1.4146, -0.549, -1.0983, -1.0916, 0.9685, -1.53, -0.7058, 0.4509, 0.1702, -0.869, -1.1194, -0.6709]}'
+          - '{"index": {"_id": "22"}}'
+          - '{"emb": [-0.368, -0.1788, -1.571, 0.9818, 0.6676, -1.1017, -0.8389, -0.0626, -0.081, -0.3328, 0.807, -0.1247, 0.5261, 1.0641, 0.6034, 0.3513, -0.2115, -0.1791, -0.0593, -1.9472, -1.4214, -0.7734, 0.3855, -0.6464, 0.8201, -1.0317, 0.0219, 0.3568, -1.4252, 0.6766, -0.8594, 0.1469, 1.489, 0.9804, 0.5597, -0.0036, -1.0087, -0.631, -1.0528, -1.1985, -1.0996, -0.5002, 0.6528, 0.3111, -1.2509, -0.4868, 1.1636, -0.1988, -0.7161, 0.3876, -0.6914, -0.64, -1.4531, -0.5585, -1.1439, -1.1135, 0.9847, -1.5749, -0.7526, 0.4617, 0.1851, -0.8868, -1.1366, -0.719]}'
+          - '{"index": {"_id": "23"}}'
+          - '{"emb": [-0.3614, -0.1588, -1.6084, 1.015, 0.7115, -1.1074, -0.8756, -0.1088, -0.1287, -0.3399, 0.8102, -0.1648, 0.5752, 1.0893, 0.6121, 0.3884, -0.1831, -0.2082, -0.0986, -1.9971, -1.4656, -0.7789, 0.3729, -0.6544, 0.8146, -1.0439, -0.0095, 0.3421, -1.4704, 0.6835, -0.8748, 0.1105, 1.5339, 1.0222, 0.5995, -0.0337, -1.0406, -0.6245, -1.0698, -1.2281, -1.1312, -0.4809, 0.699, 0.2853, -1.2893, -0.5066, 1.1981, -0.242, -0.7552, 0.4002, -0.7242, -0.677, -1.4916, -0.568, -1.1895, -1.1354, 1.0009, -1.6198, -0.7994, 0.4725, 0.2, -0.9046, -1.1538, -0.7671]}'
+          - '{"index": {"_id": "24"}}'
+          - '{"emb": [-0.3548, -0.1388, -1.6458, 1.0482, 0.7554, -1.1131, -0.9123, -0.155, -0.1764, -0.347, 0.8134, -0.2049, 0.6243, 1.1145, 0.6208, 0.4255, -0.1547, -0.2373, -0.1379, -2.047, -1.5098, -0.7844, 0.3603, -0.6624, 0.8091, -1.0561, -0.0409, 0.3274, -1.5156, 0.6904, -0.8902, 0.0741, 1.5788, 1.064, 0.6393, -0.0638, -1.0725, -0.618, -1.0868, -1.2577, -1.1628, -0.4616, 0.7452, 0.2595, -1.3277, -0.5264, 1.2326, -0.2852, -0.7943, 0.4128, -0.757, -0.714, -1.5301, -0.5775, -1.2351, -1.1573, 1.0171, -1.6647, -0.8462, 0.4833, 0.2149, -0.9224, -1.171, -0.8152]}'
+          - '{"index": {"_id": "25"}}'
+          - '{"emb": [-0.3482, -0.1188, -1.6832, 1.0814, 0.7993, -1.1188, -0.949, -0.2012, -0.2241, -0.3541, 0.8166, -0.245, 0.6734, 1.1397, 0.6295, 0.4626, -0.1263, -0.2664, -0.1772, -2.0969, -1.554, -0.7899, 0.3477, -0.6704, 0.8036, -1.0683, -0.0723, 0.3127, -1.5608, 0.6973, -0.9056, 0.0377, 1.6237, 1.1058, 0.6791, -0.0939, -1.1044, -0.6115, -1.1038, -1.2873, -1.1944, -0.4423, 0.7914, 0.2337, -1.3661, -0.5462, 1.2671, -0.3284, -0.8334, 0.4254, -0.7898, -0.751, -1.5686, -0.587, -1.2807, -1.1792, 1.0333, -1.7096, -0.893, 0.4941, 0.2298, -0.9402, -1.1882, -0.8633]}'
+          - '{"index": {"_id": "26"}}'
+          - '{"emb": [-0.3416, -0.0988, -1.7206, 1.1146, 0.8432, -1.1245, -0.9857, -0.2474, -0.2718, -0.3612, 0.8198, -0.2851, 0.7225, 1.1649, 0.6382, 0.4997, -0.0979, -0.2955, -0.2165, -2.1468, -1.5982, -0.7954, 0.3351, -0.6784, 0.7981, -1.0805, -0.1037, 0.298, -1.606, 0.7042, -0.921, 0.0013, 1.6686, 1.1476, 0.7189, -0.124, -1.1363, -0.605, -1.1208, -1.3169, -1.226, -0.423, 0.8376, 0.2079, -1.4045, -0.566, 1.3016, -0.3716, -0.8725, 0.438, -0.8226, -0.788, -1.6071, -0.5965, -1.3263, -1.2011, 1.0495, -1.7545, -0.9398, 0.5049, 0.2447, -0.958, -1.2054, -0.9114]}'
+          - '{"index": {"_id": "27"}}'
+          - '{"emb": [-0.335, -0.0788, -1.758, 1.1478, 0.8871, -1.1302, -1.0224, -0.2936, -0.3195, -0.3683, 0.823, -0.3252, 0.7716, 1.1901, 0.6469, 0.5368, -0.0695, -0.3246, -0.2558, -2.1967, -1.6424, -0.8009, 0.3225, -0.6864, 0.7926, -1.0927, -0.1351, 0.2833, -1.6512, 0.7111, -0.9364, -0.0351, 1.7135, 1.1894, 0.7587, -0.1541, -1.1682, -0.5985, -1.1378, -1.3465, -1.2576, -0.4037, 0.8838, 0.1821, -1.4429, -0.5858, 1.3361, -0.4148, -0.9116, 0.4506, -0.8554, -0.825, -1.6456, -0.606, -1.3719, -1.223, 1.0657, -1.7994, -0.9866, 0.5157, 0.2596, -0.9758, -1.2226, -0.9595]}'
+          - '{"index": {"_id": "28"}}'
+          - '{"emb": [-0.3284, -0.0588, -1.7954, 1.181, 0.931, -1.1359, -1.0591, -0.3398, -0.3672, -0.3754, 0.8262, -0.3653, 0.8207, 1.2153, 0.6556, 0.5739, -0.0411, -0.3537, -0.2951, -2.2466, -1.6866, -0.8064, 0.3099, -0.6944, 0.7871, -1.1049, -0.1665, 0.2686, -1.6964, 0.718, -0.9518, -0.0715, 1.7584, 1.2312, 0.7985, -0.1842, -1.2001, -0.592, -1.1548, -1.3761, -1.2892, -0.3844, 0.93, 0.1563, -1.4813, -0.6056, 1.3706, -0.458, -0.9507, 0.4632, -0.8882, -0.862, -1.6841, -0.6155, -1.4175, -1.2449, 1.0819, -1.8443, -1.0334, 0.5265, 0.2745, -0.9936, -1.2398, -1.0076]}'
+          - '{"index": {"_id": "29"}}'
+          - '{"emb": [-0.3218, -0.0388, -1.8328, 1.2142, 0.9749, -1.1416, -1.0958, -0.386, -0.4149, -0.3825, 0.8294, -0.4054, 0.8698, 1.2405, 0.6643, 0.611, -0.0127, -0.3828, -0.3344, -2.2965, -1.7308, -0.8119, 0.2973, -0.7024, 0.7816, -1.1171, -0.1979, 0.2539, -1.7416, 0.7249, -0.9672, -0.1079, 1.8033, 1.273, 0.8383, -0.2143, -1.232, -0.5855, -1.1718, -1.4057, -1.3208, -0.3651, 0.9762, 0.1305, -1.5197, -0.6254, 1.4051, -0.5012, -0.9898, 0.4758, -0.921, -0.899, -1.7226, -0.625, -1.4631, -1.2668, 1.0981, -1.8892, -1.0802, 0.5373, 0.2894, -1.0114, -1.257, -1.0557]}'
+          - '{"index": {"_id": "30"}}'
+          - '{"emb": [-0.3152, -0.0188, -1.8702, 1.2474, 1.0188, -1.1473, -1.1325, -0.4322, -0.4626, -0.3896, 0.8326, -0.4455, 0.9189, 1.2657, 0.673, 0.6481, 0.0157, -0.4119, -0.3737, -2.3464, -1.775, -0.8174, 0.2847, -0.7104, 0.7761, -1.1293, -0.2293, 0.2392, -1.7868, 0.7318, -0.9826, -0.1443, 1.8482, 1.3148, 0.8781, -0.2444, -1.2639, -0.579, -1.1888, -1.4353, -1.3524, -0.3458, 1.0224, 0.1047, -1.5581, -0.6452, 1.4396, -0.5444, -1.0289, 0.4884, -0.9538, -0.936, -1.7611, -0.6345, -1.5087, -1.2887, 1.1143, -1.9341, -1.127, 0.5481, 0.3043, -1.0292, -1.2742, -1.1038]}'
+
+---
+teardown:
+  # runs whatever the outcome above, so a failed assertion cannot leave the cluster with expensive queries switched off
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: null
+
+---
+"The corpus the other sections sample from is fully indexed":
+  # guards the rest of this file: a bbq_disk field silently rejects documents when its licensed plugin is missing, which would leave
+  # the sampled query set empty rather than producing a wrong recall figure
+  - do:
+      indices.stats:
+        index: knn_eval_test
+  - match: { _all.primaries.docs.count: 30 }
+
+---
+"Identical baseline and candidate agree perfectly":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          sample:
+            size: 10
+            seed: 42
+          include_fidelity: true
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  - match: { baseline.visit_percentage: 100.0 }
+  - length: { results: 1 }
+  - match: { results.0.candidate.visit_percentage: 100.0 }
+  - match: { results.0.recall: 1.0 }
+  # the headline recall is the mean of the per-query distribution, so an identical re-run tops out at 1.0 everywhere
+  - match: { results.0.recall_stats.mean: 1.0 }
+  - match: { results.0.recall_stats.max: 1.0 }
+  - match: { results.0.recall_stats.min: 1.0 }
+  - match: { results.0.recall_stats.count: 10 }
+  - match: { baseline_vector_ops_kind: "quantized_visit_plus_rescore" }
+  # value based recall agrees with id based recall when nothing was substituted
+  - match: { value_tolerance: 0.0 }
+  - match: { results.0.recall_value: 1.0 }
+  - match: { results.0.recall_value_stats.count: 10 }
+  - match: { results.0.recall_value_stats.min: 1.0 }
+  - is_false: results.0.recall_value_skipped
+  # every query recalled the baseline exactly, so the histogram collapses to a single observed value
+  - length: { results.0.recall_histogram: 1 }
+  - match: { results.0.recall_histogram.0.recall: 1.0 }
+  - match: { results.0.recall_histogram.0.count: 10 }
+  # k is 10, so the histogram reports the exact observed values and carries no bin width
+  - is_false: results.0.recall_histogram_bin_width
+  # an identical re-run gave up no similarity anywhere, so every epsilon is zero
+  - match: { results.0.fidelity.max_epsilon.max: 0.0 }
+  - match: { results.0.fidelity.max_epsilon.p95: 0.0 }
+  - match: { results.0.fidelity.max_epsilon.count: 10 }
+  - match: { results.0.fidelity.infinite_count: 0 }
+  - match: { results.0.fidelity.mean_epsilon_by_rank: [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ] }
+  - length: { failures: 0 }
+  # details are off by default, at the top level as well as per candidate
+  - is_false: results.0.details
+  - is_false: baseline_details
+  # one search per query per configuration, so both counts are the sample size
+  - match: { baseline_took_ms.count: 10 }
+  - match: { results.0.took_ms.count: 10 }
+  - gte: { baseline_took_ms.mean: 0.0 }
+  - gte: { results.0.took_ms.mean: 0.0 }
+  - gte: { results.0.took_ms.p50: 0 }
+  - gte: { results.0.took_ms.p95: 0 }
+  - gte: { results.0.took_ms.max: 0 }
+  - set: { baseline_vector_ops.sum: baseline_vector_ops_sum }
+  - match: { baseline_vector_ops.count: 10 }
+  - match: { results.0.vector_ops.count: 10 }
+  - gt: { results.0.vector_ops.sum: 0 }
+  - gt: { baseline_vector_ops.sum: 0 }
+  # the candidate is the baseline configuration re-run, so it must do exactly the same amount of work
+  - match: { results.0.vector_ops.sum: $baseline_vector_ops_sum }
+
+---
+"Sweep a low visit_percentage against the baseline":
+  # sampling every document makes the query set the whole index, so the per-query details are keyed by ids known up front
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 30
+          include_details: true
+          include_fidelity: true
+          # 30 queries in batches of 7 exercises the sequential batching that bounds the msearch fan-out
+          max_queries_per_batch: 7
+          # took_ms is meaningless at this concurrency, but the recall numbers below are unaffected
+          max_concurrent_searches: 4
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 1
+            - visit_percentage: 100
+
+  - length: { results: 2 }
+  - length: { failures: 0 }
+  - match: { results.0.candidate.visit_percentage: 1.0 }
+  - match: { baseline_took_ms.count: 30 }
+  - match: { results.0.took_ms.count: 30 }
+  - match: { results.1.took_ms.count: 30 }
+  - gte: { results.0.took_ms.mean: 0.0 }
+  - match: { baseline_vector_ops.count: 30 }
+  - match: { results.0.vector_ops.count: 30 }
+  - match: { results.1.vector_ops.count: 30 }
+  - gt: { results.0.vector_ops.sum: 0 }
+  - gte: { results.0.recall: 0.0 }
+  - lte: { results.0.recall: 1.0 }
+  - length: { results.0.details: 30 }
+  - length: { results.0.details.1.hits: 5 }
+  # the reference hit list is reported once at the top level rather than repeated under every candidate
+  - length: { baseline_details: 30 }
+  - length: { baseline_details.1.hits: 5 }
+  # an identical re-run of the baseline must recover all of it
+  - match: { results.1.recall: 1.0 }
+  - match: { results.1.recall_stats.count: 30 }
+  - match: { results.1.recall_stats.max: 1.0 }
+  - length: { results.1.recall_histogram: 1 }
+  - match: { results.1.recall_histogram.0.count: 30 }
+  - match: { results.1.fidelity.max_epsilon.max: 0.0 }
+  - match: { results.1.fidelity.max_epsilon.count: 30 }
+  - match: { results.1.fidelity.infinite_count: 0 }
+  # Every query is accounted for, either with a finite worst-case loss or as unbounded. On this 30 document fixture the cheap
+  # candidate still visits the single cluster, so all 30 land on the finite side; a candidate that dropped hits would move those
+  # queries into infinite_count instead, and the two would still sum to 30.
+  - match: { results.0.fidelity.max_epsilon.count: 30 }
+  - match: { results.0.fidelity.infinite_count: 0 }
+  - gte: { results.0.fidelity.max_epsilon.max: 0.0 }
+  # an id match is always a value match too, so the value based number can never be the lower of the pair
+  - gte: { results.0.recall_value: 1.0 }
+  - match: { results.1.recall_value: 1.0 }
+  - match: { results.1.details.1.recall_value: 1.0 }
+  - match: { results.1.details.1.value_matches: 5 }
+  # recall is quantised to multiples of 1/k, so the percentiles of the cheap candidate are step-like by construction
+  - match: { results.0.recall_stats.count: 30 }
+  - gte: { results.0.recall_stats.min: 0.0 }
+  - lte: { results.0.recall_stats.max: 1.0 }
+  - length: { results.1.details: 30 }
+  - length: { results.1.details.1.hits: 5 }
+  - match: { results.1.details.1.relevant: 5 }
+  - match: { results.1.details.1.relevant_retrieved: 5 }
+  - match: { results.1.details.1.recall: 1.0 }
+  # nothing is missed and every hit is where the baseline put it
+  - match: { results.1.details.1.missed: [] }
+  # a missed entry would carry the baseline's own _id, _score and rank; none is missed here, so only the empty case is assertable
+  - match: { results.0.details.1.missed: [] }
+  - match: { results.1.details.1.hits.0.baseline_rank: 0 }
+  # document 1 is its own nearest neighbour, so it is dropped from both lists and document 2 leads
+  - match: { results.1.details.1.hits.0._id: "2" }
+  - match: { baseline_details.1.hits.0._id: "2" }
+  - match: { results.1.details.30.hits.0._id: "29" }
+
+---
+"A filter applies to the baseline and the candidate but not to the query set":
+  # queries are still sampled from all 30 documents, so this measures recall for queries whose true neighbours are mostly filtered out
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 30
+          include_details: true
+          filter:
+            ids:
+              values: [ "2", "3", "4", "5", "6", "7" ]
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  - length: { results: 1 }
+  - length: { failures: 0 }
+  - match: { results.0.recall: 1.0 }
+  - length: { results.0.details: 30 }
+  # document 1 is excluded as the query document, leaving exactly the six filtered documents to draw a top 5 from
+  - length: { results.0.details.1.hits: 5 }
+  - length: { baseline_details.1.hits: 5 }
+  - match: { results.0.details.1.relevant: 5 }
+  - match: { results.0.details.1.missed: [] }
+  - match: { results.0.details.1.hits.0._id: "2" }
+  - match: { results.0.details.1.hits.1._id: "3" }
+  - match: { results.0.details.1.hits.2._id: "4" }
+  - match: { results.0.details.1.hits.3._id: "5" }
+  - match: { results.0.details.1.hits.4._id: "6" }
+
+---
+"A value tolerance loosens the value based recall":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 30
+          include_fidelity: true
+          value_tolerance: 0.05
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 1
+
+  - match: { value_tolerance: 0.05 }
+  # a tolerance can only admit more matches than none, and both are already saturated on this fixture
+  - match: { results.0.recall_value: 1.0 }
+  - gte: { results.0.recall_value: 1.0 }
+  - match: { results.0.recall_value_stats.count: 30 }
+
+---
+"Value based metrics are absent by default":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 10
+          include_details: true
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+  # the whole value based group is opt in, and details on their own do not turn it on
+  - is_false: value_tolerance
+  - is_false: results.0.fidelity
+  - is_false: results.0.recall_value
+  - is_false: results.0.recall_value_stats
+  - is_false: results.0.recall_value_skipped
+  - is_false: results.0.details.1.recall_value
+  - is_false: results.0.details.1.epsilon_profile
+
+---
+"A value tolerance requires the fidelity flag":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 5
+          value_tolerance: 0.05
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+---
+"A large k bins the recall histogram":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          # past 20 the exact values stop being a summary, so they are grouped into ranges of 0.05
+          k: 23
+          sample:
+            size: 10
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+            - visit_percentage: 1
+
+  - match: { results.0.recall: 1.0 }
+  - match: { results.0.recall_histogram_bin_width: 0.05 }
+  # Every candidate is binned at this k, whatever it recalled. This 30 document fixture forms a single cluster, so even a 1% visit
+  # is exhaustive and no candidate here drops below a perfect recall; the lower-edge convention is covered by the unit tests.
+  - match: { results.1.recall_histogram_bin_width: 0.05 }
+  - match: { results.1.recall_histogram.0.recall: 1.0 }
+  # a perfect recall keeps an exact entry of its own, so an identical re-run collapses to exactly one entry
+  - length: { results.0.recall_histogram: 1 }
+  - match: { results.0.recall_histogram.0.recall: 1.0 }
+  - match: { results.0.recall_histogram.0.count: 10 }
+
+---
+"An oversample knob makes the baseline an exact reference":
+  # The mapping's default oversample of 3 rescores only the quantized top 3k, which can drop a document whose true rank is inside k.
+  # Raising it on the baseline alone turns the reference into exact search without a brute-force script_score.
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 10
+          baseline:
+            visit_percentage: 100
+            oversample: 10
+          candidates:
+            - visit_percentage: 100
+
+  - match: { baseline.visit_percentage: 100.0 }
+  - match: { baseline.oversample: 10.0 }
+  # the candidate leaves oversample unset, so the mapping's own setting applies to it
+  - is_false: results.0.candidate.oversample
+  - lte: { results.0.recall: 1.0 }
+  - gte: { results.0.recall: 0.0 }
+
+---
+"An exact baseline is true ground truth":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 10
+          baseline:
+            exact: true
+          candidates:
+            - visit_percentage: 100
+            - visit_percentage: 100
+              oversample: 50
+
+  - match: { baseline.exact: true }
+  - is_false: baseline.visit_percentage
+  # 30 documents is small enough that an approximate search is exhaustive too, so both candidates recover the exact answer
+  - match: { results.0.recall: 1.0 }
+  - match: { results.1.recall: 1.0 }
+  # An exact scan compares every live vector once, so its operation count is its own hit count: 30 documents per query. The sampled
+  # query document is scanned like any other; excluding it from the hit list happens afterwards.
+  - match: { baseline_vector_ops_kind: "full_precision_scan" }
+  - match: { baseline_vector_ops.count: 10 }
+  - match: { baseline_vector_ops.max: 30 }
+  - match: { baseline_vector_ops.sum: 300 }
+  # a candidate is an ordinary knn search, whose operations the codec counts and which are mostly 1-bit comparisons
+  - gt: { results.0.vector_ops.sum: 0 }
+
+---
+"exact is rejected on a candidate":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 5
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - exact: true
+
+---
+"exact cannot be combined with the approximate knobs":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 5
+          baseline:
+            exact: true
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 5
+
+---
+"An omitted baseline defaults to exact search":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 10
+          candidates:
+            - visit_percentage: 100
+
+  - match: { baseline.exact: true }
+  - is_false: baseline.visit_percentage
+  - match: { results.0.recall: 1.0 }
+
+---
+"An exact baseline needs expensive queries to be allowed":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: false
+
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 5
+          candidates:
+            - visit_percentage: 100
+
+  # a non-exact baseline is an ordinary kNN search, so the setting does not stand in its way
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 5
+          sample:
+            size: 5
+          baseline:
+            visit_percentage: 100
+            oversample: 50
+          candidates:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+
+---
+"The resolved candidate window is echoed per knob set":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          # caller supplied queries, so the search size is exactly k rather than k + 1
+          queries:
+            - id: q1
+              query_vector: [ 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6,
+                              0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2,
+                              0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+                              0.9, 1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.1, 0.2, 0.3, 0.4 ]
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+            - visit_percentage: 100
+              oversample: 1000
+
+  # the mapping's oversample of 3 widens the window to 3k, which then floors num_candidates
+  - match: { baseline.rescore_window: 30 }
+  - match: { baseline.effective_num_candidates: 30 }
+  - match: { results.0.candidate.rescore_window: 30 }
+  - match: { results.0.candidate.effective_num_candidates: 30 }
+  # an oversample large enough to blow past the limit saturates at it, which is why exact is the only certifiable baseline at large k
+  - match: { results.1.candidate.rescore_window: 10000 }
+  - match: { results.1.candidate.effective_num_candidates: 10000 }
+
+---
+"Caller supplied query vectors":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 3
+          queries:
+            - id: q1
+              query_vector: [-0.5066, -0.5988, -0.7856, 0.2846, -0.2543, -0.982, -0.0682, 0.9076, 0.9207, -0.1837, 0.7398, 0.7174, -0.505, 0.5349, 0.4207, -0.4278, -0.8079, 0.432, 0.766, -0.8993, -0.4932, -0.6579, 0.6501, -0.4784, 0.9356, -0.7755, 0.6813, 0.6655, -0.476, 0.5317, -0.536, 0.9113, 0.5461, 0.1026, -0.2761, 0.6285, -0.3388, -0.7675, -0.6958, -0.5769, -0.436, -0.9055, -0.3174, 0.8529, -0.4445, -0.071, 0.4391, 0.7084, 0.105, 0.123, -0.0026, 0.137, -0.6446, -0.359, -0.1863, -0.6536, 0.6445, -0.632, 0.2302, 0.2349, -0.1278, -0.513, -0.7754, 0.2911]
+          include_details: true
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+  - length: { results.0.details.q1.hits: 3 }
+  - length: { baseline_details.q1.hits: 3 }
+  - match: { results.0.details.q1.hits.0.baseline_rank: 0 }
+  - match: { results.0.details.q1.missed: [] }
+  # nothing is excluded for caller supplied vectors, so the document the vector was copied from leads
+  - match: { results.0.details.q1.hits.0._id: "1" }
+
+---
+"Base64 encoded query vectors":
+  # the same vector as document 1, as big-endian float32 encoded with base64: shipping thousands of high dimensional queries as JSON
+  # arrays is exactly what the encoded forms exist to avoid
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 3
+          queries:
+            - id: encoded
+              query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
+          include_details: true
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  - match: { results.0.recall: 1.0 }
+  - length: { results.0.details.encoded.hits: 3 }
+  - length: { baseline_details.encoded.hits: 3 }
+  - match: { results.0.details.encoded.hits.0._id: "1" }
+  - match: { results.0.details.encoded.hits.0.baseline_rank: 0 }
+
+---
+"An undecodable query vector fails only its own query":
+  - do:
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 3
+          queries:
+            - id: good
+              query_vector: "vwGwir8ZSvW/SR0VPpG3F76CM5y/e2RavYuscT9oWHk/a7L/vjwb2j89Y4g/N6eHvwFHrj8I7zU+12X+vtsImr9O0ok+3S8bP0QYk79mOIa+/IS2vyhsIj8mbPS+9PDYP2+De79Ghys/LmmtPypeNb7ztkY/CB1+vwk3TD9pSvU/C802PdIf876NXPs/IOVgvq13Mr9EeuG/Mh/zvxOvuL7fO2S/Z87ZvqKCQT9aV6i+45WBvZFocz7g0bc/NVm0PdcKPT375227KmTDPgxJur8lBIG+t87Zvj7Fbb8nUlQ/JP30vyHKwT5ruYw+cImgvgLeAb8DU/i/RoCdPpULDw=="
+            - id: bad
+              query_vector: "not a vector"
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 100
+
+  # the decode happens per search, so one bad vector costs its own query and leaves the rest of the sweep intact
+  - match: { results.0.recall: 1.0 }
+  - match: { results.0.took_ms.count: 1 }
+  - length: { failures: 1 }
+  - is_true: failures.bad
+
+---
+"k must be positive":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 0
+          sample:
+            size: 5
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 5
+
+---
+"candidates must not be empty":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          sample:
+            size: 5
+          baseline:
+            visit_percentage: 100
+          candidates: []
+
+---
+"exactly one of queries and sample is required":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 5
+
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          sample:
+            size: 5
+          queries:
+            - id: q1
+              query_vector: [ 1.0, 2.0 ]
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 5
+
+---
+"visit_percentage must be a percentage":
+  - do:
+      catch: bad_request
+      knn_eval:
+        index: knn_eval_test
+        body:
+          field: emb
+          k: 10
+          sample:
+            size: 5
+          baseline:
+            visit_percentage: 100
+          candidates:
+            - visit_percentage: 101

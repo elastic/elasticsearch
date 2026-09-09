@@ -622,6 +622,7 @@ public class Constants {
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",
+        "indices:data/read/knn_eval",
         "indices:data/read/mget",
         "indices:data/read/mget[shard]",
         "indices:data/read/msearch",

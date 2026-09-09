@@ -19,8 +19,16 @@ import org.junit.ClassRule;
 
 public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
 
+    // diskbbq and a trial license are needed by the knn_eval tests: the bbq_disk index_options they exercise are an enterprise
+    // licensed feature served by the diskbbq plugin, and indexing into such a field fails without both.
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-mustache").module("rank-eval").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("lang-mustache")
+        .module("rank-eval")
+        .module("diskbbq")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
 
     public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

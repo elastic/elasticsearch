@@ -1,5 +1,0 @@
-pr: 158700
-summary: Keep `query_string` leniency in columnar mode
-area: Search
-type: bug
-issues: []

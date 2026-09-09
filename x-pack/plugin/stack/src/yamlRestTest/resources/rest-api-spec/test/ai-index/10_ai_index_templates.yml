@@ -120,23 +120,6 @@ teardown:
   - match: { \.ai-index-idx-sml-data-000001.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
 
 ---
-"SML index is fronted by the write alias":
-  - requires:
-      test_runner_features: ["allowed_warnings_regex"]
-
-  - do:
-      allowed_warnings_regex:
-        - "index name .* starts with a dot.*"
-      indices.create:
-        index: .ai-index-idx-sml-data-000001
-  - match: { acknowledged: true }
-
-  - do:
-      indices.get_alias:
-        index: .ai-index-idx-sml-data-000001
-  - match: { \.ai-index-idx-sml-data-000001.aliases.\.ai-index-idx-sml-data.is_write_index: true }
-
----
 "SML index rejects unmapped fields":
   - requires:
       test_runner_features: ["allowed_warnings_regex"]

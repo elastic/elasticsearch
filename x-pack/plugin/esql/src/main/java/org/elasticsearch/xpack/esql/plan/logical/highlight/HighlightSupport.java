@@ -74,7 +74,7 @@ public final class HighlightSupport {
     public static List<NamedExpression> deriveFields(Expression query, List<Attribute> childrenOutput) {
         Map<String, NamedExpression> highlightable = highlightableFieldsByName(childrenOutput);
         Set<String> names = new LinkedHashSet<>();
-        if (collectQueryFieldNames(query, names) == false) {
+        if (collectFieldNames(query, names, FieldWalk.DERIVE) == false) {
             return List.copyOf(highlightable.values());
         }
         List<NamedExpression> result = new ArrayList<>(names.size());
@@ -97,7 +97,7 @@ public final class HighlightSupport {
      */
     public static @Nullable String unhighlightableQueryField(Expression query, List<Attribute> childrenOutput) {
         Set<String> names = new LinkedHashSet<>();
-        if (collectQueryFieldNames(query, names) == false) {
+        if (collectFieldNames(query, names, FieldWalk.DERIVE) == false) {
             return null;
         }
         Map<String, NamedExpression> highlightable = highlightableFieldsByName(childrenOutput);
@@ -109,45 +109,12 @@ public final class HighlightSupport {
         return null;
     }
 
-    private static boolean collectQueryFieldNames(Expression query, Set<String> names) {
-        return switch (query) {
-            case Match match -> {
-                names.add(Expressions.name(match.field()));
-                yield true;
-            }
-            case MatchPhrase matchPhrase -> {
-                names.add(Expressions.name(matchPhrase.field()));
-                yield true;
-            }
-            // A QSTR string can name arbitrary fields with `field:term`, and such a qualifier overrides default_field,
-            // so default_field alone cannot bound the target set. Fall back to every highlightable column. PruneColumns
-            // still drops unused generated highlight_* columns for a literal, but must not drop ON fields a QSTR/KQL
-            // query still translates against.
-            case QueryString queryString -> false;
-            case Kql kql -> false;
-            case Literal literal -> false;
-            case BinaryLogic binary -> collectQueryFieldNames(binary.left(), names) && collectQueryFieldNames(binary.right(), names);
-            case Not not -> {
-                // A negative clause says which docs to exclude, not which fields to highlight, so it contributes no
-                // names. It still has to translate against the derived fields though, and QSTR is strict about explicit
-                // fields outside the translation context, so a negative QSTR referencing a field we did not derive would
-                // fail translation: fall back to all highlightable columns in that case. Otherwise recurse so an
-                // unrecognised inner expression (e.g. NOT KNN) forces the same all-fields fallback its positive form
-                // would, instead of deriving an empty list and reporting a misleading "add an explicit ON clause".
-                if (not.anyMatch(e -> e instanceof QueryString)) {
-                    yield false;
-                }
-                yield collectQueryFieldNames(not.field(), new LinkedHashSet<>());
-            }
-            default -> false;
-        };
-    }
-
     /**
      * ON field names the query still has to translate against after unused generated columns are pruned.
-     * {@code null} means the query cannot be narrowed ({@code QSTR}, {@code KQL}, or an unrecognised shape)
-     * and every remaining ON field must stay in the translation context. An empty set means a literal: it is
-     * applied to whatever ON fields survive, so unused ones can go.
+     * {@code null} means the query cannot be narrowed ({@code QSTR}, {@code KQL}, a {@code field:term} string
+     * literal, or an unrecognised shape) and every remaining ON field must stay in the translation context. An
+     * empty set means a literal that names no field: it is applied to whatever ON fields survive, so unused ones
+     * can go.
      * <p>
      * Unlike {@link #deriveFields}, negative subtrees count. {@code MATCH(a) AND NOT MATCH(b)} still
      * translates {@code MATCH(b)}, so {@code b} cannot be dropped from ON even when {@code highlight_b}
@@ -158,13 +125,18 @@ public final class HighlightSupport {
             return Set.of();
         }
         Set<String> names = new LinkedHashSet<>();
-        if (collectTranslationFieldNames(query, names) == false) {
+        if (collectFieldNames(query, names, FieldWalk.TRANSLATE) == false) {
             return null;
         }
         return names;
     }
 
-    private static boolean collectTranslationFieldNames(Expression query, Set<String> names) {
+    private enum FieldWalk {
+        DERIVE,
+        TRANSLATE
+    }
+
+    private static boolean collectFieldNames(Expression query, Set<String> names, FieldWalk mode) {
         return switch (query) {
             case Match match -> {
                 names.add(Expressions.name(match.field()));
@@ -176,12 +148,25 @@ public final class HighlightSupport {
             }
             case QueryString queryString -> false;
             case Kql kql -> false;
-            case Literal literal -> true;
-            case BinaryLogic binary -> collectTranslationFieldNames(binary.left(), names)
-                && collectTranslationFieldNames(binary.right(), names);
-            case Not not -> collectTranslationFieldNames(not.field(), names);
+            case Literal literal -> mode == FieldWalk.TRANSLATE && literalMayNameField(literal) == false;
+            case BinaryLogic binary -> collectFieldNames(binary.left(), names, mode) && collectFieldNames(binary.right(), names, mode);
+            case Not not when mode == FieldWalk.TRANSLATE -> collectFieldNames(not.field(), names, mode);
+            case Not not -> collectDerivationFieldNames(not);
             default -> false;
         };
+    }
+
+    private static boolean collectDerivationFieldNames(Not not) {
+        return not.anyMatch(e -> e instanceof QueryString) == false
+            && collectFieldNames(not.field(), new LinkedHashSet<>(), FieldWalk.DERIVE);
+    }
+
+    private static boolean literalMayNameField(Literal literal) {
+        if (DataType.isString(literal.dataType()) == false) {
+            return true;
+        }
+        String text = BytesRefs.toString(literal.value());
+        return text != null && text.indexOf(':') >= 0;
     }
 
     /**

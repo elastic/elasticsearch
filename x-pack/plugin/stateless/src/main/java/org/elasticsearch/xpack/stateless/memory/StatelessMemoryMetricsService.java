@@ -885,12 +885,15 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
         void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
             if (seenIndices.add(shardId.getIndexName())) {
-                mappingSizeInBytes += shardMemoryMetrics.getMappingSizeInBytes();
+                mappingSizeInBytes = Math.addExact(mappingSizeInBytes, shardMemoryMetrics.getMappingSizeInBytes());
             }
             // Postings are accumulated separately (instead of folding them into computeShardHeapUsage's result) because
             // getPerNodeMemoryMetrics later uses the maximum totalPostingsInMemoryBytes across all nodes.
-            shardMemoryUsageInBytes += shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics);
-            totalPostingsInMemoryBytes += shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics);
+            shardMemoryUsageInBytes = Math.addExact(shardMemoryUsageInBytes, shardHeapEstimator.computeShardHeapUsage(shardMemoryMetrics));
+            totalPostingsInMemoryBytes = Math.addExact(
+                totalPostingsInMemoryBytes,
+                shardHeapEstimator.getEffectiveShardPostingsInBytes(shardMemoryMetrics)
+            );
         }
 
         /**
@@ -903,7 +906,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
             return new NodeHeapEstimates(
                 totalHeapEstimateInBytes,
-                mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes
+                addExact(mappingSizeInBytes, shardMemoryUsageInBytes, totalPostingsInMemoryBytes)
             );
         }
 
@@ -912,8 +915,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             if (indexNode == false) {
                 return 0;
             }
-            return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
-                + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
+            return addExact(
+                shardMemoryUsageInBytes,
+                mappingSizeInBytes,
+                shardMergeMemoryEstimate,
+                nodeBaseHeapEstimateInBytes,
+                minimumRequiredHeapForAcceptingLargeIndexingOps,
+                effectivePostingsValue
+            );
         }
 
         public boolean isIndexNode() {
@@ -1067,5 +1076,19 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         ENABLE,
         DISABLE,
         DEFAULT;
+    }
+
+    /**
+     * Recursive {@link Math#addExact(long, long)}, will throw if we overflow at any point
+     *
+     * @param longs The longs to add
+     * @return The sum of the longs
+     */
+    private static long addExact(long... longs) {
+        long total = 0;
+        for (long l : longs) {
+            total = Math.addExact(total, l);
+        }
+        return total;
     }
 }

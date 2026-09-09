@@ -28,6 +28,8 @@ import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -55,6 +57,7 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
+    private static final Logger logger = LogManager.getLogger(BatchModeRouter.class);
     @Nullable
     private final String indexAbstractionName;
     @Nullable
@@ -524,6 +527,7 @@ final class BatchModeRouter implements Releasable {
         } catch (Exception e) {
             // The trio does not give us a row index, so we cannot isolate which row(s) caused the
             // problem. Fail every deferred item with the same exception.
+            logger.warn("batch routing failed for pre-built batch [{}] with {} rows", indexAbstractionName, source.docCount(), e);
             scattered = true; // prevent shardBatches() from attempting a stale scatter
             for (int i = 0; i < source.docCount(); i++) {
                 if (items[i] != null) {

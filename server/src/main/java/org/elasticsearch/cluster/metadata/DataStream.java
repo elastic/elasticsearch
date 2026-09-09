@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -624,6 +625,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the distinct set of backing indices that cover the given nanosecond epoch timestamps.
+     * For each timestamp, {@link #selectTimeSeriesWriteIndex} is called; if a timestamp falls outside
+     * all known time ranges the current write index is used as a fallback (matching the single-document
+     * behaviour in {@link #getWriteIndex(IndexRequest, ProjectMetadata)}).
+     *
+     * @param timestampsNanos nanosecond epoch timestamps of the documents in the batch
+     * @param project         project metadata used to read backing-index time ranges
+     * @return distinct {@link Index} instances, in the order first encountered
+     */
+    public Set<Index> selectTimeSeriesWriteIndices(long[] timestampsNanos, ProjectMetadata project) {
+        Set<Index> result = new LinkedHashSet<>();
+        for (long nanos : timestampsNanos) {
+            Instant ts = Instant.ofEpochMilli(nanos / 1_000_000L);
+            Index index = selectTimeSeriesWriteIndex(ts, project);
+            result.add(index != null ? index : getWriteIndex());
+        }
+        return result;
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 
+import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
@@ -35,7 +36,20 @@ public final class BatchIndexingEnabled {
                 "[indices.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
             );
         }
-    }, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    }, Property.Dynamic, Property.NodeScope);
+
+    /**
+     * Per-index opt-in for batch indexing. When set to {@code true} on a TSDB backing index,
+     * the OTLP metrics ingest path may write documents as an {@code EscfBatch} rather than
+     * individual XContent blobs, provided the cluster-level {@link #BATCH_INDEXING} setting
+     * and the {@link #FEATURE_FLAG} are also active.
+     */
+    public static final Setting<Boolean> INDEX_BATCH_INDEXING = boolSetting(
+        "index.time_series.batch_indexing",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     private volatile boolean enabled;
 

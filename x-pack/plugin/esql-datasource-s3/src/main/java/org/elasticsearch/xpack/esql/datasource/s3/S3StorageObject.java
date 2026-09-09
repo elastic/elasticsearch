@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -160,12 +161,20 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      * got a response (Apache drop / Netty read timeout). Nested {@code SdkClientException}
      * (IMDS/STS), {@link UnknownHostException}, and {@link SSLException} stay client-class. Other
      * {@link IllegalStateException}s are returned as-is (HTTP 500 via classify) so a programming
-     * error is not retried and is not disguised as a client 400. A missing object, a credential
-     * failure, or any other failure becomes an {@link IOException},
-     * which the external source operator classifies as a client-class 400. Returns the exception
-     * (never throws) so both the synchronous and async read paths can route it.
+     * error is not retried and is not disguised as a client 400. A circuit-breaker rejection is
+     * returned as a {@link CircuitBreakingException} naming the path, wherever it sits in the cause
+     * chain: the destination buffer for a native-async read is allocated inside the SDK's response
+     * pipeline, so the SDK's retry stage wraps the trip in a status-neutral {@code SdkClientException} —
+     * unwrapping it preserves the breaker's 429 so load shedding is not reported as a permanent
+     * query error. A missing object, a credential failure, or any other failure becomes an
+     * {@link IOException}, which the external source operator classifies as a client-class 400.
+     * Returns the exception (never throws) so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, Throwable cause) {
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(cause, context, path);
+        if (breakerTrip != null) {
+            return breakerTrip;
+        }
         ExternalUnavailableException unavailable = findUnavailable(cause);
         if (unavailable != null) {
             return unavailable;

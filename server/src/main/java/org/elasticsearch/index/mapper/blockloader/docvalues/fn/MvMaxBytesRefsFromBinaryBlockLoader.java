@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
@@ -79,14 +81,32 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     private static class MvMaxBytesRefsFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
         private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
 
+        private final BytesRef scratch = new BytesRef();
+
         MvMaxBytesRefsFromColumnarPayload(TrackingBinaryDocValues values) {
             super(values);
         }
 
+        /**
+         * The extreme value of the document, taken from the column where there is one.
+         *
+         * <p>A dictionary column decides it over ordinals: the dictionary is in term order, so the extreme ordinal a
+         * document holds names its extreme value, and only that one is resolved to a term. Otherwise the payload is
+         * decoded and its values compared, as it is for a segment arriving as an overlay rather than as a column.
+         */
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
+                return;
+            }
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final BytesRef extreme = columnar.extreme(true, scratch);
+                if (extreme == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(extreme);
+                }
                 return;
             }
             reader.readMax(docValues.docValues().binaryValue(), builder);

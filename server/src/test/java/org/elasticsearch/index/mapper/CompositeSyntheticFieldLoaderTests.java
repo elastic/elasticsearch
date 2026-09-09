@@ -269,7 +269,6 @@ public class CompositeSyntheticFieldLoaderTests extends MapperServiceTestCase {
      * adding both would cause every value to be emitted twice.
      */
     public void testAddFallbackLayersBothFlagsOnInStrictColumnarAddsExactlyOneLayer() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         var layers = fallbackLayers(IndexVersion.current(), /* strictColumnar */ true, true, true);
 
         assertEquals("ignoreMalformed+onFailureEnabled in strict-columnar must add exactly one layer", 1, layers.size());

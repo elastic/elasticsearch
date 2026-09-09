@@ -409,10 +409,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
                 }
 
-                /*
-                 * Check if this is a shutting down node and if we can gracefully shut down the native process after draining its queues
-                 */
-                if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
+                // STOPPING with no local task means nothing to drain; waiting for other STARTED routes would leave plugin shutdown
+                // IN_PROGRESS.
+                if (shouldMarkOrphanStoppingRouteStopped(trainedModelAssignment, shuttingDownNodes, currentNode)) {
+                    markOrphanStoppingRouteStopped(trainedModelAssignment.getDeploymentId(), currentNode);
+                } else if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
@@ -479,6 +480,40 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             trainedModelAssignment.getTaskParams().getPerDeploymentMemoryBytes(),
             trainedModelAssignment.getTaskParams().getPerAllocationMemoryBytes()
         );
+    }
+
+    private void markOrphanStoppingRouteStopped(String deploymentId, String currentNode) {
+        if (deploymentIdToTask.containsKey(deploymentId)) {
+            gracefullyStopDeployment(deploymentId, currentNode);
+            return;
+        }
+        logger.info(
+            () -> format(
+                "[%s] Marking orphan STOPPING route as STOPPED on shutting down node %s (no local deployment task)",
+                deploymentId,
+                currentNode
+            )
+        );
+        updateStoredState(
+            deploymentId,
+            RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STOPPED, NODE_IS_SHUTTING_DOWN)),
+            ActionListener.wrap(
+                r -> logger.debug(() -> format("[%s] Orphan STOPPING route marked STOPPED on node %s", deploymentId, currentNode)),
+                e -> logger.warn(() -> format("[%s] Failed to mark orphan STOPPING route STOPPED on node %s", deploymentId, currentNode), e)
+            )
+        );
+    }
+
+    private boolean shouldMarkOrphanStoppingRouteStopped(
+        TrainedModelAssignment trainedModelAssignment,
+        Set<String> shuttingDownNodes,
+        String currentNode
+    ) {
+        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+        return shuttingDownNodes.contains(currentNode)
+            && routingInfo != null
+            && routingInfo.getState() == RoutingState.STOPPING
+            && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId()) == false;
     }
 
     private boolean shouldGracefullyShutdownDeployment(

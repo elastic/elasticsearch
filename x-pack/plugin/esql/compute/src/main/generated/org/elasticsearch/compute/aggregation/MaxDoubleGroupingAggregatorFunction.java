@@ -38,7 +38,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new DoubleArrayState(driverContext.bigArrays(), MaxDoubleAggregator.init());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxDoubleAggregator.init());
     this.driverContext = driverContext;
   }
 

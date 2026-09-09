@@ -37,6 +37,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -48,6 +49,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -55,6 +57,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
@@ -107,6 +110,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -144,6 +148,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private final FooterByteCache footerBytes;
 
+    /**
+     * Sanity cap on trailer-declared footer GETs. Production uses {@link #MAX_FOOTER_READ_BYTES};
+     * tests may lower it via the package-private constructor.
+     */
+    private final int maxFooterReadBytes;
+
+    /**
+     * Node-wide cap on retained Parquet I/O bytes ({@code heap / 8}). Shared by every derived
+     * reader the same way as the footer caches, so concurrent queries compete for one budget.
+     */
+    private final ParquetIoWatermark ioWatermark;
+
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
@@ -179,6 +195,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /** Length of the Parquet trailer: 4-byte footer length + 4-byte magic. */
     private static final int PARQUET_TRAILER_BYTES = 8;
+
+    /**
+     * Sanity cap on a trailer-declared footer GET ({@code F+8}). Larger than this is an invalid
+     * Parquet file (HTTP 400) and is rejected before the second GET. Not a cache size and not a
+     * data-page limit. Same value as {@link ExternalSourceSettings#BLOB_STORE_GET_SIZE_BYTES} so
+     * an exact-range footer GET stays inside the {@code C × B} in-flight GET accounting.
+     */
+    static final int MAX_FOOTER_READ_BYTES = ExternalSourceSettings.BLOB_STORE_GET_SIZE_BYTES;
 
     /** Clears both footer caches held by this reader. Intended for test isolation only. */
     void clearFooterCachesForTests() {
@@ -358,7 +382,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.of(),
             Set.of(),
             FooterByteCache.fromSettings(settings),
-            ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes)
+            ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
+            ParquetIoWatermark.forHeap(),
+            MAX_FOOTER_READ_BYTES
         );
     }
 
@@ -379,7 +405,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.of(),
             Set.of(),
             FooterByteCache.fromSettings(Settings.EMPTY),
-            ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes)
+            ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
+            ParquetIoWatermark.forHeap(),
+            MAX_FOOTER_READ_BYTES
+        );
+    }
+
+    /**
+     * Test constructor that lowers the sanity GET cap so tests can reject an oversized trailer
+     * without allocating a production-sized declared footer.
+     */
+    ParquetFormatReader(BlockFactory blockFactory, int maxFooterReadBytes) {
+        this(
+            blockFactory,
+            FilterCompat.NOOP,
+            null,
+            false,
+            true,
+            null,
+            Map.of(),
+            Set.of(),
+            FooterByteCache.fromSettings(Settings.EMPTY),
+            ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
+            ParquetIoWatermark.forHeap(),
+            maxFooterReadBytes
         );
     }
 
@@ -393,7 +442,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         Map<String, String> declaredDateFormats,
         Set<String> declaredTypeColumns,
         FooterByteCache footerBytes,
-        ParsedFooterCache<ParquetMetadata> parsedFooters
+        ParsedFooterCache<ParquetMetadata> parsedFooters,
+        ParquetIoWatermark ioWatermark,
+        int maxFooterReadBytes
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -405,6 +456,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         this.declaredTypeColumns = declaredTypeColumns;
         this.footerBytes = footerBytes;
         this.parsedFooters = parsedFooters;
+        if (ioWatermark == null) {
+            throw new IllegalArgumentException("ioWatermark");
+        }
+        this.ioWatermark = ioWatermark;
+        this.maxFooterReadBytes = maxFooterReadBytes;
     }
 
     /**
@@ -424,7 +480,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes
         );
     }
 
@@ -444,7 +502,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes
         );
     }
 
@@ -464,7 +524,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark,
+                maxFooterReadBytes
             );
         }
         if (pushedFilter instanceof FilterCompat.Filter filter) {
@@ -478,7 +540,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark,
+                maxFooterReadBytes
             );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
@@ -492,7 +556,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 declaredDateFormats,
                 declaredTypeColumns,
                 footerBytes,
-                parsedFooters
+                parsedFooters,
+                ioWatermark,
+                maxFooterReadBytes
             );
         }
         return this;
@@ -510,7 +576,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes
         );
     }
 
@@ -536,7 +604,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns,
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes
         );
     }
 
@@ -563,8 +633,35 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
             footerBytes,
-            parsedFooters
+            parsedFooters,
+            ioWatermark,
+            maxFooterReadBytes
         );
+    }
+
+    /**
+     * Test-only: share a watermark across readers so node-wide admission can be asserted with a
+     * tiny limit. Production readers keep the heap-derived instance from the root constructor.
+     */
+    ParquetFormatReader withIoWatermark(ParquetIoWatermark watermark) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            watermark,
+            maxFooterReadBytes
+        );
+    }
+
+    ParquetIoWatermark ioWatermark() {
+        return ioWatermark;
     }
 
     @Override
@@ -690,13 +787,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(e, "Could not read [" + uri + "] as a Parquet file");
         } catch (RuntimeException e) {
-            if (e instanceof CircuitBreakingException) {
-                throw e;
-            }
-            if (e instanceof ElasticsearchException) {
-                throw e;
-            }
-            throw newInvalidParquetFileException(uri, e);
+            throw rethrowStructuralFooterFailure(uri, e);
         }
     }
 
@@ -815,9 +906,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
+    /**
+     * parquet-mr signals a malformed file as a generic {@link RuntimeException}. Circuit-breaker
+     * trips and other {@link ElasticsearchException}s must stay unwrapped so they remain HTTP 429
+     * (or their own status) rather than becoming an invalid-file 400.
+     */
+    private static RuntimeException rethrowStructuralFooterFailure(String uri, RuntimeException e) {
+        if (e instanceof CircuitBreakingException || e instanceof ElasticsearchException) {
+            return e;
+        }
+        return newInvalidParquetFileException(uri, e);
+    }
+
+    private static IllegalArgumentException invalidParquet(String uri, String detail) {
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail);
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+            object,
+            footerBytes,
+            blockFactory.breaker(),
+            ioWatermark
+        );
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
@@ -840,23 +952,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     /**
-     * Async metadata resolution: prefetch the footer tail off the executor via
-     * {@link StorageObject#readBytesAsync} (native, non-blocking on S3), then run the (CPU-only)
-     * footer parse straight from the prefetched byte array (see {@link #parseFooterFromTail}). The
-     * executor thread is therefore released across the network round-trip and is touched only for the
-     * microsecond-scale parse, which is what makes a wide discovery fan-out safe to bound by an
-     * in-flight permit equal to the pool size. The prefetched bytes are additionally offered to the
-     * shared {@link FooterByteCache} best-effort so a later split-discovery pass can reuse them, but
-     * the parse never depends on that entry surviving. The parsed footer is also seeded into
-     * {@link #parsedFooters} under the same {@code (path, length)} key {@link #loadFooter} uses, so
-     * split discovery can skip a second Thrift deserialize while the LRU still holds it. If the
-     * parsed footer is already cached, the metadata is built straight from it on the executor with
-     * no I/O at all.
+     * Async metadata resolution: {@link #loadFooterAsync} obtains footer bytes only via
+     * {@link StorageObject#readBytesAsync} (or {@link #footerBytes}), then runs the CPU-only
+     * parse on {@code executor}. The executor is released across the network round-trip, which is
+     * what makes a wide discovery fan-out safe to bound by the pool size. Prefetched bytes are
+     * offered to {@link #footerBytes} best-effort; the parse never depends on that entry
+     * surviving. The parsed footer is seeded into {@link #parsedFooters} under the same
+     * {@code (path, length)} key {@link #loadFooter} uses. If the parsed footer is already cached,
+     * {@link #loadFooterAsync} completes from it on {@code executor} with no I/O.
      * <p>
-     * On any anomaly (short file, absent/foreign magic, oversized footer that cannot be cached) the
-     * method falls back to running {@link #metadata(StorageObject)} on the executor, which performs
-     * its own I/O and produces the canonical error for invalid files. Correctness never depends on
-     * the prefetch succeeding.
+     * Anomalies (short file, missing {@code PAR1}, short GET, footer larger than the file or
+     * {@link #MAX_FOOTER_READ_BYTES}) complete {@code listener} with
+     * {@link #newInvalidParquetFileException} and never call
+     * {@link #metadata(StorageObject)} or {@code adapter.newStream()}. Encrypted {@code PARE}
+     * footers take that failure path too.
      * <p>
      * Contract note: {@link StorageObject#length()} is read synchronously on the calling thread before
      * the async prefetch is dispatched. This is I/O-free when {@code object} was built from a directory
@@ -867,99 +976,249 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     @Override
     public void metadataAsync(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
-        final long length;
+        loadFooterAsync(
+            object,
+            executor,
+            listener.map(loaded -> seedParsedFooter(loaded.cacheKey(), loaded.footer(), buildFooterMetadata(object, loaded.footer())))
+        );
+    }
+
+    /**
+     * Footer plus the cache key captured with {@link StorageObject#length()} on the calling thread,
+     * so completion listeners must not call {@code length()} again (it can throw).
+     */
+    private record LoadedFooter(FooterByteCache.Key cacheKey, ParquetMetadata footer) {}
+
+    /**
+     * Byte-pipe footer load for every {@code *Async} caller. {@link #parsedFooters} hit is CPU-only
+     * on {@code executor}. Otherwise GET via {@link StorageObject#readBytesAsync}, then CPU
+     * {@code readFooter} on {@link TailBackedInputFile}. Never {@code adapter.newStream()}.
+     */
+    private void loadFooterAsync(StorageObject object, Executor executor, ActionListener<LoadedFooter> listener) {
         final FooterByteCache.Key cacheKey;
+        final long length;
         try {
-            length = object.length();
-            cacheKey = FooterByteCache.Key.keyFor(object, length);
+            cacheKey = FooterByteCache.Key.keyFor(object);
+            length = cacheKey.fileLength();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
 
-        // Warm parsed footer (even if the byte cache has since evicted the tail) needs no I/O at
-        // all: build the metadata straight from it on the executor. Without this check a parsed-warm
-        // byte-cold file would pay a fresh network tail read plus a full re-parse.
-        ParquetMetadata warmFooter = parsedFooters.get(cacheKey);
-        if (warmFooter != null) {
-            executor.execute(() -> {
-                try {
-                    listener.onResponse(buildFooterMetadata(object, warmFooter));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+        if (length < PARQUET_TRAILER_BYTES) {
+            listener.onFailure(invalidParquet(object.path().toString(), "is not a Parquet file (length is too low: " + length + ")"));
             return;
         }
 
-        // Too small to hold a trailer, or the tail is already cached (warm) — the sync parse will
-        // not touch the network, so just run it on the executor.
-        if (length < PARQUET_TRAILER_BYTES || footerBytes.get(cacheKey) != null) {
-            parseFooterOnExecutor(object, executor, listener);
+        ParquetMetadata parsed = parsedFooters.get(cacheKey);
+        if (parsed != null) {
+            counters.recordFooterCache(true);
+            executor.execute(() -> listener.onResponse(new LoadedFooter(cacheKey, parsed)));
             return;
         }
 
+        byte[] cached = footerBytes.get(cacheKey);
+        if (cached != null) {
+            completeFromAvailableTail(object, length, cacheKey, cached, executor, listener);
+            return;
+        }
+
+        prefetchAndParseFooterAsync(object, length, cacheKey, executor, listener);
+    }
+
+    /**
+     * Prefetches the Parquet footer tail via {@link StorageObject#readBytesAsync} and hands the
+     * buffer to {@link #completeFromAvailableTail}. A short GET fails the listener; it does not
+     * fall back to a stream parse. The GET stays charged until parse finishes (or this path fails).
+     */
+    private void prefetchAndParseFooterAsync(
+        StorageObject object,
+        long length,
+        FooterByteCache.Key cacheKey,
+        Executor executor,
+        ActionListener<LoadedFooter> listener
+    ) {
         int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
 
         object.readBytesAsync(length - tailLen, tailLen, factory, executor, ActionListener.wrap(tail -> {
-            final byte[] tailBytes;
+            boolean transferred = false;
             try {
-                tailBytes = copyToArray(tail);
-            } finally {
-                tail.close();
-            }
-
-            if (tailBytes.length != tailLen) {
-                // readBytesAsync's SPI contract permits a short read (fewer than the requested bytes). The parse path
-                // treats these bytes as a suffix ending at the file length (TailBackedInputFile offsets by
-                // length - tailBytes.length), so a short read would misalign every footer offset. Fall back to the
-                // synchronous parse, which reads the exact ranges it needs itself, rather than relying on the
-                // trailing-magic scan below happening to reject the misaligned bytes.
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            int footerLength = footerLengthFromTrailer(tailBytes);
-            if (footerLength <= 0) {
-                // Missing/foreign magic or a nonsensical length — let the sync path produce the
-                // proper invalid-Parquet error (or handle an encrypted footer via its own I/O).
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
-            if (footerRegion <= tailBytes.length) {
-                // The whole footer is already in the prefetched tail — parse straight from it.
-                parseTailOnExecutor(object, length, tailBytes, cacheKey, executor, listener);
-                return;
-            }
-
-            if (footerRegion > footerBytes.maxEntryBytes()) {
-                // The footer is larger than the cache admits; the sync parse reads it directly.
-                parseFooterOnExecutor(object, executor, listener);
-                return;
-            }
-
-            // Large footer: a single exact-range read of [length - footerRegion, length) covers the
-            // whole footer, which is then parsed straight from the returned bytes.
-            int exactLen = (int) footerRegion;
-            object.readBytesAsync(length - exactLen, exactLen, factory, executor, ActionListener.wrap(footer -> {
-                final byte[] footerBytes;
-                try {
-                    footerBytes = copyToArray(footer);
-                } finally {
-                    footer.close();
-                }
-                if (footerBytes.length != exactLen) {
-                    // Short read (see the tail-read guard above): the bytes would not align to the file suffix the
-                    // parse path assumes, so fall back to the synchronous exact-range read.
-                    parseFooterOnExecutor(object, executor, listener);
+                int remaining = tail.buffer().remaining();
+                if (remaining != tailLen) {
+                    listener.onFailure(invalidParquetShortRead(object, tailLen, remaining));
                     return;
                 }
-                parseTailOnExecutor(object, length, footerBytes, cacheKey, executor, listener);
-            }, listener::onFailure));
+                transferred = true;
+                completeFromAvailableTail(object, length, cacheKey, tail, executor, listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            } finally {
+                if (transferred == false) {
+                    tail.close();
+                }
+            }
         }, listener::onFailure));
+    }
+
+    /**
+     * Parses {@code tailBytes} when they already cover {@code F+8}, otherwise issues an exact-range
+     * {@link StorageObject#readBytesAsync} for the footer region. Trailer-declared regions larger
+     * than {@link #MAX_FOOTER_READ_BYTES} (or a lowered test cap) fail as an invalid Parquet file
+     * before the second GET; they do not fall back to {@code adapter.newStream()}. Regions larger
+     * than {@link FooterByteCache#maxEntryBytes()} are still read and parsed, then skipped by
+     * {@link FooterByteCache#put}.
+     */
+    private void completeFromAvailableTail(
+        StorageObject object,
+        long length,
+        FooterByteCache.Key cacheKey,
+        byte[] tailBytes,
+        Executor executor,
+        ActionListener<LoadedFooter> listener
+    ) {
+        int footerLength = footerLengthFromTrailer(ByteBuffer.wrap(tailBytes));
+        if (rejectDeclaredFooter(object, length, footerLength, listener)) {
+            return;
+        }
+        long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+        ActionListener<ParquetMetadata> parsed = listener.map(footer -> new LoadedFooter(cacheKey, footer));
+        if (footerRegion <= tailBytes.length) {
+            parseTailOnExecutor(object, length, tailBytes, () -> {}, cacheKey, executor, parsed);
+            return;
+        }
+        readExactFooterAndParse(object, length, cacheKey, (int) footerRegion, executor, parsed);
+    }
+
+    /**
+     * Same as {@link #completeFromAvailableTail(StorageObject, long, FooterByteCache.Key, byte[], Executor, ActionListener)}
+     * but keeps {@code tail} charged until parse (or closes it before an exact-range GET).
+     */
+    private void completeFromAvailableTail(
+        StorageObject object,
+        long length,
+        FooterByteCache.Key cacheKey,
+        DirectReadBuffer tail,
+        Executor executor,
+        ActionListener<LoadedFooter> listener
+    ) {
+        boolean transferred = false;
+        try {
+            int footerLength = footerLengthFromTrailer(tail.buffer());
+            if (rejectDeclaredFooter(object, length, footerLength, listener)) {
+                return;
+            }
+            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+            ActionListener<ParquetMetadata> parsed = listener.map(footer -> new LoadedFooter(cacheKey, footer));
+            if (footerRegion <= tail.buffer().remaining()) {
+                ChargedFooterBytes charged = bytesForParse(tail);
+                transferred = true;
+                if (charged.reusedHeapArray() == false) {
+                    tail.close();
+                }
+                parseTailOnExecutor(object, length, charged.bytes(), charged.release(), cacheKey, executor, parsed);
+                return;
+            }
+            transferred = true;
+            tail.close();
+            readExactFooterAndParse(object, length, cacheKey, (int) footerRegion, executor, parsed);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        } finally {
+            if (transferred == false) {
+                tail.close();
+            }
+        }
+    }
+
+    /** {@code true} if {@code listener} was failed because the declared footer is invalid. */
+    private boolean rejectDeclaredFooter(StorageObject object, long length, int footerLength, ActionListener<LoadedFooter> listener) {
+        if (footerLength <= 0) {
+            listener.onFailure(invalidParquet(object.path().toString(), "is not a Parquet file. Expected magic number at tail"));
+            return true;
+        }
+        long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+        if (footerRegion > Integer.MAX_VALUE || footerRegion > length) {
+            listener.onFailure(
+                invalidParquet(object.path().toString(), "footer length " + footerLength + " exceeds file length " + length)
+            );
+            return true;
+        }
+        if (footerRegion > maxFooterReadBytes) {
+            listener.onFailure(
+                invalidParquet(object.path().toString(), "footer length " + footerLength + " exceeds maximum " + maxFooterReadBytes)
+            );
+            return true;
+        }
+        return false;
+    }
+
+    private void readExactFooterAndParse(
+        StorageObject object,
+        long length,
+        FooterByteCache.Key cacheKey,
+        int exactLen,
+        Executor executor,
+        ActionListener<ParquetMetadata> parsed
+    ) {
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
+        object.readBytesAsync(length - exactLen, exactLen, factory, executor, ActionListener.wrap(footerBuf -> {
+            boolean transferred = false;
+            try {
+                int remaining = footerBuf.buffer().remaining();
+                if (remaining != exactLen) {
+                    parsed.onFailure(invalidParquetShortRead(object, exactLen, remaining));
+                    return;
+                }
+                ChargedFooterBytes charged = bytesForParse(footerBuf);
+                transferred = true;
+                if (charged.reusedHeapArray() == false) {
+                    footerBuf.close();
+                }
+                parseTailOnExecutor(object, length, charged.bytes(), charged.release(), cacheKey, executor, parsed);
+            } catch (Exception e) {
+                parsed.onFailure(e);
+            } finally {
+                if (transferred == false) {
+                    footerBuf.close();
+                }
+            }
+        }, parsed::onFailure));
+    }
+
+    /**
+     * Heap wrap of the GET (production): reuse {@code array()} so parse stays on the request
+     * breaker; {@code owned} is closed after parse. Otherwise charge a copy, then the caller
+     * closes the GET buffer and this releasable uncharges the copy after parse.
+     */
+    private ChargedFooterBytes bytesForParse(DirectReadBuffer owned) {
+        ByteBuffer bb = owned.buffer().duplicate();
+        if (bb.hasArray() && bb.arrayOffset() == 0 && bb.position() == 0 && bb.remaining() == bb.array().length) {
+            return new ChargedFooterBytes(bb.array(), owned, true);
+        }
+        CircuitBreaker ioBreaker = LocalCircuitBreaker.forAsyncIo(blockFactory.breaker());
+        int n = bb.remaining();
+        ioBreaker.addEstimateBytesAndMaybeBreak(n, "parquet footer copy");
+        byte[] copy;
+        try {
+            copy = UninitializedArrays.newByteArray(n);
+            bb.get(copy);
+        } catch (Throwable t) {
+            ioBreaker.addWithoutBreaking(-n);
+            throw t;
+        }
+        AtomicBoolean released = new AtomicBoolean();
+        return new ChargedFooterBytes(copy, () -> {
+            if (released.compareAndSet(false, true)) {
+                ioBreaker.addWithoutBreaking(-n);
+            }
+        }, false);
+    }
+
+    private record ChargedFooterBytes(byte[] bytes, Releasable release, boolean reusedHeapArray) {}
+
+    private static IllegalArgumentException invalidParquetShortRead(StorageObject object, int expected, int actual) {
+        return invalidParquet(object.path().toString(), "short read of footer: expected " + expected + " bytes, got " + actual);
     }
 
     /**
@@ -968,40 +1227,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * deliberate: it does not depend on the {@link FooterByteCache} surviving between the async read
      * and the parse (a wide concurrent discovery could otherwise evict the tail against the cache's
      * byte budget and force a blocking re-read on the executor thread). The bytes are additionally
-     * offered to the cache best-effort so a later split-discovery pass can reuse them, but correctness
-     * never depends on that. The parsed footer is also seeded into {@link #parsedFooters} so
-     * {@link #loadFooter} can skip a second Thrift deserialize for the same file while the
-     * LRU still holds it.
+     * offered to the cache best-effort after a successful parse so a later split-discovery pass can
+     * reuse them, but correctness never depends on that. Callers of this listener seed
+     * {@link #parsedFooters} after a successful metadata convert or range extract. {@code release}
+     * uncharges the GET (or the heap copy) after parse, success or failure.
      */
     private void parseTailOnExecutor(
         StorageObject object,
         long length,
         byte[] tailBytes,
+        Releasable release,
         FooterByteCache.Key cacheKey,
         Executor executor,
-        ActionListener<SourceMetadata> listener
+        ActionListener<ParquetMetadata> listener
     ) {
-        executor.execute(() -> {
+        try {
+            executor.execute(() -> {
+                boolean closed = false;
+                try {
+                    ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
+                    footerBytes.put(cacheKey, tailBytes);
+                    release.close();
+                    closed = true;
+                    listener.onResponse(footer);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                } finally {
+                    if (closed == false) {
+                        release.close();
+                    }
+                }
+            });
+        } catch (Exception e) {
             try {
-                footerBytes.put(cacheKey, tailBytes);
-                listener.onResponse(parseFooterFromTail(object, length, tailBytes, cacheKey));
-            } catch (Exception e) {
-                listener.onFailure(e);
+                release.close();
+            } catch (Exception closeEx) {
+                e.addSuppressed(closeEx);
             }
-        });
+            listener.onFailure(e);
+        }
     }
 
     /**
      * Parses a Parquet {@link ParquetMetadata} footer from an in-memory suffix of the file
-     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}) and builds the
-     * corresponding {@link SourceMetadata}. On success the unranged full footer is seeded into
-     * {@link #parsedFooters} under {@code cacheKey} (same key {@link #loadFooter} uses) so
-     * Phase-2 split discovery can reuse this instance. The byte-weighted LRU may evict the seed on
-     * wide globs. Malformed footers surface as the same invalid-Parquet
-     * {@link IllegalArgumentException} the synchronous path produces.
+     * ({@code tailBytes} covering {@code [length - tailBytes.length, length)}). Callers seed
+     * {@link #parsedFooters} after a successful {@link #buildFooterMetadata} or
+     * {@link #rangesFromFooter} so a convert/extract failure does not occupy an LRU slot.
+     * Malformed footers surface as the same invalid-Parquet {@link IllegalArgumentException}
+     * the synchronous path produces. {@link CircuitBreakingException} and other
+     * {@link ElasticsearchException}s pass through.
      */
-    private SourceMetadata parseFooterFromTail(StorageObject object, long length, byte[] tailBytes, FooterByteCache.Key cacheKey)
-        throws IOException {
+    private ParquetMetadata parseParsedFooterFromTail(StorageObject object, long length, byte[] tailBytes) throws IOException {
         TailBackedInputFile inputFile = new TailBackedInputFile(length, tailBytes);
         ParquetReadOptions options = readOptionsBuilder().build();
         try (SeekableInputStream stream = inputFile.newStream()) {
@@ -1009,28 +1285,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             try {
                 footer = ParquetFileReader.readFooter(inputFile, options, stream);
             } catch (RuntimeException e) {
-                // parquet-mr signals a malformed footer with plain RuntimeExceptions; wrap them into
-                // the same shape as the synchronous read path so callers see consistent errors.
-                throw newInvalidParquetFileException(object.path().toString(), e);
+                throw rethrowStructuralFooterFailure(object.path().toString(), e);
             }
-            SourceMetadata metadata = buildFooterMetadata(object, footer);
-            // Seed only after a successful build so a failed integrity check does not occupy
-            // an LRU slot. Same key as loadFooter. Do not record footer_cache_misses here;
-            // that counter is a loadFooter lookup metric.
-            parsedFooters.put(cacheKey, footer);
-            return metadata;
+            validateFooterIntegrity(object.path().toString(), footer.getFileMetaData().getSchema(), footer.getBlocks());
+            return footer;
         }
     }
 
-    /** Runs the synchronous {@link #metadata(StorageObject)} on {@code executor}, completing {@code listener}. */
-    private void parseFooterOnExecutor(StorageObject object, Executor executor, ActionListener<SourceMetadata> listener) {
-        executor.execute(() -> {
-            try {
-                listener.onResponse(metadata(object));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    /**
+     * Seeds {@link #parsedFooters} only after {@code value} was produced successfully, so a thrown
+     * convert/extract does not cache the footer.
+     */
+    private <T> T seedParsedFooter(FooterByteCache.Key cacheKey, ParquetMetadata footer, T value) {
+        parsedFooters.put(cacheKey, footer);
+        return value;
     }
 
     /**
@@ -1153,32 +1421,28 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         public void close() {}
     }
 
-    /** Copies the readable region ({@code position()}..{@code limit()}) of a direct buffer into a heap array. */
-    private static byte[] copyToArray(DirectReadBuffer buffer) {
-        ByteBuffer bb = buffer.buffer().duplicate();
-        byte[] bytes = new byte[bb.remaining()];
-        bb.get(bytes);
-        return bytes;
-    }
-
     /**
-     * Reads the Parquet footer length from a byte array that ends at the file's final byte, i.e. the
-     * last 8 bytes are the trailer {@code [footerLength:int32-le][PAR1]}. Returns {@code -1} when the
-     * trailing magic is absent (foreign/encrypted footer, truncated file) so the caller can fall back
-     * to the synchronous path rather than trusting a bogus length.
+     * Reads the Parquet footer length from a buffer that ends at the file's final byte, i.e. the
+     * last 8 readable bytes are the trailer {@code [footerLength:int32-le][PAR1]}. Returns {@code -1}
+     * when the trailing magic is absent (foreign/encrypted footer, truncated file) so the async
+     * caller can fail rather than trusting a bogus length. Encrypted {@code PARE} footers take that
+     * path.
      */
-    private static int footerLengthFromTrailer(byte[] tail) {
-        int n = tail.length;
+    private static int footerLengthFromTrailer(ByteBuffer tail) {
+        ByteBuffer bb = tail.duplicate();
+        int n = bb.remaining();
         if (n < PARQUET_TRAILER_BYTES) {
             return -1;
         }
+        int pos = bb.position();
         for (int i = 0; i < PARQUET_MAGIC.length; i++) {
-            if (tail[n - PARQUET_MAGIC.length + i] != PARQUET_MAGIC[i]) {
+            if (bb.get(pos + n - PARQUET_MAGIC.length + i) != PARQUET_MAGIC[i]) {
                 return -1;
             }
         }
-        int base = n - PARQUET_TRAILER_BYTES;
-        return (tail[base] & 0xFF) | ((tail[base + 1] & 0xFF) << 8) | ((tail[base + 2] & 0xFF) << 16) | ((tail[base + 3] & 0xFF) << 24);
+        int base = pos + n - PARQUET_TRAILER_BYTES;
+        return (bb.get(base) & 0xFF) | ((bb.get(base + 1) & 0xFF) << 8) | ((bb.get(base + 2) & 0xFF) << 16) | ((bb.get(base + 3) & 0xFF)
+            << 24);
     }
 
     /**
@@ -1447,7 +1711,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // it emits any other column. Pushed filters, late materialization, page skipping, and
             // row-group skipping all stay on — each surviving row carries its identity, and the
             // matching extractor binds those identities back to the file's full footer.
-            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+                object,
+                footerBytes,
+                blockFactory.breaker(),
+                ioWatermark
+            );
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
@@ -1524,12 +1793,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, footerBytes, blockFactory.breaker());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(
+            object,
+            footerBytes,
+            blockFactory.breaker(),
+            ioWatermark
+        );
         // Take the parsed footer straight from the cache rather than opening a ParquetFileReader.
         // This method reads no data bytes at all (only row-group metadata and the schema), but
         // ParquetFileReader.open would allocate the adapter's sliding window and reserve it on the
         // breaker up front, per file, purely to hand back the metadata the cache already holds.
-        ParquetMetadata footer = loadFooter(object, parquetInputFile);
+        return rangesFromFooter(loadFooter(object, parquetInputFile));
+    }
+
+    /**
+     * {@link #parsedFooters} peek: listing {@code length()} plus a hash get, no GET. {@code null} on miss
+     * so Phase-2 can keep hits off {@code ThrottledIterator}.
+     */
+    @Override
+    public List<SplitRange> cachedSplitRanges(StorageObject object) {
+        final FooterByteCache.Key cacheKey;
+        try {
+            cacheKey = FooterByteCache.Key.keyFor(object);
+        } catch (Exception e) {
+            return null;
+        }
+        if (cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
+            return null;
+        }
+        ParquetMetadata parsed = parsedFooters.get(cacheKey);
+        if (parsed == null) {
+            return null;
+        }
+        counters.recordFooterCache(true);
+        return rangesFromFooter(parsed);
+    }
+
+    /**
+     * Async split-range discovery via {@link #loadFooterAsync}: {@link #parsedFooters} hit is
+     * CPU-only on {@code executor} (no GET). A miss uses {@code readBytesAsync} → parse rather than
+     * {@code adapter.newStream()} + blocking {@code readFooter} on an ES|QL pool thread.
+     */
+    @Override
+    public void discoverSplitRangesAsync(StorageObject object, Executor executor, ActionListener<List<SplitRange>> listener) {
+        loadFooterAsync(
+            object,
+            executor,
+            listener.map(loaded -> seedParsedFooter(loaded.cacheKey(), loaded.footer(), rangesFromFooter(loaded.footer())))
+        );
+    }
+
+    private static List<SplitRange> rangesFromFooter(ParquetMetadata footer) {
         List<BlockMetaData> rowGroups = footer.getBlocks();
         if (rowGroups.isEmpty()) {
             return List.of();
@@ -1786,7 +2100,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 object,
                 rangeEnd - rangeStart,
                 footerBytes,
-                blockFactory.breaker()
+                blockFactory.breaker(),
+                ioWatermark
             );
             ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
             // Footer resolution order:
@@ -2086,7 +2401,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             indexColumnPaths.columnIndexPaths(),
             indexColumnPaths.offsetIndexPaths(),
             offsetIndexRowGroupLimit,
-            blockFactory.breaker()
+            blockFactory.breaker(),
+            ioWatermark
         );
         boolean metadataHandedOff = false;
         try {

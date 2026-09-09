@@ -295,6 +295,57 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
     metadata.contains("<localCopy>true</localCopy>")
 }
 
+def "dra release aggregation is a plain sync without maven-metadata"() {
+    given:
+    // required for JarHell to work
+    subProject(":libs:some-public-lib") << """
+        plugins {
+            id 'elasticsearch.java'
+            id 'elasticsearch.publish'
+        }
+
+        group = 'org.acme'
+        version = '1.0'
+    """
+
+    buildFile << """
+        plugins {
+            id 'com.gradleup.nmcp.aggregation'
+            id 'elasticsearch.dra-maven-aggregation'
+        }
+
+        version = "1.0"
+        group = 'org.acme'
+        description = "custom project description"
+        nmcpAggregation {
+          centralPortal {
+            username = 'acme'
+            password = 'acmepassword'
+            publishingType = "USER_MANAGED"
+          }
+          publishAllProjectsProbablyBreakingProjectIsolation()
+        }
+    """
+
+    when:
+    def result = gradleRunner(':prepareDraSnapshotMavenAggregation').build()
+
+    then:
+    result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+    result.task(":zipAggregation") == null
+
+    def draDir = file("build/dra-maven-aggregation")
+    def draNames = []
+    draDir.eachFileRecurse(groovy.io.FileType.FILES) { draNames << draDir.toPath().relativize(it.toPath()).toString() }
+    // Release artifacts are synced verbatim under their plain version directory.
+    draNames.contains("org/acme/some-public-lib/1.0/some-public-lib-1.0.jar")
+    draNames.contains("org/acme/some-public-lib/1.0/some-public-lib-1.0.pom")
+    // The release side of DRA does not synthesize maven-metadata.xml.
+    draNames.every { it.endsWith("maven-metadata.xml") == false }
+    // Nothing to rename on the release path, and no -SNAPSHOT literals appear.
+    draNames.every { it.contains("-SNAPSHOT") == false }
+}
+
 def "artifacts and tweaked pom is published"() {
     given:
     buildFile << """

@@ -53,13 +53,17 @@ public class DraMavenAggregationPlugin implements Plugin<Project> {
                 );
                 // Reuse zipAggregation's copy-spec source (the extracted
                 // per-project publications) rather than its archive output, so
-                // the aggregation zip is never built on the DRA path. We wrap
-                // the lookup in a plain provider rather than TaskProvider.map:
-                // mapping off the TaskProvider would add a dependency on
-                // zipAggregation itself (forcing the zip to build), whereas the
-                // FileTree returned by getSource() already carries the build
-                // dependencies of the underlying publication tasks, so
-                // @InputFiles establishes the correct ordering on its own.
+                // the aggregation zip is never built on the DRA path. The
+                // lookup is deferred inside a plain provider (rather than
+                // resolved eagerly here, or mapped off the TaskProvider):
+                //  - TaskProvider.map would add a dependency on zipAggregation
+                //    itself, forcing the zip to build;
+                //  - resolving named("zipAggregation") eagerly at apply() time
+                //    would couple this plugin to being applied *after*
+                //    nmcp.aggregation.
+                // getSource()'s FileTree already carries the build dependencies
+                // of the underlying publication tasks, so @InputFiles
+                // establishes the correct task ordering on its own.
                 task.getSource().from(
                     project.provider(() -> project.getTasks().named("zipAggregation", Zip.class).get().getSource())
                 );

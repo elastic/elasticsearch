@@ -9,11 +9,13 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -32,9 +34,23 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     public static final String[] ANY_DESCRIPTION = Strings.EMPTY_ARRAY;
 
+    /**
+     * How many tasks one response carries unless the caller says otherwise.
+     *
+     * <p>There has to be some default. How many tasks a cluster is running is not something the caller controls, and every
+     * one of them is built on the coordinating node before any of the response is written, so an unlimited listing costs
+     * whatever the cluster happens to be doing at the time. A search node ran out of memory building one out of 586,403
+     * tasks.
+     */
+    public static final int DEFAULT_SIZE = 10_000;
+
+    private static final TransportVersion LIST_TASKS_PAGINATION = TransportVersion.fromName("list_tasks_pagination");
+
     private boolean detailed = false;
     private boolean waitForCompletion = false;
     private String[] descriptions = ANY_DESCRIPTION;
+    private int size = DEFAULT_SIZE;
+    private TaskId after = TaskId.EMPTY_TASK_ID;
     // if you're adding new fields, also update the copyFieldsFrom method
 
     public ListTasksRequest() {}
@@ -44,6 +60,14 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
         descriptions = in.readStringArray();
+        if (in.getTransportVersion().supports(LIST_TASKS_PAGINATION)) {
+            size = in.readVInt();
+            after = TaskId.readFromStream(in);
+        } else {
+            // An older coordinating node cannot ask for a page and cannot ask for the next one either, so paging here would
+            // drop tasks it has no way to come back for. Give it everything, as it would have got before.
+            size = 0;
+        }
     }
 
     @Override
@@ -52,6 +76,12 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
         out.writeStringArray(descriptions);
+        if (out.getTransportVersion().supports(LIST_TASKS_PAGINATION)) {
+            out.writeVInt(size);
+            after.writeTo(out);
+        }
+        // An older node cannot page, so it returns everything it has and the coordinating node trims it. That costs the
+        // extra transfer but keeps the answer correct during an upgrade.
     }
 
     @Override
@@ -62,6 +92,9 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
                 "matching on descriptions is not available when [detailed] is false",
                 validationException
             );
+        }
+        if (size < 0) {
+            validationException = addValidationError("[size] must not be negative but was [" + size + "]", validationException);
         }
         return validationException;
     }
@@ -118,6 +151,31 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         return this;
     }
 
+    /**
+     * The greatest number of tasks the response will carry. Defaults to {@link #DEFAULT_SIZE}; zero means no limit.
+     */
+    public int getSize() {
+        return size;
+    }
+
+    public ListTasksRequest setSize(int size) {
+        this.size = size;
+        return this;
+    }
+
+    /**
+     * Start after this task, so that a caller who has read one page can ask for the next. Tasks are ordered by node and then
+     * by task id. {@link TaskId#EMPTY_TASK_ID}, the default, starts at the beginning.
+     */
+    public TaskId getAfter() {
+        return after;
+    }
+
+    public ListTasksRequest setAfter(@Nullable TaskId after) {
+        this.after = after == null ? TaskId.EMPTY_TASK_ID : after;
+        return this;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -128,6 +186,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         this.detailed = request.detailed;
         this.waitForCompletion = request.waitForCompletion;
         this.descriptions = request.descriptions;
+        this.size = request.size;
+        this.after = request.after;
         return this;
     }
 }

@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +102,49 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
         );
         this.client = new OriginSettingClient(Objects.requireNonNull(client, "client"), TASKS_ORIGIN);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry, "xContentRegistry");
+    }
+
+    /** Tasks are paged in a stable order, by the node they run on and then by task id. */
+    private static final Comparator<TaskInfo> BY_TASK_ID = Comparator.comparing((TaskInfo t) -> t.taskId().getNodeId())
+        .thenComparingLong(t -> t.taskId().getId());
+
+    @Override
+    protected Comparator<TaskInfo> getTaskResponseOrder(ListTasksRequest request) {
+        return request.getSize() == 0 ? null : BY_TASK_ID;
+    }
+
+    @Override
+    protected int getMaxTaskResponses(ListTasksRequest request) {
+        return request.getSize() == 0 ? Integer.MAX_VALUE : request.getSize();
+    }
+
+    /**
+     * Keeps only the page the caller asked for, before the tasks are turned into {@link TaskInfo} and sent on. Without this each
+     * node builds and ships every task it has and the coordinating node throws away all but one page of it, which is how a
+     * single {@code GET /_tasks} came to retain 564MB.
+     */
+    @Override
+    protected List<Task> processTasks(ListTasksRequest request) {
+        final List<Task> tasks = super.processTasks(request);
+        if (request.getSize() == 0) {
+            return tasks;
+        }
+
+        final TaskId after = request.getAfter();
+        final String localNodeId = clusterService.localNode().getId();
+        final List<Task> page = new ArrayList<>();
+        for (final Task task : tasks) {
+            if (after.isSet() == false || startsAfter(localNodeId, task.getId(), after)) {
+                page.add(task);
+            }
+        }
+        page.sort(Comparator.comparingLong(Task::getId));
+        return page.size() > request.getSize() ? page.subList(0, request.getSize()) : page;
+    }
+
+    private static boolean startsAfter(String localNodeId, long taskId, TaskId after) {
+        final int byNode = localNodeId.compareTo(after.getNodeId());
+        return byNode > 0 || (byNode == 0 && taskId > after.getId());
     }
 
     @Override

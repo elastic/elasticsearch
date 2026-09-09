@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -41,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -88,6 +90,9 @@ public abstract class TransportTasksAction<
         final var discoveryNodes = clusterService.state().nodes();
         final String[] nodeIds = resolveNodes(request, discoveryNodes);
 
+        final int maxTaskResponses = getMaxTaskResponses(request);
+        final Comparator<TaskResponse> taskResponseOrder = getTaskResponseOrder(request);
+
         new CancellableFanOut<String, NodeTasksResponse, TasksResponse>() {
             final ArrayList<TaskResponse> taskResponses = new ArrayList<>();
             final ArrayList<TaskOperationFailure> taskOperationFailures = new ArrayList<>();
@@ -119,7 +124,16 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemResponse(String nodeId, NodeTasksResponse nodeTasksResponse) {
-                addAllSynchronized(taskResponses, nodeTasksResponse.results);
+                if (nodeTasksResponse.results.isEmpty() == false) {
+                    synchronized (taskResponses) {
+                        taskResponses.addAll(nodeTasksResponse.results);
+                        // Discard the tail as we go, so the coordinating node holds a bounded number of responses however
+                        // many nodes reply. Trimming at twice the limit keeps the sorting amortised.
+                        if (taskResponseOrder != null && taskResponses.size() > 2 * maxTaskResponses) {
+                            trimToLimit(taskResponses, taskResponseOrder, maxTaskResponses);
+                        }
+                    }
+                }
                 addAllSynchronized(taskOperationFailures, nodeTasksResponse.exceptions);
             }
 
@@ -143,6 +157,11 @@ public abstract class TransportTasksAction<
             @Override
             protected TasksResponse onCompletion() {
                 // ref releases all happen-before here so no need to be synchronized
+                if (taskResponseOrder != null && taskResponses.size() > maxTaskResponses) {
+                    trimToLimit(taskResponses, taskResponseOrder, maxTaskResponses);
+                } else if (taskResponseOrder != null) {
+                    taskResponses.sort(taskResponseOrder);
+                }
                 return newResponse(request, taskResponses, taskOperationFailures, failedNodeExceptions);
             }
 
@@ -151,6 +170,11 @@ public abstract class TransportTasksAction<
                 return actionName;
             }
         }.run(task, Iterators.forArray(nodeIds), listener);
+    }
+
+    private static <T> void trimToLimit(ArrayList<T> responses, Comparator<T> order, int limit) {
+        responses.sort(order);
+        responses.subList(limit, responses.size()).clear();
     }
 
     // not an inline method reference to avoid capturing CancellableFanOut.this.
@@ -197,6 +221,28 @@ public abstract class TransportTasksAction<
                 return transportNodeAction;
             }
         }.run(nodeTask, operationTasks.iterator(), listener);
+    }
+
+    /**
+     * The greatest number of task responses the coordinating node will return. Only has an effect together with
+     * {@link #getTaskResponseOrder}, which says which ones to keep.
+     */
+    protected int getMaxTaskResponses(TasksRequest request) {
+        return Integer.MAX_VALUE;
+    }
+
+    /**
+     * The order the coordinating node puts task responses in, so that a response holding {@link #getMaxTaskResponses} of them
+     * holds a well defined page rather than whichever nodes happened to answer first. Null, the default, keeps every response
+     * in arrival order.
+     *
+     * <p>Every task response is held in memory until all nodes have reported, and nothing is written until then, so the
+     * request circuit breaker never sees them. An action whose response size follows how busy the cluster is, rather than
+     * anything in the request, should give an order here and a limit above.
+     */
+    @Nullable
+    protected Comparator<TaskResponse> getTaskResponseOrder(TasksRequest request) {
+        return null;
     }
 
     protected String[] resolveNodes(TasksRequest request, DiscoveryNodes discoveryNodes) {

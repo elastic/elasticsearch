@@ -99,7 +99,8 @@ Refer to <<es-connectors-servicenow-dls>> for more details.
 Expand role members::
 Available when document level security is enabled.
 When enabled, ServiceNow role members are written individually onto each document's access control list.
-Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs.
+For large tenants, turn this off to store compact `role_id:` tokens on documents instead.
+Membership is resolved during access control syncs.
 Default value is `true`.
 Changing this setting requires a full content sync and access control sync.
 Introduced in 8.19.22.
@@ -353,7 +354,8 @@ Refer to <<es-connectors-servicenow-client-dls>> for more details.
 `expand_role_members`::
 Available when document level security is enabled.
 When enabled, ServiceNow role members are written individually onto each document's access control list.
-Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs.
+For large tenants, turn this off to store compact `role_id:` tokens on documents instead.
+Membership is resolved during access control syncs.
 Default value is `True`.
 Changing this setting requires a full content sync and access control sync.
 Introduced in 8.19.22.

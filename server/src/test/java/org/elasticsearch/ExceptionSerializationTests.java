@@ -19,6 +19,7 @@ import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.bulk.BulkOperationTests;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -131,6 +132,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -145,21 +147,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
-
-    public void testRemoteResourceNotSupportedException() throws IOException {
-        // The views list must survive the wire round-trip at the support transport version. The datasets list is always
-        // empty now that a remote dataset is invisible, and is asserted empty to pin that.
-        var version = org.elasticsearch.TransportVersion.fromName("indices_options_resolve_datasets");
-        var ex = serialize(
-            new org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException(
-                java.util.List.of("c1:v1", "c2:v2"),
-                java.util.List.of()
-            ),
-            version
-        );
-        assertThat(ex.views(), equalTo(java.util.List.of("c1:v1", "c2:v2")));
-        assertThat(ex.datasets(), equalTo(java.util.List.of()));
-    }
 
     public void testExceptionRegistration() throws IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
@@ -305,6 +292,15 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(routing, serialize.shard());
         assertEquals(routingAsString + ": bar", serialize.getMessage());
         assertNull(serialize.getCause());
+    }
+
+    public void testRemoteResourceNotSupportedException() throws IOException {
+        // The views list must survive the wire round-trip at the support transport version. The datasets list is always
+        // empty now that a remote dataset is invisible, and is asserted empty to pin that.
+        var version = TransportVersion.fromName("indices_options_resolve_datasets");
+        var ex = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1", "c2:v2"), List.of()), version);
+        assertThat(ex.views(), equalTo(List.of("c1:v1", "c2:v2")));
+        assertThat(ex.datasets(), equalTo(List.of()));
     }
 
     public void testParsingException() throws IOException {

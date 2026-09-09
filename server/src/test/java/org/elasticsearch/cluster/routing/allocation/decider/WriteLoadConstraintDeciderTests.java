@@ -737,6 +737,33 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
     }
 
+    public void testHotspotMinShardWriteLoadThresholdValidation() {
+        var settingKey = WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey();
+
+        // -1 (disabled) is valid
+        assertSettingParsesWithoutError(settingKey, "-1");
+        // 0 and positive values are valid
+        assertSettingParsesWithoutError(settingKey, "0");
+        assertSettingParsesWithoutError(settingKey, "0.001");
+        assertSettingParsesWithoutError(settingKey, "1.5");
+
+        // values in (-1, 0) are rejected
+        final double invalid = randomDoubleBetween(-0.999, 0.0, true);
+        final var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.get(
+                Settings.builder().put(settingKey, Double.toString(invalid)).build()
+            )
+        );
+        assertThat(ex.getMessage(), matchesPattern(".*must be -1.*or >= 0.*"));
+    }
+
+    private static void assertSettingParsesWithoutError(String key, String value) {
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.get(
+            Settings.builder().put(key, value).build()
+        );
+    }
+
     public void testHotspotUtilizationSingleShardProportionCheck() {
         /* Test that a hotspot that is too focused on a single shard (over 90%) is left alone, as
          * rebalancing won't do anything and the hotspot shard should not be moved. Test that when this

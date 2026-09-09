@@ -180,10 +180,10 @@ public class WriteLoadConstraintSettings {
      * {@code canRemain} hotspot check. A shard using fewer threads than this threshold cannot meaningfully relieve
      * the hotspot by being moved. Set to {@code -1.0} to disable the check (all shards eligible for movement).
      */
-    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING = Setting.doubleSetting(
+    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_min_shard_write_load_threshold",
-        0.001,
-        -1,
+        "0.001",
+        WriteLoadConstraintSettings::parseHotspotMinShardWriteLoadThreshold,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -280,5 +280,15 @@ public class WriteLoadConstraintSettings {
      */
     public double getHotspotMinShardWriteLoadThreshold() {
         return this.hotspotMinShardWriteLoadThreshold;
+    }
+
+    private static double parseHotspotMinShardWriteLoadThreshold(String sValue) {
+        double value = Double.parseDouble(sValue);
+        if (value == -1.0 || value >= 0.0) {
+            return value;
+        }
+        throw new IllegalArgumentException(
+            WRITE_LOAD_DECIDER_HOTSPOT_MIN_SHARD_WRITE_LOAD_THRESHOLD_SETTING.getKey() + " must be -1 (to disable) or >= 0, got: " + value
+        );
     }
 }

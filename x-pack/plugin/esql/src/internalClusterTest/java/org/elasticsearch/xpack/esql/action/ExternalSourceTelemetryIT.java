@@ -18,8 +18,11 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
@@ -36,6 +39,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -119,6 +124,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
+        plugins.add(GzipDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
@@ -145,7 +151,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /** SUITE-scoped cluster: names every dataset/data source a test body PUTs so {@link #cleanup} can drop them between methods. */
-    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_crud", "emp_dep", "emp_iae");
+    private static final Set<String> CREATED_DATASETS = Set.of("emp_glob", "emp_missing", "emp_gz", "emp_crud", "emp_dep", "emp_iae");
     private static final Set<String> CREATED_DATASOURCES = Set.of("ds", "ds_crud", "ds_max", "ds_dep", "ds_iae");
 
     @After
@@ -413,6 +419,68 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             "phone-home: queries.total (success) must not increase for a resolution failure",
             clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
+        );
+    }
+
+    /**
+     * A {@code local} dataset whose format is inferred from a compound {@code .csv.gz} extension (no
+     * explicit {@code format}) must be accepted by production CRUD and readable on the query path.
+     * PUT includes a CSV-only key ({@code header_row}) so registration fails unless
+     * {@code FileDataSourceValidator} delegates extension inference to the live registry.
+     *
+     * <p>APM inventory gauges, phone-home inventory keys, and the query-path format dimension land
+     * in #1866 / #1868 and are not on this branch. This test asserts the surfaces that exist:
+     * CRUD acceptance, a successful scan, {@code PARSE_ROWS_TOTAL} on scheme {@code local}, and
+     * that the coordinator registry resolves the same object as {@code csv}.
+     */
+    public void testInferredCompoundExtensionDatasetIsQueryable() throws Exception {
+        Path gz = createTempDir().resolve("data.csv.gz");
+        byte[] csv = "emp_no:integer,first_name:keyword\n1,ann\n".getBytes(StandardCharsets.UTF_8);
+        try (GZIPOutputStream out = new GZIPOutputStream(Files.newOutputStream(gz))) {
+            out.write(csv);
+        }
+        String resource = gz.toUri().toString();
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "local", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "emp_gz", "ds", resource, null, new HashMap<>(Map.of("header_row", true)))
+            )
+        );
+
+        resetAllMeters();
+        int returnedRows;
+        try (var response = run(syncEsqlQueryRequest("FROM emp_gz"), TIMEOUT)) {
+            returnedRows = getValuesList(response).size();
+        }
+        assertThat("the scan must return the gzipped fixture row", returnedRows, equalTo(1));
+
+        collectAllMeters();
+        assertThat(
+            "parse.rows.total must fire for the local scheme",
+            counterTotalForScheme(ExternalSourceMetrics.PARSE_ROWS_TOTAL, "local"),
+            equalTo(1L)
+        );
+
+        FormatReaderRegistry registry = null;
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() != null) {
+                registry = planExecutor.dataSourceModule().formatReaderRegistry();
+                break;
+            }
+        }
+        assertNotNull("no node has a DataSourceModule format reader registry", registry);
+        assertThat(
+            "query-path registry must infer csv from the compound extension",
+            FormatNameResolver.resolveFormatName(null, resource, registry),
+            equalTo("csv")
         );
     }
 

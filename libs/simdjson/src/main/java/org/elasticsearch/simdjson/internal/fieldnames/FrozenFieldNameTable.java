@@ -195,14 +195,15 @@ public final class FrozenFieldNameTable {
      * {@link String}. Built once by {@link #build} and never mutated afterwards; both a
      * {@link Child}'s own table and the one shared across children are instances of this record.
      *
-     * <p>Storage is a set of parallel arrays of length {@code hashes.length}, a power of two,
-     * with {@code mask == hashes.length - 1}. Slot {@code i} across all arrays describes the same
-     * table entry: {@code hashes[i]} is that entry's {@link FieldNameHash#hashName hash} (guaranteed
-     * non-zero), {@code lens[i]} and {@code keys[i]} are the raw field name bytes, {@code prefix8[i]}
-     * is the first 8 bytes of those same bytes read as a little-endian long, and {@code names[i]} is
-     * the canonical {@code String}. An entry is looked up by probing from {@code hash & mask}
-     * linearly forward, wrapping with {@code (i + 1) & mask}; {@code hashes[i] == 0} marks a slot
-     * that was never written, i.e. the probe missed. There is no deletion and so no tombstones.
+     * <p>Storage is a set of parallel arrays of length {@code hashes.length}, a power of two. Slot
+     * {@code i} across all arrays describes the same table entry: {@code hashes[i]} is that entry's
+     * {@link FieldNameHash#hashName hash} (guaranteed non-zero); {@code keys[i]} holds the field
+     * name's raw bytes and {@code lens[i]} their length; {@code prefix8[i]} is the first 8 of those
+     * same bytes read as a little-endian long; and {@code names[i]} is the canonical {@code String}.
+     * An entry is looked up by probing from {@code hash & mask} linearly forward, wrapping with
+     * {@code (i + 1) & mask}, where {@code mask} is {@code hashes.length - 1}; {@code hashes[i] == 0}
+     * marks a slot that was never written, i.e. the probe missed. There is no deletion and so no
+     * tombstones.
      *
      * <p>{@code prefix8} exists to reject a hash collision cheaply: two names with different bytes
      * but the same hash almost always differ in their first 8 bytes too, so comparing longs weeds
@@ -212,8 +213,18 @@ public final class FrozenFieldNameTable {
      *
      * <p>{@code count} is the number of occupied slots, always at most half of {@code hashes.length}
      * (see {@link #build}), which keeps probe sequences short.
+     *
+     * <p>{@link #build} is the only place that constructs this record and is relied on to keep
+     * {@code hashes.length} a power of two, {@code mask}/the parallel arrays consistent with it, and
+     * {@code count} equal to the number of non-zero entries in {@code hashes}; the compact
+     * constructor asserts all of this rather than re-deriving it, since re-deriving would mask a
+     * bug in {@code build} instead of catching it.
      */
     record Frozen(int mask, int[] hashes, int[] lens, long[] prefix8, byte[][] keys, String[] names, int count) {
+
+        Frozen {
+            assert invariant(mask, hashes, lens, prefix8, keys, names, count);
+        }
 
         /** Looks up a field name, computing its prefix8 from the bytes; see {@link #lookup(byte[], int, int, int, long)}. */
         String lookup(byte[] buf, int off, int len, int h) {
@@ -234,6 +245,21 @@ public final class FrozenFieldNameTable {
                     }
                 }
             }
+        }
+
+        private static boolean invariant(int mask, int[] hashes, int[] lens, long[] prefix8, byte[][] keys, String[] names, int count) {
+            assert Integer.bitCount(hashes.length) == 1 : "table size must be a power of two, got " + hashes.length;
+            assert mask == hashes.length - 1 : "mask must be table size - 1, got mask=" + mask + " size=" + hashes.length;
+            assert lens.length == hashes.length
+                && prefix8.length == hashes.length
+                && keys.length == hashes.length
+                && names.length == hashes.length : "parallel arrays must share the table size";
+            assert count >= 0 && count <= hashes.length / 2
+                : "count must be within [0, hashes.length / 2], got count=" + count + " size=" + hashes.length;
+            int occupiedSlots = (int) Arrays.stream(hashes).filter(h -> h != 0).count();
+            assert occupiedSlots == count
+                : "count must match the number of occupied slots, got count=" + count + " occupied=" + occupiedSlots;
+            return true;
         }
     }
 

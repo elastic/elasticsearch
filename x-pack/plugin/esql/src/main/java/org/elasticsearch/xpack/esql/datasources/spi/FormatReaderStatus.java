@@ -25,10 +25,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
  * <p>
  * The two accessors are the fields every format shares; format-specific counters live on each
  * implementation and surface through its {@link ToXContentFragment#toXContent} body.
- * <p>
- * Wall-clock and CPU read time are no longer tracked inside format readers — they are measured
- * at the operator level via {@code ExternalReadCounters} and reported on
- * {@code AsyncExternalSourceOperator.Status} directly.
  */
 public interface FormatReaderStatus extends NamedWriteable, ToXContentFragment {
 

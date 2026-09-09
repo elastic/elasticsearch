@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.oteldata.otlp;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.Metric;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +39,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -105,6 +111,71 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             Settings.builder().put(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING.getKey(), "exponential_histogram").build()
         );
         assertThat(metricsAction.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
+    }
+
+    public void testExemplarIngestionFollowsFeatureFlag() throws Exception {
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "ms",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+
+        metricsAction.prepareBulkRequest(createMetricsRequest(metric), bulkRequestBuilder);
+
+        int expectedActions = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled() ? 2 : 1;
+        var requests = bulkRequestBuilder.request().requests();
+        assertThat(requests, hasSize(expectedActions));
+        if (OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled()) {
+            IndexRequest exemplarRequest = (IndexRequest) requests.get(1);
+            assertThat(exemplarRequest.index(), equalTo("exemplars-generic.otel-default"));
+            assertThat(exemplarRequest.getDynamicTemplates(), equalTo(Map.of("metrics.test.metric", "exemplar_value_long")));
+            assertThat(exemplarRequest.getDynamicTemplateParams(), equalTo(Map.of("metrics.test.metric", Map.of("unit", "ms"))));
+        }
+    }
+
+    public void testDuplicateExemplarWarning() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar, exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(new BulkItemResponse[] { successResponse(), successResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(parseErrorMessage(responseBytes), equalTo("1 exemplars were dropped due to duplicate timestamps"));
+    }
+
+    public void testSameTimestampExemplarsForDifferentMetricsAreNotDuplicates() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric firstMetric = OtlpUtils.createGaugeMetric(
+            "first.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        Metric secondMetric = OtlpUtils.createGaugeMetric(
+            "second.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+
+        metricsAction.prepareBulkRequest(createMetricsRequest(firstMetric, secondMetric), bulkRequestBuilder);
+
+        var requests = bulkRequestBuilder.request().requests();
+        assertThat(requests, hasSize(3));
+        IndexRequest firstExemplarRequest = (IndexRequest) requests.get(1);
+        IndexRequest secondExemplarRequest = (IndexRequest) requests.get(2);
+        assertNotEquals(firstExemplarRequest.tsid(), secondExemplarRequest.tsid());
     }
 
     // --- helpers ---

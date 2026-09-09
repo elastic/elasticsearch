@@ -18,11 +18,13 @@ import io.opentelemetry.proto.resource.v1.Resource;
 
 import com.google.protobuf.ByteString;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
@@ -48,6 +50,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
+    private int duplicateExemplars = 0;
 
     public DataPointGroupingContext(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
@@ -143,6 +146,19 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             }
         }
         return sb.toString();
+    }
+
+    /** Records an exemplar dropped without rejecting its parent data point. */
+    public void recordDuplicateExemplar() {
+        duplicateExemplars++;
+    }
+
+    @Override
+    public String getWarningMessage() {
+        if (duplicateExemplars == 0) {
+            return "";
+        }
+        return duplicateExemplars + " exemplars were dropped due to duplicate timestamps";
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {
@@ -287,7 +303,9 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final Set<String> metricNames = new HashSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
+        private final Map<String, TsidBuilder> tsidBuildersByMetricNamesHash = new HashMap<>();
         private String metricNamesHash;
+        private boolean buildTsidCalled = false;
 
         public DataPointGroup(
             Resource resource,
@@ -330,7 +348,29 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return metricNamesHash;
         }
 
+        /**
+         * Computes the metric names hash for a single metric.
+         */
+        public String getMetricNameHash(BufferedMurmur3Hasher hasher, String metricName) {
+            hasher.reset();
+            hasher.addString(metricName);
+            return Integer.toHexString(hasher.digestHash().hashCode());
+        }
+
+        /**
+         * Builds a TSID using the supplied metric names hash in addition to the shared data point dimensions.
+         */
+        public BytesRef buildTsid(String metricNamesHash, IndexVersion indexVersion) {
+            buildTsidCalled = true;
+            TsidBuilder finalTsidBuilder = tsidBuildersByMetricNamesHash.computeIfAbsent(
+                metricNamesHash,
+                hash -> new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder).addStringDimension("_metric_names_hash", hash)
+            );
+            return finalTsidBuilder.buildTsid(indexVersion);
+        }
+
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
+            assert buildTsidCalled == false : "cannot add a data point after a TSID has been built";
             metricNamesHash = null; // reset the hash when adding a new data point
             if (metricNames.add(dataPoint.getMetricName()) == false) {
                 ignoredDataPointMessages.add(
@@ -357,10 +397,6 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
 
         public ByteString scopeSchemaUrl() {
             return scopeSchemaUrl;
-        }
-
-        public TsidBuilder tsidBuilder() {
-            return tsidBuilder;
         }
 
         public List<KeyValue> dataPointAttributes() {

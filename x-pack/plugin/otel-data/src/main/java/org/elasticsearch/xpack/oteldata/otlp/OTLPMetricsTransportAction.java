@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionType;
@@ -34,14 +35,20 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -88,11 +95,26 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             return context;
         }
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
+        ExemplarDocumentBuilder exemplarDocumentBuilder = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled()
+            ? new ExemplarDocumentBuilder(byteStringAccessor)
+            : null;
+        Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
         ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
         Map<String, IndexVersion> indexVersions = new HashMap<>();
-        context.consume(
-            dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectMetadata, indexVersions)
-        );
+        context.consume(dataPointGroup -> {
+            addMetricIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectMetadata, indexVersions);
+            if (exemplarDocumentBuilder != null) {
+                addExemplarIndexRequests(
+                    bulkRequestBuilder,
+                    exemplarDocumentBuilder,
+                    dataPointGroup,
+                    context,
+                    projectMetadata,
+                    indexVersions,
+                    exemplarIdentities
+                );
+            }
+        });
         return context;
     }
 
@@ -120,7 +142,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         return IndexVersion.current();
     }
 
-    private void addIndexRequest(
+    private void addMetricIndexRequest(
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
@@ -152,4 +174,66 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             bulkRequestBuilder.add(indexRequest);
         }
     }
+
+    private void addExemplarIndexRequests(
+        BulkRequestBuilder bulkRequestBuilder,
+        ExemplarDocumentBuilder exemplarDocumentBuilder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
+        DataPointGroupingContext context,
+        ProjectMetadata projectMetadata,
+        Map<String, IndexVersion> indexVersions,
+        Set<ExemplarIdentity> exemplarIdentities
+    ) throws IOException {
+        TargetIndex targetIndex = dataPointGroup.targetIndex().exemplarsTarget();
+        if (targetIndex == null) {
+            return;
+        }
+        for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
+            for (var exemplar : dataPoint.getExemplars()) {
+                if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
+                    continue;
+                }
+                try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+                    Map<String, String> dynamicTemplates = new HashMap<>();
+                    Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
+                    String dataStreamName = targetIndex.index();
+                    IndexVersion indexVersion = indexVersions.computeIfAbsent(
+                        dataStreamName,
+                        name -> resolveIndexVersion(projectMetadata, name)
+                    );
+                    BytesRef tsid = exemplarDocumentBuilder.buildExemplarDocument(
+                        xContentBuilder,
+                        dataPointGroup,
+                        dataPoint,
+                        exemplar,
+                        targetIndex,
+                        dynamicTemplates,
+                        dynamicTemplateParams,
+                        indexVersion
+                    );
+                    ExemplarIdentity identity = new ExemplarIdentity(
+                        targetIndex.index(),
+                        tsid,
+                        TimeUnit.NANOSECONDS.toMillis(exemplar.getTimeUnixNano())
+                    );
+                    if (exemplarIdentities.add(identity) == false) {
+                        context.recordDuplicateExemplar();
+                        continue;
+                    }
+                    var indexRequest = new IndexRequest(targetIndex.index()).opType(DocWriteRequest.OpType.CREATE)
+                        .setRequireDataStream(true)
+                        .source(xContentBuilder)
+                        .setIncludeSourceOnError(false)
+                        .setDynamicTemplates(dynamicTemplates)
+                        .setDynamicTemplateParams(dynamicTemplateParams);
+                    if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+                        indexRequest.tsid(tsid);
+                    }
+                    bulkRequestBuilder.add(indexRequest);
+                }
+            }
+        }
+    }
+
+    private record ExemplarIdentity(String index, BytesRef tsid, long timestamp) {}
 }

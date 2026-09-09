@@ -13,6 +13,7 @@ import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Gauge;
@@ -26,6 +27,8 @@ import io.opentelemetry.proto.metrics.v1.Sum;
 import io.opentelemetry.proto.metrics.v1.Summary;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import com.google.protobuf.ByteString;
 
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -158,10 +161,20 @@ public class OtlpUtils {
     }
 
     public static NumberDataPoint createDoubleDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        return createDoubleDataPoint(timeUnixNano, startTimeUnixNano, attributes, List.of());
+    }
+
+    public static NumberDataPoint createDoubleDataPoint(
+        long timeUnixNano,
+        long startTimeUnixNano,
+        List<KeyValue> attributes,
+        List<Exemplar> exemplars
+    ) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timeUnixNano)
             .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
+            .addAllExemplars(exemplars)
             .setAsDouble(randomDouble())
             .build();
     }
@@ -171,12 +184,42 @@ public class OtlpUtils {
     }
 
     public static NumberDataPoint createLongDataPoint(long timeUnixNano, long startTimeUnixNano, List<KeyValue> attributes) {
+        return createLongDataPoint(timeUnixNano, startTimeUnixNano, attributes, List.of());
+    }
+
+    public static NumberDataPoint createLongDataPoint(
+        long timeUnixNano,
+        long startTimeUnixNano,
+        List<KeyValue> attributes,
+        List<Exemplar> exemplars
+    ) {
         return NumberDataPoint.newBuilder()
             .setTimeUnixNano(timeUnixNano)
             .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
+            .addAllExemplars(exemplars)
             .setAsInt(randomLong())
             .build();
+    }
+
+    public static Exemplar createDoubleExemplar(
+        long timeUnixNano,
+        double value,
+        List<KeyValue> filteredAttributes,
+        ByteString traceId,
+        ByteString spanId
+    ) {
+        return Exemplar.newBuilder()
+            .setTimeUnixNano(timeUnixNano)
+            .setAsDouble(value)
+            .addAllFilteredAttributes(filteredAttributes)
+            .setTraceId(traceId)
+            .setSpanId(spanId)
+            .build();
+    }
+
+    public static Exemplar createLongExemplar(long timeUnixNano, long value) {
+        return Exemplar.newBuilder().setTimeUnixNano(timeUnixNano).setAsInt(value).build();
     }
 
     public static NumberDataPoint createNoValueDataPoint(long timestamp) {

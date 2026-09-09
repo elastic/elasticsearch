@@ -1131,20 +1131,24 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 }
                 final int base = p * PARTITION_WRITE_BATCH;
                 final int keyBase = partitionCounts[p];
-                if (fixedLength < 0) {
-                    ensureOffsetCapacity(breaker, p, keyBase + c + 1);
-                }
-                for (int i = 0; i < c; i++) {
-                    final int id = idOffset + (positions[base + i] & 0xFFFF);
-                    bytesRefs.get(id, scratch);
-                    ensureDataCapacity(breaker, p, partitionDataUsed[p] + scratch.length);
-                    if (fixedLength < 0) {
-                        partitionOffsets[p][keyBase + i] = partitionDataUsed[p];
+                if (fixedLength >= 0) {
+                    for (int i = 0; i < c; i++) {
+                        final int id = idOffset + (positions[base + i] & 0xFFFF);
+                        bytesRefs.get(id, scratch);
+                        ensureDataCapacity(breaker, p, partitionDataUsed[p] + scratch.length);
+                        System.arraycopy(scratch.bytes, scratch.offset, partitionData[p], partitionDataUsed[p], scratch.length);
+                        partitionDataUsed[p] += scratch.length;
                     }
-                    System.arraycopy(scratch.bytes, scratch.offset, partitionData[p], partitionDataUsed[p], scratch.length);
-                    partitionDataUsed[p] += scratch.length;
-                }
-                if (fixedLength < 0) {
+                } else {
+                    ensureOffsetCapacity(breaker, p, keyBase + c + 1);
+                    for (int i = 0; i < c; i++) {
+                        final int id = idOffset + (positions[base + i] & 0xFFFF);
+                        bytesRefs.get(id, scratch);
+                        ensureDataCapacity(breaker, p, partitionDataUsed[p] + scratch.length);
+                        partitionOffsets[p][keyBase + i] = partitionDataUsed[p];
+                        System.arraycopy(scratch.bytes, scratch.offset, partitionData[p], partitionDataUsed[p], scratch.length);
+                        partitionDataUsed[p] += scratch.length;
+                    }
                     partitionOffsets[p][keyBase + c] = partitionDataUsed[p];
                 }
             }
@@ -1177,13 +1181,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             final byte[] data = partitionData[partition];
             if (data != null) {
                 partitionData[partition] = null;
-                long freed = data.length;
+                long bytes = data.length;
                 if (partitionOffsets != null) {
                     final int[] offsets = partitionOffsets[partition];
                     partitionOffsets[partition] = null;
-                    freed += (long) offsets.length * Integer.BYTES;
+                    bytes += (long) offsets.length * Integer.BYTES;
                 }
-                breaker.addWithoutBreaking(-freed);
+                breaker.addWithoutBreaking(-bytes);
             }
         }
 

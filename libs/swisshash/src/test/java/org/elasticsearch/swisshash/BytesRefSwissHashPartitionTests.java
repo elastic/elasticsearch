@@ -55,12 +55,85 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testPartitionFlatFixedLength() {
+        var recycler = new BytesRefSwissHashTests.TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        runPartitionTestFixedLength(
+            recycler,
+            bigArrays,
+            breaker,
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES
+        );
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testPartitionPaged() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.PagedBytesRefPartitionedHashKeys.class, 0L);
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private void runPartitionTestFixedLength(
+        BytesRefSwissHashTests.TestRecycler recycler,
+        BigArrays bigArrays,
+        CircuitBreaker breaker,
+        Class<? extends BytesRefSwissHash.BytesRefPartitionedHashKeys> expectedType,
+        long pagedPartitionBytesThreshold
+    ) {
+        final int keyLength = randomIntBetween(1, 32);
+        final int partitionSize = randomIntBetween(128, 10 * 1024);
+        var hash1 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
+        SumAgg agg1 = new SumAgg(breaker);
+        var hash2 = new BytesRefSwissHash(recycler, breaker, bigArrays, pagedPartitionBytesThreshold);
+        SumAgg agg2 = new SumAgg(breaker);
+        List<PartitionedKeyAndAggs> gens = new ArrayList<>();
+        try {
+            int numBlocks = between(1, 1000);
+            for (int i = 0; i < numBlocks; i++) {
+                final int positions = between(1, 2048);
+                final BytesRef[] keys = new BytesRef[positions];
+                for (int v = 0; v < positions; v++) {
+                    final byte[] bytes = new byte[keyLength];
+                    random().nextBytes(bytes);
+                    keys[v] = new BytesRef(bytes);
+                }
+                final int[] values = new int[positions];
+                for (int v = 0; v < positions; v++) {
+                    values[v] = randomIntBetween(-1000, 1000);
+                }
+                addInput(hash1, agg1, keys, values);
+                addInput(hash2, agg2, keys, values);
+
+                if (hash2.size() >= partitionSize) {
+                    PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                    assertThat(gen.keys(), instanceOf(expectedType));
+                    gens.add(gen);
+                    hash2.clear();
+                    agg2.clear();
+                }
+            }
+            if (hash2.size > 0) {
+                PartitionedKeyAndAggs gen = partition(breaker, hash2, hash2.size, agg2);
+                assertThat(gen.keys(), instanceOf(expectedType));
+                gens.add(gen);
+                hash2.clear();
+                agg2.clear();
+            }
+            var result1 = emit(hash1, agg1);
+            hash1.close();
+            hash1 = null;
+            agg1.close();
+            agg1 = null;
+            var results2 = combinePartitions(breaker, hash2, agg2, gens);
+            assertThat(result1, equalTo(results2));
+        } finally {
+            Releasables.close(hash1, hash2, agg1, agg2);
+            gens.forEach(g -> g.release(breaker));
+        }
     }
 
     private void runPartitionTest(

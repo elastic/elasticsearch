@@ -90,13 +90,19 @@ jobs:
 
           DRY_RUN=$(jq -n --argjson report "$REPORT_TO_PR" '$report | not')
 
+          # archimedes gates the release-risk / needs:risk label mutation on
+          # ARCHIMEDES_SKIP_TRIAGE (it does not read UPDATE_NEEDS_RISK_LABEL).
+          # Translate the opt-in decision here: skip triage unless the team
+          # explicitly opted in to having its risk labels updated.
+          SKIP_TRIAGE=$(jq -n --argjson update "$UPDATE_NEEDS_RISK_LABEL" '$update | not')
+
           BODY=$(jq -n \
             --arg url   "$ISSUE_URL" \
             --arg title "$ISSUE_TITLE" \
             --arg num   "$ISSUE_NUMBER" \
             --argjson report "$REPORT_TO_PR" \
             --argjson dryRun "$DRY_RUN" \
-            --argjson updateLabel "$UPDATE_NEEDS_RISK_LABEL" \
+            --argjson skipTriage "$SKIP_TRIAGE" \
             '{
               branch:  "main",
               commit:  "HEAD",
@@ -106,7 +112,7 @@ jobs:
                 WORKFLOW: "test-analysis",
                 REPORT_TO_PR: ($report | tostring),
                 DRY_RUN: ($dryRun | tostring),
-                UPDATE_NEEDS_RISK_LABEL: ($updateLabel | tostring)
+                ARCHIMEDES_SKIP_TRIAGE: ($skipTriage | tostring)
               }
             }')
 

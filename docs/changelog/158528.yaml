@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 158528
+summary: Exclude non-indexed and columnar vectors from `_source`
+type: bug

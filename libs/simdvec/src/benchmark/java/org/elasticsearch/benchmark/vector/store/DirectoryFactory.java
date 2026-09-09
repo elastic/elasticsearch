@@ -21,11 +21,7 @@ import java.nio.file.Path;
 
 /**
  * Constructs the concrete {@link Directory} implementation named by a {@link DirectoryType} for
- * the vector benchmarks in this source set. Kept out of {@code :benchmarks:common} on purpose:
- * the {@code SNAP} and {@code STATELESS_INDEX_LOCAL} cases pull in the x-pack test artifacts of
- * {@code :x-pack:plugin:searchable-snapshots} and {@code :x-pack:plugin:stateless}, which are
- * benchmark-only dependencies of this module and must not leak into every consumer of the
- * shared benchmark helpers.
+ * the vector benchmarks in this source set.
  */
 public final class DirectoryFactory {
 

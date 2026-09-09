@@ -45,12 +45,9 @@ dependencies {
   benchmarkImplementation(project(':test:framework')) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
-  // Consumed via DirectoryFactory in this source set. Scoping the x-pack test artifacts
-  // here keeps :benchmarks:common server-free.
+  // Consumed via DirectoryFactory in this source set.
   benchmarkImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
   benchmarkImplementation(testArtifact(project(':x-pack:plugin:stateless')))
-
-  // Only VectorScorerStatelessDirectoryTests reaches into BlobCacheBufferedIndexInput.
   benchmarkTestImplementation project(':x-pack:plugin:blob-cache')
 }
 

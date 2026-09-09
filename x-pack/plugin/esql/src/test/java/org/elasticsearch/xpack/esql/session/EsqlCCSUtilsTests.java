@@ -11,6 +11,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -624,7 +625,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
             expectThrows(
-                RemoteViewNotSupportedException.class,
+                RemoteResourceNotSupportedException.class,
                 containsString(
                     "ES|QL queries with remote views are not supported. Matched [r1:v]."
                         + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
@@ -642,8 +643,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
             );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            RemoteViewNotSupportedException ex = expectThrows(
-                RemoteViewNotSupportedException.class,
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
                 () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
             );
             assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));

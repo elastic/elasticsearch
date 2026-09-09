@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -113,7 +114,7 @@ public class CrossProjectIndexResolutionValidator {
             }
         }
         if (remoteViews.isEmpty() == false) {
-            return new RemoteViewNotSupportedException(remoteViews);
+            return new RemoteResourceNotSupportedException(remoteViews, List.of());
         }
 
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {

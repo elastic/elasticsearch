@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -219,6 +220,9 @@ public class EsqlCCSUtils {
      * <p>
      * Views matched on several clusters are collected in a single pass and reported together, so a query that reaches a
      * view on more than one of them names all of them at once rather than whichever was iterated first.
+     * <p>
+     * The aggregate carries an empty dataset list: a dataset on another cluster is invisible rather than an error, so
+     * nothing can put one here. The class keeps its shape until the view rail goes the same way (esql-planning#1801).
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();
@@ -231,7 +235,7 @@ public class EsqlCCSUtils {
             }
         }
         if (views.isEmpty() == false) {
-            throw new RemoteViewNotSupportedException(views);
+            throw new RemoteResourceNotSupportedException(views, List.of());
         }
     }
 

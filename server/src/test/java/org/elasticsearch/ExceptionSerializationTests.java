@@ -146,6 +146,21 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
+    public void testRemoteResourceNotSupportedException() throws IOException {
+        // The views list must survive the wire round-trip at the support transport version. The datasets list is always
+        // empty now that a remote dataset is invisible, and is asserted empty to pin that.
+        var version = org.elasticsearch.TransportVersion.fromName("indices_options_resolve_datasets");
+        var ex = serialize(
+            new org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException(
+                java.util.List.of("c1:v1", "c2:v2"),
+                java.util.List.of()
+            ),
+            version
+        );
+        assertThat(ex.views(), equalTo(java.util.List.of("c1:v1", "c2:v2")));
+        assertThat(ex.datasets(), equalTo(java.util.List.of()));
+    }
+
     public void testExceptionRegistration() throws IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
@@ -896,7 +911,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
         ids.put(194, org.elasticsearch.action.SliceMissingException.class);
         ids.put(195, null); // was RemoteDatasetNotSupportedException, a remote dataset is invisible rather than an error
-        ids.put(196, null); // was RemoteResourceNotSupportedException, which aggregated remote views and datasets
+        ids.put(196, org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class);
         ids.put(197, org.elasticsearch.indices.recovery.RecoveryCancelledException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();

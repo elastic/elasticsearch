@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
 import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -1787,7 +1788,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             Map.of(),
             remoteExceptions
         );
-        assertThat(e, instanceOf(RemoteViewNotSupportedException.class));
+        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
         assertThat(
             e.getMessage(),
             equalTo(
@@ -1798,7 +1799,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
     }
 
-    public void testRemoteViewNotSupportedExceptionAggregatesMultipleViewsAcrossLinkedProjects() {
+    public void testRemoteResourceNotSupportedExceptionAggregatesMultipleViewsAcrossLinkedProjects() {
         ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*", "P2:logs-*");
         Map<String, Exception> remoteExceptions = Map.of(
             "P1",
@@ -1814,7 +1815,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             Map.of(),
             remoteExceptions
         );
-        assertThat(e, instanceOf(RemoteViewNotSupportedException.class));
+        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
         assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
         assertThat(e.getMetadata("es.esql.view.names"), containsInAnyOrder("P1:view-1", "P2:view-2"));
     }

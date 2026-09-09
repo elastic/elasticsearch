@@ -2105,6 +2105,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             194,
             SLICE_MISSING_EXCEPTION_VERSION
         ),
+        REMOTE_RESOURCE_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException::new,
+            196,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_DATASETS
+        ),
         RECOVERY_CANCELLED_EXCEPTION(
             org.elasticsearch.indices.recovery.RecoveryCancelledException.class,
             org.elasticsearch.indices.recovery.RecoveryCancelledException::new,

@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -2321,6 +2322,116 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         future.actionGet();
         assertThat(searchService.getActiveContexts(), equalTo(1));
         assertTrue(searchService.freeReaderContext(future.actionGet()));
+    }
+
+    public void testFetchPhaseReleasesCircuitBreakerBytesWhenFreeReaderContextFails() throws Exception {
+        createIndex("index");
+
+        String largeValue = "x".repeat(700_000);
+        client().prepareIndex("index").setId("1").setSource("field", largeValue).setRefreshPolicy(IMMEDIATE).get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        AtomicBoolean freeReaderContextShouldThrow = new AtomicBoolean(true);
+        service.setOnFreeReaderContext(contextId -> {
+            if (freeReaderContextShouldThrow.compareAndSet(true, false)) {
+                throw new RuntimeException("simulated freeReaderContext failure");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        ShardSearchRequest queryRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            2,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        service.executeQueryPhase(queryRequest, new SearchShardTask(1, "", "", "", null, emptyMap()), queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+
+        CircuitBreaker breaker = service.getCircuitBreaker();
+        long breakerBefore = breaker.getUsed();
+
+        ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
+            OriginalIndices.NONE,
+            queryResult.getContextId(),
+            queryRequest,
+            List.of(0),
+            null,
+            null,
+            RescoreDocIds.EMPTY,
+            null
+        );
+        PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+        service.executeFetchPhase(fetchRequest, new SearchShardTask(2, "", "", "", null, emptyMap()), fetchFuture);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, fetchFuture::get);
+        assertThat(ex.getCause().getMessage(), containsString("simulated freeReaderContext failure"));
+
+        assertThat(
+            "circuit breaker bytes reserved for the successful fetch must not leak when freeReaderContext fails "
+                + "right afterwards",
+            breaker.getUsed(),
+            equalTo(breakerBefore)
+        );
+    }
+
+    public void testQueryAndFetchShortcutReleasesCircuitBreakerBytesWhenFreeReaderContextFails() {
+        createIndex("index");
+
+        String largeValue = "x".repeat(700_000);
+        client().prepareIndex("index").setId("1").setSource("field", largeValue).setRefreshPolicy(IMMEDIATE).get();
+
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        AtomicBoolean freeReaderContextShouldThrow = new AtomicBoolean(true);
+        service.setOnFreeReaderContext(contextId -> {
+            if (freeReaderContextShouldThrow.compareAndSet(true, false)) {
+                throw new RuntimeException("simulated freeReaderContext failure");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        ShardSearchRequest queryRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+
+        CircuitBreaker breaker = service.getCircuitBreaker();
+        long breakerBefore = breaker.getUsed();
+
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        service.executeQueryPhase(queryRequest, new SearchShardTask(1, "", "", "", null, emptyMap()), queryFuture);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, queryFuture::get);
+        assertThat(ex.getCause().getMessage(), containsString("simulated freeReaderContext failure"));
+
+        assertThat(
+            "circuit breaker bytes reserved for the successful combined query+fetch shortcut must not leak when "
+                + "freeReaderContext fails right afterwards",
+            breaker.getUsed(),
+            equalTo(breakerBefore)
+        );
     }
 
     public void testCancelQueryPhaseEarly() throws Exception {

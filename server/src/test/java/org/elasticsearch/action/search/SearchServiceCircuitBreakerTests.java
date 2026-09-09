@@ -122,34 +122,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         assertThat(breakerUsed.get(), equalTo(0L));
     }
 
-    public void testReleaseCircuitBreakerBytesOnPostFetchFailure() {
-        AtomicLong breakerUsed = new AtomicLong(0);
-        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
-
-        AtomicBoolean successCalled = new AtomicBoolean(false);
-        AtomicBoolean failureCalled = new AtomicBoolean(false);
-
-        FetchSearchResult result = new FetchSearchResult();
-        try {
-            breaker.addEstimateBytesAndMaybeBreak(1000L, "fetch source");
-            result.setSearchHitsSizeBytes(1000L);
-            assertThat(breakerUsed.get(), equalTo(1000L));
-
-            fetchSearchResultListener(successCalled, failureCalled, breaker).onFailure(new RuntimeException("test failure"));
-
-            assertThat(successCalled.get(), is(false));
-            assertThat(failureCalled.get(), is(true));
-            assertThat("the failure listener alone must not leak the charge", breakerUsed.get(), equalTo(1000L));
-
-            result.releaseCircuitBreakerBytes(breaker);
-
-            assertThat(breakerUsed.get(), equalTo(0L));
-            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
-        } finally {
-            result.decRef();
-        }
-    }
-
     public void testExtractorReturnsNull() {
         AtomicLong breakerUsed = new AtomicLong(0);
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);

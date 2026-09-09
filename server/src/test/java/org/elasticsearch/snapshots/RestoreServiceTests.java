@@ -71,6 +71,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -827,6 +828,64 @@ public class RestoreServiceTests extends ESTestCase {
             final ClusterState afterSecondCall = fixture.clusterService().state();
             assertThat(historyUuid(afterSecondCall, fixture.index().getName()), equalTo(historyUuidAfterFirstCall));
             assertThat(Iterables.size(RestoreInProgress.get(afterSecondCall)), equalTo(1L));
+        });
+    }
+
+    /**
+     * This test shows that {@link RestoreService#restoreOverOpenIndices} is not idempotent across completed restores. It protects against
+     * two in-flight restores at the same time only.It holds only while the first restore's {@link RestoreInProgress} entry exists. That
+     * entry is transient ({@code removeCompletedRestoresFromClusterState} removes it once the restore completes). And because restoring
+     * over an open index preserves the destination's index UUID, the exact-identity check still passes on a retry after the entry is gone.
+     * So a same-{@code restoreUUID} retry is <em>not</em> deduplicated once cleaned up. It starts a fresh restore and creates a new
+     * history UUID. Guaranteeing at-most-once across the full lifecycle is the caller's responsibility (see
+     * {@link RestoreService#restoreOverOpenIndices}).
+     */
+    public void testRestoreOverOpenIndicesRetryAfterCompletionIsNotDeduplicated() throws Exception {
+        final String restoreUUID = UUIDs.randomBase64UUID();
+        withOpenIndexRestoreHarness(fixture -> {
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> first = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    first
+                );
+            first.actionGet(TimeValue.timeValueSeconds(10));
+
+            final ClusterState afterFirstCall = fixture.clusterService().state();
+            final String historyUuidAfterFirstCall = historyUuid(afterFirstCall, fixture.index().getName());
+            assertThat(historyUuidAfterFirstCall, notNullValue());
+            assertThat(Iterables.size(RestoreInProgress.get(afterFirstCall)), equalTo(1L));
+
+            // Simulate the completed-restore cleanup that removeCompletedRestoresFromClusterState() performs once the restore finishes. The
+            // harness's restore never truly completes (routing is mocked), so strip the entry directly to reach the post-cleanup state.
+            ClusterServiceUtils.setState(
+                fixture.clusterService(),
+                ClusterState.builder(afterFirstCall).putCustom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).build()
+            );
+            assertThat(Iterables.size(RestoreInProgress.get(fixture.clusterService().state())), equalTo(0L));
+
+            PlainActionFuture<RestoreService.RestoreCompletionResponse> second = new PlainActionFuture<>();
+            fixture.restoreService()
+                .restoreOverOpenIndices(
+                    ProjectId.DEFAULT,
+                    fixture.snapshot(),
+                    fixture.snapshotInfo(),
+                    TEST_REQUEST_TIMEOUT,
+                    restoreUUID,
+                    List.of(fixture.target()),
+                    second
+                );
+            second.actionGet(TimeValue.timeValueSeconds(10));
+
+            // The retry was not deduplicated: a fresh restore was initialized, minting a new history UUID and installing a new entry.
+            final ClusterState afterRetry = fixture.clusterService().state();
+            assertThat(historyUuid(afterRetry, fixture.index().getName()), not(equalTo(historyUuidAfterFirstCall)));
+            assertThat(Iterables.size(RestoreInProgress.get(afterRetry)), equalTo(1L));
         });
     }
 

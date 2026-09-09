@@ -629,11 +629,19 @@ public final class RestoreService implements ClusterStateApplier {
      * restore, and partial restore are not supported here.
      * <p>
      * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated {@link RestoreInProgress}
-     * entry and is a no-op rather than a second initialization. This caller-supplied stable UUID is what makes an idempotent retry safe.
-     * The intended production caller is a durable, resumable executor (like a persistent task) that owns a stable identifier across retries
-     * and failovers and passes it here as the restore UUID, so re-submitting after the first attempt is already committed does not
-     * initialize the restore a second time. This is the main difference from the public {@link #restoreSnapshot} path, which always creates
-     * a random restore UUID.
+     * entry and is a no-op rather than a second initialization, but only while that first entry still exists. That entry is transient.
+     * {@link #removeCompletedRestoresFromClusterState()} removes it once the restore completes. After it is gone, a retry carrying the same
+     * {@code restoreUUID} is <em>not</em> deduplicated here, because restoring over an open index preserves the destination's index UUID,
+     * so the exact-identity check in {@link #validateExistingOpenIndexForRestore} still passes and a second restore is initialized,
+     * creating a fresh history UUID and discarding any writes accepted after the first restore completed. (This differs from
+     * {@link #restoreOverExistingDataStreams}, whose post-cleanup retry instead fails, because that operation replaces the backing indices
+     * with new UUIDs that no longer match the stale identity the retry carries.)
+     * <p>
+     * This method therefore provides at-most-once initialization only <em>while the restore is in progress</em>. Guaranteeing at-most-once
+     * across the full restore lifecycle is the caller's responsibility: the intended production caller is a durable, resumable executor
+     * (like a persistent task) that owns a stable identifier across retries and failovers, passes it here as the restore UUID, and must not
+     * resubmit a restore it has already observed complete. The caller-supplied stable UUID is the main difference from the public
+     * {@link #restoreSnapshot} path, which always creates a random restore UUID.
      *
      * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      */

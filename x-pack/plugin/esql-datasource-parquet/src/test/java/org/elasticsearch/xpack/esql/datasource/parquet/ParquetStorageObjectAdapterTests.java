@@ -106,6 +106,29 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         }
     }
 
+    public void testWindowChargesAndReleasesWatermarkBesideRequest() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(
+            createRangeReadStorageObject(data),
+            footerByteCache,
+            limited,
+            watermark
+        );
+        assertEquals(0, watermark.used());
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals("window is charged at open, not lazily per miss", data.length, watermark.used());
+            assertEquals(data.length, limited.getUsed());
+            byte[] buf = new byte[64];
+            stream.readFully(buf);
+            assertEquals("fill reuses the ctor array; D (lazy/per-miss alloc) is not in this change", data.length, watermark.used());
+        }
+        assertEquals(0, watermark.used());
+        assertEquals(0, limited.getUsed());
+    }
+
     /**
      * Incomplete window fill (cancel / exception mid-GET) must {@code abortStream} the range
      * rather than {@code close()}, which on S3 would drain the remaining 4–16 MiB.

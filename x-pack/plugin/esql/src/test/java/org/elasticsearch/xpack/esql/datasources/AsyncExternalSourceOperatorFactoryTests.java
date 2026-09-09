@@ -1274,6 +1274,146 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * One shared factory, two drivers: the first producer's read fails inside {@code get()}
+     * (sync executor). The storage lease must still be held so the second {@code get()} can
+     * open its split. {@link #testSliceQueueMultipleDriversClaimDifferentSplits} builds a new
+     * factory per driver and cannot catch this.
+     */
+    public void testOnCloseOutlivesAFastFailingFirstOperatorUntilTheNextIsCreated() {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f0.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        AtomicInteger onCloseCalls = new AtomicInteger();
+        StorageProvider storageProvider = new StubMultiFileStorageProvider() {
+            private void checkLease() {
+                if (onCloseCalls.get() > 0) {
+                    throw new IllegalStateException("storage lease already returned");
+                }
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                checkLease();
+                return super.newObject(path);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length) {
+                checkLease();
+                return super.newObject(path, length);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                checkLease();
+                return super.newObject(path, length, lastModified);
+            }
+        };
+
+        FormatReader formatReader = new FailOnFirstReadFormatReader();
+        StoragePath path = StoragePath.of("s3://bucket/f0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).onClose(() -> onCloseCalls.incrementAndGet()).build();
+
+        DriverContext firstContext = mock(DriverContext.class);
+        when(firstContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(firstContext).addAsyncAction();
+        doAnswer(inv -> null).when(firstContext).removeAsyncAction();
+
+        DriverContext secondContext = mock(DriverContext.class);
+        when(secondContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(secondContext).addAsyncAction();
+        doAnswer(inv -> null).when(secondContext).removeAsyncAction();
+
+        SourceOperator first = factory.get(firstContext);
+        assertEquals("first producer fail must not return the lease before later get()", 0, onCloseCalls.get());
+        SourceOperator second = factory.get(secondContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            assertEquals(0, onCloseCalls.get());
+
+            RuntimeException firstFailure = expectThrows(RuntimeException.class, first::getOutput);
+            assertThat(firstFailure.getCause(), Matchers.instanceOf(IOException.class));
+            assertTrue(firstFailure.getCause().getMessage().contains("injected first-read failure"));
+
+            while (second.isFinished() == false) {
+                Page page = second.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            assertEquals(1, pages.size());
+
+            first.close();
+            assertEquals(0, onCloseCalls.get());
+            second.close();
+            assertEquals(1, onCloseCalls.get());
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            first.close();
+            second.close();
+        }
+    }
+
+    /**
+     * Dual-ref catch path: {@code newObject} throws before a producer starts. Both holds must
+     * drop so {@code onClose} still runs once instead of pinning the storage lease forever.
+     */
+    public void testGetThrowBeforeReturnStillRunsOnCloseOnce() {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        when(storageProvider.newObject(any())).thenThrow(new IllegalStateException("open failed"));
+
+        FormatReader formatReader = new PageCountingFormatReader(new AtomicInteger());
+        StoragePath path = StoragePath.of("s3://bucket/f.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AtomicInteger onCloseCalls = new AtomicInteger();
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).onClose(() -> onCloseCalls.incrementAndGet()).build();
+
+        expectThrows(IllegalStateException.class, () -> factory.get(driverContext));
+        assertEquals(1, onCloseCalls.get());
+    }
+
     public void testSliceQueueAccessor() {
         List<ExternalSplit> splits = List.of(
             new FileSplit("test", StoragePath.of("s3://bucket/a.parquet"), 0, 10, "parquet", Map.of(), Map.of())
@@ -3796,6 +3936,65 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public String formatName() {
             return "test-counting";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * First {@link #read} throws {@link IOException}; later reads emit one page, matching
+     * {@link PageCountingFormatReader}. Used to fail the first parallel operator during {@code get()}.
+     */
+    private static class FailOnFirstReadFormatReader implements NoConfigFormatReader {
+        private final AtomicInteger readCount = new AtomicInteger();
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            if (readCount.incrementAndGet() == 1) {
+                throw new IOException("injected first-read failure");
+            }
+            Page page = createTestPage();
+            return new CloseableIterator<>() {
+                private boolean consumed = false;
+
+                @Override
+                public boolean hasNext() {
+                    return consumed == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (consumed) {
+                        throw new NoSuchElementException();
+                    }
+                    consumed = true;
+                    return page;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-fail-first";
         }
 
         @Override

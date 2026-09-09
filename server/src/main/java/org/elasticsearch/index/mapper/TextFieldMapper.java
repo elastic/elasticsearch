@@ -61,6 +61,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -109,7 +110,6 @@ import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1891,14 +1891,14 @@ public final class TextFieldMapper extends FieldMapper {
             && multiFieldsSupportColumnarParse(indexSettings);
     }
 
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -1931,9 +1931,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         // retainValues=false: values are appended to docBlob before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
-        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn() : null;
+        final EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+        final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+        final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null;
 
         int currentDoc = -1;
         // binaryDvs.setString copies docBlob immediately, so the buffer is safe to reuse per doc.
@@ -2009,7 +2009,9 @@ public final class TextFieldMapper extends FieldMapper {
 
         // retainValues=false: each value is consumed before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
-        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs) ? mergeStringColumn() : null;
+        EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
+            ? mergeStringColumn(ctx.recycler())
+            : null;
 
         int currentDoc = -1;
         boolean valueSeenThisDoc = false;

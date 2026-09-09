@@ -128,7 +128,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, PAGED_PARTITION_THRESHOLD_BYTES);
+        this(recycler, breaker, bigArrays, PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
     /**

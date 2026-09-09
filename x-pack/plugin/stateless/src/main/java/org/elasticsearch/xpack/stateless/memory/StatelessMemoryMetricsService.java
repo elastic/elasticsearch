@@ -233,8 +233,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         final long nodeBaseHeapEstimateInBytes = getNodeBaseHeapEstimateInBytes();
         final long mergeMemoryEstimate = mergeMemoryEstimation();
         final long minimumRequiredHeapForHandlingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps();
-        final Map<String, EstimatedHeapUsageBuilder> indexNodeBuilders = new HashMap<>();
-        final Map<String, EstimatedHeapUsageBuilder> searchNodeBuilders = new HashMap<>();
+        final Map<String, EstimatedHeapUsageBuilder> heapUsageBuilders = new HashMap<>();
         final long nowNanos = relativeTimeInNanos();
         final ShardMemoryMetrics defaultEstimate = newUninitialisedShardMemoryMetrics(nowNanos);
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
@@ -247,13 +246,12 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             final boolean isIndexNode = discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
             // Index nodes use real per-node overheads; search nodes use zero overheads because only
             // hostedShardsHeapUsage is meaningful for them — totalHeapUsage is left as 0.
-            final EstimatedHeapUsageBuilder builderForNode = isIndexNode
-                ? new EstimatedHeapUsageBuilder(
-                    nodeBaseHeapEstimateInBytes,
-                    minimumRequiredHeapForHandlingLargeIndexingOps,
-                    mergeMemoryEstimate
-                )
-                : new EstimatedHeapUsageBuilder(0L, 0L, 0L);
+            final EstimatedHeapUsageBuilder builderForNode = new EstimatedHeapUsageBuilder(
+                nodeBaseHeapEstimateInBytes,
+                minimumRequiredHeapForHandlingLargeIndexingOps,
+                mergeMemoryEstimate,
+                isIndexNode
+            );
             for (ShardRouting shard : routingNode) {
                 // Only include active shards in our node-level estimates, the simulator will complete
                 // any ongoing recoveries, which adds the heap consumption to node and deducts it from
@@ -264,29 +262,19 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 final ShardId shardId = shard.shardId();
                 builderForNode.add(shardId, shardMemoryMetricsSnapshot.getOrDefault(shardId, defaultEstimate));
             }
-            if (isIndexNode) {
-                indexNodeBuilders.put(nodeId, builderForNode);
-            } else {
-                searchNodeBuilders.put(nodeId, builderForNode);
-            }
+            heapUsageBuilders.put(nodeId, builderForNode);
         }
         // Take the max postings memory across indexing nodes only and use that for all indexing nodes' total heap estimate.
         // Search node postings are intentionally excluded: they host replicas of the same shards as indexing nodes and could
         // otherwise dominate the max, inflating the legacy decider's view of indexing nodes.
-        final long maxTotalPostingsInMemoryBytes = indexNodeBuilders.values()
+        final long maxTotalPostingsInMemoryBytes = heapUsageBuilders.values()
             .stream()
+            .filter(EstimatedHeapUsageBuilder::isIndexNode)
             .mapToLong(builder -> builder.totalPostingsInMemoryBytes)
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        final Map<String, NodeHeapEstimates> result = new HashMap<>(
-            Maps.transformValues(indexNodeBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes))
-        );
-        // Search nodes: totalHeapUsage is 0 (not used); hostedShardsHeapUsage reflects hosted shard memory.
-        searchNodeBuilders.forEach(
-            (nodeId, builder) -> result.put(nodeId, new NodeHeapEstimates(0L, builder.getHostedShardsHeapEstimate()))
-        );
-        return result;
+        return new HashMap<>(Maps.transformValues(heapUsageBuilders, builder -> builder.getHeapEstimate(maxTotalPostingsInMemoryBytes)));
     }
 
     /**
@@ -326,15 +314,18 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @return the node's estimated heap usage
      */
     public NodeHeapEstimates estimateNodeHeapUsage(
+        DiscoveryNode localNode,
         int totalIndices,
         long largeIndexingOpsHeapBytes,
         long mergeMemoryEstimateBytes,
         Map<ShardId, ShardMappingSize> shardMappingSizes
     ) {
+        assert localNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) : "This should only ever be called for indexing nodes";
         final EstimatedHeapUsageBuilder builder = new EstimatedHeapUsageBuilder(
             getNodeBaseHeapEstimateInBytes(totalIndices),
             largeIndexingOpsHeapBytes,
-            mergeMemoryEstimateBytes
+            mergeMemoryEstimateBytes,
+            true
         );
         final long nowNanos = relativeTimeInNanos();
         shardMappingSizes.forEach((shardId, size) -> builder.add(shardId, ShardMemoryMetrics.fromShardMappingSize(size, nowNanos)));
@@ -874,6 +865,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private final long shardMergeMemoryEstimate;
         private final ShardHeapEstimator shardHeapEstimator;
         private final Set<String> seenIndices = new HashSet<>();
+        private final boolean indexNode;
         private long mappingSizeInBytes;
         private long totalPostingsInMemoryBytes;
         private long shardMemoryUsageInBytes;
@@ -881,12 +873,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         EstimatedHeapUsageBuilder(
             long nodeBaseHeapEstimateInBytes,
             long minimumRequiredHeapForAcceptingLargeIndexingOps,
-            long shardMergeMemoryEstimate
+            long shardMergeMemoryEstimate,
+            boolean indexNode
         ) {
             this.shardHeapEstimator = createShardHeapEstimator(SelfReportedShardOverhead.DEFAULT, PostingsInEstimate.EXCLUDE);
             this.nodeBaseHeapEstimateInBytes = nodeBaseHeapEstimateInBytes;
             this.minimumRequiredHeapForAcceptingLargeIndexingOps = minimumRequiredHeapForAcceptingLargeIndexingOps;
             this.shardMergeMemoryEstimate = shardMergeMemoryEstimate;
+            this.indexNode = indexNode;
         }
 
         void add(ShardId shardId, ShardMemoryMetrics shardMemoryMetrics) {
@@ -907,16 +901,23 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
          */
         NodeHeapEstimates getHeapEstimate(long postingsForTotalEstimate) {
             final long totalHeapEstimateInBytes = getHeapUsageEstimate(postingsForTotalEstimate);
-            return new NodeHeapEstimates(totalHeapEstimateInBytes, getHostedShardsHeapEstimate());
-        }
-
-        long getHostedShardsHeapEstimate() {
-            return mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes;
+            return new NodeHeapEstimates(
+                totalHeapEstimateInBytes,
+                mappingSizeInBytes + shardMemoryUsageInBytes + totalPostingsInMemoryBytes
+            );
         }
 
         long getHeapUsageEstimate(long effectivePostingsValue) {
+            // We only produce a "total" heap usage estimate for indexing nodes
+            if (indexNode == false) {
+                return 0;
+            }
             return shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate + nodeBaseHeapEstimateInBytes
                 + minimumRequiredHeapForAcceptingLargeIndexingOps + effectivePostingsValue;
+        }
+
+        public boolean isIndexNode() {
+            return indexNode;
         }
     }
 

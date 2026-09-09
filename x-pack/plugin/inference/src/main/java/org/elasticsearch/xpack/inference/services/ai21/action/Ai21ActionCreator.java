@@ -12,15 +12,15 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Objects;
 
@@ -34,9 +34,9 @@ public class Ai21ActionCreator implements Ai21ActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "AI21 completions";
     public static final String USER_ROLE = "user";
-    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
         "ai21 completions",
-        OpenAiChatCompletionResponseEntity::fromResponse,
+        OpenAiCompletionResponseEntity::fromResponse,
         ErrorResponse::fromResponse
     );
     private final Sender sender;
@@ -54,7 +54,7 @@ public class Ai21ActionCreator implements Ai21ActionVisitor {
             chatCompletionModel,
             COMPLETION_HANDLER,
             inputs -> new Ai21ChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
 
         var errorMessage = buildErrorMessage(TaskType.COMPLETION, chatCompletionModel.getInferenceEntityId());

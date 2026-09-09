@@ -116,7 +116,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<EsqlQueryResponse> {
     private BlockFactory blockFactory;
@@ -803,6 +805,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 ZoneOffset.UTC,
                 0,
                 0,
+                null,
                 null
             )
         ) {
@@ -924,6 +927,40 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     ]
                   ]
                 }"""));
+        }
+    }
+
+    public void testApproximationAppliedXContent() {
+        assertThat(renderApproximationApplied(Boolean.TRUE), containsString("\"approximation_applied\":true"));
+        assertThat(renderApproximationApplied(Boolean.FALSE), containsString("\"approximation_applied\":false"));
+        assertThat(renderApproximationApplied(null), not(containsString("approximation_applied")));
+    }
+
+    private String renderApproximationApplied(Boolean approximationApplied) {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfoImpl("foo", "integer", null)),
+                List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                3,
+                100,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null,
+                true,
+                null,
+                false,
+                false,
+                ZoneOffset.UTC,
+                0,
+                0,
+                null,
+                approximationApplied
+            )
+        ) {
+            return Strings.toString(wrapAsToXContent(response));
         }
     }
 

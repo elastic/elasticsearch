@@ -60,6 +60,7 @@ public class MlConfigMetricsTests extends ESTestCase {
     private Supplier<LongWithAttributes> internalCredentialsObserver;
     private Supplier<Collection<LongWithAttributes>> authTypeObserver;
     private Supplier<Collection<LongWithAttributes>> projectRoutingObserver;
+    private Supplier<Collection<LongWithAttributes>> extractorTypeObserver;
 
     @Before
     public void initMlConfigMetricsTestDeps() throws Exception {
@@ -72,6 +73,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         internalCredentialsObserver = captureLongGauge(meterRegistry, "es.ml.datafeeds.cps.internal_credentials.current");
         authTypeObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.auth_type.current");
         projectRoutingObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.project_routing.current");
+        extractorTypeObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.extractor_type.current");
     }
 
     @After
@@ -132,7 +134,14 @@ public class MlConfigMetricsTests extends ESTestCase {
         );
         stubExpandDatafeedConfigs(builders);
 
-        MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
+        MlConfigMetrics metrics = new MlConfigMetrics(
+            meterRegistry,
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings,
+            xContentRegistry()
+        );
         metrics.pollIfMaster();
 
         assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
@@ -140,6 +149,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         assertThat(findObservation(authTypeObserver.get(), "es_auth_type", "legacy"), equalTo(1L));
         assertThat(findObservation(projectRoutingObserver.get(), "es_routing_bucket", "local_only"), equalTo(1L));
         assertThat(findObservation(projectRoutingObserver.get(), "es_routing_bucket", "unqualified"), equalTo(1L));
+        assertThat(findObservation(extractorTypeObserver.get(), "es_extractor_type", "scroll"), equalTo(2L));
         assertThat(internalCredentialsObserver.get().attributes().get("es.ml.is_master"), equalTo(Boolean.FALSE));
 
         metrics.clusterChanged(masterClusterChangedEvent());
@@ -155,7 +165,14 @@ public class MlConfigMetricsTests extends ESTestCase {
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenReturn(nonMasterClusterState());
 
-        MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
+        MlConfigMetrics metrics = new MlConfigMetrics(
+            meterRegistry,
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings,
+            xContentRegistry()
+        );
         metrics.pollIfMaster();
 
         verify(datafeedConfigProvider, never()).expandDatafeedConfigs(anyString(), eq(true), isNull(), any());
@@ -171,7 +188,14 @@ public class MlConfigMetricsTests extends ESTestCase {
         PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         stubExpandDatafeedConfigs(List.of(datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null)));
 
-        MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
+        MlConfigMetrics metrics = new MlConfigMetrics(
+            meterRegistry,
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings,
+            xContentRegistry()
+        );
         metrics.clusterChanged(masterClusterChangedEvent());
         metrics.pollIfMaster();
         assertThat(internalCredentialsObserver.get().value(), equalTo(1L));
@@ -202,7 +226,14 @@ public class MlConfigMetricsTests extends ESTestCase {
             return null;
         }).when(datafeedConfigProvider).expandDatafeedConfigs(eq("_all"), eq(true), isNull(), any());
 
-        MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
+        MlConfigMetrics metrics = new MlConfigMetrics(
+            meterRegistry,
+            clusterService,
+            threadPool,
+            datafeedConfigProvider,
+            settings,
+            xContentRegistry()
+        );
         metrics.pollIfMaster();
 
         assertThat(internalCredentialsObserver.get().value(), equalTo(0L));

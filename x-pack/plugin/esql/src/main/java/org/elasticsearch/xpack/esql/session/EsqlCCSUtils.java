@@ -229,8 +229,9 @@ public class EsqlCCSUtils {
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
-                // Both shapes are read: a peer that predates remote-dataset invisibility answers with the aggregate
-                // when it matched both kinds, and only its views half can be acted on here.
+                // The aggregate is read defensively rather than because anything can send one. A remote only ever
+                // reported datasets when the request asked it to, and this coordinator never asks, so every peer takes
+                // its views-only branch. If one arrives anyway, only its views half can be acted on here.
                 if (cause instanceof RemoteResourceNotSupportedException resourceEx) {
                     views.addAll(resourceEx.views());
                 } else if (cause instanceof RemoteViewNotSupportedException viewEx) {

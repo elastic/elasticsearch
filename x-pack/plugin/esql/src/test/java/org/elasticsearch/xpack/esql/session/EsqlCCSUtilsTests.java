@@ -664,10 +664,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     }
 
     /**
-     * A peer that predates remote-dataset invisibility answers with the aggregate exception rather than the per-kind
-     * one, and carries a dataset list when it matched both kinds. The collector has to keep reading that shape: the
-     * views half still fails the query, and the datasets half is dropped, which is what makes the remote dataset
-     * invisible to a caller running this code against an older peer.
+     * The aggregate exception is read defensively. Nothing can send one carrying datasets to a coordinator running
+     * this code, because a remote only reported datasets when the request asked and this code never asks, but the
+     * branch exists and so it is pinned: the views half still fails the query, the datasets half is dropped, and
+     * datasets alone fail nothing at all.
      */
     public void testCheckForRemoteResourceErrorsReadsTheAggregateFromAnOlderPeer() {
         {

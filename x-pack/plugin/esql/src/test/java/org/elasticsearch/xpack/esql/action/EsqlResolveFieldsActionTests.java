@@ -32,12 +32,15 @@ public class EsqlResolveFieldsActionTests extends ESTestCase {
 
             EsqlResolveFieldsAction.clearDatasetResolution(request);
 
-            var cleared = request.indicesOptions();
-            assertThat(cleared.indexAbstractionOptions().resolveDatasets(), equalTo(false));
-            assertThat(cleared.indexAbstractionOptions().resolveViews(), equalTo(incoming.indexAbstractionOptions().resolveViews()));
-            assertThat(cleared.concreteTargetOptions(), equalTo(incoming.concreteTargetOptions()));
-            assertThat(cleared.wildcardOptions(), equalTo(incoming.wildcardOptions()));
-            assertThat(cleared.gatekeeperOptions(), equalTo(incoming.gatekeeperOptions()));
+            // The whole options object is compared against the incoming one with only that flag flipped, rather than
+            // component by component, so a component added later is covered without anyone remembering to add it here.
+            var expected = IndicesOptions.builder(incoming)
+                .indexAbstractionOptions(
+                    IndicesOptions.IndexAbstractionOptions.builder(incoming.indexAbstractionOptions()).resolveDatasets(false)
+                )
+                .build();
+            assertThat(request.indicesOptions(), equalTo(expected));
+            assertThat(request.indicesOptions().indexAbstractionOptions().resolveDatasets(), equalTo(false));
             assertThat(request.indices(), equalTo(new String[] { "remote_employees" }));
         }
     }

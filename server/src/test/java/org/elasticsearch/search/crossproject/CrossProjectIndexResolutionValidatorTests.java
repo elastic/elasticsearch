@@ -1822,9 +1822,9 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     /**
-     * The linked-project counterpart of the older-peer case: a project running code that predates remote-dataset
-     * invisibility answers with the aggregate exception and may carry a dataset list. Its views half must still fail
-     * the query and its datasets half must be dropped.
+     * The linked-project counterpart of the defensive aggregate case. Nothing can send one carrying datasets now that
+     * no request asks a project to resolve them, but the branch exists, so its views half must still fail the query,
+     * its datasets half must be dropped, and datasets alone must fail nothing at all.
      */
     public void testAggregateExceptionFromAnOlderLinkedProjectKeepsViewsAndDropsDatasets() {
         ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*");
@@ -1847,6 +1847,22 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
         assertThat(e.getMessage(), not(containsString("datasets")));
         assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
+
+        // Datasets alone carry nothing to act on, so nothing is returned and the query is not failed at all.
+        Map<String, Exception> datasetsOnly = Map.of(
+            "P1",
+            new RemoteTransportException("test failure", new RemoteResourceNotSupportedException(List.of(), List.of("P1:my-dataset")))
+        );
+        assertThat(
+            CrossProjectIndexResolutionValidator.validate(
+                randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
+                useProjectRouting ? "_alias:*" : null,
+                local,
+                Map.of(),
+                datasetsOnly
+            ),
+            nullValue()
+        );
     }
 
     public void testWildcardClusterAliasConcreteIndex() {

@@ -295,9 +295,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRemoteResourceNotSupportedException() throws IOException {
-        // Both lists must survive the wire round-trip at the support transport version. Nothing on this branch puts a
-        // dataset in one any more, but a peer that predates remote-dataset invisibility can still send a populated
-        // list, and reading it back is the whole reason the shape is kept.
+        // Both lists must survive the wire round-trip at the support transport version. Nothing produces a populated
+        // dataset list any more, but the field is still on the wire, and a shape that is kept is a shape that is
+        // pinned — otherwise the next edit is free to change it.
         var version = TransportVersion.fromName("indices_options_resolve_datasets");
         var ex = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1", "c2:v2"), List.of("c3:d1")), version);
         assertThat(ex.views(), equalTo(List.of("c1:v1", "c2:v2")));

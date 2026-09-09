@@ -141,7 +141,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             for (int i = 0; i < aggregators.size(); i++) {
                 final var aggregator = aggregators.get(i).aggregatorFunction();
                 aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
-                for (int g = 0; g < generations.size(); g++) {
+                for (int g = 0; g < numGens; g++) {
                     PartitionedKeyAndAggs keysAndAggs = generations.get(g);
                     GroupingAggregatorFunction.PartitionedState agg = keysAndAggs.aggs.states[i];
                     aggregator.combinePartition(agg, p, appendOnly[g], allGenIds[g], keysAndAggs.keys.keysInPartition(p));

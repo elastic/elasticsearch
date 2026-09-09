@@ -22,6 +22,9 @@ dependencies {
 }
 
 tasks.named("jar").configure {
+  // The agent is identical across all 8.16.x patch levels, so the jar name is deliberately
+  // version-less: the cloud ESS image and its jvm.options.d reference a stable path.
+  archiveFileName = 'fs-patch-agent.jar'
   manifest {
     attributes(
       'Premain-Class': 'org.elasticsearch.patch.FsDirectoryFactoryAgent',

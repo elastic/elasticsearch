@@ -1227,8 +1227,8 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Smoke test that attaching the fs-patch-agent (via ES_JAVA_OPTS) together with the bundled
-     * --patch-module option does not break a normal startup / index / search.
+     * Smoke test that the bundled fs-patch-agent (attached via jvm.options.d, together with the
+     * --patch-module option in the same file) does not break a normal startup / index / search.
      *
      * <p>Note: this image is built FROM the locally-built cloud image, whose server jar already
      * contains the patched FsDirectoryFactory (and FsDirectoryFactory$2). The agent therefore
@@ -1241,11 +1241,9 @@ public class DockerTests extends PackagingTestCase {
     public void test402CloudImagePatchAgentWiringIsSound() throws Exception {
         assumeTrue("Only Cloud ESS images bundle the fs-patch-agent", distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
-        installation = runContainer(
-            distribution(),
-            builder().envVar("ELASTIC_PASSWORD", PASSWORD)
-                .envVar("ES_JAVA_OPTS", "-javaagent:/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-patch-agent.jar")
-        );
+        // The image self-attaches the agent and applies --patch-module via config/jvm.options.d, so
+        // no ES_JAVA_OPTS override is needed here.
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", PASSWORD));
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
         // Creating the index opens a shard through FsDirectoryFactory; searching forces reads

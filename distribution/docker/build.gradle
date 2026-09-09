@@ -469,9 +469,8 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       }
 
       into("lib/tools/fs-patch-agent") {
+        // Both jars build with stable, version-less names (fs-patch-agent.jar, fs-directory-patch.jar).
         from configurations.fsPatchAgent
-        rename ~/^fs-patch-agent-.*\.jar$/, 'fs-patch-agent.jar'
-        // The supplement jar is already named fs-directory-patch.jar, so the rename above leaves it untouched.
         from configurations.fsPatchAgentSupplement
       }
 

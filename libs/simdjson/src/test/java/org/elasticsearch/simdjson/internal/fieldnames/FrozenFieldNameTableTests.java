@@ -452,6 +452,27 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
+    // ---- Probing ----
+
+    // A collision at the table's last slot must wrap via (i + 1) & mask to slot 0; a name placed
+    // there by build() must still be found by lookup(), not silently lost off the end of the array.
+    public void testLookupWrapsAroundEndOfTable() {
+        // A table built from a handful of names always gets the minimum size of 32 slots
+        // (mask 31, see FrozenFieldNameTable#build), so two distinct names whose hash lands in the
+        // last slot are guaranteed to collide there, forcing the second one to wrap to slot 0.
+        int mask = 31;
+        String name1 = findNameHashingToSlot(mask, mask, Set.of());
+        String name2 = findNameHashingToSlot(mask, mask, Set.of(name1));
+
+        FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
+        insertName(child, name1);
+        insertName(child, name2);
+        child.freeze();
+
+        assertEquals("name occupying the colliding slot must still resolve", name1, lookupName(child, name1));
+        assertEquals("name that wrapped past the end of the table must resolve", name2, lookupName(child, name2));
+    }
+
     // insert after freeze still works (lazy growth of the frozen table).
     public void testInsertAfterFreezeStillWorks() {
         FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
@@ -511,6 +532,27 @@ public class FrozenFieldNameTableTests extends ESTestCase {
             unique.add(randomAlphaOfLengthBetween(0, 24) + "_" + unique.size());
         }
         return List.copyOf(unique);
+    }
+
+    /**
+     * Brute-forces a random field name whose {@link FieldNameHash#hashName} value, masked with
+     * {@code mask}, equals {@code slot}. Odds of a hit are {@code 1 / (mask + 1)} per attempt, so
+     * for a small mask this succeeds almost immediately; used to construct deliberate hash-table
+     * collisions without a test-only seam into the real hashing.
+     */
+    private static String findNameHashingToSlot(int mask, int slot, Set<String> exclude) {
+        for (int attempt = 0; attempt < 100_000; attempt++) {
+            String candidate = randomAlphaOfLengthBetween(3, 12);
+            if (exclude.contains(candidate)) {
+                continue;
+            }
+            byte[] buf = toBytes(candidate);
+            int hash = FieldNameHash.hashName(buf, 0, buf.length);
+            if ((hash & mask) == slot) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("failed to find a name hashing to slot " + slot + " within the attempt budget");
     }
 
     private static void addRandomPrefix8Pair(List<String> names) {

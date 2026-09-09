@@ -7,13 +7,6 @@
     "ai-index-sml@custom"
   ],
   "ignore_missing_component_templates": ["ai-index-sml@custom"],
-  "template": {
-    "aliases": {
-      ".ai-index-idx-sml-data": {
-        "is_write_index": true
-      }
-    }
-  },
   "_meta": {
     "description": "Template applied to the Elastic AI Index.",
     "managed": true

@@ -417,6 +417,18 @@ public class ES87BloomFilterPostingsFormat extends PostingsFormat {
             this.bloomFilterSize = bloomFilterSize;
         }
 
+        @Override
+        public BytesRef getMin() throws IOException {
+            // FilterTerms does not delegate getMin/getMax; without this, Lucene's default getMax binary-searches
+            // via seekCeil with incomplete probes and breaks synthetic _id terms (see TSDBSyntheticIdFieldsProducer).
+            return in.getMin();
+        }
+
+        @Override
+        public BytesRef getMax() throws IOException {
+            return in.getMax();
+        }
+
         private boolean mayContainTerm(BytesRef term) throws IOException {
             hashTerm(term, hashes);
             for (int hash : hashes) {

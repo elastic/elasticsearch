@@ -42,6 +42,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
@@ -396,7 +397,7 @@ public enum StringFormat {
 
         @Override
         public long queryTerm(BytesRef term) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term));
+            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term, ScanBudget.UNLIMITED));
         }
 
         @Override
@@ -407,7 +408,11 @@ public enum StringFormat {
 
         @Override
         public long queryPrefix(BytesRef prefix) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.prefix(FIELD, prefix));
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
+            );
         }
 
         private static long count(DocIdSetIterator matches) throws IOException {

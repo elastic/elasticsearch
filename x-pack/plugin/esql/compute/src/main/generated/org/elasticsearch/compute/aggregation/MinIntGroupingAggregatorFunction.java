@@ -37,7 +37,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   MinIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new IntArrayState(driverContext.bigArrays(), MinIntAggregator.init());
+    this.state = new IntArrayState(driverContext.bigArrays(), driverContext.breaker(), MinIntAggregator.init());
     this.driverContext = driverContext;
   }
 

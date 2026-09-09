@@ -176,4 +176,5 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     protected void dispose(MultiSearchTemplateResponse instance) {
         instance.decRef();
     }
+
 }

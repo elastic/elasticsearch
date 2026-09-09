@@ -40,9 +40,6 @@ tests:
 - class: org.elasticsearch.index.query.SearchExecutionContextTests
   method: testFielddataLookupSometimesLoop
   issue: https://github.com/elastic/elasticsearch/issues/157154
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/157329
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/40_indices_boost/Indices boost with wildcard}
   issue: https://github.com/elastic/elasticsearch/issues/157451
@@ -69,16 +66,8 @@ tests:
 - class: org.elasticsearch.upgrades.MlJobSnapshotUpgradeIT
   method: testSnapshotUpgrader {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/158092
-- class: org.elasticsearch.upgrades.RolesBackwardsCompatibilityIT
-  issue: https://github.com/elastic/elasticsearch/issues/158093
 - class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/158094
-- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
-  method: testMlAssignmentPlannerUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/158099
-- class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
-  method: testMlAssignmentPlannerUpgrade {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/158100
 - class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
   method: testCreatingAndUpdatingApiKeys {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/158101

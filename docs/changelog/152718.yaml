@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 120459
+pr: 152718
+summary: Scripted fields can cause oom
+type: bug

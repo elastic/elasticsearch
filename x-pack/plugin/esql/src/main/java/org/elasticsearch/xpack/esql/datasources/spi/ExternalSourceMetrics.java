@@ -16,6 +16,8 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -131,17 +133,17 @@ public final class ExternalSourceMetrics {
     public static final String CONFIG_CHANGES_TOTAL = "es.esql.datasources.config.changes.total";
 
     /**
-     * Storage type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
-     * {@link #canonicalScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
+     * Storage and CRUD type dimension, normalised to {@link DataSourceTelemetryVocabulary.Type} via
+     * {@link Type#fromScheme(String)}: {@code s3}, {@code gcs}, {@code azure}, {@code http},
      * {@code local}, {@code unknown}.
      */
-    public static final String SCHEME_ATTRIBUTE = "es_datasource_scheme";
+    public static final String TYPE_ATTRIBUTE = "es_datasource_type";
 
     /**
-     * Configuration-inventory / CRUD type dimension: {@code s3}, {@code gcs}, {@code azure},
-     * {@code http}, {@code local}, {@code unknown}. Distinct from {@link #SCHEME_ATTRIBUTE}.
+     * Scan-format dimension on the four scan-operator instruments only, a closed set:
+     * {@code parquet}, {@code csv}, {@code tsv}, {@code ndjson}, {@code orc}, {@code other}, {@code unresolved}.
      */
-    public static final String TYPE_ATTRIBUTE = "es_datasource_type";
+    public static final String FORMAT_ATTRIBUTE = "es_datasource_format";
 
     /** CRUD object kind: {@code datasource} or {@code dataset}. */
     public static final String KIND_ATTRIBUTE = "es_datasource_kind";
@@ -180,14 +182,20 @@ public final class ExternalSourceMetrics {
     private final DataSourceUsageAccumulator usageAccumulator;
 
     /**
-     * Pre-built, immutable single-entry {@link #SCHEME_ATTRIBUTE} attribute maps for the closed
+     * Pre-built, immutable single-entry {@link #TYPE_ATTRIBUTE} attribute maps for the closed
      * {@link Type} set, so the common case never allocates a fresh map per record call. Mirrors
      * {@code ShardChangesObserver}'s pre-built per-value attribute maps and {@code RepositoriesMetrics}'s
-     * {@code createAttributesMap}. Looked up via {@link #schemeAttrs(String)}. Thread-safe: immutable
+     * {@code createAttributesMap}. Looked up via {@link #typeAttrs(String)}. Thread-safe: immutable
      * maps; every {@link Type} token is present so lookups never allocate.
      */
-    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = Arrays.stream(Type.values())
-        .collect(Collectors.toUnmodifiableMap(Type::key, t -> Map.of(SCHEME_ATTRIBUTE, t.key())));
+    private static final Map<String, Map<String, Object>> TYPE_ATTRIBUTES = Arrays.stream(Type.values())
+        .collect(Collectors.toUnmodifiableMap(Type::key, t -> Map.of(TYPE_ATTRIBUTE, t.key())));
+
+    /**
+     * Pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} maps for the four scan-operator instruments.
+     * Keyed {@code type + '\0' + format}. Every closed combination is present so lookups never allocate.
+     */
+    private static final Map<String, Map<String, Object>> TYPE_FORMAT_ATTRIBUTES = typeFormatAttributes();
 
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
     private static final Map<String, Map<String, Object>> OUTCOME_ATTRIBUTES = Map.of(
@@ -349,8 +357,8 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records one completed read request: increments the request count, adds the bytes read, and
-     * observes the request duration. {@code scheme} is the raw storage scheme, canonicalised on lookup by
-     * {@link #schemeAttrs(String)}.
+     * observes the request duration. {@code scheme} is the raw storage scheme, folded to {@link #TYPE_ATTRIBUTE}
+     * via {@link Type#fromScheme(String)}.
      * <p>
      * Best-effort: an instrumentation failure is swallowed (logged at {@code TRACE}) so it can never break the
      * caller's read/query/producer path — every public {@code recordX} method self-guards this way.
@@ -358,7 +366,7 @@ public final class ExternalSourceMetrics {
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
             Type type = Type.fromScheme(scheme);
-            Map<String, Object> attributes = schemeAttrsForCanonical(type.key());
+            Map<String, Object> attributes = typeAttrsForToken(type.key());
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
@@ -375,8 +383,8 @@ public final class ExternalSourceMetrics {
     /** Records one automatic retry against the given storage {@code scheme}. Best-effort (self-guarded). */
     public void recordRetry(String scheme) {
         try {
-            String canonical = canonicalScheme(scheme);
-            retriesTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
+            Type type = Type.fromScheme(scheme);
+            retriesTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
                 usageAccumulator.recordRetry();
             }
@@ -392,7 +400,7 @@ public final class ExternalSourceMetrics {
     public void recordError(String scheme) {
         try {
             Type type = Type.fromScheme(scheme);
-            errorsTotal.incrementBy(1, schemeAttrsForCanonical(type.key()));
+            errorsTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
                 usageAccumulator.recordError(type);
             }
@@ -408,7 +416,7 @@ public final class ExternalSourceMetrics {
     public void recordThrottled(String scheme) {
         try {
             Type type = Type.fromScheme(scheme);
-            throttledTotal.incrementBy(1, schemeAttrsForCanonical(type.key()));
+            throttledTotal.incrementBy(1, typeAttrsForToken(type.key()));
             if (usageAccumulator != null) {
                 usageAccumulator.recordThrottled(type);
             }
@@ -423,7 +431,7 @@ public final class ExternalSourceMetrics {
      */
     public void recordReadStall(long millis, String scheme) {
         try {
-            readStallDuration.record(Math.max(0L, millis), schemeAttrs(scheme));
+            readStallDuration.record(Math.max(0L, millis), typeAttrs(scheme));
             if (usageAccumulator != null) {
                 usageAccumulator.recordReadStall(millis);
             }
@@ -464,11 +472,12 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records the time from an external-source scan operator's start to its first emitted page, in milliseconds,
-     * on the given storage {@code scheme}. Best-effort (self-guarded).
+     * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
+     * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordTimeToFirstRow(long millis, String scheme) {
+    public void recordTimeToFirstRow(long millis, String scheme, String format) {
         try {
-            queryTimeToFirstRow.record(Math.max(0L, millis), schemeAttrs(scheme));
+            queryTimeToFirstRow.record(Math.max(0L, millis), typeFormatAttrs(scheme, format));
             if (usageAccumulator != null) {
                 usageAccumulator.recordTimeToFirstRow(millis);
             }
@@ -483,7 +492,7 @@ public final class ExternalSourceMetrics {
      */
     public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned, String scheme) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            Map<String, Object> attributes = typeAttrs(scheme);
             discoveryDuration.record(Math.max(0L, durationMillis), attributes);
             discoveryFilesScanned.record(Math.max(0L, filesScanned), attributes);
             discoveryBytesScanned.record(Math.max(0L, bytesScanned), attributes);
@@ -509,17 +518,18 @@ public final class ExternalSourceMetrics {
 
     /**
      * Records the rows parsed and the read/parse wall time of one external-source scan operator, in milliseconds,
-     * on the given storage {@code scheme}. Best-effort (self-guarded).
+     * tagged with the storage {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format}
+     * (folded to {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordParse(long rows, long parseDurationMillis, String scheme) {
+    public void recordParse(long rows, long parseDurationMillis, String scheme, String format) {
         try {
-            Map<String, Object> attributes = schemeAttrs(scheme);
+            Map<String, Object> attributes = typeFormatAttrs(scheme, format);
             if (rows > 0) {
                 parseRowsTotal.incrementBy(rows, attributes);
             }
             parseDuration.record(Math.max(0L, parseDurationMillis), attributes);
             if (usageAccumulator != null) {
-                usageAccumulator.recordParse(rows, parseDurationMillis);
+                usageAccumulator.recordParse(rows, parseDurationMillis, canonicalFormat(format));
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordParse failed", e);
@@ -527,12 +537,13 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Records the number of splits scanned by one external-source scan operator, on the given storage
-     * {@code scheme}. Best-effort (self-guarded).
+     * Records the number of splits scanned by one external-source scan operator, tagged with the storage
+     * {@code scheme} (folded to {@link #TYPE_ATTRIBUTE}) and the scan {@code format} (folded to
+     * {@link #FORMAT_ATTRIBUTE}). Best-effort (self-guarded).
      */
-    public void recordSplitsScanned(long splits, String scheme) {
+    public void recordSplitsScanned(long splits, String scheme, String format) {
         try {
-            parseSplitsScanned.record(Math.max(0L, splits), schemeAttrs(scheme));
+            parseSplitsScanned.record(Math.max(0L, splits), typeFormatAttrs(scheme, format));
             if (usageAccumulator != null) {
                 usageAccumulator.recordSplitsScanned(splits);
             }
@@ -594,24 +605,52 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Canonicalises {@code scheme} and returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map
+     * Canonicalises {@code scheme} and returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map
      * for that closed {@link Type} token. Thread-safe: immutable maps, no allocation on the record path.
      */
-    private static Map<String, Object> schemeAttrs(String scheme) {
-        return schemeAttrsForCanonical(canonicalScheme(scheme));
+    private static Map<String, Object> typeAttrs(String scheme) {
+        return typeAttrsForToken(Type.fromScheme(scheme).key());
     }
 
     /**
-     * Returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map for an already-canonicalised
-     * {@code canonical} type token. Callers that have already called {@link #canonicalScheme} use
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE} attribute map for an already-canonicalised
+     * {@code canonical} type token. Callers that have already called {@link Type#fromScheme(String)} use
      * this overload to avoid re-canonicalising, while keeping the APM attribute lookup in one place.
      */
-    private static Map<String, Object> schemeAttrsForCanonical(String canonical) {
-        Map<String, Object> attrs = SCHEME_ATTRIBUTES.get(canonical);
+    private static Map<String, Object> typeAttrsForToken(String canonical) {
+        Map<String, Object> attrs = TYPE_ATTRIBUTES.get(canonical);
         if (attrs == null) {
             throw new IllegalArgumentException("non-canonical type token [" + canonical + "]");
         }
         return attrs;
+    }
+
+    /**
+     * Returns the pre-built {@link #TYPE_ATTRIBUTE}×{@link #FORMAT_ATTRIBUTE} map for a raw scheme and
+     * format. Both tokens are folded first; every closed combination is present so this never allocates.
+     */
+    private static Map<String, Object> typeFormatAttrs(String scheme, String format) {
+        String type = Type.fromScheme(scheme).key();
+        String canonicalFormat = canonicalFormat(format);
+        Map<String, Object> attrs = TYPE_FORMAT_ATTRIBUTES.get(typeFormatKey(type, canonicalFormat));
+        if (attrs == null) {
+            throw new IllegalArgumentException("non-canonical type/format [" + type + "/" + canonicalFormat + "]");
+        }
+        return attrs;
+    }
+
+    private static Map<String, Map<String, Object>> typeFormatAttributes() {
+        Map<String, Map<String, Object>> maps = new HashMap<>();
+        for (Type type : Type.values()) {
+            for (String format : DataSourceUsageAccumulator.FORMAT_NAMES) {
+                maps.put(typeFormatKey(type.key(), format), Map.of(TYPE_ATTRIBUTE, type.key(), FORMAT_ATTRIBUTE, format));
+            }
+        }
+        return Map.copyOf(maps);
+    }
+
+    private static String typeFormatKey(String type, String format) {
+        return type + '\0' + format;
     }
 
     /** Returns the pre-built {@link #OUTCOME_ATTRIBUTE} attribute map for {@code outcome} (a fresh map for any unknown). */
@@ -621,11 +660,23 @@ public final class ExternalSourceMetrics {
 
     /**
      * Folds a raw {@link StoragePath#scheme() storage-path scheme} into the closed
-     * {@link Type} token used for {@link #SCHEME_ATTRIBUTE}. Provider aliases
+     * {@link Type} token used for {@link #TYPE_ATTRIBUTE}. Provider aliases
      * ({@code s3a}/{@code s3n}, {@code wasb}/{@code wasbs}, {@code https}, {@code gs}) collapse onto one
      * series; {@code file} folds to {@code local}; anything else is {@code unknown}.
      */
     public static String canonicalScheme(String scheme) {
         return Type.fromScheme(scheme).key();
+    }
+
+    /**
+     * Folds a raw format name into the closed {@link DataSourceUsageAccumulator#FORMAT_NAMES} set.
+     * Null or blank becomes {@code unresolved}; a known name is lower-cased; anything else is {@code other}.
+     */
+    public static String canonicalFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return DataSourceUsageAccumulator.FORMAT_UNRESOLVED_NAME;
+        }
+        String lower = format.toLowerCase(Locale.ROOT);
+        return DataSourceUsageAccumulator.FORMAT_NAMES_SET.contains(lower) ? lower : DataSourceUsageAccumulator.FORMAT_OTHER_NAME;
     }
 }

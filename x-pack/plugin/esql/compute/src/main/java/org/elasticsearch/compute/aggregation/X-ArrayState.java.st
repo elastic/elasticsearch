@@ -7,12 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-$if(boolean)$
-import org.elasticsearch.common.util.BitArray;
-$else$
-import org.elasticsearch.common.util.$Type$Array;
-$endif$
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 $if(long)$
 import org.elasticsearch.compute.data.IntVector;
@@ -26,6 +25,8 @@ import org.elasticsearch.compute.data.IntVector;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
 
 /**
  * Aggregator state for an array of $type$s. It is created in a mode where it
@@ -43,50 +44,91 @@ import org.elasticsearch.core.Releasables;
  * </p>
  */
 final class $Type$ArrayState extends AbstractArrayState implements GroupingAggregatorState {
+$if(boolean)$
+    private static final int WORDS_PER_PAGE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES;
+    static final int PAGE_SIZE = WORDS_PER_PAGE * Long.SIZE;
+$else$
+    static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / $BYTES$;
+$endif$
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
+    private static final int PAGE_MASK = PAGE_SIZE - 1;
+    private static final int INITIAL_SIZE = 256;
+
     private final $type$ init;
-
+    private final CircuitBreaker breaker;
+    private long usedBytes;
+    private int capacity;
 $if(boolean)$
-    private BitArray values;
-    private int size;
+    private long[][] pages;
 
-$else$
-    private $Type$Array values;
-$endif$
-
-    $Type$ArrayState(BigArrays bigArrays, $type$ init) {
+    $Type$ArrayState(BigArrays bigArrays, CircuitBreaker breaker, $type$ init) {
         super(bigArrays);
-$if(boolean)$
-        this.values = new BitArray(1, bigArrays);
-        this.size = 1;
-$else$
-        this.values = bigArrays.new$Type$Array(1, false);
-$endif$
-        this.values.set(0, init);
+        this.breaker = breaker;
         this.init = init;
+        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByPage(INITIAL_SIZE / Long.SIZE));
+        this.pages = new long[1][INITIAL_SIZE / Long.SIZE];
+        this.capacity = INITIAL_SIZE;
+        if (init) {
+            Arrays.fill(pages[0], -1L);
+        }
     }
 
     $type$ get(int groupId) {
-        return values.get(groupId);
-    }
-
-    $type$ getOrDefault(int groupId) {
-$if(boolean)$
-        return groupId < size ? values.get(groupId) : init;
-$else$
-        return groupId < values.size() ? values.get(groupId) : init;
-$endif$
+        return (pages[groupId >>> PAGE_SHIFT][(groupId & PAGE_MASK) >>> 6] & (1L << groupId)) != 0;
     }
 
     void set(int groupId, $type$ value) {
-        ensureCapacity(groupId);
-        values.set(groupId, value);
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        final long[] page = pages[groupId >>> PAGE_SHIFT];
+        final int word = (groupId & PAGE_MASK) >>> 6;
+        if (value) {
+            page[word] |= 1L << groupId;
+        } else {
+            page[word] &= ~(1L << groupId);
+        }
         trackGroupId(groupId);
+    }
+
+$else$
+    private $type$[][] pages;
+
+    $Type$ArrayState(BigArrays bigArrays, CircuitBreaker breaker, $type$ init) {
+        super(bigArrays);
+        this.breaker = breaker;
+        this.init = init;
+        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByPage(INITIAL_SIZE));
+        this.pages = new $type$[1][INITIAL_SIZE];
+        this.capacity = INITIAL_SIZE;
+        if (init != 0) {
+            Arrays.fill(pages[0], init);
+        }
+    }
+
+    $type$ get(int groupId) {
+        return pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK];
+    }
+
+    void set(int groupId, $type$ value) {
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] = value;
+        trackGroupId(groupId);
+    }
+$endif$
+
+    $type$ getOrDefault(int groupId) {
+        return groupId < capacity ? get(groupId) : init;
     }
 
 $if(long||double)$
     void increment(int groupId, $type$ value) {
-        ensureCapacity(groupId);
-        values.increment(groupId, value);
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] += value;
         trackGroupId(groupId);
     }
 $endif$
@@ -95,7 +137,7 @@ $endif$
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.append$Type$(i, values.get(selected.getInt(i)));
+                    builder.append$Type$(i, get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -104,7 +146,7 @@ $endif$
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    builder.append$Type$(values.get(group));
+                    builder.append$Type$(get(group));
                 } else {
                     builder.appendNull();
                 }
@@ -113,20 +155,79 @@ $endif$
         }
     }
 
-    private void ensureCapacity(int groupId) {
-$if(boolean)$
-        if (groupId >= size) {
-            values.fill(size, groupId + 1, init);
-            size = groupId + 1;
+    void ensureCapacity(int minSize) {
+        if (minSize > capacity) {
+            grow(minSize);
         }
-$else$
-        if (groupId >= values.size()) {
-            long prevSize = values.size();
-            values = bigArrays.grow(values, groupId + 1);
-            values.fill(prevSize, values.size(), init);
-        }
-$endif$
     }
+
+    private void grow(int minSize) {
+        if (capacity < PAGE_SIZE) {
+$if(boolean)$
+            final int oldLength = capacity / Long.SIZE;
+            final int newLength = Math.min(WORDS_PER_PAGE, ArrayUtil.oversize(Math.ceilDiv(minSize, Long.SIZE), Long.BYTES));
+$else$
+            final int oldLength = capacity;
+            final int newLength = Math.min(PAGE_SIZE, ArrayUtil.oversize(minSize, $BYTES$));
+$endif$
+            reserveBytes(bytesUsedByPage(newLength));
+            pages[0] = Arrays.copyOf(pages[0], newLength);
+            releaseBytes(bytesUsedByPage(oldLength));
+$if(boolean)$
+            if (init) {
+                Arrays.fill(pages[0], oldLength, newLength, -1L);
+            }
+            capacity = newLength * Long.SIZE;
+$else$
+            if (init != 0) {
+                Arrays.fill(pages[0], oldLength, newLength, init);
+            }
+            capacity = newLength;
+$endif$
+            if (minSize <= capacity) {
+                return;
+            }
+        }
+        final int pageIndex = (minSize - 1) >>> PAGE_SHIFT;
+        if (pageIndex >= pages.length) {
+            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            reserveBytes(bytesUsedByPagesArray(newLength));
+            final int oldLength = pages.length;
+            pages = Arrays.copyOf(pages, newLength);
+            releaseBytes(bytesUsedByPagesArray(oldLength));
+        }
+        if (minSize == capacity + 1) {
+            pages[pageIndex] = newPage();
+            capacity += PAGE_SIZE;
+            return;
+        }
+        for (int p = capacity >>> PAGE_SHIFT; p <= pageIndex; p++) {
+            assert pages[p] == null;
+            pages[p] = newPage();
+        }
+        capacity = (pageIndex + 1) * PAGE_SIZE;
+    }
+
+$if(boolean)$
+    private long[] newPage() {
+        reserveBytes(bytesUsedByPage(WORDS_PER_PAGE));
+        final long[] page = new long[WORDS_PER_PAGE];
+        if (init) {
+            Arrays.fill(page, -1L);
+        }
+        return page;
+    }
+
+$else$
+    private $type$[] newPage() {
+        reserveBytes(bytesUsedByPage(PAGE_SIZE));
+        final $type$[] page = new $type$[PAGE_SIZE];
+        if (init != 0) {
+            Arrays.fill(page, init);
+        }
+        return page;
+    }
+$endif$
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
@@ -144,8 +245,8 @@ $endif$
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < $if(boolean)$size$else$values.size()$endif$ && hasValue(group)) {
-                    valuesBuilder.append$Type$(i, values.get(group));
+                if (group < capacity && hasValue(group)) {
+                    valuesBuilder.append$Type$(i, get(group));
                     hasValueBuilder.appendBoolean(i, true);
                 } else {
                     allHaveValue = false;
@@ -163,8 +264,31 @@ $endif$
         }
     }
 
+    private void reserveBytes(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "$Type$ArrayState");
+        usedBytes += bytes;
+    }
+
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        usedBytes -= bytes;
+    }
+
+    static long bytesUsedByPagesArray(int length) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
+        );
+    }
+
+    static long bytesUsedByPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $if(boolean)$Long.BYTES$else$$BYTES$$endif$ * length);
+    }
+
     @Override
     public void close() {
-        Releasables.close(values, super::close);
+        pages = null;
+        final long bytes = usedBytes;
+        usedBytes = 0;
+        Releasables.close(() -> breaker.addWithoutBreaking(-bytes), super::close);
     }
 }

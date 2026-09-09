@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,6 +26,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
@@ -48,6 +51,7 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String csv = """
             id:long,name:keyword
             1,Alice
@@ -76,6 +80,14 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
         assertEquals("header row detected", true, after.headerDetected());
         assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+        assertTrue("read_cpu_nanos should be > 0 after at least one batch", after.readCpuNanos() > 0);
+        assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
+
+        // Test manual addition to read_cpu_nanos
+        long readNanosBeforeAccept = after.readCpuNanos();
+        reader.acceptReadCpuNanos(99_999L);
+        assertThat(reader.statusSnapshot().readCpuNanos(), equalTo(readNanosBeforeAccept + 99_999L));
+
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {

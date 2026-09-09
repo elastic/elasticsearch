@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -47,6 +48,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String ndjson = """
             {"a": 1, "b": "x"}
             {"a": 2, "b": "y"}
@@ -72,6 +74,13 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("ndjson", after.format());
         assertEquals("no malformed lines in this fixture", 0L, after.parseErrors());
         assertTrue("read_nanos should be > 0 after at least one decodePage call", after.readNanos() > 0);
+        assertTrue("read_cpu_nanos should be > 0 after at least one decodePage call", after.readCpuNanos() > 0);
+        assertTrue("read_cpu_nanos must not exceed read_nanos", after.readCpuNanos() <= after.readNanos());
+
+        // Test manual addition to read_cpu_nanos
+        long readCpuNanosBeforeAccept = after.readCpuNanos();
+        reader.acceptReadCpuNanos(99_999L);
+        assertEquals(readCpuNanosBeforeAccept + 99_999L, reader.statusSnapshot().readCpuNanos());
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {

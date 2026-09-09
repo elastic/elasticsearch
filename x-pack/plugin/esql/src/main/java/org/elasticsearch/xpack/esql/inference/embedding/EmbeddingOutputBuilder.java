@@ -139,6 +139,9 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
             );
         }
 
+        // The k-th embedding is assigned to the k-th non-null input position, so batched requests rely on the service returning
+        // embeddings in input order (the embedding-API contract). The count check above catches a size mismatch; a reordering
+        // would misalign rows and is not detectable here.
         int currentEmbeddingIndex = 0;
 
         for (int valueCount : response.positionValueCounts()) {

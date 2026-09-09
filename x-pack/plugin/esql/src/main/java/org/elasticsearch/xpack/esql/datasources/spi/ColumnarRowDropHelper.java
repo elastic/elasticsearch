@@ -272,19 +272,7 @@ public final class ColumnarRowDropHelper {
     public void checkBudget(@Nullable SkipWarnings warnings) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {
             if (warnings != null) {
-                warnings.add(
-                    "Columnar error budget exceeded at ["
-                        + fileLocation
-                        + "]: ["
-                        + errorCount
-                        + "] dropped rows in ["
-                        + rowCount
-                        + "] decoded rows, maximum ["
-                        + policy.maxErrors()
-                        + "] errors or ratio ["
-                        + policy.maxErrorRatio()
-                        + "]"
-                );
+                warnings.add(budgetExceededWarning(policy, fileLocation, errorCount, rowCount, "dropped rows"));
             }
             throw new ParsingException(
                 Source.EMPTY,
@@ -296,5 +284,30 @@ public final class ColumnarRowDropHelper {
                 policy.maxErrorRatio()
             );
         }
+    }
+
+    /**
+     * The budget-exceeded warning line. Exposed because a columnar reader may keep its own error
+     * counter alongside this helper's — the Parquet LIST path charges recovered structural errors
+     * into the same budget as its dropped rows — and must emit the same line the readers that go
+     * through {@link #checkBudget} do, rather than a second wording of the same event.
+     *
+     * @param errorKind what the count covers, in plural form: {@code "dropped rows"} for this
+     *                  helper's own trip, or a caller-specific kind when the budget is shared
+     */
+    public static String budgetExceededWarning(ErrorPolicy policy, String fileLocation, long errorCount, long rowCount, String errorKind) {
+        return "Columnar error budget exceeded at ["
+            + fileLocation
+            + "]: ["
+            + errorCount
+            + "] "
+            + errorKind
+            + " in ["
+            + rowCount
+            + "] decoded rows, maximum ["
+            + policy.maxErrors()
+            + "] errors or ratio ["
+            + policy.maxErrorRatio()
+            + "]";
     }
 }

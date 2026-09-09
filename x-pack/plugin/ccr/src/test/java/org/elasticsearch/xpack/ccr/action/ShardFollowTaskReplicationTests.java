@@ -21,11 +21,8 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,7 +83,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -564,19 +560,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
-            protected synchronized void recoverPrimary(IndexShard primaryShard) {
-                DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
-                Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
-                ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
-                    primaryShard.routingEntry(),
-                    new RecoverySource.SnapshotRecoverySource(
-                        UUIDs.randomBase64UUID(),
-                        snapshot,
-                        IndexVersion.current(),
-                        new IndexId("test", UUIDs.randomBase64UUID(random()))
-                    )
+            protected RecoverySource primaryRecoverySource() {
+                // The primary is "restored from a snapshot" of the leader index (see recoverPrimary).
+                return new RecoverySource.SnapshotRecoverySource(
+                    UUIDs.randomBase64UUID(),
+                    new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID())),
+                    IndexVersion.current(),
+                    new IndexId("test", UUIDs.randomBase64UUID(random()))
                 );
-                primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+            }
+
+            @Override
+            protected synchronized void recoverPrimary(IndexShard primaryShard) {
+                primaryShard.markAsRecovering("remote recovery from leader");
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 primaryShard.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), index.getName()) {
                     @Override

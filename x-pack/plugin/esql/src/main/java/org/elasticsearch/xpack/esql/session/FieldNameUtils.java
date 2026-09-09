@@ -510,6 +510,7 @@ public class FieldNameUtils {
             || p instanceof Rename
             || p instanceof Row
             || p instanceof TopN
+            || p instanceof Row
             || p instanceof UnresolvedSourceRelation) == false;
     }
 

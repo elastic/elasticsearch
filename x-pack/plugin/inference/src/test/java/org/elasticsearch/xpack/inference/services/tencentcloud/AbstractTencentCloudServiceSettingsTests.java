@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -103,5 +104,5 @@ public abstract class AbstractTencentCloudServiceSettingsTests<T extends Tencent
     protected abstract T mutateInstance(T instance) throws IOException;
 
     @Override
-    protected abstract T mutateInstanceForVersion(T instance, org.elasticsearch.TransportVersion version);
+    protected abstract T mutateInstanceForVersion(T instance, TransportVersion version);
 }

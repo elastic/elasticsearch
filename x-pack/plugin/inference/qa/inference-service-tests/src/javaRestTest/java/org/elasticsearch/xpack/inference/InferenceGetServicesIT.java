@@ -188,7 +188,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "mistral",
                     "watsonxai",
-                    "nvidia"
+                    "nvidia",
+                    "tencentcloud"
                 ).toArray()
             )
         );

@@ -57,6 +57,36 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
         assertNull(settings.maxInputTokens());
     }
 
+    public void testFromMap_Request_MinimalConfig() {
+        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(settings.modelId(), is(TEST_MODEL_ID));
+        assertNull(settings.similarity());
+        assertNull(settings.dimensions());
+        assertNull(settings.maxInputTokens());
+    }
+
+    public void testFromMap_Request_WithDimensions_ThrowsValidationError() {
+        // The Tencent Cloud embeddings API does not accept a `dimensions` parameter; it is only parsed in PERSISTENT context.
+        var map = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID, ServiceFields.DIMENSIONS, TEST_DIMENSIONS));
+        assertThrows(
+            org.elasticsearch.xcontent.XContentParseException.class,
+            () -> TencentCloudEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+    }
+
+    public void testFromMap_Request_ApiKeyInServiceSettings_Ignored() {
+        // api_key appears alongside service settings in REQUEST payloads; the parser must tolerate it as a no-op.
+        var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID, "api_key", "sk-unused")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(settings.modelId(), is(TEST_MODEL_ID));
+    }
+
     public void testFromMap_AllFields_Success() {
         var settings = TencentCloudEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
@@ -81,6 +111,30 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractTencentC
         assertThat(settings.dimensions(), is(TEST_DIMENSIONS));
         assertThat(settings.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
         assertThat(settings.rateLimitSettings(), is(new RateLimitSettings(100)));
+    }
+
+    public void testUpdateServiceSettings_MaxInputTokens_IsMutable() {
+        var original = new TencentCloudEmbeddingsServiceSettings(TEST_MODEL_ID, "sh", new RateLimitSettings(20), null, null, 256);
+        var updated = original.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS)));
+        assertThat(updated.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
+        // Immutable fields unchanged
+        assertThat(updated.modelId(), is(TEST_MODEL_ID));
+        assertThat(updated.region(), is("sh"));
+        assertThat(updated.similarity(), is(original.similarity()));
+        assertThat(updated.dimensions(), is(original.dimensions()));
+    }
+
+    public void testUpdateServiceSettings_SimilarityAndDimensions_AreImmutable() {
+        // The strict update parser does not declare similarity or dimensions, so including them throws.
+        var original = new TencentCloudEmbeddingsServiceSettings(TEST_MODEL_ID, "bj", new RateLimitSettings(20), null, null, null);
+        assertThrows(
+            org.elasticsearch.xcontent.XContentParseException.class,
+            () -> original.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.SIMILARITY, SimilarityMeasure.DOT_PRODUCT.toString())))
+        );
+        assertThrows(
+            org.elasticsearch.xcontent.XContentParseException.class,
+            () -> original.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.DIMENSIONS, TEST_DIMENSIONS)))
+        );
     }
 
     public void testUpdateEmbeddingDetails_ReturnsCopyWithNewValues() {

@@ -48,6 +48,13 @@ public class TencentCloudChatCompletionServiceSettingsTests extends AbstractTenc
         assertThat(settings.rateLimitSettings(), is(TencentCloudChatCompletionServiceSettings.DEFAULT_CHAT_COMPLETION_RATE_LIMIT));
     }
 
+    public void testDirectConstructor_NullRateLimit_UsesCommonDefault() {
+        // When constructed directly with null, the base class applies DEFAULT_RATE_LIMIT_SETTINGS (20 rpm),
+        // not the chat-completion-specific default (5 rpm). This intentional asymmetry is pinned here.
+        var settings = new TencentCloudChatCompletionServiceSettings("deepseek-v3", "abc", null);
+        assertThat(settings.rateLimitSettings(), is(TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS));
+    }
+
     public void testFromMap_ExplicitRateLimit_Respected() {
         var settings = TencentCloudChatCompletionServiceSettings.fromMap(
             new HashMap<>(

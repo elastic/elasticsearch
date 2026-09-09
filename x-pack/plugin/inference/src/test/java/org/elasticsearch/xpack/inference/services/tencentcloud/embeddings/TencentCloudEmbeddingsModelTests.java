@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud.embeddings;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.Objects;
+
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class TencentCloudEmbeddingsModelTests extends ESTestCase {
 
@@ -37,6 +41,33 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
         assertThat(model.uri().toString(), is("https://sh.aisearch.tencentelasticsearch.com/v1/embeddings"));
     }
 
+    public void testRateLimitGroupingHash_GroupsByModelIdAndUri() {
+        var settingsBj = new TencentCloudEmbeddingsServiceSettings("bge-m3", "bj", new RateLimitSettings(20), null, null, null);
+        var settingsSh = new TencentCloudEmbeddingsServiceSettings("bge-m3", "sh", new RateLimitSettings(20), null, null, null);
+        var settingsDifferentModel = new TencentCloudEmbeddingsServiceSettings(
+            "bge-large-en",
+            "bj",
+            new RateLimitSettings(20),
+            null,
+            null,
+            null
+        );
+
+        var modelBj = createModel(settingsBj);
+        var modelBjCopy = createModel(settingsBj);
+        var modelSh = createModel(settingsSh);
+        var modelDifferentModel = createModel(settingsDifferentModel);
+
+        // Same model id + URI → same bucket
+        assertThat(modelBj.rateLimitGroupingHash(), is(modelBjCopy.rateLimitGroupingHash()));
+        // Different region → different URI → different bucket
+        assertThat(modelBj.rateLimitGroupingHash(), not(is(modelSh.rateLimitGroupingHash())));
+        // Different model id → different bucket
+        assertThat(modelBj.rateLimitGroupingHash(), not(is(modelDifferentModel.rateLimitGroupingHash())));
+        // Verify the hash is based on modelId and uri
+        assertThat(modelBj.rateLimitGroupingHash(), is(Objects.hash(modelBj.getServiceSettings().modelId(), modelBj.uri())));
+    }
+
     public void testCopyConstructor_UpdatesServiceSettings() {
         var original = createModel(new TencentCloudEmbeddingsServiceSettings("bge-m3", null, new RateLimitSettings(20), null, null, null));
         var updated = new TencentCloudEmbeddingsModel(
@@ -53,7 +84,7 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
             serviceSettings,
             TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS,
             null,
-            new DefaultSecretSettings(new org.elasticsearch.common.settings.SecureString("sk-test".toCharArray()))
+            new DefaultSecretSettings(new SecureString("sk-test".toCharArray()))
         );
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.response;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -86,5 +87,38 @@ public class TencentCloudRerankResponseEntityTests extends ESTestCase {
 
         RankedDocsResults.RankedDoc doc = ((RankedDocsResults) parsed).getRankedDocs().get(0);
         assertThat(doc.text(), is("hello world"));
+    }
+
+    public void testFromResponse_InvalidDocumentType_ThrowsParseException() {
+        // document field is a number — neither a string nor an object
+        String responseJson = """
+            {
+              "results": [
+                {"index": 0, "relevance_score": 0.7, "document": 42}
+              ]
+            }
+            """;
+
+        assertThrows(
+            XContentParseException.class,
+            () -> TencentCloudRerankResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+    }
+
+    public void testFromResponse_MissingResultsArray_ThrowsParseException() {
+        String responseJson = """
+            {
+              "model": "bge-reranker-v2-m3"
+            }
+            """;
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> TencentCloudRerankResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
     }
 }

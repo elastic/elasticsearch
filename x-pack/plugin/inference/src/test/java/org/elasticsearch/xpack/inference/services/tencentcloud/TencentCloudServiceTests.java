@@ -7,127 +7,49 @@
 
 package org.elasticsearch.xpack.inference.services.tencentcloud;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
-import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
-import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isA;
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TencentCloudServiceTests extends InferenceServiceTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-
-    public void testName_IsTencentCloud() throws IOException {
-        try (var service = createService()) {
-            assertThat(service.name(), is("tencentcloud"));
-        }
-    }
-
-    public void testSupportedTaskTypes_ContainsExpectedTasks() throws IOException {
-        try (var service = createService()) {
-            assertThat(service.supportedTaskTypes().contains(TaskType.TEXT_EMBEDDING), is(true));
-            assertThat(service.supportedTaskTypes().contains(TaskType.COMPLETION), is(true));
-            assertThat(service.supportedTaskTypes().contains(TaskType.CHAT_COMPLETION), is(true));
-            assertThat(service.supportedTaskTypes().contains(TaskType.RERANK), is(true));
-        }
-    }
-
-    public void testParseRequestConfig_TextEmbedding() throws IOException {
-        var region = "bj";
-        parseRequestConfig(TaskType.TEXT_EMBEDDING, format("""
-            {
-              "service_settings": {
-                "api_key": "sk-12345",
-                "model_id": "bge-m3",
-                "region": "%s"
-              }
-            }
-            """, region), assertNoFailureListener(model -> {
-            assertThat(model, isA(TencentCloudEmbeddingsModel.class));
-            var m = (TencentCloudEmbeddingsModel) model;
-            assertThat(m.getServiceSettings().modelId(), equalTo("bge-m3"));
-            assertThat(m.uri().toString(), equalTo("https://bj.aisearch.tencentelasticsearch.com/v1/embeddings"));
-            assertThat(m.getSecretSettings().apiKey().toString(), equalTo("sk-12345"));
-        }));
-    }
-
-    public void testParseRequestConfig_ChatCompletion_UsesRegionUri() throws IOException {
-        parseRequestConfig(TaskType.CHAT_COMPLETION, """
-            {
-              "service_settings": {
-                "api_key": "sk-12345",
-                "model_id": "deepseek-v3",
-                "region": "sh"
-              }
-            }
-            """, assertNoFailureListener(model -> {
-            assertThat(model, isA(TencentCloudChatCompletionModel.class));
-            var m = (TencentCloudChatCompletionModel) model;
-            assertThat(m.model(), equalTo("deepseek-v3"));
-            assertThat(m.uri().toString(), equalTo("https://sh.aisearch.tencentelasticsearch.com/v1/chat/completions"));
-        }));
-    }
-
-    public void testParseRequestConfig_Rerank_WithTaskSettings() throws IOException {
-        parseRequestConfig(TaskType.RERANK, """
-            {
-              "service_settings": {
-                "api_key": "sk-12345",
-                "model_id": "bge-reranker-v2-m3"
-              },
-              "task_settings": {
-                "top_n": 5,
-                "return_documents": true
-              }
-            }
-            """, assertNoFailureListener(model -> {
-            assertThat(model, isA(TencentCloudRerankModel.class));
-            var m = (TencentCloudRerankModel) model;
-            assertThat(m.getServiceSettings().modelId(), equalTo("bge-reranker-v2-m3"));
-            assertThat(m.getTaskSettings().getTopN(), equalTo(5));
-            assertThat(m.getTaskSettings().getReturnDocuments(), equalTo(true));
-        }));
-    }
+    private static final String MODEL_ID = "bge-m3";
+    private static final String API_KEY = "sk-12345";
+    private static final String INFERENCE_ID = "inference-id";
+    private static final String DEFAULT_REGION = "bj";
 
     public void testParseRequestConfig_MissingApiKey_Fails() throws IOException {
         parseRequestConfig(TaskType.TEXT_EMBEDDING, """
@@ -137,9 +59,8 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
               }
             }
             """, assertNoSuccessListener(e -> {
-            if (e instanceof ValidationException ve) {
-                assertThat(ve.getMessage().contains("api_key"), is(true));
-            }
+            assertThat(e, instanceOf(ValidationException.class));
+            assertThat(e.getMessage(), containsString("api_key"));
         }));
     }
 
@@ -151,56 +72,77 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
               }
             }
             """, assertNoSuccessListener(e -> {
-            if (e instanceof ValidationException ve) {
-                assertThat(ve.getMessage().contains("model_id"), is(true));
-            }
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), containsString("model_id"));
         }));
-    }
-
-    public void testParsePersistedConfig_ChatCompletion() throws IOException {
-        var asMap = map("""
-            {
-              "service_settings": {
-                "model_id": "deepseek-v3",
-                "region": "sh"
-              }
-            }
-            """);
-        Map<String, Object> serviceSettings = new HashMap<>();
-        serviceSettings.put(ModelConfigurations.SERVICE_SETTINGS, asMap.get(ModelConfigurations.SERVICE_SETTINGS));
-        try (var service = createService()) {
-            var model = service.parsePersistedConfig(
-                new UnparsedModel("inference-id", TaskType.CHAT_COMPLETION, TencentCloudService.NAME, serviceSettings, null)
-            );
-            assertThat(model, isA(TencentCloudChatCompletionModel.class));
-            var m = (TencentCloudChatCompletionModel) model;
-            assertThat(m.model(), equalTo("deepseek-v3"));
-            assertThat(m.uri().toString(), equalTo("https://sh.aisearch.tencentelasticsearch.com/v1/chat/completions"));
-        }
-    }
-
-    public void testChunkedInfer_UnsupportedForNonEmbeddingModel() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            "inference-id",
-            TaskType.SPARSE_EMBEDDING,
-            TencentCloudService.NAME,
-            mock(ServiceSettings.class)
-        );
-        try (var service = createInferenceService()) {
-            var e = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> service.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
-            );
-            assertThat(
-                e.getMessage(),
-                is(format("The [%s] service does not support task type [%s]", "tencentcloud", TaskType.SPARSE_EMBEDDING))
-            );
-        }
     }
 
     public void testRerankerWindowSize_ReturnsConservativeValue() throws IOException {
         try (var service = createService()) {
             assertThat(service.rerankerWindowSize("bge-reranker-v2-m3"), is(350));
+        }
+    }
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = createService()) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                        "service": "tencentcloud",
+                        "name": "TencentCloud AI Gateway",
+                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
+                        "configurations": {
+                            "model_id": {
+                                "description": "The name of the model to use for the inference task, e.g. bge-m3 (embeddings), deepseek-v3 (chat/completions), bge-reranker-v2-m3 (rerank). The gateway supports additional models; check the TencentCloud AI Gateway documentation for the full list.",
+                                "label": "Model ID",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                            },
+                            "region": {
+                                "default_value": "bj",
+                                "description": "The TencentCloud AI Gateway region, e.g. bj, sh, gz. The endpoint URL is constructed as https://{region}.aisearch.tencentelasticsearch.com/v1/<task-path>.",
+                                "label": "Region",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                            },
+                            "api_key": {
+                                "description": "The TencentCloud AI Gateway API key. Contact the administrator to obtain a token in the format sk-<your-api-key>.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                            }
+                        }
+                    }
+                    """
+            );
+            var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            var serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
         }
     }
 
@@ -217,19 +159,19 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     @Override
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
         var serviceSettings = new TencentCloudEmbeddingsServiceSettings(
-            "bge-m3",
-            "bj",
-            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20),
+            MODEL_ID,
+            DEFAULT_REGION,
+            new RateLimitSettings(20),
             similarity,
             null,
             null
         );
         return new TencentCloudEmbeddingsModel(
-            "inference-id",
+            INFERENCE_ID,
             serviceSettings,
             TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS,
             null,
-            new DefaultSecretSettings(new SecureString("sk-12345"))
+            new DefaultSecretSettings(new SecureString(API_KEY))
         );
     }
 
@@ -246,35 +188,9 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         return createService();
     }
 
-    private TencentCloudChatCompletionModel createChatCompletionModel(TaskType taskType) throws URISyntaxException {
-        return new TencentCloudChatCompletionModel(
-            "inference-id",
-            taskType,
-            new TencentCloudChatCompletionServiceSettings(
-                "deepseek-v3",
-                "bj",
-                new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(5)
-            ),
-            new DefaultSecretSettings(new SecureString("sk-12345"))
-        );
-    }
-
-    private TencentCloudRerankModel createRerankModel(String modelId) throws URISyntaxException {
-        return new TencentCloudRerankModel(
-            "inference-id",
-            new TencentCloudRerankServiceSettings(
-                modelId,
-                "bj",
-                new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20)
-            ),
-            TencentCloudRerankTaskSettings.EMPTY_SETTINGS,
-            new DefaultSecretSettings(new SecureString("sk-12345"))
-        );
-    }
-
     private void parseRequestConfig(TaskType taskType, String json, ActionListener<Model> listener) throws IOException {
         try (var service = createService()) {
-            service.parseRequestConfig("inference-id", taskType, map(json), listener);
+            service.parseRequestConfig(INFERENCE_ID, taskType, map(json), listener);
         }
     }
 

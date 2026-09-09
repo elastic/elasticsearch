@@ -200,7 +200,7 @@ to extract the start or end of each `double_range` bucket for sorting or further
 Histograms record approximate value distributions, so the counts per bucket are estimates.
 ::::
 
-The same pattern works for `tdigest` fields. Cast the field if needed:
+The same pattern works for `tdigest` fields. [Cast the field](#cast-between-histogram-types) if needed:
 
 ```esql
 TS histogram_timeseries_index

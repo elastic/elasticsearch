@@ -540,10 +540,14 @@ A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying 
 
 ### Datasets across clusters
 ```{applies_to}
-stack: experimental =9.5
+stack: experimental 9.5+
 ```
 
-You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only. Querying a dataset on a remote cluster returns an error.
+You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only.
+
+{applies_to}`stack: experimental 9.6+` A dataset on a remote cluster is invisible to your query. A wildcard that matches its name returns that cluster's indices beside it, and naming the dataset directly reports `Unknown index`, the same error any name that does not exist gives.
+
+{applies_to}`stack: experimental =9.5` Querying a dataset on a remote cluster returns an error, and so does a wildcard that matches one.
 
 ## Query across {{serverless-short}} projects [ccq-cps]
 

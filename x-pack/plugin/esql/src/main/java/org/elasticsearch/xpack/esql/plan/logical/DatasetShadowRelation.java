@@ -25,7 +25,7 @@ import java.util.Objects;
  * {@link ViewShadowRelation}: it rides next to the dataset's {@link UnresolvedExternalRelation} inside
  * the plain {@link UnionAll} the {@link org.elasticsearch.xpack.esql.datasources.DatasetRewriter} builds.
  * <p>
- * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote dataset/index. The
+ * Motivation: {@code FROM ds} where {@code ds} is BOTH a local dataset AND a remote index. The
  * local dataset is consumed before field-caps, and {@code DatasetRewriter.crossProjectPatternsToPreserve}
  * only re-emits a sibling for <em>wildcards</em> — an exact name returns nothing, so without this shadow
  * the remote half of the exact name never reaches field-caps.

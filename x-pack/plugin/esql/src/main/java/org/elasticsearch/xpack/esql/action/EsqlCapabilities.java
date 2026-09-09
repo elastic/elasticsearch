@@ -2984,20 +2984,8 @@ public class EsqlCapabilities {
         DATA_SOURCES_SERVERLESS_SCOPE,
 
         /**
-         * Signals that this node reports no datasets during remote field resolution whenever federation is unavailable
-         * (see {@code Federation}), whether because the operator property suppressed it or because the setting leaves it
-         * off, so a {@code FROM <remote>:<dataset>} falls through to normal index resolution instead of surfacing a
-         * {@code RemoteDatasetNotSupportedException}. Old nodes in a mixed cluster predate this behavior and will not
-         * report the capability via {@code /_capabilities}, so any mixed cluster containing such a node correctly
-         * returns {@code supported=false}.
-         */
-        REGISTER_FEDERATION_FEATURE,
-
-        /**
          * Signals that this node reads the {@code esql.federation.enabled} setting (see {@code Federation}), so a
-         * deployment can turn federation on or off per node. Nodes that only have the operator kill switch report
-         * {@link #REGISTER_FEDERATION_FEATURE} but not this, and they have federation on with no way to turn it off
-         * per node, so a test that drives the setting has to skip against them.
+         * deployment can turn federation on or off per node.
          */
         FEDERATION_ENABLED_SETTING,
 

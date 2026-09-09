@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
 import org.junit.Before;
 
@@ -101,6 +103,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     public void testMetricsCollectorCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         String csv = createCsv(5);
         Files.writeString(dir.resolve("data.csv"), csv);
@@ -112,14 +115,15 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
 
         assertReadCpuNanos("csv");
+        assertSplitDiscoveryCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
     /** NdJson plain file — exercises the single-pass NdJson reader path. */
     public void testMetricsCollectorNdJson() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         String ndjson = createNdjson(5);
         Files.writeString(dir.resolve("data.ndjson"), ndjson);
@@ -129,6 +133,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_ndjson_ds | LIMIT 10"), TIMEOUT)) {}
 
         assertReadCpuNanos("ndjson");
+        assertSplitDiscoveryCpuNanos("ndjson");
     }
 
     /**
@@ -156,6 +161,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-csv: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-csv");
 
         lastMetrics = null;
         // NDJSON
@@ -172,6 +178,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             assertThat(name + "-ndjson: metrics must be set", lastMetrics, notNullValue());
             assertThat(name + "-ndjson: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
         }
+        assertSplitDiscoveryCpuNanos(name + "-ndjson");
     }
 
     record CompressionTestCase(CheckedBiConsumer<Path, String, IOException> writer, boolean splittable) {}
@@ -202,6 +209,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * </ul>
      */
     public void testMetricsCompression() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         var codecNames = new HashSet<>(GA_TEXT_CODECS);
         codecNames.removeAll(COMPRESSION_TESTS.keySet());
         // All release codecs should be present in the compression tests
@@ -222,6 +230,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * Same as the gzip tests, {@code read_nanos} is near-zero on the producer thread; only {@code read_cpu_nanos} is asserted.
      */
     public void testMetricsCollectorBracketsCsv() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("id:integer,tags:keyword\n");
         for (int i = 0; i < 100; i++) {
@@ -235,6 +244,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
         assertThat("brackets-csv: metrics must be set", lastMetrics, notNullValue());
         assertThat("brackets-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        assertSplitDiscoveryCpuNanos("brackets-csv");
     }
 
     private static String createNdjson(int x) {
@@ -255,6 +265,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /** Parquet file — exercises the Parquet format reader path. */
     public void testMetricsCollectorParquet() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         Path dir = createTempDir();
         writeParquet(dir.resolve("data.parquet"), 100, 1024);
 
@@ -263,6 +274,25 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         try (var ignored = run(syncEsqlQueryRequest("FROM metrics_parquet_ds | LIMIT 200"), TIMEOUT)) {}
 
         assertReadCpuNanos("parquet");
+        assertSplitDiscoveryCpuNanos("parquet");
+    }
+
+    /**
+     * Multi-file dataset — exercises the BoundedParallelGather path
+     * where each file's split discovery runs on an executor thread (Change 2 CPU accounting).
+     * Uses a glob URI so {@code FileSplitProvider} receives multiple file tasks and spawns BPG workers.
+     */
+    public void testMetricsCollectorMultiFileCsv() throws Exception {
+        Path dir = createTempDir();
+        for (int i = 0; i < 3; i++) {
+            Files.writeString(dir.resolve("data_" + i + ".csv"), createCsv(20));
+        }
+
+        registerDataset("metrics_multifile_csv_ds", StoragePath.fileUri(dir) + "/*.csv", Map.of("format", "csv"));
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_multifile_csv_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertSplitDiscoveryCpuNanos("multifile-csv");
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
@@ -281,8 +311,6 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     public void testWarmAggregate() throws Exception {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("emp_no:integer,salary:long\n");
         for (int i = 0; i < 5; i++) {
@@ -303,6 +331,17 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
+    }
+
+    /** Asserts that {@code split_discovery_cpu_nanos} is populated and does not exceed {@code split_discovery_nanos}. */
+    private void assertSplitDiscoveryCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        assertThat(format + ": split_discovery_nanos > 0", lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
+        assertThat(
+            format + ": split_discovery_cpu_nanos > 0",
+            lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS),
+            greaterThan(0L)
+        );
     }
 
     /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */

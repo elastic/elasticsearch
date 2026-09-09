@@ -131,6 +131,9 @@ class IntegTestCoverageArchUnitSpec extends Specification {
         "org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin",
         "org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin",
 
+        // --- plugins without a *FuncTest but covered by unit tests (TODO: remove after IntegTestCoverageArchUnitSpec is updated)
+        "org.elasticsearch.gradle.internal.JmhPlugin",
+
         // --- plugins with a *FuncTest that cannot extend AbstractGradleInternalPluginFuncTest ---
         // These plugins require setup before they are applied (bwcVersions resolvable at apply
         // time, the java plugin applied first, or application in subprojects rather than the root),

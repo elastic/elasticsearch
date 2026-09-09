@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -47,6 +48,7 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testCountersPopulatedAfterDrain() throws IOException {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
         String ndjson = """
             {"a": 1, "b": "x"}
             {"a": 2, "b": "y"}

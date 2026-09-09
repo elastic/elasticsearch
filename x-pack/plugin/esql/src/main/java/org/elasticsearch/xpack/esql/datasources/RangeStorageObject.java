@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -95,6 +96,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return delegate.lengthForFooterCacheKey();
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -125,19 +131,30 @@ class RangeStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position >= this.length) {
             // Allocate a zero-length buffer through the factory so the returned DirectReadBuffer
             // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
             // contract.
             try {
-                listener.onResponse(factory.allocate(0));
+                listener.onResponse(factory.allocateWritableWindow(0));
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            return;
+            return () -> {};
         }
         long cappedLength = Math.min(length, this.length - position);
-        delegate.readBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
+        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
     }
 
     @Override
@@ -166,6 +183,11 @@ class RangeStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

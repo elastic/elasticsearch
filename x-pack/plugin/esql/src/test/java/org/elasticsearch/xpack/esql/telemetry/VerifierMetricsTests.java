@@ -385,6 +385,31 @@ public class VerifierMetricsTests extends ESTestCase {
         assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("count", 1L, "max", 1L));
     }
 
+    public void testInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no IN (from employees | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testInSubqueryInInlineStatsWhereBeforeWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count = count(*) where emp_no IN (from employees | stats max(emp_no))
+                | where count > 1
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, WHERE, 1L, STATS, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testNotInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no NOT IN (from employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, SORT, 1L, LIMIT, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures) {
         assertMetrics(c, expectedFeatures, Map.of());
     }

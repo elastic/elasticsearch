@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -24,6 +23,8 @@ import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -268,6 +269,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
+    /**
+     * Live count of in-flight producer tasks plus unclosed source operators created by {@link #get}.
+     * Each {@code get()} takes two refs before the producer starts: one released when that instance's
+     * producer finishes or fails ({@link #releaseOperator} sites), and one released from
+     * {@link AsyncExternalSourceOperator#close()} (or from {@code get()}'s catch if construction
+     * fails before an operator is returned). Hitting zero runs {@link #closeDynamicThreshold()}
+     * then {@link #onClose} (or {@link #releaseDeferredCloseRef()} when deferred extraction is on).
+     * Dual refs keep the storage lease alive until every operator built during pipeline construction
+     * has closed, even if an earlier producer fails while later {@code get()} calls are still pending.
+     */
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
     /**
      * Refcount controlling when {@link #onClose} runs when {@link #deferredExtraction} is on.
@@ -764,11 +775,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         /**
          * @param onClose lifecycle callback owned by this factory, invoked exactly once when the last
-         *                operator created by {@link AsyncExternalSourceOperatorFactory#get} completes
-         *                (ref count drops to zero). Used by the per-source concurrency budget to
-         *                deregister from the allocator. May be {@code null} when no per-source cleanup
-         *                is needed. Callers must ensure that {@code get()} is called at least once;
-         *                otherwise the callback never fires and the resource it guards leaks.
+         *                producer started by {@link AsyncExternalSourceOperatorFactory#get} has finished
+         *                <em>and</em> the last operator it returned has closed (ref count drops to zero).
+         *                A {@code get()} that throws before returning an operator still releases both
+         *                holds, so the callback fires rather than leaking the resource. Used by the
+         *                per-source concurrency budget to deregister from the allocator. May be
+         *                {@code null} when no per-source cleanup is needed. Callers must ensure that
+         *                {@code get()} is called at least once; otherwise the callback never fires and
+         *                the resource it guards leaks.
          */
         public Builder onClose(@Nullable Closeable onClose) {
             this.onClose = onClose;
@@ -905,8 +919,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        operatorRefCount.incrementAndGet();
+        // Producer hold: released by existing {@link #releaseOperator} sites when this instance's
+        // background read finishes or fails. Operator hold: released from the returned operator's
+        // close() via {@code operatorHold}, so a fast-failing first producer cannot return the
+        // storage lease before later {@code get()} calls during pipeline construction.
+        // After startXxx returns, that path owns the producer hold (including noFurtherCandidates
+        // already having released it). Until then, this method still owns both holds.
+        Releasable operatorHold = null;
+        boolean refsTaken = false;
+        boolean producerOwnsHold = false;
+        boolean succeeded = false;
         try {
+            operatorRefCount.addAndGet(2);
+            refsTaken = true;
+            operatorHold = Releasables.releaseOnce(this::releaseOperator);
             long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
             driverContext.addAsyncAction();
@@ -930,6 +956,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // finished".
             driverContext.addStopHook(() -> buffer.finish(false));
 
+            String scheme = path.scheme();
+            String formatName = formatReader.formatName();
             if (sliceQueue != null) {
                 startSliceQueueRead(buffer, driverContext);
             } else if (fileList != null && fileList.isResolved()) {
@@ -948,11 +976,36 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     startSyncWrapperRead(storageObject, projectedColumns, buffer, driverContext);
                 }
             }
+            producerOwnsHold = true;
 
-            return new AsyncExternalSourceOperator(buffer, externalSourceMetrics, path.scheme());
-        } catch (Exception e) {
-            releaseOperator();
-            throw e;
+            SourceOperator operator = new AsyncExternalSourceOperator(
+                buffer,
+                driverContext,
+                externalSourceMetrics,
+                scheme,
+                formatName,
+                operatorHold
+            );
+            succeeded = true;
+            return operator;
+        } finally {
+            if (succeeded == false) {
+                if (operatorHold != null) {
+                    try {
+                        operatorHold.close();
+                    } finally {
+                        if (producerOwnsHold == false) {
+                            releaseOperator();
+                        }
+                    }
+                } else if (refsTaken) {
+                    try {
+                        releaseOperator();
+                    } finally {
+                        releaseOperator();
+                    }
+                }
+            }
         }
     }
 
@@ -1027,7 +1080,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link Builder#build} time.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
-        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
+        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink(driverContext));
         return sourceExtractorsFor(driverContext).register(extractor);
     }
 
@@ -1048,17 +1101,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the
-     * driver thread and therefore emits directly to {@link HeaderWarning}. It must not route through
-     * the source buffer: {@code Driver} closes the source operator (draining the buffer's pending
-     * warnings) as soon as it finishes, which can happen before the paired extract operator runs, so
-     * a buffered extractor warning would never be drained.
+     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the driver thread and
+     * therefore deposits straight into that driver's {@link DriverContext} sink — the channel
+     * {@code DriverCompletionInfo} carries back from whatever node ran the scan, so the warning reaches the client
+     * whether or not that node is the coordinator. It must not route through the source buffer: {@code Driver} closes
+     * the source operator (draining the buffer's pending warnings) as soon as it finishes, which can happen before the
+     * paired extract operator runs, so a buffered extractor warning would never be drained.
      */
-    private Consumer<String> driverThreadInformationalWarningSink() {
+    private Consumer<String> driverThreadInformationalWarningSink(DriverContext driverContext) {
         return warning -> {
             String toRecord = informationalWarningBudget.accept(warning);
             if (toRecord != null) {
-                HeaderWarning.addWarning(toRecord);
+                driverContext.addWarning(toRecord);
             }
         };
     }
@@ -2027,10 +2081,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             FormatReader fileReader = readerForFile(fileSplit);
             boolean isRangeSplit = "true".equals(fileSplit.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             if (isRangeSplit && fileReader instanceof RangeAwareFormatReader rangeReader) {
-                String fileLengthStr = (String) fileSplit.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                StorageObject fullObj = fileLengthStr != null
-                    ? storageProvider.newObject(fileSplit.path(), Long.parseLong(fileLengthStr))
-                    : storageProvider.newObject(fileSplit.path());
+                StorageObject fullObj = FileSplitProvider.newObjectForFile(storageProvider, fileSplit);
                 attachStorageMetrics(fullObj); // before any read — see note at the single-object dispatch above
                 long rangeEnd = fileSplit.offset() + fileSplit.length();
                 Object fileContext = fileSplit.path().equals(state.lastRangeFilePath) ? state.lastFileContext : null;
@@ -2081,7 +2132,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Cache per file path to avoid redundant metadata fetches across splits of the same file.
                     List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
                     if (cachedSchema == null) {
-                        SourceMetadata meta = fileReader.metadata(storageProvider.newObject(fileSplit.path()));
+                        SourceMetadata meta = fileReader.metadata(FileSplitProvider.newObjectForFile(storageProvider, fileSplit));
                         if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                             cachedSchema = meta.schema();
                         }
@@ -2226,10 +2277,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         for (ExternalSplit claim : claims) {
             for (ExternalSplit leaf : flattenToLeaves(claim)) {
                 if (leaf instanceof FileSplit fs) {
-                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
-                    StorageObject obj = fileLengthStr != null
-                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
-                        : storageProvider.newObject(fs.path());
+                    StorageObject obj = FileSplitProvider.newObjectForFile(storageProvider, fs);
                     // Batch path reads several objects together — attach each before readAll() opens them.
                     attachStorageMetrics(obj);
                     splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
@@ -2294,14 +2342,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         CloseableIterator<Page> pages = null;
         try {
-            StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            StoragePath filePath = files.path(fileIndex);
+            long size = files.size(fileIndex);
+            long mtime = files.lastModifiedMillis(fileIndex);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
             List<Attribute> perFileReadSchema = null;
             if (state.schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(files.path(fileIndex));
+                SchemaReconciliation.FileSchemaInfo info = state.schemaInfo.get(filePath);
                 if (info != null) {
                     mapping = info.mapping();
                     perFileReadSchema = info.fileSchema().attributes();
@@ -2362,7 +2413,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, filePath);
             state.currentObject = obj;
             state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;
@@ -2914,7 +2965,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         stream,
-                        obj,
+                        decompressing,
                         cols,
                         batchSize,
                         parsingParallelism,

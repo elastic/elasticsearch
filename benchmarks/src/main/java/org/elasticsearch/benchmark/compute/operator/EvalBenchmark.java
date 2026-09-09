@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -743,7 +743,7 @@ public class EvalBenchmark {
     // BlockFactory.<clinit> fires before the LogConfigurator SPI is set up and NPEs.
     // Matches the AggregatorBenchmark pattern.
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
         // admission threshold=2 (production default), each invocation would start a fresh
         // admission cycle and route through the Standard (non-JIT-folded) path — defeating

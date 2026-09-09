@@ -31,11 +31,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
-    @Before
-    public void checkCapability() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
     private static void checkMultiColumnInSubquery() {
         assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
     }
@@ -880,6 +875,27 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
         ) {
             assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * INLINE STATS aggregate filter with the mark forced down the hash-join path: the hash-join's
+     * dedup LocalRelation sits in the InlineJoin's left branch and becomes reachable from both the
+     * main plan and the aggregation sub-plan (via StubRelation replacement), exercising the
+     * CopyingLocalSupplier double-release protection.
+     */
+    public void testInlineStatsWhereInSubqueryHashJoinForced() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        try (var resp = run(syncEsqlQueryRequest("""
+            FROM test
+            | INLINE STATS c = COUNT(*) WHERE id IN (FROM test | SORT id | LIMIT 3 | KEEP id)
+            | SORT id
+            | KEEP id, c""").pragmas(forceHashJoin()))) {
+            assertColumnNames(resp.columns(), List.of("id", "c"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 3L), List.of(2, 3L), List.of(3, 3L), List.of(4, 3L), List.of(5, 3L), List.of(6, 3L))
+            );
         }
     }
 

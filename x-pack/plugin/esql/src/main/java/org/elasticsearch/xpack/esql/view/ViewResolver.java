@@ -918,7 +918,8 @@ public class ViewResolver {
         // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+        // wide {@link ViewUnionAll}. That merge is a rewrite-time heuristic keyed off
+        // {@link MergePlan#MAX_BRANCHES}, not a post-analysis verification failure.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
 
         if (plans.size() == 1) {
@@ -955,8 +956,9 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan#MAX_BRANCHES}
-     * at post-analysis verification.
+     * per-level merge that keeps the resolved tree from growing a wide {@link ViewUnionAll}
+     * at each level. The {@link MergePlan#MAX_BRANCHES} cap used by flattening is a rewrite-time
+     * heuristic, not a post-analysis verification failure.
      */
     private static void mergeCompatibleUnresolvedRelations(
         LinkedHashMap<String, LogicalPlan> plans,

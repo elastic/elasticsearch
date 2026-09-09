@@ -124,6 +124,23 @@ public class ViewUnionAllTests extends ESTestCase {
         assertNotEquals(plainUnion, viewUnion);
     }
 
+    /**
+     * Completes the type-preservation set alongside {@link #testReplaceChildrenPreservesType},
+     * {@link #testReplaceSubPlansPreservesType} and {@link #testReplaceSubPlansAndOutputPreservesType}. {@code refreshOutput} was the
+     * one plan-returning method without an override, so it returned a plain {@link UnionAll} and dropped the named-subqueries map -
+     * which also let a nested view union slip past {@code UnionAll.checkNestedUnionAlls}, since that check only rejects nested unions
+     * that are still {@link ViewUnionAll}.
+     */
+    public void testRefreshOutputPreservesType() {
+        LogicalPlan child1 = relation("index1");
+        ViewUnionAll original = new ViewUnionAll(Source.EMPTY, viewMap(child1), List.of());
+
+        LogicalPlan refreshed = original.refreshOutput();
+        assertThat(refreshed, instanceOf(ViewUnionAll.class));
+        assertEquals(List.of(child1), refreshed.children());
+        assertThat(((ViewUnionAll) refreshed).namedSubqueries(), equalTo(Map.of("view_0", child1)));
+    }
+
     private LinkedHashMap<String, LogicalPlan> viewMap(LogicalPlan... children) {
         LinkedHashMap<String, LogicalPlan> namedChildren = LinkedHashMap.newLinkedHashMap(children.length);
         for (int i = 0; i < children.length; i++) {

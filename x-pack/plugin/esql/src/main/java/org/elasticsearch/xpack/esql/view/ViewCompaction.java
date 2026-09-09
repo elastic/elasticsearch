@@ -60,7 +60,9 @@ import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
  * compact at the per-level boundary, so wide branching levels of compactable views (e.g.
  * {@code FROM v1, v2, ... v9}) collapse to a single {@link UnresolvedRelation} rather than
- * tripping {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+ * a wide {@link ViewUnionAll}. Flattening still refuses to produce more than
+ * {@link MergePlan#MAX_BRANCHES} siblings; that is a rewrite-time heuristic, not a
+ * post-analysis {@code ViewUnionAll} verification failure.
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 

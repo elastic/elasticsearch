@@ -23,10 +23,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -59,21 +55,6 @@ public class ForkTestUtils {
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.capabilityName())
         );
         assumeFalse(
-            "Tests using subqueries are skipped since nested fork/subquery is not supported yet",
-            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
-        );
-
-        assumeFalse(
-            "Tests using subqueries are skipped since nested fork/subquery is not supported yet",
-            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
-        );
-
-        assumeFalse(
-            "Tests using subqueries are skipped since nested fork/subquery/view is not supported yet",
-            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
-        );
-
-        assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(PROMQL_COMMAND_V0.capabilityName())
         );
@@ -92,11 +73,6 @@ public class ForkTestUtils {
             "Tests using query approximation are skipped since they contain FORKs",
             testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
                 || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
-        );
-
-        assumeFalse(
-            "Tests using VIEWS not supported for now (until we merge VIEWS and Subqueries/FORK including branch merging)",
-            testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName())
         );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient, List.of(FORK_V9.capabilityName())));

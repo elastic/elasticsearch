@@ -39,7 +39,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
@@ -1596,13 +1595,9 @@ public class ComputeService {
 
     /**
      * Supplier for per-thread store directory bytes used by Lucene operators and planner-time accounting.
-     * Returns zero when the {@code directory_metrics} feature flag is disabled.
      */
     static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService::currentStoreBytesRead;
-        }
-        return () -> 0L;
+        return indicesService::currentStoreBytesRead;
     }
 
     /**

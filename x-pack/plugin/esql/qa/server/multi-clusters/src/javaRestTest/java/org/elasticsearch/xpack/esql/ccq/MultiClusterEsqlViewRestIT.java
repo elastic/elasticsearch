@@ -26,6 +26,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -65,6 +66,10 @@ public class MultiClusterEsqlViewRestIT extends ESRestTestCase {
     }
 
     public void testLocalView() throws IOException {
+        assumeTrue(
+            "views not supported",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("views_crud_as_index_actions")).orElse(false)
+        );
         createIndex(client(), "data", Settings.builder().put("index.number_of_shards", 1).build());
         createView(client(), "view", "FROM data | WHERE true");
 
@@ -76,6 +81,14 @@ public class MultiClusterEsqlViewRestIT extends ESRestTestCase {
     }
 
     public void testRemoteView() throws IOException {
+        assumeTrue(
+            "views not supported",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("views_crud_as_index_actions")).orElse(false)
+        );
+        assumeTrue(
+            "views not supported on remote cluster",
+            clusterHasCapability(remoteClusterClient(), "POST", "/_query", List.of(), List.of("views_crud_as_index_actions")).orElse(false)
+        );
         createIndex(remoteClusterClient(), "data", Settings.builder().put("index.number_of_shards", 1).build());
         createView(remoteClusterClient(), "view", "FROM data | WHERE true");
 

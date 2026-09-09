@@ -3372,4 +3372,29 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
         assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
     }
+
+    // A `field:term` literal translates as query_string, so it still names first_name after KEEP drops highlight_first_name.
+    public void testHighlightPruneKeepsFieldQualifiedLiteralOnField() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "first_name:x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("first_name", "last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_first_name", "highlight_last_name")));
+    }
+
+    public void testHighlightPruneDropsUnusedOnFieldForColonFreeLiteral() {
+        LogicalPlan plan = optimizedPlan("""
+            FROM test
+            | HIGHLIGHT "x" ON first_name, last_name
+            | KEEP highlight_last_name
+            """, Highlight.ESQL_HIGHLIGHT);
+
+        Highlight highlight = soleHighlight(plan);
+        assertThat(fieldNames(highlight.fields()), equalTo(List.of("last_name")));
+        assertThat(fieldNames(highlight.generatedAttributes()), equalTo(List.of("highlight_last_name")));
+    }
 }

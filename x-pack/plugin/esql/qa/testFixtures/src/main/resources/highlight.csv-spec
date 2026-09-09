@@ -2031,8 +2031,7 @@ Return of the <em>King</em> | null
 
 
 # QSTR default_field must not drop field: qualifiers from the derived ON list. An explicit qualifier
-# overrides default_field, so description is highlighted and title is not. Currently derivation
-# narrows to default_field [title] and translation then rejects [description].
+# overrides default_field, so description is highlighted and title is not.
 highlightQueryStringQualifierOverridesDefaultFieldNoOn
 required_capability: highlight_implicit_query_and_fields
 required_capability: qstr_function
@@ -2064,9 +2063,9 @@ null                    | null
 
 
 # Negative QSTR still has to translate against the derived fields. Derivation excludes the negative
-# clause's names, so MATCH(title) AND NOT QSTR("body:bar") currently fails verification even though
-# the user never wrote an ON list. Fall back (or include body in the translation context) so
-# highlight_title is populated and highlight_body is absent-as-null.
+# clause's names, so MATCH(title) AND NOT QSTR("body:bar") with no ON list falls back to every
+# highlightable column rather than failing verification. highlight_title is populated and
+# highlight_body is absent-as-null.
 highlightMatchAndNotQstrDerivesWithoutTranslationError
 required_capability: highlight_implicit_query_and_fields
 required_capability: match_function

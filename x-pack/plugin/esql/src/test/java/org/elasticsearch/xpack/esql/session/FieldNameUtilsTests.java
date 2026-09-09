@@ -3351,6 +3351,12 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testHighlightMatchAndNotMatchNoOnLoadsNegatedField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        // The negated MATCH still needs body, so an implicit ON list requests all fields.
+        assertFieldNames("FROM idx | HIGHLIGHT MATCH(title, \"foo\") AND NOT MATCH(body, \"bar\") | KEEP highlight_title", ALL_FIELDS);
+    }
+
     // IN subquery tests
 
     public void testInSubquery() {

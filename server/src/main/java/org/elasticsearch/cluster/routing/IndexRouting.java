@@ -54,7 +54,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
  */
-public abstract class IndexRouting {
+public abstract sealed class IndexRouting {
 
     static final NodeFeature LOGSB_ROUTE_ON_SORT_FIELDS = new NodeFeature("routing.logsb_route_on_sort_fields");
 
@@ -258,7 +258,7 @@ public abstract class IndexRouting {
         return shardId;
     }
 
-    private abstract static class IdAndRoutingOnly extends IndexRouting {
+    private abstract static sealed class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexMode indexMode;
         private final boolean sliceEnabled;
@@ -366,7 +366,7 @@ public abstract class IndexRouting {
     /**
      * Strategy for indices that are not partitioned.
      */
-    private static class Unpartitioned extends IdAndRoutingOnly {
+    private static final class Unpartitioned extends IdAndRoutingOnly {
         Unpartitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
             super(metadata, routingFunction, reshardingMetadata);
         }
@@ -385,7 +385,7 @@ public abstract class IndexRouting {
     /**
      * Strategy for partitioned indices.
      */
-    private static class Partitioned extends IdAndRoutingOnly {
+    private static final class Partitioned extends IdAndRoutingOnly {
         private final int routingPartitionSize;
 
         Partitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
@@ -416,7 +416,7 @@ public abstract class IndexRouting {
     /**
      * Base class for strategies that determine the shard by extracting and hashing fields from the document source.
      */
-    public abstract static class ExtractFromSource extends IndexRouting {
+    public abstract static sealed class ExtractFromSource extends IndexRouting {
         protected final XContentParserConfiguration parserConfig;
         private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
@@ -615,7 +615,7 @@ public abstract class IndexRouting {
          * once in the coordinating node during shard routing and then again in the data node to create the tsid during document parsing.
          * The {@link ForIndexDimensions} strategy avoids this double hashing.
          */
-        public static class ForRoutingPath extends ExtractFromSource {
+        public static final class ForRoutingPath extends ExtractFromSource {
             private final Predicate<String> isRoutingPath;
 
             ForRoutingPath(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
@@ -693,7 +693,7 @@ public abstract class IndexRouting {
          * It creates the tsid during routing and makes the routing decision based on the tsid.
          * The tsid gets attached to the index request so that the data node can reuse it instead of rebuilding it.
          */
-        public static class ForIndexDimensions extends ExtractFromSource {
+        public static final class ForIndexDimensions extends ExtractFromSource {
 
             private final Predicate<String> isDimensionField;
 

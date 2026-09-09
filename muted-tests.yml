@@ -734,13 +734,8 @@ tests:
 - class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
   method: testRetentionWhileSnapshotInProgress
   issue: https://github.com/elastic/elasticsearch/issues/158608
-- class: org.elasticsearch.xpack.esql.analysis.promql.PromqlVerifierTests
-  method: testVectorMatchingRequiresInstantVectors
-  issue: https://github.com/elastic/elasticsearch/issues/158606
 - class: org.elasticsearch.xpack.sql.qa.security.CliSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/158631
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlPlanBinaryOperatorTests
-  issue: https://github.com/elastic/elasticsearch/issues/158607
 - class: org.elasticsearch.xpack.stateless.recovery.StatelessPreFlushRelocationIT
   method: testPreFlushRelocationOngoingFlush
   issue: https://github.com/elastic/elasticsearch/issues/158723
@@ -764,3 +759,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReaderTests
   method: testMetadataAsyncParseTimeBreakerStays429
   issue: https://github.com/elastic/elasticsearch/issues/158809
+- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
+  method: testCancelUnnecessaryRequests
+  issue: https://github.com/elastic/elasticsearch/issues/158868
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/158668
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/158881

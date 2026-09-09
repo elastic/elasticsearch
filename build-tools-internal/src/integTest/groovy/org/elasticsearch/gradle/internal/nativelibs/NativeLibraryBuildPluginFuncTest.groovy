@@ -17,6 +17,7 @@ import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
 
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -39,8 +40,8 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         nativeLibraryBuild {
           modeEnvironmentVariable = 'TEST_NATIVE_BUILD'
           supportedPlatforms = ['${PLATFORM}']
-          sourceDir = layout.projectDirectory.dir('native')
-          sources = ['src/**', 'Makefile']
+          workingDir = layout.projectDirectory.dir('native')
+          sources = ['native/src/**', 'native/Makefile', 'build.gradle']
           toolchainImage = 'example/toolchain:1'
           dockerCommand = ['make', 'all']
           hostCommand { outputDir -> ['sh', '-c', "mkdir -p \$outputDir.asFile/${PLATFORM} && echo built > \$outputDir.asFile/${PLATFORM}/libtest.so"] }
@@ -188,6 +189,26 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
         then:
         result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "a change to the declared build gives the library a different identity"() {
+        given:
+        def requestedPath = new AtomicReference<String>()
+        useRepositoryServing { exchange ->
+            requestedPath.set(exchange.requestURI.path)
+            respond(exchange, 404, new byte[0])
+        }
+        gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+        def before = requestedPath.get()
+
+        when:
+        buildFile << """
+        nativeLibraryBuild.supportedPlatforms = ['${PLATFORM}', 'linux-x64']
+        """
+        gradleRunner("buildNativeLibrary").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        requestedPath.get() != before
     }
 
     def "explains itself when no build mode is selected"() {

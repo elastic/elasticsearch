@@ -49,7 +49,7 @@ public class BuildNativeLibraryTaskTests {
     @Test
     public void testGradleGeneratesManagedProperties() {
         assertNotNull(task.getSourceFiles());
-        assertNotNull(task.getNativeDir());
+        assertNotNull(task.getWorkingDir());
         assertNotNull(task.getMode());
         assertNotNull(task.getToolchainImage());
         assertNotNull(task.getOutputDir());
@@ -72,7 +72,7 @@ public class BuildNativeLibraryTaskTests {
     @Test
     public void testInvalidModeThrows() {
         task.getMode().set("invalid");
-        task.getNativeDir().set(temporaryFolder.getRoot());
+        task.getWorkingDir().set(temporaryFolder.getRoot());
         task.getOutputDir().set(new File(temporaryFolder.getRoot(), "output"));
 
         GradleException ex = assertThrows(GradleException.class, task::build);

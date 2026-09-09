@@ -53,8 +53,9 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
         TaskProvider<BuildNativeLibraryTask> buildTask = project.getTasks().register(BUILD_TASK, BuildNativeLibraryTask.class, task -> {
             task.setGroup("native");
             task.setDescription("Builds the native library from source into the platform layout consumers expect");
-            task.getSourceFiles().from(sourceFiles(extension));
-            task.getNativeDir().set(extension.getSourceDir());
+            task.getSourceFiles().from(sourceFiles(project, extension));
+            task.getSourceRoot().set(project.getLayout().getProjectDirectory());
+            task.getWorkingDir().set(extension.getWorkingDir());
             task.getOutputDir().set(outputDir);
             task.getMode().set(mode);
             task.getToolchainImage().set(extension.getToolchainImage());
@@ -76,10 +77,10 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
         project.getArtifacts().add(ELEMENTS_CONFIGURATION, buildTask.flatMap(BuildNativeLibraryTask::getOutputDir));
     }
 
-    /** The declared source patterns, resolved against the declared source directory. */
-    private static Provider<FileTree> sourceFiles(NativeLibraryBuildExtension extension) {
-        return extension.getSourceDir()
-            .zip(extension.getSources(), (directory, patterns) -> directory.getAsFileTree().matching(filter -> filter.include(patterns)));
+    /** The declared source patterns, resolved against the project directory. */
+    private static Provider<FileTree> sourceFiles(Project project, NativeLibraryBuildExtension extension) {
+        Directory projectDirectory = project.getLayout().getProjectDirectory();
+        return extension.getSources().map(patterns -> projectDirectory.getAsFileTree().matching(filter -> filter.include(patterns)));
     }
 
     /** The declared environment variables that are set, so an unset one is simply absent. */

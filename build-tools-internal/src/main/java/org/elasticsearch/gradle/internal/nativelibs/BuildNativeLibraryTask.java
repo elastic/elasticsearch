@@ -97,12 +97,19 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     public abstract ConfigurableFileCollection getSourceFiles();
 
     /**
-     * The native source directory: working directory for a {@code host} build, mount point for a
-     * {@code docker} one, and the base for resolving {@link #getCollect()} sources. Not itself an
+     * Directory the build command runs in: working directory for a {@code host} build, mount point for
+     * a {@code docker} one, and the base for resolving {@link #getCollect()} sources. Not itself an
      * input for up-to-date checking: that role belongs to {@link #getSourceFiles()}.
      */
     @Internal
-    public abstract DirectoryProperty getNativeDir();
+    public abstract DirectoryProperty getWorkingDir();
+
+    /**
+     * Directory {@link #getSourceFiles()} are digested relative to, so that the identity of a library
+     * does not depend on where the repository is checked out. Not an input in its own right.
+     */
+    @Internal
+    public abstract DirectoryProperty getSourceRoot();
 
     /**
      * Build mode: {@code docker} (run the build inside the toolchain container) or {@code host}
@@ -132,12 +139,12 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     @Input
     public abstract Property<String> getToolchainImage();
 
-    /** Command run inside the container in {@code docker} mode, relative to {@link #getNativeDir()}. */
+    /** Command run inside the container in {@code docker} mode, relative to {@link #getWorkingDir()}. */
     @Input
     public abstract ListProperty<String> getDockerCommand();
 
     /**
-     * Command run on the host in {@code host} mode, relative to {@link #getNativeDir()}. Not an input:
+     * Command run on the host in {@code host} mode, relative to {@link #getWorkingDir()}. Not an input:
      * host builds are not cached, so it does not need to be one (and besides it carries the absolute
      * output directory, which would tie the cache key to one checkout path).
      */
@@ -153,7 +160,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     public abstract SetProperty<String> getSupportedPlatforms();
 
     /**
-     * Artifacts to gather after a {@code docker} build: paths relative to {@link #getNativeDir()},
+     * Artifacts to gather after a {@code docker} build: paths relative to {@link #getWorkingDir()},
      * mapped to their destination relative to {@link #getOutputDir()}. Empty means the build already
      * writes its output where it belongs, which is how {@code host} mode works.
      */
@@ -218,7 +225,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     @TaskAction
     public void build() {
         String mode = getMode().get();
-        File nativeDir = getNativeDir().get().getAsFile();
+        File workingDir = getWorkingDir().get().getAsFile();
         File outputDir = getOutputDir().get().getAsFile();
 
         getFileSystemOperations().delete(spec -> spec.delete(outputDir));
@@ -230,7 +237,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
 
         switch (mode) {
             case DOCKER_MODE:
-                buildDocker(nativeDir, outputDir);
+                buildDocker(workingDir, outputDir);
                 if (getArtifactRepositoryUrl().isPresent() && getPublishApiKey().isPresent()) {
                     LOGGER.info("Publishing artifact");
                     publish(outputDir);
@@ -239,7 +246,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
                 }
                 break;
             case HOST_MODE:
-                buildHost(nativeDir, outputDir);
+                buildHost(workingDir, outputDir);
                 LOGGER.info("Host mode: skipping publish. Only a complete cross-platform build is publishable");
                 break;
             case PUBLISHED_MODE:
@@ -292,7 +299,7 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     }
 
     private String sourceHash() {
-        return NativeSourceHash.compute(getNativeDir().get().getAsFile(), getSourceFiles().getFiles(), getToolchainImage().get());
+        return NativeSourceHash.compute(getSourceRoot().get().getAsFile(), getSourceFiles().getFiles(), getToolchainImage().get());
     }
 
     private NativeArtifactRepository repository() {
@@ -314,7 +321,8 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
     }
 
     /**
-     * Packs the built platform layout for publishing */
+     * Packs the built platform layout for publishing.
+     */
     static byte[] pack(File outputDir, Path archive) {
         try {
             Files.deleteIfExists(archive);
@@ -342,18 +350,18 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
         }
     }
 
-    private void buildDocker(File nativeDir, File outputDir) {
+    private void buildDocker(File workingDir, File outputDir) {
         String image = getToolchainImage().get();
         List<String> command = getDockerCommand().get();
 
-        LOGGER.lifecycle("Building native libs in {} ({} in {})", nativeDir, command, image);
+        LOGGER.lifecycle("Building native libs in {} ({} in {})", workingDir, command, image);
 
         List<String> args = new ArrayList<>(List.of("run", "--rm"));
         if (OS.current() == OS.LINUX) {
             args.addAll(List.of("--user", execUidGid()));
         }
         getEnvironment().get().forEach((key, value) -> args.addAll(List.of("--env", key + "=" + value)));
-        args.addAll(List.of("-v", nativeDir.getAbsolutePath() + ":/workspace", "-w", "/workspace", image));
+        args.addAll(List.of("-v", workingDir.getAbsolutePath() + ":/workspace", "-w", "/workspace", image));
         args.addAll(command);
 
         LoggedExec.exec(getExecOperations(), spec -> {
@@ -361,13 +369,13 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
             spec.args(args);
         });
 
-        collectOutput(nativeDir, outputDir);
+        collectOutput(workingDir, outputDir);
         // A container build cross-compiles everything, so it is expected to produce every platform
         // regardless of which host it ran on.
         verifyOutput(outputDir, getSupportedPlatforms().get());
     }
 
-    private void buildHost(File nativeDir, File outputDir) {
+    private void buildHost(File workingDir, File outputDir) {
         String host = hostPlatform();
         Set<String> supported = getSupportedPlatforms().get();
         if (supported.contains(host) == false) {
@@ -388,12 +396,12 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
 
         List<String> command = getHostCommand().get();
 
-        LOGGER.lifecycle("Building native libs in {} ({})", nativeDir, command);
+        LOGGER.lifecycle("Building native libs in {} ({})", workingDir, command);
 
         LoggedExec.exec(getExecOperations(), spec -> {
             spec.executable(command.get(0));
             spec.args(command.subList(1, command.size()));
-            spec.workingDir(nativeDir);
+            spec.workingDir(workingDir);
             spec.environment(getEnvironment().get());
         });
 
@@ -462,9 +470,9 @@ public abstract class BuildNativeLibraryTask extends DefaultTask {
      * Gathers the declared artifacts out of the build's own output tree into the {@code <os>-<arch>}
      * layout consumers expect. A build that already writes there declares nothing to collect.
      */
-    void collectOutput(File nativeDir, File outputDir) {
+    void collectOutput(File workingDir, File outputDir) {
         getCollect().get().forEach((source, destination) -> {
-            copyBuildOutput(nativeDir.toPath().resolve(source), outputDir.toPath().resolve(destination));
+            copyBuildOutput(workingDir.toPath().resolve(source), outputDir.toPath().resolve(destination));
         });
     }
 

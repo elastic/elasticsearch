@@ -81,22 +81,8 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             return;
         }
 
-        // A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
-        // resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here, and
-        // by the time this runs the security layer has already resolved the request under that flag
-        // (EsqlResolveFieldsRequest is IndicesRequest.Replaceable, and IndicesAndAliasesResolver reads resolveDatasets),
-        // so a dataset name can already be sitting in indices(). Clearing the option is what stops field caps resolving
-        // it, and from there the name is just a name that matches nothing: what becomes of it is decided by the request's
-        // own indices options and by the caller's missing-index rules, exactly as for a name registered nowhere.
         FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
-        fieldCapsRequest.indicesOptions(
-            IndicesOptions.builder(fieldCapsRequest.indicesOptions())
-                .indexAbstractionOptions(
-                    IndicesOptions.IndexAbstractionOptions.builder(fieldCapsRequest.indicesOptions().indexAbstractionOptions())
-                        .resolveDatasets(false)
-                )
-                .build()
-        );
+        clearDatasetResolution(fieldCapsRequest);
 
         fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
             @Override
@@ -140,6 +126,29 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                 return esqlResolveFieldsResponse.caps();
             }
         }, listener);
+    }
+
+    /**
+     * Stops this cluster resolving its own datasets for the request, whatever the caller asked for.
+     * <p>
+     * A dataset is a registration on the cluster that holds it, read by that cluster's own query, so it must not
+     * resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here, and by
+     * the time this runs the security layer has already resolved the request under that flag ({@link
+     * EsqlResolveFieldsRequest} is an {@code IndicesRequest.Replaceable} and {@code IndicesAndAliasesResolver} reads
+     * {@code resolveDatasets}), so a dataset name can already be sitting in {@code indices()}. Clearing the option is
+     * what stops field caps resolving it, and from there the name is just a name that matches nothing: what becomes of
+     * it is decided by the request's own indices options and by the caller's missing-index rules, exactly as for a name
+     * registered on no cluster at all.
+     */
+    static void clearDatasetResolution(FieldCapabilitiesRequest fieldCapsRequest) {
+        fieldCapsRequest.indicesOptions(
+            IndicesOptions.builder(fieldCapsRequest.indicesOptions())
+                .indexAbstractionOptions(
+                    IndicesOptions.IndexAbstractionOptions.builder(fieldCapsRequest.indicesOptions().indexAbstractionOptions())
+                        .resolveDatasets(false)
+                )
+                .build()
+        );
     }
 
     private ElasticsearchException validateNoRemoteViews(EsqlResolveFieldsRequest request) {

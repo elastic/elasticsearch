@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
+import org.elasticsearch.xpack.core.security.audit.AuditSubject;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -501,7 +502,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, null, realm);
+            final var ctx = new AuditEventContext(null, null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -536,7 +537,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -733,7 +734,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx) == false
                 && eventFilterPolicyRegistry.ignorePredicate()
                     .test(
@@ -877,7 +883,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
         if (events.contains(eventType)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(indices, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -923,7 +929,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -989,7 +1000,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), null, realm);
+            final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1059,7 +1070,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1098,7 +1114,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(indices.orElse(null), principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(
+                indices.orElse(null),
+                principalRoles(authorizationInfo),
+                realm,
+                AuditSubject.from(authentication)
+            );
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1130,7 +1151,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             String realm = ApiKeyService.getCreatorRealmName(authentication);
-            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm);
+            final var ctx = new AuditEventContext(null, principalRoles(authorizationInfo), realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(

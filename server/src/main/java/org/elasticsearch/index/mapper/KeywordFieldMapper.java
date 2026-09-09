@@ -1548,8 +1548,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
-    // True when the value will be written to a structure subject to MAX_TERM_LENGTH (inverted index or
-    // SORTED_SET doc values). False for strictly columnar indices that default to binary DV only.
+    // True when the value targets an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
     private final boolean checkTermLength;
 
     private KeywordFieldMapper(
@@ -1800,8 +1799,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
 
-            // ignore_above: record _ignored once per doc; defer the synthetic-source value fallback.
-            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
+            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
             if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 if (ignoredThisDoc == false) {
                     ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
@@ -1917,7 +1915,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             valueSeenThisDoc = true;
 
-            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older columnar indices.
+            // Unreachable for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR; retained for older indices.
             if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(binaryValue)) {
                 ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
                 // Deoptimize: we were planning to zero-copy the source column, but now we must
@@ -2041,12 +2039,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     /**
      * Returns whether this field should be stored separately as a {@link StoredField} for supporting synthetic source.
-     * Returns {@code false} when {@code ignore_above} is a no-op (strictly columnar indices at or after
-     * {@link org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}) because values are
-     * never dropped and no fallback channel needs to be allocated.
      */
     private boolean storeIgnoredValuesForSyntheticSource() {
-        // skip all fields that are multi-fields, and skip when ignore_above is inert (no values will be dropped)
+        // skip all fields that are multi-fields
         return fieldType().isSyntheticSourceEnabled()
             && fieldType().isWithinMultiField() == false
             && fieldType().ignoreAbove().valuesPotentiallyIgnored();
@@ -2102,9 +2097,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
-        // Preflight check: Lucene would otherwise mark the partially-indexed document as deleted on failure,
-        // producing deletes in an append-only workload and slowing merges. Skipped when no length-limited
-        // structure (inverted index term or SORTED_SET doc values) is written; see checkTermLength.
+        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene will fail the indexing request and, to
+        // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
+        // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
+        // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
         if (checkTermLength && binaryValue.length > MAX_TERM_LENGTH) {
             throw largeTermException(binaryValue);
         }

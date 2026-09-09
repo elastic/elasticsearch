@@ -43,9 +43,7 @@ class FlattenedFieldParser {
 
     private final MappedFieldType fieldType;
     private final int depthLimit;
-    // Primitive int (via limit()) to avoid per-value object dispatch on this hot path.
-    // Uses UTF-16 length, matching the original row-path semantics (pre-existing divergence from
-    // the batch path's code-point count; fixing it needs its own index-version gate).
+    // Uses UTF-16 length (matching row-path semantics); diverges from the batch path's code-point count.
     private final int ignoreAbove;
     private final String nullValue;
 
@@ -60,8 +58,7 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
-    // True when the output includes an inverted-index term or SORTED_SET doc values (both subject to
-    // MAX_TERM_LENGTH). False for strictly columnar indices where only binary DV is written.
+    // True when the output includes an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
     private final boolean checkTermLength;
 
     FlattenedFieldParser(
@@ -178,7 +175,6 @@ class FlattenedFieldParser {
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
-        // Inert for strictly columnar indices >= IGNORE_ABOVE_NO_OP_IN_COLUMNAR (limit == MAX_VALUE).
         if (value.length() > ignoreAbove) {
             var lookup = context.documentParserContext().mappingLookup();
             if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {

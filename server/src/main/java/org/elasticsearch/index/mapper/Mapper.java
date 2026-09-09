@@ -181,11 +181,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private final Integer value;
         private final Integer defaultValue;
-        /**
-         * The limit actually enforced at index time. Equals {@link Integer#MAX_VALUE} when no limit is
-         * configured, or when the index is in a strictly columnar mode at or after
-         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR} (where dropping values is not an option).
-         */
         private final int limit;
 
         public IgnoreAbove(Integer value) {
@@ -220,17 +215,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             return Integer.valueOf(get()).equals(defaultValue) == false;
         }
 
-        /**
-         * Returns the limit actually enforced at index time. Returns {@link Integer#MAX_VALUE} when no limit
-         * is configured or when the parameter is inert (strictly columnar, on or after the gate version).
-         */
+        /** Returns {@link Integer#MAX_VALUE} when {@code ignore_above} is inert (strictly columnar at or after the gate), else the limit. */
         public int limit() {
             return limit;
         }
 
         /**
          * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
-         * Always {@code false} for strictly columnar indices at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
          */
         public boolean valuesPotentiallyIgnored() {
             return limit != Integer.MAX_VALUE;
@@ -238,7 +229,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /**
          * Returns whether the given string will be ignored.
-         * Always {@code false} for strictly columnar indices at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
          */
         public boolean isIgnored(final String s) {
             if (s == null) return false;
@@ -285,10 +275,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /**
-         * Returns {@code true} when {@code ignore_above} should be silently ignored at index time.
-         * This is the case for strictly columnar index modes at or after
-         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}: values are stored as doc values only,
-         * so there is no inverted index to protect and no value may be dropped.
+         * Returns {@code true} when {@code ignore_above} is inert: strictly columnar indices at or after
+         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR} store only binary doc values, so no value may be dropped.
          */
         public static boolean isNoOp(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
             return indexMode != null

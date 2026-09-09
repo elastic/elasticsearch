@@ -205,8 +205,7 @@ public class IgnoreAboveTests extends ESTestCase {
     }
 
     /**
-     * Strictly columnar modes make {@code ignore_above} inert at or after
-     * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}, but actively enforce it on older indices.
+     * Strictly columnar modes make {@code ignore_above} inert at or after {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}.
      */
     public void test_is_no_op_in_columnar_modes_at_or_after_gate() {
         List<IndexMode> columnarModes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
@@ -268,8 +267,8 @@ public class IgnoreAboveTests extends ESTestCase {
     }
 
     /**
-     * In LOGSDB_COLUMNAR the default is 8191. After the gate {@code get()} still reports 8191
-     * (so {@code GET _mapping} round-trips correctly) but {@code isIgnored()} always returns false.
+     * In LOGSDB_COLUMNAR, {@code get()} still reports the configured limit (so {@code GET _mapping} round-trips correctly)
+     * but {@code isIgnored()} always returns false after the gate version.
      */
     public void test_no_op_preserves_configured_value_in_logsdb_columnar() {
         Mapper.IgnoreAbove withDefault = new Mapper.IgnoreAbove(null, IndexMode.LOGSDB_COLUMNAR, IndexVersion.current());
@@ -287,9 +286,6 @@ public class IgnoreAboveTests extends ESTestCase {
         assertFalse("isIgnored(String) inert with explicit 50", withExplicit.isIgnored("x".repeat(51)));
     }
 
-    /**
-     * limit() returns MAX_VALUE when the parameter is inert, and the actual limit otherwise.
-     */
     public void test_limit_accessor() {
         assertEquals(100, new Mapper.IgnoreAbove(100, IndexMode.STANDARD, IndexVersion.current()).limit());
         assertEquals(Integer.MAX_VALUE, new Mapper.IgnoreAbove(100, IndexMode.COLUMNAR, IndexVersion.current()).limit());

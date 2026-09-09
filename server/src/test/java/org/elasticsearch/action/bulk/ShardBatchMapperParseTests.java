@@ -148,9 +148,8 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     /**
-     * Verifies that {@code ignore_above} is a no-op in strictly columnar index modes: a keyword value
-     * exceeding the configured limit is indexed normally (present in the binary doc-values column) and the
-     * field does NOT appear in {@code _ignored}.
+     * Verifies that {@code ignore_above} is a no-op in strictly columnar index modes. Values exceeding the limit
+     * must be present in the binary doc-values column and must NOT appear in {@code _ignored}.
      */
     public void testIgnoreAboveIsNoOpOnKeywordInColumnar() throws IOException {
         final String mapping = """
@@ -164,7 +163,6 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
         try {
             final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            // "toolong" is 7 chars, exceeds ignore_above=5, but ignore_above is inert in columnar mode.
             try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", "toolong")), XContentType.JSON)) {
                 EngineBatch result = mapBatch(shard, items, batch);
                 assertNotNull("expected columnar path to succeed", result);
@@ -178,13 +176,11 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 cursor.advance();
                 final List<IndexableField> fields = cursor.fields();
 
-                // ignore_above is a no-op: the value should land in the binary doc-values column.
                 final BytesRef expected = new BytesRef("toolong");
                 assertTrue(
                     "f binary DV should contain the value when ignore_above is a no-op",
                     fields.stream().anyMatch(fld -> "f".equals(fld.name()) && expected.equals(fld.binaryValue()))
                 );
-                // _ignored should be empty: no value was dropped.
                 assertFalse(
                     "_ignored should be absent when ignore_above is a no-op",
                     fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))

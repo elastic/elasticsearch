@@ -209,9 +209,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 DEFAULT_PROVIDER,
-                maxDeterminizedStates,
-                method == null ? CONSTANT_SCORE_REWRITE : method,
-                true
+                method == null ? CONSTANT_SCORE_REWRITE : method
             ) {
 
                 @Override

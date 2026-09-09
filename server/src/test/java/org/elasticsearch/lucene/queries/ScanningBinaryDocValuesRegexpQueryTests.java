@@ -204,7 +204,6 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                         RegExp.ALL,
                         0,
                         RegexpQuery.DEFAULT_PROVIDER,
-                        1000,
                         MultiTermQuery.DOC_VALUES_REWRITE
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 64);

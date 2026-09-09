@@ -33,6 +33,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -91,6 +92,7 @@ public class QueryStringQueryParser extends QueryParser {
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
+    private int determinizeWorkLimit = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
     /**
      * @param context The query shard context.
@@ -232,6 +234,14 @@ public class QueryStringQueryParser extends QueryParser {
      */
     public void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
+    }
+
+    /**
+     * Limit used when this parser builds a DFA for a regexp (mapped fields / circuit breaker).
+     * Lucene {@code QueryParser} no longer has this setter; {@link org.apache.lucene.search.RegexpQuery} ignores it.
+     */
+    public void setDeterminizeWorkLimit(int determinizeWorkLimit) {
+        this.determinizeWorkLimit = determinizeWorkLimit;
     }
 
     /**
@@ -775,7 +785,7 @@ public class QueryStringQueryParser extends QueryParser {
                 termStr,
                 RegExp.ALL,
                 0,
-                getDeterminizeWorkLimit(),
+                determinizeWorkLimit,
                 getMultiTermRewriteMethod(),
                 context
             );

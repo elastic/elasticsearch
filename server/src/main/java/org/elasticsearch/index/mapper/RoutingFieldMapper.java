@@ -296,7 +296,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                     syntaxFlags,
                     matchFlags,
                     RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }

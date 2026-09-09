@@ -281,8 +281,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             context.markQueryMemoryPreCharged(query);
         } else {
             query = method == null
-                ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
-                : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
+                ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags)
+                : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, method);
         }
         return query;
     }

@@ -650,7 +650,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(
             sortedSet.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
             Matchers.equalTo(
-                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, MultiTermQuery.DOC_VALUES_REWRITE)
             )
         );
 

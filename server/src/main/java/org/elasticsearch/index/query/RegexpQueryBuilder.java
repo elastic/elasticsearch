@@ -308,8 +308,8 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
             context.markQueryMemoryPreCharged(query);
         } else {
             query = method == null
-                ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
-                : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
+                ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue)
+                : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, method);
         }
         return query;
     }

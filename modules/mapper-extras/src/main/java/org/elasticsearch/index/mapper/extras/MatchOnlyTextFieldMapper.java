@@ -816,7 +816,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates,
                 MultiTermQuery.DOC_VALUES_REWRITE
             );
         }

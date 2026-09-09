@@ -534,8 +534,13 @@ public final class RestoreService implements ClusterStateApplier {
             projectBuilder = ProjectMetadata.builder(projectId);
             metadataBuilder.put(projectBuilder);
         }
+        // Repository identity and raw (pre-transform) metadata of each snapshot index, captured as we read it so that a restore over an
+        // existing data stream (below) can describe every backing/failure-store index of its snapshot-side destination without re-reading
+        // it from the repository. Every such index passes through this loop because it is part of requestedIndicesIncludingSystem.
+        final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndicesByName = new HashMap<>();
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+            snapshotIndicesByName.put(indexId.getName(), new DataStreamRestoreTarget.SnapshotIndex(indexId, snapshotIndexMetaData));
             // Update the snapshot index metadata before adding it to the metadata
             snapshotIndexMetaData = indexMetadataRestoreTransformer.updateIndexMetadata(snapshotIndexMetaData);
             if (snapshotIndexMetaData.isSystem()) {
@@ -562,22 +567,51 @@ public final class RestoreService implements ClusterStateApplier {
             repositoryData
         );
 
-        // When explicitly requested, allow restoring over a destination that's currently open by resolving its exact current identity
-        // here and letting the per-index loop route it through validateExistingOpenIndexForRestore, instead of requiring the caller to
-        // close it first. The exact identity resolved here is a safety net: if the destination is deleted and recreated under the same
-        // name before this update is published, that validation rejects the stale identity rather than silently restoring onto the wrong
-        // index.
+        // When explicitly requested via RestoreSnapshotRequest#restoreOverExisting(), restore over destinations that already exist instead
+        // of failing because they exist. A destination that is a data stream is deleted (along with its backing/failure-store indices) and
+        // recreated from the snapshot in this same cluster-state update. A plain destination index that is currently open is restored over
+        // in place. Each destination's exact current identity is resolved here so that one deleted and recreated under the same name before
+        // this update is published is rejected rather than silently overwritten.
+        final List<DataStreamRestoreTarget> existingDataStreamTargets;
         final Map<String, Index> openIndexTargets;
         if (request.restoreOverExisting()) {
             final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
+
+            // Here we build a delete-and-restore target for each snapshot data stream whose destination currently exists, and remember the
+            // snapshot-side index names it owns so the plain-index pass below does not also try to restore over them.
+            existingDataStreamTargets = new ArrayList<>();
+            final Set<String> dataStreamOwnedIndexNames = new HashSet<>();
+            for (Map.Entry<String, DataStream> entry : dataStreamsToRestore.entrySet()) {
+                final DataStream currentDataStream = currentProject.dataStreams().get(entry.getKey());
+                if (currentDataStream == null) {
+                    continue;
+                }
+                final DataStream snapshotDataStream = entry.getValue();
+                final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(indexName -> {
+                        snapshotIndices.put(indexName, snapshotIndicesByName.get(indexName));
+                        dataStreamOwnedIndexNames.add(indexName);
+                    });
+                existingDataStreamTargets.add(new DataStreamRestoreTarget(currentDataStream, snapshotDataStream, snapshotIndices));
+            }
+
+            // Here we build plain index destinations. We want to restore over any that are currently open, except a data stream's
+            // backing/failure-store indices, which the data-stream pass above already deletes and recreates. Routing such an index through
+            // the open-index path too would fail, because that deletion removes it before the open-index path validates it.
             openIndexTargets = new HashMap<>();
             for (String renamedIndexName : indicesToRestore.keySet()) {
+                if (dataStreamOwnedIndexNames.contains(renamedIndexName)) {
+                    continue;
+                }
                 final IndexMetadata currentIndexMetadata = currentProject.index(renamedIndexName);
                 if (currentIndexMetadata != null && currentIndexMetadata.getState() == IndexMetadata.State.OPEN) {
                     openIndexTargets.put(renamedIndexName, currentIndexMetadata.getIndex());
                 }
             }
         } else {
+            existingDataStreamTargets = List.of();
             openIndexTargets = Map.of();
         }
 
@@ -597,7 +631,7 @@ public final class RestoreService implements ClusterStateApplier {
                 updater,
                 clusterService.getSettings(),
                 UUIDs.randomBase64UUID(),
-                List.of(),
+                existingDataStreamTargets,
                 openIndexTargets
             )
         );

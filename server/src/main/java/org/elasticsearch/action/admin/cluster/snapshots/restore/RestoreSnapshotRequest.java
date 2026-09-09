@@ -174,6 +174,15 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
         }
+        // Restoring over an existing destination matches it by its final name, so combining it with renaming (which changes that name)
+        // is ambiguous and unsafe: it could delete a bystander resource that merely shares the snapshot's original name. Reject the
+        // combination rather than guess which resource the caller meant to overwrite.
+        if (restoreOverExisting && (renamePattern != null || renameReplacement != null)) {
+            validationException = addValidationError(
+                "restore_over_existing is not supported together with rename_pattern or rename_replacement",
+                validationException
+            );
+        }
         return validationException;
     }
 
@@ -362,18 +371,20 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * Returns true if the restore is allowed to target a destination index that is currently open, in which case Elasticsearch
-     * atomically combines the equivalent of closing that index with restore initialization in a single cluster-state update, rather
-     * than requiring the caller to close the destination first. Defaults to {@code false}, preserving the older behavior.
+     * Returns true if the restore is allowed to target a destination that already exists, rather than failing because it exists.
+     * Elasticsearch performs the overwrite atomically in a single cluster-state update: a destination index that is currently open has the
+     * equivalent of closing it combined with restore initialization; a destination data stream is deleted (with its backing/failure-store
+     * indices) and recreated from the snapshot. Either way the caller does not have to close or delete the destination first. Defaults to
+     * {@code false}, preserving the older behavior.
      *
-     * @return true if the destination index for a matching restore may be open
+     * @return true if a matching restore may overwrite an existing destination
      */
     public boolean restoreOverExisting() {
         return restoreOverExisting;
     }
 
     /**
-     * @param restoreOverExisting true to allow restoring over a destination index that is currently open
+     * @param restoreOverExisting true to allow restoring over a destination (open index or data stream) that already exists
      * @return this request
      */
     public RestoreSnapshotRequest restoreOverExisting(boolean restoreOverExisting) {

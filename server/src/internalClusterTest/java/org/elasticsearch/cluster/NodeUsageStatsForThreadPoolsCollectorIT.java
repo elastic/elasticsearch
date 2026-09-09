@@ -45,7 +45,7 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
             // Populate the ClusterInfo with the shard write load stats from the NodeUsageStats*Collector.
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING.getKey(),
-                WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType.TOTAL
+                WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType.AVERAGE
             )
             .build();
     }

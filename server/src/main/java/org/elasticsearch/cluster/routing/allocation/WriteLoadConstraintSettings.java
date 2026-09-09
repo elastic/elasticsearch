@@ -68,23 +68,23 @@ public class WriteLoadConstraintSettings {
         PEAK,
         /** The recent write load value */
         RECENT,
-        /** The total thread time in the last polling interval. */
-        TOTAL;
+        /** The shard's total thread time in the last polling interval, divided by the total possible thread time. */
+        AVERAGE;
 
         /**
          * Parses the stats for the desired write load type.
          */
         public double getWriteLoad(IndexingStats indexingStats) {
-            assert this != TOTAL : "Unexpectedly found TOTAL value setting in this path: should not reach this code when that value is set";
+            assert this != AVERAGE : "Unexpectedly found AVERAGE value setting in this path: should not reach this code when that value is set";
             return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
         }
 
         /**
-         * The PEAK and RECENT shard write load stats are collected via the {@link IndicesStatsAction}, whereas TOTAL is collected via a
-         * different transport action.
+         * The PEAK and RECENT shard write load stats are collected via the {@link IndicesStatsAction}, whereas {@link AVERAGE} is collected
+         * via a different transport action.
          */
         public boolean useIndicesStats() {
-            return this != TOTAL;
+            return this != AVERAGE;
         }
     }
 

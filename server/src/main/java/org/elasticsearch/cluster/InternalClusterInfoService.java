@@ -227,7 +227,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, NodeHeapEstimates> nodeHeapEstimates;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-        private volatile Map<ShardId, Double> totalShardWriteLoads = Map.of();
+        private volatile Map<ShardId, Double> averageShardWriteLoads = Map.of();
         private volatile Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
         private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
@@ -245,10 +245,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
+                maybeFetchIndicesStats(diskThresholdEnabled || needIndicesStatsForShardWriteLoads());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchEstimatedHeapUsage(estimatedHeapThresholdEnabled);
-                fetchNodesUsageStatsForThreadPools();
+                maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 fetchCacheUsageAndCommitments();
                 fetchPartitionSizes();
                 fetchSearchLaneRequirements();
@@ -291,6 +291,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
+        private void maybeFetchNodesUsageStatsForThreadPools(boolean shouldFetch) {
+            if (shouldFetch) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodesUsageStatsForThreadPools();
+                }
+            } else {
+                logger.trace("skipping collecting shard/node write load estimates from cluster, feature currently disabled");
+                nodeThreadPoolUsageStatsPerNode = Map.of();
+            }
+        }
+
         private void fetchNodesUsageStatsForThreadPools() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                 nodeUsageStatsForThreadPoolsCollector.collectUsageStats(
@@ -300,14 +311,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         @Override
                         public void onResponse(NodeUsageStatsForThreadPoolsCollector.CollectedUsageStats stats) {
                             nodeThreadPoolUsageStatsPerNode = stats.nodeUsageStats();
-                            totalShardWriteLoads = stats.shardWriteLoadUtilizations();
+                            averageShardWriteLoads = stats.shardWriteLoadUtilizations();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn("failed to fetch thread pool usage estimates for nodes", e);
                             nodeThreadPoolUsageStatsPerNode = Map.of();
-                            totalShardWriteLoads = Map.of();
+                            averageShardWriteLoads = Map.of();
                         }
                     }, fetchRefs.acquire())
                 );
@@ -402,7 +413,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard sizes on disk
                 indicesStatsRequest.store(true);
             }
-            if (writeLoadConstraintEnabled.atLeastLowThresholdEnabled() && writeLoadDeciderShardWriteLoadType.useIndicesStats()) {
+            if (needIndicesStatsForShardWriteLoads()) {
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }
@@ -588,8 +599,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeHeapMetrics,
                 estimatedShardHeapUsageEstimates.perShard(),
                 estimatedShardHeapUsageEstimates.defaultForShardsWithoutMetrics(),
-                nodeThreadPoolUsageStatsPerNode, // TODO (DIANNA): set the alternatively collected write load vals
-                writeLoadDeciderShardWriteLoadType.useIndicesStats() ? indicesStatsSummary.shardWriteLoads() : totalShardWriteLoads,
+                nodeThreadPoolUsageStatsPerNode,
+                writeLoadDeciderShardWriteLoadType.useIndicesStats() ? indicesStatsSummary.shardWriteLoads() : averageShardWriteLoads,
                 maxHeapPerNode,
                 nodeIdsWriteLoadHotspotting,
                 nodeCacheSizeAndCommitments,
@@ -618,6 +629,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             return nodeIdsWriteLoadHotspotting;
         }
+    }
+
+    public boolean needIndicesStatsForShardWriteLoads() {
+        return writeLoadConstraintEnabled.atLeastLowThresholdEnabled() && writeLoadDeciderShardWriteLoadType.useIndicesStats();
     }
 
     private void onRefreshComplete(AsyncRefresh completedRefresh) {
@@ -747,7 +762,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
                 }
             }
-            if (shardWriteLoadType.useIndicesStats()) {
+            if (needIndicesStatsForShardWriteLoads()) {
                 final IndexingStats indexingStats = s.getStats().getIndexing();
                 if (indexingStats != null) {
                     final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);

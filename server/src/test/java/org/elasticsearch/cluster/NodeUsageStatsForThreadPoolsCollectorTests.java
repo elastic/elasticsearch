@@ -96,12 +96,12 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
                 nodeResponseWithRandomThreadPoolUsage(node2, node2NumWriteThreads, Map.of(shard2, shard2UtilizationFirstPoll))
             )
         );
-        final CollectedUsageStats firstCollectedResponse = safeAwait(
+        final CollectedUsageStats firstCollectedStats = safeAwait(
             l -> collector.collectUsageStats(clientReturning(firstFullResponse), clusterState, l)
         );
-        assertThat(firstCollectedResponse.nodeUsageStats().keySet(), equalTo(Set.of(node1.getId(), node2.getId())));
+        assertThat(firstCollectedStats.nodeUsageStats().keySet(), equalTo(Set.of(node1.getId(), node2.getId())));
         assertThat(
-            firstCollectedResponse.shardWriteLoadUtilizations(),
+            firstCollectedStats.shardWriteLoadUtilizations(),
             equalTo(
                 Map.of(shard1, shard1UtilizationFirstPoll * node1NumWriteThreads, shard2, shard2UtilizationFirstPoll * node2NumWriteThreads)
             )
@@ -113,37 +113,37 @@ public class NodeUsageStatsForThreadPoolsCollectorTests extends ESTestCase {
             List.of(nodeResponseWithRandomThreadPoolUsage(node1, node1NumWriteThreads, Map.of(shard1, shard1UtilizationSecondPoll))),
             List.of(new FailedNodeException(node2.getId(), "simulated failure", new RuntimeException("boom")))
         );
-        final CollectedUsageStats secondCollectedResponse = safeAwait(
+        final CollectedUsageStats secondCollectedStats = safeAwait(
             l -> collector.collectUsageStats(clientReturning(secondPartialResponse), clusterState, l)
         );
 
-        assertThat(secondCollectedResponse.nodeUsageStats().keySet(), equalTo(Set.of(node1.getId(), node2.getId())));
+        assertThat(secondCollectedStats.nodeUsageStats().keySet(), equalTo(Set.of(node1.getId(), node2.getId())));
 
         // node-1's thread pool stats and shard load reflect the new poll.
         assertThat(
-            secondCollectedResponse.nodeUsageStats().get(node1.getId()),
-            not(equalTo(firstCollectedResponse.nodeUsageStats().get(node1.getId())))
+            secondCollectedStats.nodeUsageStats().get(node1.getId()),
+            not(equalTo(firstCollectedStats.nodeUsageStats().get(node1.getId())))
         );
         assertThat(
-            secondCollectedResponse.nodeUsageStats().get(node1.getId()),
-            equalTo(secondCollectedResponse.nodeUsageStats().get(node1.getId()))
+            secondCollectedStats.nodeUsageStats().get(node1.getId()),
+            equalTo(secondCollectedStats.nodeUsageStats().get(node1.getId()))
         );
         assertThat(
-            secondCollectedResponse.shardWriteLoadUtilizations().get(shard1),
+            secondCollectedStats.shardWriteLoadUtilizations().get(shard1),
             equalTo(shard1UtilizationSecondPoll * node1NumWriteThreads)
         );
 
         // node-2's last known stats and shard load were returned.
         assertThat(
-            secondCollectedResponse.nodeUsageStats().get(node2.getId()),
-            equalTo(firstCollectedResponse.nodeUsageStats().get(node2.getId()))
+            secondCollectedStats.nodeUsageStats().get(node2.getId()),
+            equalTo(firstCollectedStats.nodeUsageStats().get(node2.getId()))
         );
         assertThat(
-            secondCollectedResponse.nodeUsageStats().get(node2.getId()),
-            equalTo(firstCollectedResponse.nodeUsageStats().get(node2.getId()))
+            secondCollectedStats.nodeUsageStats().get(node2.getId()),
+            equalTo(firstCollectedStats.nodeUsageStats().get(node2.getId()))
         );
         assertThat(
-            secondCollectedResponse.shardWriteLoadUtilizations().get(shard2),
+            secondCollectedStats.shardWriteLoadUtilizations().get(shard2),
             equalTo(shard2UtilizationFirstPoll * node2NumWriteThreads)
         );
     }

@@ -362,6 +362,21 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testNineUnionAllSubqueriesInFromCommand() {
+        runGoldenTest("""
+            FROM employees,
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages),
+                 (FROM languages)
+            """, STAGES);
+    }
+
     private void runNestedHeavyGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         builder(query).stages(STAGES)

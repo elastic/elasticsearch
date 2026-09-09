@@ -227,6 +227,15 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
+     * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
+     * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
+     * needing the index, so error messages naming that restriction only qualify it for functions that can.
+     * <p>
+     * Not necessarily constant per class: {@code KNN} answers from its configuration.
+     */
+    public abstract boolean supportsRuntimeSearch();
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -420,7 +429,12 @@ public abstract class FullTextFunction extends Function
                     } else {
                         errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     }
-                    failures.add(fail(plan, "{} cannot be used after {}", typeErrorMsgProvider.apply(exp), errorMessage));
+                    // Name the reason for functions that could have searched an expression instead, since for them the
+                    // restriction is not about the command at all. For the rest there is no alternative to point at.
+                    String qualifier = exp instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
+                        ? " when it targets an indexed field"
+                        : "";
+                    failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
                 }
             });
         });

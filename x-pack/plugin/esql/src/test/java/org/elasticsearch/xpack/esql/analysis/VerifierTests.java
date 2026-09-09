@@ -2289,6 +2289,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testPositionalErrorOnlyNamesIndexedFieldsWhenThereIsAnAlternative() {
+        fullText().error(
+                "from test | limit 10 | where match(title, \"cat\")",
+                containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field")
+        );
+        fullText().error(
+                "from test | limit 10 | where qstr(\"title: cat\")",
+                allOf(containsString("[QSTR] function cannot be used after LIMIT"), not(containsString("indexed field")))
+        );
+    }
+
     public void testFullTextFunctionsAfterFork() {
         // Everything FORK outputs is a ReferenceAttribute, so searching one of its columns is a runtime search and
         // carries no positional restriction. Only the functions without runtime search support still fail.

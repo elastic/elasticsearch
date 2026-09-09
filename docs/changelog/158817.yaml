@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 158817
+summary: "[Native] Compute bf16 squared distance directly instead of via dot products"
+type: bug

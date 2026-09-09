@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Cross-cluster counterpart of {@link CrossClusterViewIT} for datasets, and deliberately its opposite. Registers a
@@ -224,15 +223,16 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    /**
+     * The control on the other side: an ordinary index on the same remote that holds a dataset still resolves and reads
+     * in full, so a suite that went green by making everything on that cluster invisible would be caught here.
+     */
     public void testRemoteIndexSucceeds() {
-        // The plain remote index resolves and executes normally; the dataset detection rail does not interfere.
         try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + " | STATS c = COUNT(*)", null)) {
-            List<List<Object>> rows = getValuesList(resp);
-            assertThat(rows, equalTo(List.of(List.of(10L))));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of((long) DOCS_PER_INDEX))));
         }
-        // And a non-aggregating read returns the remote rows (populateRemoteIndices writes 10 docs).
         try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + " | KEEP id | LIMIT 100", null)) {
-            assertThat(getValuesList(resp).size(), greaterThan(0));
+            assertThat(getValuesList(resp).size(), equalTo(DOCS_PER_INDEX));
         }
     }
 

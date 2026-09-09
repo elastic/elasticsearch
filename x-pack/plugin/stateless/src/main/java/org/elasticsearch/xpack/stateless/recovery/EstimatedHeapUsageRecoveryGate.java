@@ -76,6 +76,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
             clusterService::state,
             JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
             state -> memoryMetricsService.estimateNodeHeapUsage(
+                state.getRoutingNodes().node(state.nodes().getLocalNodeId()),
                 state.metadata().getTotalNumberOfIndices(),
                 // large-indexing-ops heap: this is for serverless autoscaling signal, not real resident shard heap usage.
                 // data node does not consider it for gating recoveries.

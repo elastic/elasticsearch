@@ -10,14 +10,14 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RoutingNode;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Calculates node heap estimates from routing nodes, shard heap inputs, and explicit non-shard heap estimates.
@@ -27,117 +27,94 @@ public final class NodeHeapUsageCalculator {
     private NodeHeapUsageCalculator() {}
 
     /**
-     * Calculates heap usage for each selected node from the active shards in {@code clusterState}.
+     * Calculates heap usage for each stateless index or search routing node from the active shards in {@code clusterState}.
      * <p>
      * The stateless service reports shard-level heap inputs independent of the current routing. This method joins those inputs with the
      * current routing view, counts index-level heap once per index per node, includes node-local postings in hosted-shards usage, and
-     * applies the largest node-local postings value to every node's total to preserve the existing conservative total-heap behavior. The
-     * node predicate lets callers select the node roles they publish estimates for without deriving a separate node-id set from the same
-     * cluster state.
+     * applies the largest node-local postings value to every index node's total to preserve the existing conservative total-heap behavior.
+     * Search nodes receive hosted-shards and non-shard components, but their total heap is intentionally left unmodeled as {@code 0}.
      */
     public static NodeHeapEstimatesAndMaxPostingsHeapUsage calculateForRoutingNodes(
         ClusterState clusterState,
-        Predicate<DiscoveryNode> shouldCalculateForNode,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        return calculateForShardAllocationMap(
-            activeShardIdsByNode(clusterState, shouldCalculateForNode),
-            nonShardHeapUsage,
-            shardHeapUsageEstimates
-        );
-    }
-
-    private static Map<String, Set<ShardId>> activeShardIdsByNode(
-        ClusterState clusterState,
-        Predicate<DiscoveryNode> shouldCalculateForNode
-    ) {
-        final Map<String, Set<ShardId>> shardIdsByNode = new HashMap<>();
+        final Map<DiscoveryNode, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = new HashMap<>();
+        long maxPostingsHeapUsage = 0L;
         for (var routingNode : clusterState.getRoutingNodes()) {
-            final var discoveryNode = clusterState.nodes().get(routingNode.nodeId());
-            assert discoveryNode != null : "routing nodes are from the cluster state so DiscoveryNodes should be consistent";
-            if (shouldCalculateForNode.test(discoveryNode) == false) {
+            final var discoveryNode = routingNode.node();
+            if (isIndexingNode(discoveryNode) == false && isSearchNode(discoveryNode) == false) {
                 continue;
             }
-            final var shardIds = new HashSet<ShardId>();
-            for (var shardRouting : routingNode) {
-                if (shardRouting.active()) {
-                    shardIds.add(shardRouting.shardId());
-                }
+            final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(routingNode, shardHeapUsageEstimates);
+            nodeHeapUsageComponentsByNode.put(discoveryNode, nodeHeapUsageComponents);
+            if (isIndexingNode(discoveryNode)) {
+                maxPostingsHeapUsage = Math.max(maxPostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
             }
-            shardIdsByNode.put(routingNode.nodeId(), shardIds);
-        }
-        return shardIdsByNode;
-    }
-
-    /**
-     * Calculates heap usage for each supplied node from a shard allocation map.
-     * <p>
-     * Use this when the caller has already built the node-to-shards view, for example when simulating a future allocation instead of using
-     * the current cluster state's routing. The same non-shard heap estimate is applied to every node.
-     */
-    public static NodeHeapEstimatesAndMaxPostingsHeapUsage calculateForShardAllocationMap(
-        Map<String, Set<ShardId>> shardAllocationMap,
-        long nonShardHeapUsage,
-        ShardHeapUsageEstimates shardHeapUsageEstimates
-    ) {
-        final Map<String, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = new HashMap<>(shardAllocationMap.size());
-        long maxPostingsHeapUsage = 0L;
-        for (var entry : shardAllocationMap.entrySet()) {
-            final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(entry.getValue(), shardHeapUsageEstimates);
-            nodeHeapUsageComponentsByNode.put(entry.getKey(), nodeHeapUsageComponents);
-            maxPostingsHeapUsage = Math.max(maxPostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
         }
 
-        final Map<String, NodeHeapEstimates> nodeHeapEstimates = new HashMap<>(shardAllocationMap.size());
+        final Map<String, NodeHeapEstimates> nodeHeapEstimates = new HashMap<>(nodeHeapUsageComponentsByNode.size());
         for (var entry : nodeHeapUsageComponentsByNode.entrySet()) {
-            final var nodeHeapUsageComponents = entry.getValue();
             nodeHeapEstimates.put(
-                entry.getKey(),
-                new NodeHeapEstimates(
-                    Math.addExact(Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage), maxPostingsHeapUsage),
-                    Math.addExact(nodeHeapUsageComponents.shardAndIndexHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
-                    nonShardHeapUsage
-                )
+                entry.getKey().getId(),
+                nodeHeapEstimate(entry.getKey(), entry.getValue(), nonShardHeapUsage, maxPostingsHeapUsage)
             );
         }
         return new NodeHeapEstimatesAndMaxPostingsHeapUsage(Collections.unmodifiableMap(nodeHeapEstimates), maxPostingsHeapUsage);
     }
 
     /**
-     * Calculates heap usage for one node from its allocated shard IDs.
+     * Calculates heap usage for a single routing node.
+     * <p>
+     * This is used by local callers that need the same per-node component math as {@link #calculateForRoutingNodes} without computing a
+     * cluster-wide max postings value. Indexing nodes include their local postings in total heap; search nodes leave total heap unmodeled.
      */
-    public static NodeHeapEstimates calculateForSingleNode(
-        Set<ShardId> shardIds,
+    public static NodeHeapEstimates calculateForRoutingNode(
+        RoutingNode routingNode,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
-        final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(shardIds, shardHeapUsageEstimates);
+        final var discoveryNode = routingNode.node();
+        final var nodeHeapUsageComponents = computeNodeHeapUsageComponents(routingNode, shardHeapUsageEstimates);
+        return nodeHeapEstimate(discoveryNode, nodeHeapUsageComponents, nonShardHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
+    }
+
+    private static boolean isIndexingNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+    }
+
+    private static boolean isSearchNode(DiscoveryNode discoveryNode) {
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    private static NodeHeapEstimates nodeHeapEstimate(
+        DiscoveryNode discoveryNode,
+        NodeHeapUsageComponents nodeHeapUsageComponents,
+        long nonShardHeapUsage,
+        long postingsHeapUsageForTotal
+    ) {
         return new NodeHeapEstimates(
-            Math.addExact(
-                Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage),
-                nodeHeapUsageComponents.postingsHeapUsage
-            ),
+            isIndexingNode(discoveryNode)
+                ? Math.addExact(Math.addExact(nonShardHeapUsage, nodeHeapUsageComponents.shardAndIndexHeapUsage), postingsHeapUsageForTotal)
+                : 0L,
             Math.addExact(nodeHeapUsageComponents.shardAndIndexHeapUsage, nodeHeapUsageComponents.postingsHeapUsage),
             nonShardHeapUsage
         );
     }
 
-    /**
-     * Computes the heap usage components for a node given its shard IDs and individual shard heap usage estimates.
-     * <p>
-     * Shard heap is counted per shard, index heap is counted once per index hosted on the node, and postings heap is accumulated
-     * separately so node totals can use the maximum node-local postings value.
-     */
     private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
-        Set<ShardId> shardIds,
+        RoutingNode routingNode,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
         long shardHeapUsage = 0L;
         long indexHeapUsage = 0L;
         long postingsHeapUsage = 0L;
         final Set<String> seenIndices = new HashSet<>();
-        for (var shardId : shardIds) {
+        for (var shardRouting : routingNode) {
+            if (shardRouting.active() == false) {
+                continue;
+            }
+            final var shardId = shardRouting.shardId();
             final var shardAndIndexHeapUsage = shardHeapUsageEstimates.perShard()
                 .getOrDefault(shardId, shardHeapUsageEstimates.defaultForShardsWithoutMetrics());
             shardHeapUsage = Math.addExact(shardHeapUsage, shardAndIndexHeapUsage.shardHeapUsageBytes());
@@ -152,7 +129,7 @@ public final class NodeHeapUsageCalculator {
     private record NodeHeapUsageComponents(long shardAndIndexHeapUsage, long postingsHeapUsage) {}
 
     /**
-     * The estimated node heap usages and the max hosted postings heap usage included in every node total.
+     * The estimated node heap usages and the max hosted postings heap usage included in index-node totals.
      */
     public record NodeHeapEstimatesAndMaxPostingsHeapUsage(Map<String, NodeHeapEstimates> nodeHeapEstimates, long maxPostingsHeapUsage) {
         public NodeHeapEstimatesAndMaxPostingsHeapUsage {

@@ -183,27 +183,18 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
 
     /**
      * Sets the user-provided {@code slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
      */
-    public OpenPointInTimeRequest searchSlice(@Nullable String searchSlice) {
-        if (searchSlice != null) {
-            if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
-                throw new IllegalArgumentException("request does not support [slice]");
-            }
-            if (routing != null && routingFromSlice == false) {
-                throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
-            }
+    public OpenPointInTimeRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [slice]");
+        }
+        if (routing != null && routingFromSlice == false) {
+            throw new IllegalArgumentException("[routing] is not allowed together with [slice]");
         }
         this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
+        this.routingFromSlice = true;
+        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
         return this;
     }
 

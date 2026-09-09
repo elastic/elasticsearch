@@ -145,17 +145,11 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         return searchSlice;
     }
 
-    public ClusterSearchShardsRequest searchSlice(@Nullable String searchSlice) {
+    public ClusterSearchShardsRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
         this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
+        this.routingFromSlice = true;
+        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
         return this;
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A request to validate a specific query.
@@ -161,17 +162,11 @@ public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRe
         return searchSlice;
     }
 
-    public ValidateQueryRequest searchSlice(@Nullable String searchSlice) {
+    public ValidateQueryRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
         this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
+        this.routingFromSlice = true;
+        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
         return this;
     }
 

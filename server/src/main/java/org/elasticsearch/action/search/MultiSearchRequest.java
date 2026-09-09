@@ -313,7 +313,6 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                                 throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
                             }
                             searchRequest.routing(nodeStringValue(value, null));
-                            searchRequest.searchSlice(null);
                             routingProvided = true;
                         } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
                             if (routingProvided || topLevelHasRouting) {

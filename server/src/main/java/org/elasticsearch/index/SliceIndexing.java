@@ -10,6 +10,8 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -86,6 +88,28 @@ public final class SliceIndexing {
      * Applies parsed REST {@code routing}/{@code slice} parameters to an {@link OpenPointInTimeRequest}.
      */
     public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, OpenPointInTimeRequest request) {
+        if (parsedRouting.fromSlice()) {
+            request.searchSlice(parsedRouting.toSearchSlice());
+        } else {
+            request.routing(parsedRouting.routing());
+        }
+    }
+
+    /**
+     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link ClusterSearchShardsRequest}.
+     */
+    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, ClusterSearchShardsRequest request) {
+        if (parsedRouting.fromSlice()) {
+            request.searchSlice(parsedRouting.toSearchSlice());
+        } else {
+            request.routing(parsedRouting.routing());
+        }
+    }
+
+    /**
+     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link ValidateQueryRequest}.
+     */
+    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, ValidateQueryRequest request) {
         if (parsedRouting.fromSlice()) {
             request.searchSlice(parsedRouting.toSearchSlice());
         } else {

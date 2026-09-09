@@ -86,7 +86,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 request.maxConcurrentShardRequests(in.maxConcurrentShardRequests());
                 request.keepAlive(in.keepAlive());
                 request.preference(in.preference());
-                request.searchSlice(null);
                 request.routing(randomAlphaOfLength(5));
                 yield request;
             }
@@ -98,7 +97,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
                 if (in.searchSlice() == null) {
                     request.searchSlice(randomAlphaOfLength(5));
                 } else {
-                    request.searchSlice(null);
                     request.routing(randomAlphaOfLength(5));
                 }
                 yield request;
@@ -126,6 +124,14 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         sliceFirst.searchSlice("s1");
         IllegalArgumentException sliceThenRouting = expectThrows(IllegalArgumentException.class, () -> sliceFirst.routing("manual"));
         assertThat(sliceThenRouting.getMessage(), containsString("[routing] is not allowed together with [slice]"));
+    }
+
+    public void testSearchSliceRejectsNull() {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx");
+        expectThrows(NullPointerException.class, () -> request.searchSlice(null));
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+        assertNull(request.routing());
     }
 
     public void testSearchSliceRejectedWhenFeatureDisabled() {

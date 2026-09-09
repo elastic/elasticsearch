@@ -577,19 +577,12 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     /**
      * Sets the user-provided {@code slice} value and derives routing/provenance from it.
-     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code slice}.
      */
-    public SearchRequest searchSlice(@Nullable String searchSlice) {
+    public SearchRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[slice] must not be null");
         this.searchSlice = searchSlice;
-        if (searchSlice == null) {
-            if (routingFromSlice) {
-                this.routing = null;
-            }
-            this.routingFromSlice = false;
-        } else {
-            this.routingFromSlice = true;
-            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
-        }
+        this.routingFromSlice = true;
+        this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
         return this;
     }
 

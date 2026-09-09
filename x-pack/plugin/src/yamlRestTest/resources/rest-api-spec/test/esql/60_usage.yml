@@ -528,12 +528,13 @@ took:
       reason: "Datasource phone-home telemetry keys present in /_xpack/usage"
 
   - do: { xpack.usage: { } }
-  # per-scheme storage counters
+  # per-type storage counters
   - exists: esql.datasources.storage.requests.total.s3
   - exists: esql.datasources.storage.requests.total.gcs
   - exists: esql.datasources.storage.requests.total.azure
   - exists: esql.datasources.storage.requests.total.http
-  - exists: esql.datasources.storage.requests.total.file
+  - exists: esql.datasources.storage.requests.total.local
+  - is_false: esql.datasources.storage.requests.total.file
   - exists: esql.datasources.storage.requests.total.unknown
   - exists: esql.datasources.storage.bytes_read.total.s3
   - exists: esql.datasources.storage.errors.total.s3
@@ -569,3 +570,90 @@ took:
   # and by_type keys are absent (they only appear when at least one datasource is registered).
   - match: { esql.datasources.config.datasources.count: 0 }
   - match: { esql.datasources.config.datasets.count: 0 }
+
+---
+"Datasource inventory marginals":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_inventory_marginals ]
+      reason: "Datasource inventory marginals present and dense in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.by_type.s3
+  - exists: esql.datasources.config.datasources.by_type.unknown
+  - exists: esql.datasources.config.datasets.by_datasource_type.s3
+  - exists: esql.datasources.config.datasources.by_auth.anonymous
+  - exists: esql.datasources.config.datasources.by_auth.static_credentials
+  - exists: esql.datasources.config.datasources.by_auth.federated_identity
+  - exists: esql.datasources.config.datasources.by_auth.managed_identity
+  - exists: esql.datasources.config.datasources.by_auth.unknown
+  - exists: esql.datasources.config.datasets.by_format.parquet
+  - exists: esql.datasources.config.datasets.by_format.csv
+  - exists: esql.datasources.config.datasets.by_format.tsv
+  - exists: esql.datasources.config.datasets.by_format.ndjson
+  - exists: esql.datasources.config.datasets.by_format.orc
+  - exists: esql.datasources.config.datasets.by_format.other
+  - exists: esql.datasources.config.datasets.by_format.unresolved
+  - exists: esql.datasources.config.datasets.by_schema.inferred
+  - exists: esql.datasources.config.datasets.by_schema.declared_dynamic
+  - exists: esql.datasources.config.datasets.by_schema.declared_strict
+  - exists: esql.datasources.config.datasets.by_partitioning.auto
+  - exists: esql.datasources.config.datasets.by_partitioning.hive
+  - exists: esql.datasources.config.datasets.by_partitioning.template
+  - exists: esql.datasources.config.datasets.by_partitioning.none
+  - exists: esql.datasources.config.datasets.by_compression.gzip
+  - exists: esql.datasources.config.datasets.by_compression.snappy
+  - exists: esql.datasources.config.datasets.by_compression.zstd
+  - exists: esql.datasources.config.datasets.by_compression.brotli
+  - exists: esql.datasources.config.datasets.by_compression.lz4
+  - exists: esql.datasources.config.datasets.by_compression.bzip2
+  - exists: esql.datasources.config.datasets.by_compression.uncompressed
+  - exists: esql.datasources.config.datasets.by_compression.other
+  - exists: esql.datasources.config.datasets.by_compression.unknown
+
+---
+"Datasource parse.rows.by_format telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_parse_by_format ]
+      reason: "Datasource parse.rows.by_format phone-home keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.parse.rows.by_format.parquet
+  - exists: esql.datasources.parse.rows.by_format.csv
+  - exists: esql.datasources.parse.rows.by_format.tsv
+  - exists: esql.datasources.parse.rows.by_format.ndjson
+  - exists: esql.datasources.parse.rows.by_format.orc
+  - exists: esql.datasources.parse.rows.by_format.other
+  - exists: esql.datasources.parse.rows.by_format.unresolved
+  # The unattributed leaf is unchanged and still gated by usage_contains_datasources.
+  - exists: esql.datasources.parse.rows.total
+
+---
+"Datasource config.changes telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasource_config_changes ]
+      reason: "Datasource config.changes phone-home keys present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  - exists: esql.datasources.config.datasources.changes.by_op.created
+  - exists: esql.datasources.config.datasources.changes.by_op.updated
+  - exists: esql.datasources.config.datasources.changes.by_op.deleted
+  - exists: esql.datasources.config.datasources.changes.by_op.rejected
+  - exists: esql.datasources.config.datasets.changes.by_op.created
+  - exists: esql.datasources.config.datasets.changes.by_op.updated
+  - exists: esql.datasources.config.datasets.changes.by_op.deleted
+  - exists: esql.datasources.config.datasets.changes.by_op.rejected

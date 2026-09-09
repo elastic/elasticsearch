@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -142,18 +144,41 @@ public class RestSearchAction extends BaseRestHandler {
             )
         );
 
-        return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            var params = serializationParams(searchRequest, channel.request());
-            cancelClient.execute(
-                TransportSearchAction.TYPE,
-                searchRequest,
-                RestActions.wrapWithSearchMetricsHeader(
+        // Capture source before returning. Two release paths, both needed:
+        // 1. Completion listener (runAfter): fires when the action pipeline finishes, including
+        // action-filter rejection before TransportSearchAction.doExecute runs.
+        // 2. close() guard: fires via BaseRestHandler's try-with-resources when the request is
+        // abandoned before dispatch (e.g., rejected for unknown URL params).
+        // SearchSourceBuilder.close() is idempotent, so overlapping paths are safe.
+        final SearchSourceBuilder parsedSource = searchRequest.source();
+        return new RestChannelConsumer() {
+            private boolean dispatched = false;
+
+            @Override
+            public void accept(RestChannel channel) {
+                dispatched = true;
+                RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                var params = serializationParams(searchRequest, channel.request());
+                ActionListener<SearchResponse> completionListener = RestActions.wrapWithSearchMetricsHeader(
                     client.threadPool().getThreadContext(),
                     SearchResponse::getDirectoryMetrics,
                     new RestRefCountedChunkedToXContentListener<>(channel, params)
-                )
-            );
+                );
+                cancelClient.execute(
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                );
+            }
+
+            @Override
+            public void close() {
+                // Handles abandonment only: request parsed but never dispatched (unknown params,
+                // etc.). When dispatched, the completion listener's runAfter owns cleanup.
+                if (dispatched == false && parsedSource != null) {
+                    parsedSource.close();
+                }
+            }
         };
     }
 

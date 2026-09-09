@@ -1288,8 +1288,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Create a shallow copy of this builder with a new slice configuration.
-     * {@code queryParsingReleasables} is intentionally not copied: {@link org.elasticsearch.action.search.TransportSearchAction}
-     * captures the original (pre-rewrite) source and calls {@link #close()} on it, so the charge is always released via the original.
+     * {@code queryParsingReleasables} is intentionally not copied: the caller is responsible for
+     * closing the original source to release parse-time breaker charges once the shallow copies
+     * are in use.
      */
     public SearchSourceBuilder shallowCopy() {
         return shallowCopy(

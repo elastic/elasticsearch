@@ -151,8 +151,14 @@ public class HighlightSupportTests extends ESTestCase {
         assertThat(HighlightSupport.fieldsRequiredForTranslation(query), equalTo(Set.of("title", "body")));
     }
 
-    public void testFieldsRequiredForTranslationLiteralCanPrune() {
+    public void testFieldsRequiredForTranslationColonFreeLiteralCanPrune() {
         assertThat(HighlightSupport.fieldsRequiredForTranslation(of("fox")), equalTo(Set.of()));
+        assertThat(HighlightSupport.fieldsRequiredForTranslation(of("fox bar")), equalTo(Set.of()));
+    }
+
+    public void testFieldsRequiredForTranslationFieldQualifiedLiteralKeepsAll() {
+        assertNull(HighlightSupport.fieldsRequiredForTranslation(of("password:fox")));
+        assertNull(HighlightSupport.fieldsRequiredForTranslation(new And(EMPTY, match("title", "fox", null), of("body:bar"))));
     }
 
     public void testFieldsRequiredForTranslationQueryStringKeepsAll() {

@@ -295,12 +295,16 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRemoteResourceNotSupportedException() throws IOException {
-        // The views list must survive the wire round-trip at the support transport version. The datasets list is always
-        // empty now that a remote dataset is invisible, and is asserted empty to pin that.
+        // Both lists must survive the wire round-trip at the support transport version. Nothing on this branch puts a
+        // dataset in one any more, but a peer that predates remote-dataset invisibility can still send a populated
+        // list, and reading it back is the whole reason the shape is kept.
         var version = TransportVersion.fromName("indices_options_resolve_datasets");
-        var ex = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1", "c2:v2"), List.of()), version);
+        var ex = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1", "c2:v2"), List.of("c3:d1")), version);
         assertThat(ex.views(), equalTo(List.of("c1:v1", "c2:v2")));
-        assertThat(ex.datasets(), equalTo(List.of()));
+        assertThat(ex.datasets(), equalTo(List.of("c3:d1")));
+
+        var viewsOnly = serialize(new RemoteResourceNotSupportedException(List.of("c1:v1"), List.of()), version);
+        assertThat(viewsOnly.datasets(), equalTo(List.of()));
     }
 
     public void testParsingException() throws IOException {

@@ -211,15 +211,22 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * The exclusion the old error message told authors to write still parses and still runs, now that the name it
-     * excludes resolves to nothing. Excluding a name that matches nothing is ordinary, but this particular spelling was
-     * the documented way around the rejection, so queries in the wild carry it and it must not start failing.
+     * The exclusion the old rejection told authors to write still parses and still runs, now that the name it excludes
+     * resolves to nothing. The spelling matters: {@code RemoteResourceNotSupportedException.exclusionsOf} builds
+     * {@code <cluster>:-<name>}, so that is the form queries in the wild carry and the one that must not start failing.
+     * The other placement of the minus sign is asserted alongside it, since both are natural to write.
      */
     public void testExcludingTheRemoteDatasetStillSucceeds() {
-        String query = "FROM " + REMOTE_CLUSTER_1 + ":remote*,-" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + " | STATS c = COUNT(*)";
-        try (var resp = runQuery(query, null)) {
+        // The form the rejection's message prescribed: cluster-a:-remote_employees
+        assertOnlyTheIndexRows(REMOTE_CLUSTER_1 + ":remote*," + REMOTE_CLUSTER_1 + ":-" + REMOTE_DATASET);
+        // And the other placement: -cluster-a:remote_employees
+        assertOnlyTheIndexRows(REMOTE_CLUSTER_1 + ":remote*,-" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET);
+    }
+
+    private void assertOnlyTheIndexRows(String indexExpression) {
+        try (var resp = runQuery("FROM " + indexExpression + " | STATS c = COUNT(*)", null)) {
             assertOk(resp);
-            assertThat(getValuesList(resp), equalTo(List.of(List.of((long) DOCS_PER_INDEX))));
+            assertThat(indexExpression, getValuesList(resp), equalTo(List.of(List.of((long) DOCS_PER_INDEX))));
         }
     }
 

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1818,6 +1819,34 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
         assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
         assertThat(e.getMetadata("es.esql.view.names"), containsInAnyOrder("P1:view-1", "P2:view-2"));
+    }
+
+    /**
+     * The linked-project counterpart of the older-peer case: a project running code that predates remote-dataset
+     * invisibility answers with the aggregate exception and may carry a dataset list. Its views half must still fail
+     * the query and its datasets half must be dropped.
+     */
+    public void testAggregateExceptionFromAnOlderLinkedProjectKeepsViewsAndDropsDatasets() {
+        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*");
+        Map<String, Exception> remoteExceptions = Map.of(
+            "P1",
+            new RemoteTransportException(
+                "test failure",
+                new RemoteResourceNotSupportedException(List.of("P1:my-view"), List.of("P1:my-dataset"))
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(
+            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
+            useProjectRouting ? "_alias:*" : null,
+            local,
+            Map.of(),
+            remoteExceptions
+        );
+        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
+        assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+        assertThat(e.getMessage(), not(containsString("datasets")));
+        assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
     }
 
     public void testWildcardClusterAliasConcreteIndex() {

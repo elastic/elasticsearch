@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
 
@@ -659,6 +660,51 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
         {
             EsqlCCSUtils.checkForRemoteResourceErrors(Map.of());
+        }
+    }
+
+    /**
+     * A peer that predates remote-dataset invisibility answers with the aggregate exception rather than the per-kind
+     * one, and carries a dataset list when it matched both kinds. The collector has to keep reading that shape: the
+     * views half still fails the query, and the datasets half is dropped, which is what makes the remote dataset
+     * invisible to a caller running this code against an older peer.
+     */
+    public void testCheckForRemoteResourceErrorsReadsTheAggregateFromAnOlderPeer() {
+        {
+            var aggregate = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of());
+            var wrapped = new RemoteTransportException("test failure", aggregate);
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
+                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
+            );
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+        }
+        {
+            var aggregate = new RemoteResourceNotSupportedException(List.of("r1:v"), List.of("r1:d"));
+            var wrapped = new RemoteTransportException("test failure", aggregate);
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
+                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
+            );
+            RemoteResourceNotSupportedException ex = expectThrows(
+                RemoteResourceNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForRemoteResourceErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+            assertThat(ex.getMessage(), not(containsString("datasets")));
+            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v"));
+            assertThat(ex.datasets(), equalTo(List.of()));
+        }
+        {
+            // Datasets alone carry nothing to act on, so the query is not failed at all.
+            var aggregate = new RemoteResourceNotSupportedException(List.of(), List.of("r1:d"));
+            var wrapped = new RemoteTransportException("test failure", aggregate);
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(
+                List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped))
+            );
+            EsqlCCSUtils.checkForRemoteResourceErrors(grouped);
         }
     }
 

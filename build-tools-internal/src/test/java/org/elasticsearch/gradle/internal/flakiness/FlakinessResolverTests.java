@@ -160,7 +160,7 @@ public class FlakinessResolverTests {
         assertThat(yamlCase.yamlTest(), equalTo("test {yaml=esql/10_foo/Case}"));
 
         assertThat(r.unresolved(), hasSize(1));
-        assertThat(r.unresolved().get(0).reason(), equalTo(RefResolver.REASON_NO_SOURCE_FILE));
+        assertThat(r.unresolved().get(0).reason(), equalTo(FlakinessPlan.REASON_NO_SOURCE_FILE));
         assertThat(r.unresolved().get(0).ref().className(), equalTo("org.elasticsearch.DoesNotExist"));
     }
 
@@ -245,7 +245,7 @@ public class FlakinessResolverTests {
 
         // Abstract with no concrete subclass -> surfaced as unresolved, never silently dropped.
         assertThat(plan.unresolved(), hasSize(1));
-        assertThat(plan.unresolved().get(0).reason(), equalTo("abstract-no-concrete-subclass"));
+        assertThat(plan.unresolved().get(0).reason(), equalTo(FlakinessPlan.REASON_ABSTRACT_NO_CONCRETE_SUBCLASS));
     }
 
     // ---- FlakinessJson ----

@@ -19,11 +19,8 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * Pure resolution of heterogeneous {@link FlakinessRef}s to {@link BaseTarget}s using the authoritative
- * project model ({@link ProjectInfo} snapshots taken from each project's own configuration). This is the
- * authoritative replacement for the TypeScript
- * {@code detectors/changed-files.ts} (classify half), {@code detectors/locator.ts}, and
- * {@code detectors/bwc.ts}.
+ * Pure resolution of {@link FlakinessRef}s to {@link BaseTarget}s using the authoritative project
+ * model ({@link ProjectInfo} snapshots taken from each project's own configuration).
  *
  * <p>Resolution is done against the model's real {@code srcDirs} / {@code outputDir} rather than the
  * {@code src/&lt;ss&gt;/java} layout, so a project with a non-standard source layout resolves correctly. The
@@ -35,11 +32,6 @@ import java.util.regex.Pattern;
  * conventional task - bwc, packaging - resolves to its real tasks or to a precise skip reason, instead of
  * silently emitting a task Gradle reports {@code SKIPPED}).
  *
- * <p>The resolver is deliberately <b>single-project</b>: it is constructed with one {@link ProjectInfo} and
- * that project's own {@code Test} tasks, which is exactly what {@code flakinessResolveProject} has to hand.
- * Folding several projects' answers together is a separate, later concern - see
- * {@link FlakinessTargets#merge}, which is also where the global {@code unresolved} verdict is computed,
- * because "not in <em>this</em> project" is not "not anywhere".
  *
  * <p>Two resolution paths:
  * <ul>
@@ -47,26 +39,12 @@ import java.util.regex.Pattern;
  *       the source set / kind / fqcn come from which of the project's source-set {@code srcDirs} actually
  *       contains the file. That last check is what disambiguates nested projects, which a directory-prefix
  *       test cannot: {@code :x-pack:plugin:logsdb} and {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} have
- *       nested directories but disjoint {@code srcDirs}, so only one of them claims a given file. A changed
- *       file not under any recognised test source dir is silently ignored (matching today's behaviour) - it is
- *       not surfaced as {@code unresolved}.</li>
+ *       nested directories but disjoint {@code srcDirs}, so only one of them claims a given file.
  *   <li><b>unmute</b> / <b>explicit</b> refs carry only a class (and optional method); the owning source set
- *       is the one whose java {@code srcDirs} actually contain {@code &lt;pkg&gt;/&lt;Name&gt;.java} on disk (a
- *       filesystem probe - see JAVA_RESOLVER_NOTES.md P3). A ref that resolves to no source file is surfaced
- *       as {@code unresolved} with reason {@code "no-source-file"}.</li>
+ *       is the one whose java {@code srcDirs} actually contain {@code &lt;pkg&gt;/&lt;Name&gt;.java} on disk.</li>
  * </ul>
  */
 public final class RefResolver {
-
-    /** Unresolved reason: the ref names a class, but no source file for it exists in any source set. */
-    public static final String REASON_NO_SOURCE_FILE = "no-source-file";
-
-    /**
-     * Unresolved reason: the ref's {@code source} discriminator is absent or not one this resolver knows.
-     * That is a contract defect between the TypeScript bootstrap (which writes {@code flakiness-refs.json})
-     * and this resolver, so it is reported rather than skipped - a dropped ref would read as "nothing to run".
-     */
-    public static final String REASON_UNKNOWN_SOURCE = "unknown-source";
 
     private static final Pattern YAML_METHOD = Pattern.compile("^test \\{yaml=.+\\}$");
     private static final String YAML_METHOD_PREFIX = "test {yaml=";
@@ -78,6 +56,7 @@ public final class RefResolver {
     // assumption), so it is safe to encode here.
     private static final String YAML_SUITE_SUBDIR = "rest-api-spec/test/";
     private static final String YAML_SUFFIX = ".yml";
+    private static final String JAVA_SUFFIX = ".java";
 
     // Ordered source-set -> kind mapping for Java files. yamlRestTest is special-cased (case vs runner).
     private static final Map<String, String> JAVA_SOURCE_SET_KIND = new LinkedHashMap<>();
@@ -123,25 +102,6 @@ public final class RefResolver {
     /**
      * Resolve <b>one</b> ref against this project: the target it names, or empty when this project does not
      * claim it.
-     *
-     * <p>One ref per call, deliberately. A batch signature could not express the answer the caller needs: a
-     * flat list of targets loses which ref produced which target, and that mapping is not recoverable
-     * afterwards because {@code target -> ref} is not a function - an {@code unmute} and an {@code explicit}
-     * ref naming the same class dedupe to a single target. {@code FlakinessTargets#merge} needs the mapping
-     * for two things, so the caller pairs each answer with its ref index as it goes:
-     * <ul>
-     *   <li>the global {@code unresolved} verdict - a ref is unresolved exactly when <em>no</em> project
-     *       produced a target for its index;</li>
-     *   <li>restoring the refs file's ordering across projects.</li>
-     * </ul>
-     *
-     * <p>It deliberately reports <b>no reason</b> when it returns empty. This project failing to claim a ref is
-     * not a verdict on the ref - "not in <em>this</em> project" is not "not anywhere" - so the reason would be
-     * a value this class is not entitled to produce. {@code FlakinessTargets#merge} owns that classification,
-     * using {@link #REASON_NO_SOURCE_FILE} / {@link #REASON_UNKNOWN_SOURCE}, because it is the only place with
-     * the global view. Empty therefore covers all three of: no source file here, a source this resolver does
-     * not know, and a changed file under no recognised test source dir (which is silently ignored rather than
-     * reported, since it is simply not a test).
      */
     public Optional<BaseTarget> resolve(FlakinessRef ref) {
         // A null source would make the switch throw NPE. A refs file with a missing/misspelled `source` is a
@@ -164,19 +124,32 @@ public final class RefResolver {
             return Optional.empty();
         }
         Path abs = repoRoot.resolve(path).toAbsolutePath().normalize();
-        // An early-out, not the membership decision: a path under this project but outside every srcDir also
-        // falls through to Optional.empty() below. It is kept because it reproduces the old multi-project
-        // ownerOf() lookup exactly. It is NOT implied by the srcDirs checks, though: a source set's srcDirs
-        // may point outside its own project - esql-datasource-parquet-rs/qa adds a sibling project's
-        // directory to javaRestTest.resources - and such a path is rejected here before those checks see it.
-        // That is harmless only because those directories hold .csv-spec files, so the yaml-suite matcher
-        // (rest-api-spec/test/*.yml) would not have matched them anyway. Widening this is a behaviour change,
-        // so it is deliberately left alone.
+
         if (abs.equals(projectDir) == false && abs.startsWith(projectDir) == false) {
             return Optional.empty();
         }
-        // Java test file: <javaSrcDir>/<pkg>/<Name>.java. Iterate source sets in a fixed kind order so
-        // resolution is deterministic even in the (improbable) case of overlapping source dirs.
+        // Dispatch on file shape, of which this resolver understands exactly two. Anything else - a build
+        // script, a doc, a fixture - is simply not a test, so it is ignored rather than reported unresolved.
+        String absStr = abs.toString();
+        if (absStr.endsWith(JAVA_SUFFIX)) {
+            return resolveChangedJavaSource(abs);
+        }
+        if (absStr.endsWith(YAML_SUFFIX)) {
+            return resolveChangedYamlSuite(abs);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Which of this project's source sets owns a changed java file, laid out as
+     * {@code <javaSrcDir>/<pkg>/<Name>.java}. The caller has already established the {@code .java} extension,
+     * so being under a {@code javaSrcDir} is the whole question here.
+     *
+     * <p>The extension decided the dispatch, but it does <em>not</em> decide the kind - the claiming source set
+     * does. A java file in the {@code yamlRestTest} source set is a runner, not a class to filter on.
+     */
+    private Optional<BaseTarget> resolveChangedJavaSource(Path abs) {
+        // Fixed kind order so resolution is deterministic even in the (improbable) case of overlapping dirs.
         for (Map.Entry<String, String> e : JAVA_SOURCE_SET_KIND.entrySet()) {
             Optional<SourceSetInfo> maybe = project.sourceSet(e.getKey());
             if (maybe.isEmpty()) {
@@ -185,29 +158,39 @@ public final class RefResolver {
             SourceSetInfo ss = maybe.get();
             for (Path srcDir : ss.javaSrcDirs()) {
                 Path rel = relativeUnder(srcDir, abs);
-                if (rel != null && rel.toString().endsWith(".java")) {
-                    if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
-                        // A changed yaml runner Java file re-runs the whole source set; no fqcn.
-                        return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
-                    }
-                    String fqcn = stripSuffix(rel.toString(), ".java").replace('/', '.').replace('\\', '.');
-                    return Optional.of(target(ss, e.getValue(), fqcn, null, null));
-                }
-            }
-        }
-        // Yaml suite resource: <resourceDir>/rest-api-spec/test/<suitePath>.yml
-        Optional<SourceSetInfo> yaml = project.sourceSet(Kinds.SS_YAML_REST_TEST);
-        if (yaml.isPresent()) {
-            for (Path resDir : yaml.get().resourceSrcDirs()) {
-                Path rel = relativeUnder(resDir, abs);
                 if (rel == null) {
                     continue;
                 }
-                String relStr = rel.toString().replace('\\', '/');
-                if (relStr.startsWith(YAML_SUITE_SUBDIR) && relStr.endsWith(YAML_SUFFIX)) {
-                    String suitePath = stripSuffix(relStr.substring(YAML_SUITE_SUBDIR.length()), YAML_SUFFIX);
-                    return Optional.of(target(yaml.get(), Kinds.YAML_REST_TEST_SUITE, null, suitePath, null));
+                if (ss.name().equals(Kinds.SS_YAML_REST_TEST)) {
+                    // A changed yaml runner java file re-runs the whole source set; no fqcn.
+                    return Optional.of(target(ss, Kinds.YAML_REST_TEST_RUNNER, null, null, null));
                 }
+                String fqcn = stripSuffix(rel.toString(), JAVA_SUFFIX).replace('/', '.').replace('\\', '.');
+                return Optional.of(target(ss, e.getValue(), fqcn, null, null));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * A changed yaml suite resource, laid out as {@code <resourceDir>/}{@value #YAML_SUITE_SUBDIR}{@code
+     * <suitePath>}{@value #YAML_SUFFIX}. The caller has already established the extension, so being under the
+     * suite subdirectory is the whole question here - a yaml file outside it is not a suite.
+     */
+    private Optional<BaseTarget> resolveChangedYamlSuite(Path abs) {
+        Optional<SourceSetInfo> yaml = project.sourceSet(Kinds.SS_YAML_REST_TEST);
+        if (yaml.isEmpty()) {
+            return Optional.empty();
+        }
+        for (Path resDir : yaml.get().resourceSrcDirs()) {
+            Path rel = relativeUnder(resDir, abs);
+            if (rel == null) {
+                continue;
+            }
+            String relStr = rel.toString().replace('\\', '/');
+            if (relStr.startsWith(YAML_SUITE_SUBDIR)) {
+                String suitePath = stripSuffix(relStr.substring(YAML_SUITE_SUBDIR.length()), YAML_SUFFIX);
+                return Optional.of(target(yaml.get(), Kinds.YAML_REST_TEST_SUITE, null, suitePath, null));
             }
         }
         return Optional.empty();
@@ -218,7 +201,7 @@ public final class RefResolver {
         if (cm == null || cm.className() == null || cm.className().isBlank()) {
             return Optional.empty();
         }
-        String suffix = cm.className().replace('.', '/') + ".java";
+        String suffix = cm.className().replace('.', '/') + JAVA_SUFFIX;
         // Iterate this project's java source sets in a fixed order so resolution is deterministic even in the
         // (improbable) case of overlapping source dirs.
         for (String ssName : JAVA_SOURCE_SET_KIND.keySet()) {

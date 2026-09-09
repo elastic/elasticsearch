@@ -145,7 +145,7 @@ public final class PlanBuilder {
                     unresolved.add(
                         new Unresolved(
                             new FlakinessRef(FlakinessRef.SOURCE_UNMUTE, null, t.fqcn(), null, null),
-                            "abstract-no-concrete-subclass"
+                            FlakinessPlan.REASON_ABSTRACT_NO_CONCRETE_SUBCLASS
                         )
                     );
                     continue;

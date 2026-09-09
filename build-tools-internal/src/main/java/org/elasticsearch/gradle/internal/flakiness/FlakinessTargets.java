@@ -71,9 +71,9 @@ public final class FlakinessTargets {
             }
             boolean classRef = FlakinessRef.SOURCE_UNMUTE.equals(ref.source()) || FlakinessRef.SOURCE_EXPLICIT.equals(ref.source());
             if (classRef) {
-                unresolved.add(new FlakinessPlan.Unresolved(ref, RefResolver.REASON_NO_SOURCE_FILE));
+                unresolved.add(new FlakinessPlan.Unresolved(ref, FlakinessPlan.REASON_NO_SOURCE_FILE));
             } else if (FlakinessRef.SOURCE_CHANGED_FILE.equals(ref.source()) == false) {
-                unresolved.add(new FlakinessPlan.Unresolved(ref, RefResolver.REASON_UNKNOWN_SOURCE));
+                unresolved.add(new FlakinessPlan.Unresolved(ref, FlakinessPlan.REASON_UNKNOWN_SOURCE));
             }
         }
         return new FlakinessJson.BaseTargetsFile(targets, unresolved);

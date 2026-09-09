@@ -82,6 +82,28 @@ public record FlakinessPlan(
     /** A ref that could not be resolved, with a machine-readable {@code reason} (e.g. {@code "no-source-file"}). */
     public record Unresolved(FlakinessRef ref, String reason) {}
 
+    // The complete vocabulary for Unresolved#reason. It lives here, next to the record that carries it and is
+    // serialized from it, rather than on either producer: FlakinessTargets#merge emits the first two and
+    // PlanBuilder the third, so no single producer owns the set. Distinct from PlanBuilder's REASON_* skip
+    // constants, which describe a plan ENTRY's disposition rather than an unresolvable ref.
+
+    /** The ref names a class, but no source file for it exists in any source set of any project. */
+    public static final String REASON_NO_SOURCE_FILE = "no-source-file";
+
+    /**
+     * The ref's {@code source} discriminator is absent or not one the resolver knows. That is a contract
+     * defect between the TypeScript bootstrap (which writes {@code flakiness-refs.json}) and the Java
+     * resolver, so it is reported rather than skipped - a dropped ref would read as "nothing to run".
+     */
+    public static final String REASON_UNKNOWN_SOURCE = "unknown-source";
+
+    /**
+     * The ref resolved to an abstract class that has no concrete subclass in the compiled output, so there is
+     * nothing a {@code Test} task could run. Reported rather than dropped, since an abstract base that
+     * expands to nothing usually means the compile step did not cover the projects its subclasses live in.
+     */
+    public static final String REASON_ABSTRACT_NO_CONCRETE_SUBCLASS = "abstract-no-concrete-subclass";
+
     /** The plan emitted when compilation failed: no runnable entries, {@code buildFailed:true}. */
     public static FlakinessPlan buildFailed(String reason) {
         return new FlakinessPlan(true, reason, List.of(), List.of(), List.of(), List.of(), List.of());

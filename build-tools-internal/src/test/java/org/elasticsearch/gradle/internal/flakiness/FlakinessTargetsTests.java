@@ -157,7 +157,7 @@ public class FlakinessTargetsTests {
 
         assertThat(merged.targets().size(), is(1));
         assertThat(merged.unresolved().stream().map(u -> u.ref()).toList(), contains(orphanUnmute, orphanExplicit));
-        assertThat(merged.unresolved().get(0).reason(), is(RefResolver.REASON_NO_SOURCE_FILE));
+        assertThat(merged.unresolved().get(0).reason(), is(FlakinessPlan.REASON_NO_SOURCE_FILE));
     }
 
     /**
@@ -180,7 +180,7 @@ public class FlakinessTargetsTests {
         assertThat(merged.unresolved().stream().map(u -> u.ref()).toList(), contains(futureSource, missingSource));
         assertThat(
             merged.unresolved().stream().map(u -> u.reason()).distinct().toList(),
-            contains(RefResolver.REASON_UNKNOWN_SOURCE)
+            contains(FlakinessPlan.REASON_UNKNOWN_SOURCE)
         );
     }
 

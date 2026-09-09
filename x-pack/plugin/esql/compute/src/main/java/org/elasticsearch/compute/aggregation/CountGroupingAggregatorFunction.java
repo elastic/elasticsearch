@@ -703,7 +703,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public PartitionSplitter partitioningSplitter(CircuitBreaker breaker) {
+    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         return new CountPartitionSplitter(breaker);
     }
 

@@ -198,7 +198,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             boolean success = false;
             try {
                 for (int i = 0; i < splitters.length; i++) {
-                    splitters[i] = aggregators.get(i).aggregatorFunction().partitioningSplitter(breaker);
+                    splitters[i] = aggregators.get(i).aggregatorFunction().createPartitioningSplitter(breaker);
                 }
                 success = true;
             } finally {

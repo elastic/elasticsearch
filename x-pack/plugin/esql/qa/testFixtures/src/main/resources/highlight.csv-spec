@@ -1923,7 +1923,6 @@ The Lord of the <em>Rings</em>
 
 implicitQueryBareForm
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1959,7 +1958,6 @@ Return of the Shadow                                             | <em>Return</e
 
 implicitQueryTwoWheresOrTogether
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -1980,7 +1978,6 @@ Return of the Shadow                                             | [Christopher 
 # the text field the WHERE named.
 implicitQueryIgnoresNonTextConjunct
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return") AND MATCH(year, 2012)
@@ -1997,9 +1994,6 @@ Return of the King Being the Third Part of The Lord of the Rings | 2012 | <em>Re
 # The same leniency over runtime columns, where the numeric conjunct is matched row by row rather than in Lucene.
 implicitQueryOnRuntimeColumnsIgnoresNonTextConjunct
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
-required_capability: fn_match_runtime_filter
-required_capability: fn_to_text
 
 ROW id = 1
 | EVAL msg = "On-call found it after a search ranking", year = 1989
@@ -2103,7 +2097,6 @@ Return of the Shadow                                             | 2 | <em>Retur
 # ON * includes multi-fields (author.keyword).
 highlightOnStar
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM books
 | WHERE MATCH(title, "Return")
@@ -2231,7 +2224,6 @@ Return of the <em>King</em> | null
 # overrides default_field, so description is highlighted and title is not.
 highlightQueryStringQualifierOverridesDefaultFieldNoOn
 required_capability: highlight_implicit_query_and_fields
-required_capability: qstr_function
 
 ROW title = "Return of the King", description = "Tolkien wrote the epic saga."
 | HIGHLIGHT QSTR("description:Tolkien", {"default_field": "title"})
@@ -2247,7 +2239,6 @@ null                    | <em>Tolkien</em> wrote the epic saga.
 # an explicit ON clause. Negative queries never produce spans, so the generated columns are null.
 highlightNotKqlFallsBackToAllStringFields
 required_capability: highlight_implicit_query_and_fields
-required_capability: kql_function
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT NOT KQL("foo")
@@ -2265,8 +2256,6 @@ null                    | null
 # highlight_body is absent-as-null.
 highlightMatchAndNotQstrDerivesWithoutTranslationError
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
-required_capability: qstr_function
 
 ROW title = "Return of the King", body = "An ordinary description."
 | HIGHLIGHT MATCH(title, "king") AND NOT QSTR("body:bar")
@@ -2282,7 +2271,6 @@ Return of the <em>King</em> | null
 # out of ON leaves Lucene with searchable fields [author] and rejects [title].
 highlightQstrQualifierSurvivesPruneOfUnusedOnField
 required_capability: highlight_v6
-required_capability: qstr_function
 
 ROW title = "Return of the King", author = "Tolkien"
 | HIGHLIGHT QSTR("title:King") ON title, author
@@ -2297,7 +2285,6 @@ null
 # MATCH(title) still translates against title after KEEP drops highlight_title.
 highlightMatchSurvivesPruneOfUnusedOnField
 required_capability: highlight_v6
-required_capability: match_function
 
 ROW title = "Return of the King", author = "Tolkien"
 | HIGHLIGHT MATCH(title, "king") ON title, author
@@ -2311,7 +2298,6 @@ null
 
 implicitOnSemanticTextViaStar
 required_capability: highlight_implicit_query_and_fields
-required_capability: match_function
 
 FROM semantic_text
 | WHERE MATCH(semantic_text_field, "prosper")

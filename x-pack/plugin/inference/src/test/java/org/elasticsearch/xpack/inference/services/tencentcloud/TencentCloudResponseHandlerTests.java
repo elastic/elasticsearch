@@ -88,11 +88,19 @@ public class TencentCloudResponseHandlerTests extends ESTestCase {
     }
 
     private static String serverErrorMessage(String entityId, int statusCode) {
-        return Strings.format("Received a server error status code for request from inference entity id [%s] status [%d]", entityId, statusCode);
+        return Strings.format(
+            "Received a server error status code for request from inference entity id [%s] status [%d]",
+            entityId,
+            statusCode
+        );
     }
 
     private static String rateLimitMessage(String entityId, int statusCode) {
-        return Strings.format("Received a rate limit status code for request from inference entity id [%s] status [%d]", entityId, statusCode);
+        return Strings.format(
+            "Received a rate limit status code for request from inference entity id [%s] status [%d]",
+            entityId,
+            statusCode
+        );
     }
 
     private static String authErrorMessage(String entityId, int statusCode) {

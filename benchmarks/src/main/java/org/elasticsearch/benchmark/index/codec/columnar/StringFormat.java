@@ -40,6 +40,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
@@ -47,7 +48,7 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
@@ -96,7 +97,7 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             default -> throw new AssertionError(this);
         };
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -215,7 +216,6 @@ public enum StringFormat {
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute("columnar.type", "STRING");
         type.freeze();
         return type;
     }
@@ -244,11 +244,12 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             case COLUMNAR_PLAIN, COLUMNAR_DICTIONARY, COLUMNAR -> new ColumNARDocValuesFormat(
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
                 dictionaryPolicy()
             );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -259,14 +260,14 @@ public enum StringFormat {
     private long writeColumnar(Directory directory, BytesRef[] values) throws IOException {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute("columnar.type", "STRING");
         type.freeze();
         final DocValuesFormat dv = new ColumNARDocValuesFormat(
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             dictionaryPolicy()
         );
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;

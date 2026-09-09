@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.not;
  * <p>
  * The happy path verifies that a role holding {@code ai_index:<kiType>/read} Kibana application privileges,
  * granted in different spaces (with no explicit index privileges), can read the Elastic AI Index
- * {@code ai-index-idx-sml-data}, and that the implicit document-level-security filter restricts results
+ * {@code .ai-index-idx-sml-data}, and that the implicit document-level-security filter restricts results
  * to the following rule: a document is visible only when the user holds <em>all</em> the
  * actions it requires <em>within a single space</em>. Actions accumulated across different spaces
  * must not grant access, and a document scoped to every space via {@code "*"} must still be visible
@@ -61,10 +62,10 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
-    private static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
+    private static final String ELASTIC_AI_INDEX = ".ai-index-idx-sml-data";
 
     // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS
-    // named exactly ELASTIC_AI_INDEX. So "ai-index-idx-sml-data" is never a concrete index in production.
+    // named exactly ELASTIC_AI_INDEX. So ".ai-index-idx-sml-data" is never a concrete index in production.
     private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX + "-000001";
 
     // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
@@ -78,9 +79,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         "mixed-counts",
         "shared-dashboard"
     );
-    // The wildcard-resource grant reaches finance-dashboard and engineering-public (no space
-    // restriction), but it holds only dashboard/read, so mixed-counts (satisfiable only with
-    // workflow/read) drops out.
+    // The wildcard-resource grant reaches finance-dashboard and engineering-public, but holds only
+    // dashboard/read, so mixed-counts (needs workflow/read) drops out.
     private static final List<String> WILDCARD_GRANT_VISIBLE_DOC_IDS = List.of(
         "all-spaces-dashboard",
         "all-spaces-public",
@@ -164,6 +164,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         create.setJsonEntity(Strings.format("""
             { "aliases": { "%s": { "is_write_index": true } } }
             """, ELASTIC_AI_INDEX));
+        // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
+        create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
         indexDoc("marketing-dashboard", """
             {
@@ -304,6 +306,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
               }
             }
             """, ELASTIC_AI_INDEX));
+        // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
+        create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
@@ -400,9 +404,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: requires no action in marketing, and the user is in marketing. This is what Kibana
-        // writes for an SML type that opts out of privilege gating: an element with an empty `name` and
-        // `count: 0`.
+        // VISIBLE: requires no action, in marketing where the user is. This is what Kibana writes for
+        // an SML type that opts out of gating: empty `name`, `count: 0`.
         indexDoc("marketing-public", """
             {
               "type": "dashboard",
@@ -412,8 +415,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // HIDDEN: requires no action, but in a space the user is not in ("public" means public
-        // within its own space).
+        // HIDDEN: requires no action, but in a space the user is not in (public only within its space).
         indexDoc("engineering-public", """
             {
               "type": "dashboard",
@@ -423,8 +425,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: requires no action, in every space. This is the entry that
-        // is genuinely public to any user the provider grants at all.
+        // VISIBLE: requires no action, in every space — genuinely public to any granted user.
         indexDoc("all-spaces-public", """
             {
               "type": "dashboard",
@@ -434,12 +435,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // HIDDEN: malformed — `count: 0` while still naming an action. The Kibana indexer derives
-        // `count` from the action list, so this shape can only come from a buggy or hostile producer,
-        // and it must fail CLOSED. The named action is one NO test role holds, which is what isolates
-        // the zero-requirement escape: `terms_set` never visits this element (its name is in none of
-        // the query's postings), so before the escape required an absent `name` the bare `count: 0`
-        // arm admitted it for every user.
+        // HIDDEN: malformed — `count: 0` while still naming an action. Only a buggy or hostile producer
+        // writes this, so it must fail closed. No test role holds the named action, so `terms_set` never
+        // visits it — isolating the count:0 escape (arm one) from the terms_set arm.
         indexDoc("malformed-zero-count", """
             {
               "type": "dashboard",
@@ -449,8 +447,18 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE: no permissions block at all → public document, via the must_not(nested(match_all)) branch.
-        // Kibana never writes this shape, but the branch must keep working for any other producer writing to the index.
+        // Malformed count:0 must remain hidden even when the named action is held.
+        indexDoc("malformed-zero-count-held-action", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 0 }
+              ]}}
+            }
+            """);
+
+        // VISIBLE: no permissions block → public, via the must_not(nested(match_all)) branch. Kibana
+        // never writes this, but the branch must work for any other producer.
         indexDoc("global-no-perms", """
             {
               "type": "dashboard"
@@ -480,7 +488,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         final List<Map<String, Object>> implicitEntries = indices.stream()
             .filter(entry -> Boolean.TRUE.equals(entry.get("implicitly_granted")))
-            .filter(entry -> ((List<String>) entry.get("names")).stream().anyMatch(n -> n.startsWith("ai-index-")))
+            .filter(entry -> ((List<String>) entry.get("names")).stream().anyMatch(n -> n.startsWith(".ai-index-")))
             .toList();
         assertThat("expected exactly one implicit Elastic AI Index grant, got " + indices, implicitEntries, hasSize(1));
 

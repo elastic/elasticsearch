@@ -67,6 +67,7 @@ public final class DataSourceModule implements Closeable {
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
+    private final DecompressionCodecRegistry codecRegistry;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -192,13 +193,13 @@ public final class DataSourceModule implements Closeable {
             effectiveLocalFileAccess
         );
 
-        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        this.codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
             for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
-                codecRegistry.register(codec);
+                this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -384,6 +385,10 @@ public final class DataSourceModule implements Closeable {
     /** The node-level external-source telemetry holder. Always a live instance backed by a real {@link DataSourceUsageAccumulator}. */
     public ExternalSourceMetrics externalSourceMetrics() {
         return externalSourceMetrics;
+    }
+
+    public DecompressionCodecRegistry codecRegistry() {
+        return codecRegistry;
     }
 
     /**

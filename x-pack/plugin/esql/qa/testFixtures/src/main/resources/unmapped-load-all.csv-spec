@@ -3179,3 +3179,366 @@ foo:integer | id:keyword | unmapped:keyword | unmapped.bar:keyword | unmapped.de
 123         | 6          | null             | null                 | deep6                      | null                 | abc
 123         | 7          | null             | bar7                 | null                       | null                 | abc
 ;
+
+showMeTheSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored METADATA _source
+| KEEP id, *, _source
+| SORT id
+;
+
+id:keyword | a:keyword | a.b:keyword | arr:keyword | deep.l1.l2.l3:keyword | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | _source:_source
+1          | null      | v1          | null        | null                   | null                    | null             | null             | "{""id"":""1"",""a"":{""b"":""v1""}}"
+10         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""10""}"
+11         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""11""}"
+12         | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""12""}"
+13         | scalar13  | null        | null        | null                   | null                    | null             | null             | "{""id"":""13"",""a"":""scalar13""}"
+2          | null      | v2          | null        | null                   | null                    | null             | null             | "{""id"":""2"",""a.b"":""v2""}"
+3          | null      | null        | null        | v3                     | null                    | null             | null             | "{""id"":""3"",""deep"":{""l1"":{""l2"":{""l3"":""v3""}}}}"
+4          | null      | null        | null        | v4                     | null                    | null             | null             | "{""id"":""4"",""deep.l1.l2.l3"":""v4""}"
+5          | null      | null        | [x, y]      | null                   | null                    | null             | null             | "{""id"":""5"",""arr"":[""x"",""y""]}"
+6          | null      | null        | null        | null                   | null                    | null             | [p, q]           | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+7          | null      | null        | null        | null                   | null                    | s                | r                | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+8          | null      | null        | null        | null                   | [t, u]                  | null             | null             | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+9          | null      | null        | null        | null                   | null                    | null             | null             | "{""id"":""9""}"
+;
+
+scalarObjectCollision
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored METADATA _source
+| WHERE id IN ("1", "2", "3", "13")
+| KEEP id, a, deep, a.b
+| SORT id::long
+;
+
+id:keyword | a:keyword | deep:keyword | a.b:keyword
+1          | null      | null         | v1
+2          | null      | null         | v2
+3          | null      | null         | null
+13         | scalar13  | null         | null
+;
+
+wildcardAStarExpandsBothForms
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_fix_unmapped_object_value
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored
+| WHERE id IN ("1", "2", "13")
+| KEEP id, a*
+| SORT id::long
+;
+
+id:keyword | a:keyword | a.b:keyword
+1          | null      | v1
+2          | null      | v2
+13         | scalar13  | null
+;
+
+wildcardDeepDotStarExpandsLeaf
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored
+| WHERE id IN ("3", "4")
+| KEEP id, deep.*
+| SORT id
+;
+
+id:keyword | deep.l1.l2.l3:keyword
+3          | v3
+4          | v4
+;
+
+uniformAndSneakyArraysUnionTheirLeafColumns
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index
+| WHERE id == "6" OR id == "7"
+| KEEP _index, id, objarr.j, objarr.k
+| SORT _index, id
+;
+
+_index:keyword          | id:keyword | objarr.j:keyword | objarr.k:keyword
+unmapped_source_stored    | 6          | null             | [p, q]
+unmapped_source_stored    | 7          | s                | r
+unmapped_source_synthetic | 6          | null             | [p, q]
+unmapped_source_synthetic | 7          | s                | r
+;
+
+sneakyArraySourceShapeAcrossSourceModes
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_all METADATA _index, _source
+| WHERE id == "8" OR id == "7" OR id == "6" OR id == "5"
+| SORT id, _index
+| KEEP _index, nest.inner.leaf, objarr.j, objarr.k, *arr*, _source
+| EVAL n = MV_COUNT(nest.inner.leaf)
+| EVAL m = MV_COUNT(objarr.k)
+| EVAL o = MV_COUNT(arr)
+;
+
+_index:keyword                 | nest.inner.leaf:keyword | objarr.j:keyword | objarr.k:keyword | arr:keyword | _source:_source                                                                                                    | n:integer | m:integer | o:integer
+unmapped_source_stored         | null                    | null             | null             | [x, y]      | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null      | null      | 2
+unmapped_source_synth_keep_all | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_synthetic      | null                    | null             | null             | [x, y]      | "{""arr"":[""x"",""y""],""id"":""5""}"                                                                             | null      | null      | 2
+unmapped_source_stored         | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synth_keep_all | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_synthetic      | null                    | null             | [p, q]           | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                                                          | null      | 2         | null
+unmapped_source_stored         | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synth_keep_all | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_synthetic      | null                    | s                | r                | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                                                          | null      | 1         | null
+unmapped_source_stored         | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                           | 2         | null      | null
+unmapped_source_synth_keep_all | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                           | 2         | null      | null
+unmapped_source_synthetic      | [t, u]                  | null             | null             | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                           | 2         | null      | null
+;
+
+nullyFieldNeverProducesAColumnStoredSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index, _source
+| WHERE id == "9" OR id == "10" OR id == "11" OR id == "12"
+| SORT id, _index
+;
+
+id:keyword | _index:keyword            | _source:_source
+10         | unmapped_source_stored    | "{""id"":""10""}"
+10         | unmapped_source_synthetic | "{""id"":""10""}"
+11         | unmapped_source_stored    | "{""id"":""11""}"
+11         | unmapped_source_synthetic | "{""id"":""11""}"
+12         | unmapped_source_stored    | "{""id"":""12""}"
+12         | unmapped_source_synthetic | "{""id"":""12""}"
+9          | unmapped_source_stored    | "{""id"":""9""}"
+9          | unmapped_source_synthetic | "{""id"":""9""}"
+;
+
+disabledSourceYieldsOnlyMappedId
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled METADATA _source
+| KEEP *
+| SORT id::long
+;
+
+id:keyword | _source:_source
+1          | null
+2          | null
+3          | null
+4          | null
+5          | null
+6          | null
+7          | null
+8          | null
+9          | null
+10         | null
+11         | null
+12         | null
+13         | null
+;
+
+excludedFieldsNotSurfacedAsColumns
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_excludes METADATA _source
+| KEEP id, a.b, arr, nest.inner.leaf, *
+| SORT id::long
+;
+
+id:keyword | a.b:keyword | arr:keyword | nest.inner.leaf:keyword | _source:_source                                                                                                    | a:keyword
+1          | v1          | null        | null                    | "{""id"":""1"",""a"":{""b"":""v1""}}"                                                                              | null
+2          | v2          | null        | null                    | "{""id"":""2"",""a.b"":""v2""}"                                                                                    | null
+3          | null        | null        | null                    | "{""id"":""3""}"                                                                                                   | null
+4          | null        | null        | null                    | "{""id"":""4""}"                                                                                                   | null
+5          | null        | [x, y]      | null                    | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | null
+6          | null        | null        | null                    | "{""id"":""6""}"                                                                                                   | null
+7          | null        | null        | null                    | "{""id"":""7""}"                                                                                                   | null
+8          | null        | null        | [t, u]                  | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                           | null
+9          | null        | null        | null                    | "{""id"":""9""}"                                                                                                   | null
+10         | null        | null        | null                    | "{""id"":""10""}"                                                                                                  | null
+11         | null        | null        | null                    | "{""id"":""11""}"                                                                                                  | null
+12         | null        | null        | null                    | "{""id"":""12""}"                                                                                                  | null
+13         | null        | null        | null                    | "{""id"":""13"",""a"":""scalar13""}"                                                                               | scalar13
+;
+
+explicitReferenceToSourceIgnored_deep_objarr_Fields
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_excludes METADATA _source
+| KEEP id, *, deep, objarr
+| SORT id::long
+| EVAL x = id::long
+| WHERE x >= 4 and id::long < 9
+;
+
+id:keyword | _source:_source                                                                                                    | arr:keyword | nest.inner.leaf:keyword | deep:keyword | objarr:keyword | x:long
+4          | "{""id"":""4""}"                                                                                                   | null        | null                    | null         | null           | 4
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}"                                                                             | [x, y]      | null                    | null         | null           | 5
+6          | "{""id"":""6""}"                                                                                                   | null        | null                    | null         | null           | 6
+7          | "{""id"":""7""}"                                                                                                   | null        | null                    | null         | null           | 7
+8          | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"                           | null        | [t, u]                  | null         | null           | 8
+;
+
+returnOnlySourceIncludedColumns_arr_and_id
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_includes METADATA _source
+| KEEP *
+| SORT id::long
+;
+
+id:keyword | _source:_source                         | arr:keyword
+1          | "{""id"":""1""}"                        | null
+2          | "{""id"":""2""}"                        | null
+3          | "{""id"":""3""}"                        | null
+4          | "{""id"":""4""}"                        | null
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}" | [x, y]
+6          | "{""id"":""6""}"                        | null
+7          | "{""id"":""7""}"                        | null
+8          | "{""id"":""8""}"                        | null
+9          | "{""id"":""9""}"                        | null
+10         | "{""id"":""10""}"                       | null
+11         | "{""id"":""11""}"                       | null
+12         | "{""id"":""12""}"                       | null
+13         | "{""id"":""13""}"                       | null
+;
+
+returnOnlySourceIncludedColumns_arr_and_id_WhenForceReferencingWildcardField
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_includes METADATA _source
+| KEEP *, a*
+| SORT id::long
+;
+
+id:keyword | _source:_source                         | arr:keyword
+1          | "{""id"":""1""}"                        | null
+2          | "{""id"":""2""}"                        | null
+3          | "{""id"":""3""}"                        | null
+4          | "{""id"":""4""}"                        | null
+5          | "{""id"":""5"",""arr"":[""x"",""y""]}" | [x, y]
+6          | "{""id"":""6""}"                        | null
+7          | "{""id"":""7""}"                        | null
+8          | "{""id"":""8""}"                        | null
+9          | "{""id"":""9""}"                        | null
+10         | "{""id"":""10""}"                       | null
+11         | "{""id"":""11""}"                       | null
+12         | "{""id"":""12""}"                       | null
+13         | "{""id"":""13""}"                       | null
+;
+
+storedAndSyntheticIdenticalForUnmappedFields
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_all METADATA _index, _source
+| WHERE id IN ("1", "2", "5")
+| KEEP id, a.b, arr, _*
+| SORT id, _index
+;
+
+id:keyword | a.b:keyword | arr:keyword | _index:keyword                 | _source:_source
+1          | v1          | null        | unmapped_source_stored         | "{""id"":""1"",""a"":{""b"":""v1""}}"
+1          | v1          | null        | unmapped_source_synth_keep_all | "{""a"":{""b"":""v1""},""id"":""1""}"
+1          | v1          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v1""},""id"":""1""}"
+2          | v2          | null        | unmapped_source_stored         | "{""id"":""2"",""a.b"":""v2""}"
+2          | v2          | null        | unmapped_source_synth_keep_all | "{""a"":{""b"":""v2""},""id"":""2""}"
+2          | v2          | null        | unmapped_source_synthetic      | "{""a"":{""b"":""v2""},""id"":""2""}"
+5          | null        | [x, y]      | unmapped_source_stored         | "{""id"":""5"",""arr"":[""x"",""y""]}"
+5          | null        | [x, y]      | unmapped_source_synth_keep_all | "{""arr"":[""x"",""y""],""id"":""5""}"
+5          | null        | [x, y]      | unmapped_source_synthetic      | "{""arr"":[""x"",""y""],""id"":""5""}"
+;
+
+subobjectsFalseLoadAllExpandsLeavesLikeStoredSource
+required_capability: optional_fields_load_all_v2
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_subobjects_false METADATA _source
+| KEEP id, a.b, _*
+| SORT id
+;
+
+id:keyword | a.b:keyword | _source:_source
+1          | v1          | "{""a.b"":""v1"",""id"":""1""}"
+10         | null        | "{""id"":""10""}"
+11         | null        | "{""id"":""11""}"
+12         | null        | "{""id"":""12""}"
+13         | null        | "{""a"":""scalar13"",""id"":""13""}"
+2          | v2          | "{""a.b"":""v2"",""id"":""2""}"
+3          | null        | "{""deep.l1.l2.l3"":""v3"",""id"":""3""}"
+4          | null        | "{""deep.l1.l2.l3"":""v4"",""id"":""4""}"
+5          | null        | "{""arr"":[""x"",""y""],""id"":""5""}"
+6          | null        | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+7          | null        | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+8          | null        | "{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+9          | null        | "{""id"":""9""}"
+;
+
+mixedStdColumnarCrossIndexLoadAll
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM idx_std, idx_col METADATA _index
+| SORT foo NULLS LAST, bar NULLS LAST
+;
+
+bar:keyword | foo:keyword | _index:keyword
+b1          | a1          | idx_std
+b2          | null        | idx_col
+;
+
+wildcardExpansionUnderColumnar
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM idx_col_dynamic_false METADATA _source
+| KEEP foo, unmapped*, *
+;
+
+foo:keyword | _source:_source
+v1          | "{""foo"":""v1""}"
+;
+
+explicitReferenceUnderColumnar
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM idx_col_dynamic_false METADATA _source
+| KEEP unmapped_x, _source
+;
+
+unmapped_x:keyword | _source:_source
+null                | "{""foo"":""v1""}"
+;
+

@@ -1,0 +1,4 @@
+// Standard source index (dynamic:false), foo mapped, bar unmapped.
+// One document: {foo:"a1", bar:"b1"}. bar lands in _ignored_source.
+foo:keyword,bar:keyword
+a1,b1

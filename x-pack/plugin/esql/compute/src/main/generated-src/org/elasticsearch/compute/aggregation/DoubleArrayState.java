@@ -7,13 +7,18 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
 
 /**
  * Aggregator state for an array of doubles. It is created in a mode where it
@@ -31,34 +36,50 @@ import org.elasticsearch.core.Releasables;
  * </p>
  */
 final class DoubleArrayState extends AbstractArrayState implements GroupingAggregatorState {
+    static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Double.BYTES;
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
+    private static final int PAGE_MASK = PAGE_SIZE - 1;
+    private static final int INITIAL_SIZE = 256;
+
     private final double init;
+    private final CircuitBreaker breaker;
+    private long usedBytes;
+    private int capacity;
+    private double[][] pages;
 
-    private DoubleArray values;
-
-    DoubleArrayState(BigArrays bigArrays, double init) {
+    DoubleArrayState(BigArrays bigArrays, CircuitBreaker breaker, double init) {
         super(bigArrays);
-        this.values = bigArrays.newDoubleArray(1, false);
-        this.values.set(0, init);
+        this.breaker = breaker;
         this.init = init;
+        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByPage(INITIAL_SIZE));
+        this.pages = new double[1][INITIAL_SIZE];
+        this.capacity = INITIAL_SIZE;
+        if (init != 0) {
+            Arrays.fill(pages[0], init);
+        }
     }
 
     double get(int groupId) {
-        return values.get(groupId);
-    }
-
-    double getOrDefault(int groupId) {
-        return groupId < values.size() ? values.get(groupId) : init;
+        return pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK];
     }
 
     void set(int groupId, double value) {
-        ensureCapacity(groupId);
-        values.set(groupId, value);
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] = value;
         trackGroupId(groupId);
     }
 
+    double getOrDefault(int groupId) {
+        return groupId < capacity ? get(groupId) : init;
+    }
+
     void increment(int groupId, double value) {
-        ensureCapacity(groupId);
-        values.increment(groupId, value);
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] += value;
         trackGroupId(groupId);
     }
 
@@ -66,7 +87,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendDouble(i, values.get(selected.getInt(i)));
+                    builder.appendDouble(i, get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -75,7 +96,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    builder.appendDouble(values.get(group));
+                    builder.appendDouble(get(group));
                 } else {
                     builder.appendNull();
                 }
@@ -84,12 +105,54 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         }
     }
 
-    private void ensureCapacity(int groupId) {
-        if (groupId >= values.size()) {
-            long prevSize = values.size();
-            values = bigArrays.grow(values, groupId + 1);
-            values.fill(prevSize, values.size(), init);
+    void ensureCapacity(int minSize) {
+        if (minSize > capacity) {
+            grow(minSize);
         }
+    }
+
+    private void grow(int minSize) {
+        if (capacity < PAGE_SIZE) {
+            final int oldLength = capacity;
+            final int newLength = Math.min(PAGE_SIZE, ArrayUtil.oversize(minSize, Double.BYTES));
+            reserveBytes(bytesUsedByPage(newLength));
+            pages[0] = Arrays.copyOf(pages[0], newLength);
+            releaseBytes(bytesUsedByPage(oldLength));
+            if (init != 0) {
+                Arrays.fill(pages[0], oldLength, newLength, init);
+            }
+            capacity = newLength;
+            if (minSize <= capacity) {
+                return;
+            }
+        }
+        final int pageIndex = (minSize - 1) >>> PAGE_SHIFT;
+        if (pageIndex >= pages.length) {
+            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            reserveBytes(bytesUsedByPagesArray(newLength));
+            final int oldLength = pages.length;
+            pages = Arrays.copyOf(pages, newLength);
+            releaseBytes(bytesUsedByPagesArray(oldLength));
+        }
+        if (minSize == capacity + 1) {
+            pages[pageIndex] = newPage();
+            capacity += PAGE_SIZE;
+            return;
+        }
+        for (int p = capacity >>> PAGE_SHIFT; p <= pageIndex; p++) {
+            assert pages[p] == null;
+            pages[p] = newPage();
+        }
+        capacity = (pageIndex + 1) * PAGE_SIZE;
+    }
+
+    private double[] newPage() {
+        reserveBytes(bytesUsedByPage(PAGE_SIZE));
+        final double[] page = new double[PAGE_SIZE];
+        if (init != 0) {
+            Arrays.fill(page, init);
+        }
+        return page;
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -108,8 +171,8 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size() && hasValue(group)) {
-                    valuesBuilder.appendDouble(i, values.get(group));
+                if (group < capacity && hasValue(group)) {
+                    valuesBuilder.appendDouble(i, get(group));
                     hasValueBuilder.appendBoolean(i, true);
                 } else {
                     allHaveValue = false;
@@ -127,8 +190,31 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         }
     }
 
+    private void reserveBytes(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "DoubleArrayState");
+        usedBytes += bytes;
+    }
+
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        usedBytes -= bytes;
+    }
+
+    static long bytesUsedByPagesArray(int length) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
+        );
+    }
+
+    static long bytesUsedByPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * length);
+    }
+
     @Override
     public void close() {
-        Releasables.close(values, super::close);
+        pages = null;
+        final long bytes = usedBytes;
+        usedBytes = 0;
+        Releasables.close(() -> breaker.addWithoutBreaking(-bytes), super::close);
     }
 }

@@ -157,6 +157,23 @@ public class CsvTestsDataLoader {
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
         new TestDataset("unmapped_array_data", "mapping-unmapped_array_data.json", "unmapped_array_data.csv"),
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
+        // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
+        // a foo leaf only, a bar leaf only, foo / bar / deep.leaf across separate documents (synthetic source), and a bare scalar plus a
+        // foo array. All share mapping-unmapped_multi.json (dynamic:false, only id mapped) so the rest lands in _source / _ignored_source.
+        new TestDataset("unmapped_multi_stored_foo", "mapping-unmapped_multi.json", "unmapped_multi_stored_foo.csv"),
+        new TestDataset("unmapped_multi_stored_bar", "mapping-unmapped_multi.json", "unmapped_multi_stored_bar.csv"),
+        new TestDataset(
+            "unmapped_multi_synthetic",
+            "mapping-unmapped_multi.json",
+            "unmapped_multi_synthetic.csv",
+            "synthetic-source-settings.json"
+        ),
+        new TestDataset("unmapped_multi_stored_mixed", "mapping-unmapped_multi.json", "unmapped_multi_stored_mixed.csv"),
+        // Mapped sibling of the unmapped_multi_* indices: here unmapped.foo, unmapped.bar and unmapped.deep.leaf are keyword-mapped rather
+        // than left in _source, so FROM unmapped_multi_* makes them partially mapped and LOAD_ALL merges the mapped and _source legs into
+        // one column, while the bare scalar unmapped is an object here and stays fully unmapped (only its expansion can surface it).
+        new TestDataset("unmapped_multi_mapped", "mapping-unmapped_multi_mapped.json", "unmapped_multi_mapped.csv"),
+        new TestDataset("unmapped_multi_mapped_mixed", "mapping-unmapped_multi_mapped_mixed.json", "unmapped_multi_mapped_mixed.csv"),
         new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
         new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
@@ -255,6 +272,15 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("prom-metrics", "prom-metrics-mappings.json", "k8s-prometheus-remote-write.csv", "prom-metrics-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
+        new TestDataset(
+            "prom-metrics-name",
+            "prom-metrics-name-mappings.json",
+            "k8s-prometheus-name.csv",
+            "prom-metrics-name-settings.json"
+        ).withRequiredCapabilities(
+            EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING,
+            EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS
+        ),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -307,6 +333,7 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_limit_by"),
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
+        new TestDataset("knn_hex_vectors"),
         new TestDataset("web_logs"),
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),

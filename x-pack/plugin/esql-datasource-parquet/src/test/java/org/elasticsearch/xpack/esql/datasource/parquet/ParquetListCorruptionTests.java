@@ -295,7 +295,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
      * notices the read paths pass in.
      */
     private Block readList(ParquetColumnDecoding.ListColumnReader input, ColumnInfo info, int rows) {
-        return ParquetColumnDecoding.readListColumn(input, info, rows, blockFactory, "x", null, null, SkipWarnings.NOOP);
+        return ParquetColumnDecoding.readListColumn(input, info, rows, blockFactory, "x", null, null, null, SkipWarnings.NOOP);
     }
 
     /**

@@ -93,10 +93,9 @@ public class WriteLoadConstraintSettings {
      * The threshold over which we consider write thread pool utilization hot-spotting in a balancing movement,
      * when a node is being considered as a destination for a shard
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "allocation_utilization_threshold",
-        "90%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(90),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -117,10 +116,9 @@ public class WriteLoadConstraintSettings {
      * The threshold over which we consider write thread pool utilization hotspotting in a canRemain check, when a shard
      * is being considered for moving off of a node
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = Setting.ratioSetting(
         SETTING_PREFIX + "hotspot_utilization_threshold",
-        "50%",
-        RatioValue::parseRatioValue,
+        RatioValue.ofPercent(50),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

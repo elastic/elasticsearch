@@ -2291,12 +2291,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testPositionalErrorOnlyNamesIndexedFieldsWhenThereIsAnAlternative() {
         fullText().error(
-                "from test | limit 10 | where match(title, \"cat\")",
-                containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field")
+            "from test | limit 10 | where match(title, \"cat\")",
+            containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field")
         );
         fullText().error(
-                "from test | limit 10 | where qstr(\"title: cat\")",
-                allOf(containsString("[QSTR] function cannot be used after LIMIT"), not(containsString("indexed field")))
+            "from test | limit 10 | where qstr(\"title: cat\")",
+            allOf(containsString("[QSTR] function cannot be used after LIMIT"), not(containsString("indexed field")))
         );
     }
 

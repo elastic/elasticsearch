@@ -33,6 +33,11 @@ public interface RestoreLifecycleListener {
      * Called within the cluster-state update that removes a completed {@link RestoreInProgress} entry.
      * Defaults to returning {@code state} unchanged.
      *
+     * <p>This method may be called more than once for the same entry: if a previous invocation threw
+     * an exception, the entry is retained in {@link RestoreInProgress} and this method will be called
+     * again on the next cleanup pass. Implementations must be idempotent with respect to repeated
+     * calls for the same entry.
+     *
      * @param entry the completed restore entry, still present in {@code state}; its
      *              {@link RestoreInProgress.Entry#state()} is terminal
      * @param state cluster state with the completed entry still present

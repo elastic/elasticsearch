@@ -838,6 +838,95 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(RestoreInProgress.get(result).isEmpty());
     }
 
+    /**
+     * Verifies the retry contract documented on {@link RestoreLifecycleListener#onRestoreCompleted}: when
+     * the listener throws, the entry is retained in cluster state and the listener is called again on the
+     * next cleanup pass.
+     */
+    public void testOnRestoreCompletedRetriedAfterException() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        RuntimeException boom = new RuntimeException("transient failure");
+        service.setLifecycleListener(completionListener((entry, state) -> {
+            if (callCount.incrementAndGet() == 1) {
+                throw boom;
+            }
+            return state;
+        }));
+
+        ClusterState input = stateWithCompletedRestore();
+
+        // First pass: listener throws — entry must be retained.
+        ClusterState afterFirst = service.executeRestoreCleanup(input);
+        assertEquals(1, callCount.get());
+        assertFalse("entry must be retained after listener exception", RestoreInProgress.get(afterFirst).isEmpty());
+
+        // Second pass: listener succeeds — entry must be removed.
+        ClusterState afterSecond = service.executeRestoreCleanup(afterFirst);
+        assertEquals(2, callCount.get());
+        assertTrue("entry must be removed after successful listener call", RestoreInProgress.get(afterSecond).isEmpty());
+    }
+
+    // ---- applyRestoreInitializedListener tests --------------------------------
+
+    /** Builds a single {@link RestoreInProgress.Entry} for use in initialization tests. */
+    private static RestoreInProgress.Entry buildRestoreEntry() {
+        String nodeId = randomUUID();
+        ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        return new RestoreInProgress.Entry(
+            UUIDs.randomBase64UUID(),
+            snapshot,
+            RestoreInProgress.State.INIT,
+            false,
+            List.of(shardId.getIndexName()),
+            Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+        );
+    }
+
+    public void testApplyRestoreInitializedListenerCallsListenerWhenEntryNonNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return ClusterState.builder(state).version(state.version() + 1).build();
+            }
+        });
+
+        RestoreInProgress.Entry entry = buildRestoreEntry();
+        long initialVersion = ClusterState.EMPTY_STATE.version();
+        ClusterState result = service.applyRestoreInitializedListener(entry, ClusterState.EMPTY_STATE);
+
+        assertEquals(1, callCount.get());
+        assertEquals(initialVersion + 1, result.version());
+    }
+
+    public void testApplyRestoreInitializedListenerSkipsListenerWhenEntryNull() {
+        RestoreService service = createMinimalRestoreService();
+        AtomicInteger callCount = new AtomicInteger(0);
+        service.setLifecycleListener(new RestoreLifecycleListener() {
+            @Override
+            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
+                callCount.incrementAndGet();
+                return state;
+            }
+        });
+
+        ClusterState result = service.applyRestoreInitializedListener(null, ClusterState.EMPTY_STATE);
+
+        assertEquals(0, callCount.get());
+        assertSame(ClusterState.EMPTY_STATE, result);
+    }
+
+    public void testSetLifecycleListenerRejectsDoubleRegistration() {
+        RestoreService service = createMinimalRestoreService();
+        RestoreLifecycleListener realListener = new RestoreLifecycleListener() {};
+        service.setLifecycleListener(realListener);
+        expectThrows(IllegalStateException.class, () -> service.setLifecycleListener(realListener));
+    }
+
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
         var shards = randomIntBetween(0, 100);
         return new SnapshotInfo(

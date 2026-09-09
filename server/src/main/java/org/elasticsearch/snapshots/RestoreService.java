@@ -257,6 +257,9 @@ public final class RestoreService implements ClusterStateApplier {
      * inside master-service cluster-state updates and must not block or perform I/O.
      */
     public void setLifecycleListener(RestoreLifecycleListener listener) {
+        if (lifecycleListener != RestoreLifecycleListener.NOOP) {
+            throw new IllegalStateException("Lifecycle listener already set. Cannot change lifecycle listener");
+        }
         this.lifecycleListener = Objects.requireNonNull(listener);
     }
 
@@ -1461,6 +1464,14 @@ public final class RestoreService implements ClusterStateApplier {
     private volatile boolean cleanupInProgress = false;
 
     /**
+     * Invokes {@link RestoreLifecycleListener#onRestoreInitialized} for a newly installed restore
+     * entry, or returns {@code state} unchanged when {@code entry} is {@code null}. Package-private for unit tests.
+     */
+    ClusterState applyRestoreInitializedListener(@Nullable RestoreInProgress.Entry entry, ClusterState state) {
+        return entry != null ? lifecycleListener.onRestoreInitialized(entry, state) : state;
+    }
+
+    /**
      * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
      * then removes those entries. The listener fires before removal so its writes publish atomically
      * with the entry disappearing. Package-private for unit tests.
@@ -1477,8 +1488,24 @@ public final class RestoreService implements ClusterStateApplier {
                     entry.state()
                 );
                 // Notify the listener before the entry disappears from cluster state.
-                currentState = lifecycleListener.onRestoreCompleted(entry, currentState);
-                changed = true;
+                try {
+                    currentState = Objects.requireNonNull(
+                        lifecycleListener.onRestoreCompleted(entry, currentState),
+                        "restore lifecycle listener returned a null cluster state"
+                    );
+                    changed = true;
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "failed to notify restore lifecycle listener of completed restore [%s] of snapshot [%s]; "
+                                + "retaining the entry to retry",
+                            entry.uuid(),
+                            entry.snapshot()
+                        ),
+                        e
+                    );
+                    restoreInProgressBuilder.add(entry);
+                }
             } else {
                 restoreInProgressBuilder.add(entry);
             }
@@ -1907,9 +1934,7 @@ public final class RestoreService implements ClusterStateApplier {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
 
-            if (restoreEntry != null) {
-                updatedClusterState = lifecycleListener.onRestoreInitialized(restoreEntry, updatedClusterState);
-            }
+            updatedClusterState = applyRestoreInitializedListener(restoreEntry, updatedClusterState);
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 

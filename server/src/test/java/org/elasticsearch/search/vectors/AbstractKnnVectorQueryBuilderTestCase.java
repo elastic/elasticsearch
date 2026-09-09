@@ -91,7 +91,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     @Override
     protected KnnVectorQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return createKnnVectorQueryBuilder(VECTOR_FIELD, 1, 10, null, null, null).addFilterQuery(queryBuilder);
+        return createKnnVectorQueryBuilder(VECTOR_FIELD, 1, 10, null, null).addFilterQuery(queryBuilder);
     }
 
     protected boolean isQuantizedElementType() {

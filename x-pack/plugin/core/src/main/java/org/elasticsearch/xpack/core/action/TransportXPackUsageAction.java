@@ -86,14 +86,10 @@ public class TransportXPackUsageAction extends TransportLocalClusterStateAction<
                 if (responses.size() < usageActions().size()) {
                     final var childRequest = new XPackUsageRequest(request.masterTimeout());
                     childRequest.setParentTask(request.getParentTask());
-                    client.executeLocally(
-                        usageActions.get(responses.size()),
-                        childRequest,
-                        listener.delegateFailure((delegate, response) -> {
-                            responses.add(response.getUsage());
-                            run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
-                        })
-                    );
+                    client.execute(usageActions.get(responses.size()), childRequest, listener.delegateFailure((delegate, response) -> {
+                        responses.add(response.getUsage());
+                        run(); // XPackUsageFeatureTransportAction always forks to MANAGEMENT so no risk of stack overflow here
+                    }));
                 } else {
                     assert responses.size() == usageActions.size() : responses.size() + " vs " + usageActions.size();
                     listener.onResponse(new XPackUsageResponse(responses));

@@ -60,6 +60,7 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
+        assertEquals("exclusion warnings", raw.exclusionWarnings(), compact.exclusionWarnings());
         return compact;
     }
 
@@ -354,6 +355,26 @@ public class FileListCompactorTests extends ESTestCase {
         String base = "s3://b/data/";
         FileList compact = assertRoundTrip(base, listOf(base + "*.parquet", base + "a.parquet", base + "b.parquet"));
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
+    }
+
+    /** Compaction must copy {@code file_exclusions} warnings onto the compact encoding. */
+    public void testCompactPreservesExclusionWarnings() {
+        String base = "s3://b/data/";
+        String warning = "1 of 3 objects matching the resource under ["
+            + base
+            + "] was excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        GenericFileList raw = new GenericFileList(
+            List.of(
+                new StorageEntry(StoragePath.of(base + "a.parquet"), 100L, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(base + "b.parquet"), 200L, Instant.EPOCH)
+            ),
+            base + "*.parquet",
+            null,
+            List.of(warning)
+        );
+        FileList compact = assertRoundTrip(base, raw);
+        assertThat(compact, Matchers.not(Matchers.instanceOf(GenericFileList.class)));
+        assertEquals(List.of(warning), compact.exclusionWarnings());
     }
 
     /**

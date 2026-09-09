@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
 
 public class WeightedRoundRobinStrategyTests extends ESTestCase {
 
@@ -135,6 +137,60 @@ public class WeightedRoundRobinStrategyTests extends ESTestCase {
         ExternalDistributionPlan plan2 = strategy.planDistribution(context);
 
         assertEquals(plan1.nodeAssignments(), plan2.nodeAssignments());
+    }
+
+    public void testAssignmentsNeverReferenceIndexNode() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("data-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(
+                createPlan(),
+                List.of(createSplit("a.parquet", 500), createSplit("b.parquet", 300), createSplit("c.parquet", 200)),
+                nodes,
+                QueryPragmas.EMPTY
+            )
+        );
+
+        assertTrue(plan.distributed());
+        assertFalse(plan.nodeAssignments().containsKey("index-1"));
+        assertEquals(Set.of("search-1", "data-1"), plan.nodeAssignments().keySet());
+    }
+
+    public void testIndexCoordinatorAssignsEverySplitToSearchWorker() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder("search-1").roles(Set.of(SEARCH_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(
+                createPlan(),
+                List.of(createSplit("a.parquet", 500), createSplit("b.parquet", 300)),
+                nodes,
+                QueryPragmas.EMPTY
+            )
+        );
+
+        assertTrue(plan.distributed());
+        assertEquals(Set.of("search-1"), plan.nodeAssignments().keySet());
+        assertEquals(2, plan.nodeAssignments().get("search-1").size());
+    }
+
+    public void testIndexOnlyClusterReturnsLocal() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("index-1").roles(Set.of(INDEX_ROLE)).build())
+            .build();
+
+        ExternalDistributionPlan plan = strategy.planDistribution(
+            new ExternalDistributionContext(createPlan(), List.of(createSplit("a.parquet", 1024)), nodes, QueryPragmas.EMPTY)
+        );
+
+        assertFalse(plan.distributed());
+        assertTrue(plan.nodeAssignments().isEmpty());
     }
 
     private static ExternalSplit createSplit(String name, long sizeBytes) {

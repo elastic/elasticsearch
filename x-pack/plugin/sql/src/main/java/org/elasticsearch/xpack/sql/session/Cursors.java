@@ -152,7 +152,8 @@ public final class Cursors {
                 return internalDecodeFromStringWithZone(in.readString(), writeableRegistry);
             }
         } catch (SqlIllegalArgumentException ex) {
-            // thrown by the nested call above, already the right shape
+            // already the right type and message, whether it came from the nested call above or
+            // from inside the stream itself, so it must not be wrapped in a second one
             throw ex;
         } catch (IOException | RuntimeException ex) {
             // the cursor is whatever was in the request, so a broken one fails in ways that are

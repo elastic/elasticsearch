@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150506
+pr: 151953
+summary: Allow expressions over aggregates in SPARKLINE
+type: bug

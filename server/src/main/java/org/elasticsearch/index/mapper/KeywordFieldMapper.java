@@ -89,12 +89,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesAutomatonQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermInSetQuery;
-import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
@@ -911,6 +906,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             return usesBinaryDocValuesForIgnoredFields;
         }
 
+        /**
+         * The queries this field answers from its doc values, chosen by how those doc values are framed, so the query
+         * methods below each delegate instead of branching on the format.
+         */
+        private BinaryDocValuesQueries binaryQueries() {
+            return BinaryDocValuesQueries.forFormat(binaryFormat());
+        }
+
         @Override
         public boolean isSearchable() {
             return indexType.hasTerms() || hasDocValues();
@@ -922,7 +925,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesTermQuery(name(), indexedValueForSearch(value), binaryFormat());
+                return binaryQueries().term(name(), indexedValueForSearch(value));
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -934,8 +937,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termsQuery(values, context);
             } else if (usesBinaryDocValues()) {
-                List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-                return new ScanningBinaryDocValuesTermInSetQuery(name(), bytesRefs, binaryFormat());
+                return binaryQueries().terms(name(), values.stream().map(this::indexedValueForSearch).toList());
             } else {
                 Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
@@ -954,13 +956,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesRangeQuery(
+                return binaryQueries().range(
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm),
                     includeLower,
-                    includeUpper,
-                    binaryFormat()
+                    includeUpper
                 );
             } else {
                 return XSortedSetDocValuesRangeQuery.newSlowRangeQuery(
@@ -987,13 +988,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else if (usesBinaryDocValues()) {
-                return ScanningBinaryDocValuesAutomatonQuery.forFuzzy(
+                return binaryQueries().fuzzy(
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
-                    transpositions,
-                    binaryFormat()
+                    transpositions
                 );
             } else {
                 return FuzzyQueries.create(
@@ -1020,12 +1020,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesPrefixQuery(
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    caseInsensitive,
-                    binaryFormat()
-                );
+                return binaryQueries().prefix(name(), indexedValueForSearch(value).utf8ToString(), caseInsensitive);
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -1047,11 +1042,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQueryCaseInsensitive(value, context);
             } else if (usesBinaryDocValues()) {
-                return ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    binaryFormat()
-                );
+                return binaryQueries().caseInsensitiveTerm(name(), indexedValueForSearch(value).utf8ToString());
             } else {
                 return new StringScriptFieldTermQuery(
                     new Script(""),
@@ -1390,7 +1381,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, caseInsensitive, binaryFormat());
+                    return binaryQueries().wildcard(name(), value, caseInsensitive);
                 }
 
                 if (caseInsensitive == false) {
@@ -1420,7 +1411,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, false, binaryFormat());
+                    return binaryQueries().wildcard(name(), value, false);
                 } else {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
@@ -1447,13 +1438,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else {
                 value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
                 if (usesBinaryDocValues()) {
-                    return new ScanningBinaryDocValuesRegexpQuery(
+                    return binaryQueries().regexp(
                         name(),
                         indexedValueForSearch(value).utf8ToString(),
                         syntaxFlags,
                         matchFlags,
                         maxDeterminizedStates,
-                        binaryFormat(),
                         context.getCircuitBreaker()
                     );
                 } else {
@@ -1522,7 +1512,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return new AutomatonQueryWithDescription(new Term(name()), automatonSupplier.get(), description);
             } else if (usesBinaryDocValues()) {
-                return new ScanningBinaryDocValuesAutomatonQuery(name(), automatonSupplier.get(), binaryFormat(), description);
+                return binaryQueries().automaton(name(), automatonSupplier.get(), description);
             } else {
                 return new AutomatonQueryWithDescription(
                     new Term(name()),

@@ -545,10 +545,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         try {
             Automaton a = include != null ? compile(include, INCLUDE_FIELD, breaker) : Automata.makeAnyString();
             if (exclude != null) {
-                // Determinize the exclude under the breaker first: minus() complements it, and complementing an
-                // already-deterministic automaton is the one step of that operation that cannot blow up.
-                Automaton excluded = determinize(compile(exclude, EXCLUDE_FIELD, breaker), breaker);
-                a = Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                a = minus(a, determinize(compile(exclude, EXCLUDE_FIELD, breaker), breaker), breaker);
             }
             return determinize(a, breaker);
         } catch (TooComplexToDeterminizeException e) {
@@ -557,6 +554,24 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 e
             );
         }
+    }
+
+    /**
+     * {@code Operations.minus} intersects {@code a} with the complement of {@code excluded}. The complement of a DFA is
+     * cheap, but the intersection is a product construction with no accounting of its own: up to one copy of {@code a}
+     * per state of {@code excluded}, and up to one copy of each of {@code a}'s transitions per transition of
+     * {@code excluded}. Reserve that bound before running it. A legitimate pair weighs kilobytes; only a pair the
+     * breaker should refuse comes near the limit.
+     */
+    private static Automaton minus(Automaton a, Automaton excluded, CircuitBreaker breaker) {
+        long copies = excluded.getNumStates() + (long) excluded.getNumTransitions();
+        long reservation;
+        try {
+            reservation = Math.multiplyExact(a.ramBytesUsed(), Math.max(1L, copies));
+        } catch (ArithmeticException e) {
+            reservation = Long.MAX_VALUE;
+        }
+        return reserving(reservation, breaker, () -> Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton determinize(Automaton a, CircuitBreaker breaker) {
@@ -614,11 +629,15 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Runs {@code build}, which expands a DFA into its UTF-8 run form, with that expansion's estimated heap reserved on
-     * {@code breaker} for the duration.
+     * Runs {@code build}, which compiles a DFA into its UTF-8 run form ({@code ByteRunAutomaton} or
+     * {@code CompiledAutomaton}), with the peak heap the query path measured for that step reserved on {@code breaker}.
      */
     private static <T> T reserving(Automaton dfa, CircuitBreaker breaker, Supplier<T> build) {
-        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        return reserving(new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate(), breaker, build);
+    }
+
+    /** Runs {@code build} with {@code reservation} bytes held on {@code breaker} for the duration, released whatever happens. */
+    private static <T> T reserving(long reservation, CircuitBreaker breaker, Supplier<T> build) {
         breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         try {
             return build.get();

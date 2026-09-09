@@ -470,6 +470,22 @@ public class IncludeExcludeTests extends ESTestCase {
         new IncludeExclude("[ab]{1000}{1000}{1000}", null, null, null).validateRegex(DEFAULT_MAX_REGEX_LENGTH);
     }
 
+    /**
+     * Two patterns that each compile cheaply but whose {@code minus} is a product of the two: the product must be reserved on
+     * the breaker before it is built, so it trips on a small limit and succeeds, with everything released, on a large one.
+     */
+    public void testExcludeProductIsChargedToTheBreaker() {
+        IncludeExclude inexcl = new IncludeExclude("[ab]{300}", "[ab]{300}", null, null);
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, newLimitedBreaker(ByteSizeValue.ofMb(1)))
+        );
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        StringFilter filter = inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, roomy);
+        assertFalse("every 300-letter string is excluded again", filter.accept(new BytesRef("a".repeat(300))));
+        assertEquals("every reservation is released after the build", 0L, roomy.getUsed());
+    }
+
     public void testTooComplexRegexIsAClientError() {
         // Exponential state blow-up under determinization, well within the length limit.
         IncludeExclude inexcl = new IncludeExclude("(a|b)*a(a|b){30}", null, null, null);

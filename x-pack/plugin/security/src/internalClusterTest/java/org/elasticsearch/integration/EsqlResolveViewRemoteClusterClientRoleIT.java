@@ -75,7 +75,7 @@ public class EsqlResolveViewRemoteClusterClientRoleIT extends SecurityIntegTestC
         req.indices("remote*:logs-*");
         EsqlResolveViewAction.Response response = nodeClient.execute(EsqlResolveViewAction.TYPE, req).actionGet(TEST_REQUEST_TIMEOUT);
         assertNotNull(response.views());
-        assertTrue(response.views().isEmpty());
+        assertEquals(0, response.views().length);
     }
 
     public static class EsqlWithTrialLicensePlugin extends EsqlPlugin {

@@ -100,6 +100,7 @@ public final class ErrorModel {
         float[] residualScratch = scratch.residualScratch;
         float[] normScratch = scratch.normScratch;
         int[] quantizeScratch = scratch.quantizeScratch;
+        float[] preconditionScratch = scratch.preconditionScratch;
 
         float[] docLower = scratch.docLower;
         float[] docUpper = scratch.docUpper;
@@ -112,6 +113,10 @@ public final class ErrorModel {
             float[] doc = source.vectors().vectorValue(source.corpusOrdinals()[i]);
             if (cosine) {
                 doc = CalibrationUtils.copyAndNormalize(doc, normScratch);
+            }
+            if (usePreconditioned && source.preconditioner() != null) {
+                source.preconditioner().applyTransform(doc, preconditionScratch);
+                doc = preconditionScratch;
             }
             int qc = docCentroidAssignments[docAssignments[i]];
             corpusDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[qc], doc);
@@ -135,7 +140,6 @@ public final class ErrorModel {
         byte[][] queryQuantized = new byte[actualQueryClusters][dimWork];
 
         float[] queryScratch = scratch.queryScratch;
-        float[] preconditionScratch = scratch.preconditionScratch;
 
         double[] queryDotCentroid = new double[nDocClusters];
         double[] simOsq = scratch.simOsq;
@@ -247,6 +251,10 @@ public final class ErrorModel {
                 if (cosine) {
                     doc = CalibrationUtils.copyAndNormalize(doc, normScratch);
                 }
+                if (usePreconditioned && source.preconditioner() != null) {
+                    source.preconditioner().applyTransform(doc, preconditionScratch);
+                    doc = preconditionScratch;
+                }
                 double exact;
                 if (sim == VectorSimilarityFunction.EUCLIDEAN) {
                     assert docDotDoc != null;
@@ -285,6 +293,17 @@ public final class ErrorModel {
         int[] flatAssignments = docClusters.assignments();
         if (docCentroids.length == 0) {
             return new QuantizedErrorComputeResult(1.0, docCentroids, warmStartQueryCentroids);
+        }
+
+        // K-means distances are preserved under orthogonal rotation, so assignments are the same in both spaces.
+        // Rotating each centroid gives the exact centroid of the preconditioned cluster, so we can cluster in
+        // original space and then rotate the resulting centroids rather than re-clustering preconditioned vectors.
+        if (usePreconditioned && source.preconditioner() != null) {
+            float[][] preconditionedCentroids = new float[docCentroids.length][source.workingDim()];
+            for (int i = 0; i < docCentroids.length; i++) {
+                source.preconditioner().applyTransform(docCentroids[i], preconditionedCentroids[i]);
+            }
+            docCentroids = preconditionedCentroids;
         }
 
         QuantizedQueryErrorResult queryError = quantizedRepErrorStd(

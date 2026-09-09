@@ -598,8 +598,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         ensureSearchable(rankIndex);
 
         var getResp = client(coordinatorNode).prepareGet(rankIndex, "0").get();
-        System.err.println("DEBUG source length=" + getResp.getSourceAsBytesRef().length());
-
         long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
 
         assertNoFailuresAndResponse(
@@ -609,7 +607,6 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
                 .setSize(numDocs),
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(numDocs));
-                System.err.println("DEBUG hit0 field=" + response.getHits().getAt(0).field(rankFeatureField));
             }
         );
 

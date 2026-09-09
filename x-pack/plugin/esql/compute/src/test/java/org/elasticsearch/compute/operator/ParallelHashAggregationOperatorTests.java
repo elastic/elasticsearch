@@ -148,6 +148,7 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
                 randomDouble(),
                 randomIntBetween(128, 4096),
                 null,
+                null,
                 driverContext,
                 parallelConfig
             );

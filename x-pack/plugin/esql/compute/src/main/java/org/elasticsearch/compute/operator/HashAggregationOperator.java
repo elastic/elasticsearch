@@ -419,6 +419,7 @@ public class HashAggregationOperator implements Operator {
                 this.aggregators.add(groupingAggregator);
             }
             this.supportPartitioning = parallelConfig != null
+                // can't safely partition aggregations with limit so disable it for now.
                 && (limitAggregation == null || limitAggregation.limit == Integer.MAX_VALUE)
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()

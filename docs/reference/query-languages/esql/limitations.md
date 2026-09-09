@@ -203,8 +203,9 @@ instead of using the index.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 Because such a search does not use the index, the restriction above does not apply to it: it can
-appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. In earlier versions it
-was restricted to the same positions as a search on an indexed field. For example:
+appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
+was restricted to the same positions as a search on an indexed field.)  For example, this query is 
+accepted:
 
 ```esql
 FROM books
@@ -215,7 +216,7 @@ FROM books
 ```
 
 The restriction is lifted per search function, not per `WHERE` command, so a search on an indexed
-field sharing the command still fails.
+field sharing the command still fails. (e.g. if `content` was an indexed field instead, the query would be rejected.)
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)

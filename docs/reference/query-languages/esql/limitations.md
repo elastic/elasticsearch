@@ -232,12 +232,12 @@ declared). Analyzer names must name a registered analyzer (prebuilt or plugin-co
 per-index custom analyzer. On other expression types options are not supported.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-An indexed `text` field reaches the search as an expression when it is the column
-[`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded, or when it comes
-through [`FORK`](/reference/query-languages/esql/commands/fork.md), whose output columns are all
-expressions. Its values are then analyzed with
-the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
-`TO_TEXT` with its optional `analyzer` argument. Searching the field before those commands uses the index, and so the
+An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
+then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
+`TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
+index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded,
+anything [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs, and a field that is not mapped the
+same way across every index the query reads. Searching the field where it can still use the index uses the
 mapping's analyzer. `FORK` branches that declare different values analyzers for the same column
 are rejected, since the merged column can only carry one of them.
 

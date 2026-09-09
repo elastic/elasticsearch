@@ -60,9 +60,11 @@ dependencies {
   implementation "software.amazon.awssdk:netty-nio-client:${versions.awsv2sdk}"
   // Netty jars provided by esql-datasource-netty-commons via extendedPlugins classloader delegation
   compileOnly project(path: xpackModule('esql-datasource-netty-commons'))
-  // Netty types referenced directly by S3 code (e.g. ChannelOption); the actual jars are loaded at
-  // runtime through the netty-commons plugin's classloader.
+  // Netty types referenced directly by S3 code (e.g. ChannelOption, ChannelException); the actual jars
+  // are loaded at runtime through the netty-commons plugin's classloader. netty-common is required
+  // alongside transport so ChannelException's SuppressJava6Requirement annotation resolves.
   compileOnly "io.netty:netty-transport:${versions.netty}"
+  compileOnly "io.netty:netty-common:${versions.netty}"
 
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -88,6 +90,7 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
   testImplementation project(':test:framework')
+  testImplementation "io.netty:netty-transport:${versions.netty}"
   testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':libs:arrow')

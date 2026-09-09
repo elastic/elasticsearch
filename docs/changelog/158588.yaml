@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158588
+summary: Make esql local breaker heap dependent
+type: enhancement

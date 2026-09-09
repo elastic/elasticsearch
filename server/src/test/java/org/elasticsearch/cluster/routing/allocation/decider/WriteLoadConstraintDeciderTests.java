@@ -642,7 +642,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     }
 
     /**
-     * Test that {@link WriteLoadConstraintDecider#canRemain} respects the minimum shard write load threshold:
+     * Test that {@link WriteLoadConstraintDecider#canRemain} respects the `hotspot_min_shard_write_load_threshold`:
      * shards with write load below the threshold are not moved from a hotspotting node; shards above it
      * remain eligible. Setting the threshold to 0.0 disables the check (all shards eligible).
      */

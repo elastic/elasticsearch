@@ -103,6 +103,18 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
     }
 
     /**
+     * A page whose documents hold nothing between them, which a filter selecting documents whose only slot is
+     * null gives systematically. There is no value to name and no dictionary to name it with.
+     */
+    public void testPageOfNoValues() throws IOException {
+        assertPageMatchesPerDocument(docs -> {
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d % 2 == 0 ? new String[] { null } : new String[0];
+            }
+        });
+    }
+
+    /**
      * A column in term order, where the documents of a page hold one value between them. The page is handed back as
      * that value and a count, which is a third shape beside ordinals and values, so it is checked against the same
      * per-document read as the rest.

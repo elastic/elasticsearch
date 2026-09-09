@@ -996,7 +996,12 @@ public final class GlobExpander {
             String globSlot = raw[rawIdx];
             switch (templateSegments.get(t)) {
                 case TemplateSegment.Literal(String value) -> {
-                    if ("*".equals(globSlot) == false && value.equals(globSlot) == false) {
+                    if ("*".equals(globSlot)) {
+                        // A leftover * lists sibling directories that fail extractByTemplate and
+                        // drop partition detection for the whole batch. Pin the required name.
+                        raw[rawIdx] = value;
+                        changed = true;
+                    } else if (value.equals(globSlot) == false) {
                         return null;
                     }
                 }

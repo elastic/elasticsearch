@@ -880,11 +880,11 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/2024/*/15/*.parquet", rewritten);
     }
 
-    public void testRewriteGlobLiteralIsNotPinned() {
+    public void testRewriteGlobLiteralIsPinned() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/junk/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*/*.parquet", hints, config);
-        assertEquals("s3://bucket/2024/*/*/*.parquet", rewritten);
+        assertEquals("s3://bucket/2024/junk/*/*.parquet", rewritten);
     }
 
     public void testRewriteGlobSpelledLeadingLiteralStillRewrites() {

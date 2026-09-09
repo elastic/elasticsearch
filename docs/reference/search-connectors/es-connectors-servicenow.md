@@ -161,7 +161,7 @@ The following configuration fields are required to set up the connector:
 :   Restrict access to documents based on a user’s permissions. Refer to [Document level security](#es-connectors-servicenow-client-dls) for more details.
 
 `expand_role_members` {applies_to}`stack: ga 9.4.7-9.4.99` {applies_to}`stack: ga 9.5.4-9.5.99` {applies_to}`stack: ga 9.6+`
-:   Available when document level security is enabled. When enabled, ServiceNow role members are written individually onto each document’s access control list. Disable this for large tenants to store compact `role_id:` tokens on documents instead; membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync.
+:   Available when document level security is enabled. When enabled, ServiceNow role members are written individually onto each document’s access control list. For large tenants, turn this off to store compact `role_id:` tokens on documents instead. Membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync.
 
 
 ### Documents and syncs [es-connectors-servicenow-client-documents-syncs]

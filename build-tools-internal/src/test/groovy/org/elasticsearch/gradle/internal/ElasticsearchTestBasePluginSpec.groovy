@@ -31,9 +31,10 @@ import org.gradle.testfixtures.ProjectBuilder
  * The plugin registers the immutable-collections patch and the entitlement agent/bridge jars as
  * task inputs. Historically these were anonymous, absolute-path-sensitive file inputs, which pinned
  * the build cache key to the checkout location and to the jar manifest's build timestamp, so test
- * tasks never got a cache hit. These tests lock in the fix: every such input now carries a stable
- * property name and an appropriate normalizer ({@code NAME_ONLY} for the patch dir,
- * classpath normalization for the jars so the manifest timestamp is ignored).
+ * tasks never got a cache hit. These tests lock in the fix: every such input carries a stable
+ * property name and an appropriate normalizer ({@code NAME_ONLY} for the patch dir, classpath
+ * normalization for the jars so the manifest timestamp is ignored), and the bridge jar is declared
+ * as an input exactly once (via {@code entitlementBridgeJavaBasePatch}) rather than twice.
  */
 class ElasticsearchTestBasePluginSpec extends Specification {
 
@@ -93,12 +94,15 @@ class ElasticsearchTestBasePluginSpec extends Specification {
         // Classpath normalization so the jar manifest (which embeds a build timestamp) is ignored.
         inputs["entitlementBridgeJavaBasePatch"]?.normalizer == "RUNTIME_CLASSPATH"
         inputs["entitlementAgent"]?.normalizer == "RUNTIME_CLASSPATH"
-        inputs["entitlementBridge"]?.normalizer == "RUNTIME_CLASSPATH"
 
         and:
-        // The agent/bridge jars are absent in projects without entitlements, hence optional.
+        // The agent jar is absent in projects without entitlements, hence optional.
         inputs["entitlementAgent"]?.optional == true
-        inputs["entitlementBridge"]?.optional == true
+
+        and:
+        // The bridge jar is patched into java.base and is tracked as an input exactly once, under
+        // entitlementBridgeJavaBasePatch. It must not also be registered under a second property name.
+        inputs.containsKey("entitlementBridge") == false
     }
 
     def "internalClusterTest gets the entitlement inputs but not the immutable-collections patch"() {
@@ -108,7 +112,10 @@ class ElasticsearchTestBasePluginSpec extends Specification {
         then:
         inputs["entitlementBridgeJavaBasePatch"]?.normalizer == "RUNTIME_CLASSPATH"
         inputs["entitlementAgent"]?.normalizer == "RUNTIME_CLASSPATH"
-        inputs["entitlementBridge"]?.normalizer == "RUNTIME_CLASSPATH"
+
+        and:
+        // The bridge is tracked once (entitlementBridgeJavaBasePatch), not under a second property name.
+        inputs.containsKey("entitlementBridge") == false
 
         and:
         // The immutable-collections patch is wired only for the "test" task.

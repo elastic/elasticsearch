@@ -345,7 +345,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
             );
         }
-        FileCollection bridgeFiles = bridgeConfig;
 
         project.getTasks()
             .withType(Test.class)
@@ -365,12 +364,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
+                // The bridge jar is already declared as a task input in configureJavaBaseModuleOptions (property
+                // "entitlementBridgeJavaBasePatch"), where it is patched into java.base. Registering the same
+                // configuration as an input again here would only fingerprint identical content under a second
+                // property name, so we don't.
                 String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
-                test.getInputs()
-                    .files(bridgeFiles)
-                    .optional(true)
-                    .withPropertyName("entitlementBridge")
-                    .withNormalizer(ClasspathNormalizer.class);
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"

@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -149,6 +150,17 @@ public final class FetchPhase {
         SourceLoader sourceLoader = context.newSourceLoader(sourceFilter);
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
+        final long[] scriptFieldsBreakerBytes = new long[1];
+        LongConsumer scriptFieldsByteChecker = memoryChecker != null
+            ? bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes)
+            : bytes -> {
+                if (bytes > 0) {
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "script_field");
+                    scriptFieldsBreakerBytes[0] += bytes;
+                }
+            };
+        fetchContext.setScriptFieldsByteChecker(scriptFieldsByteChecker);
+
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
         // The following relies on the fact that we fetch sequentially one segment after another, from a single thread
@@ -190,6 +202,11 @@ public final class FetchPhase {
                     locallyAccumulatedBytes[0] = 0;
                 }
             };
+
+            @Override
+            public long getRequestBreakerBytes() {
+                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0];
+            }
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {

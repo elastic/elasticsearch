@@ -32,6 +32,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.LongConsumer;
 
 /**
  * Encapsulates state required to execute fetch phases
@@ -42,6 +43,7 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
+    private LongConsumer scriptFieldsByteChecker = bytes -> {};
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -288,5 +290,20 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
+    }
+
+    public void setScriptFieldsByteChecker(LongConsumer scriptFieldsByteChecker) {
+        this.scriptFieldsByteChecker = scriptFieldsByteChecker;
+    }
+
+    /**
+     * Charges {@code bytes} for a scripted {@link org.elasticsearch.common.document.DocumentField}
+     * against the configured checker.
+     */
+    public void chargeScriptFieldsBytes(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        scriptFieldsByteChecker.accept(bytes);
     }
 }

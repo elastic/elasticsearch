@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.fieldcaps.RemoteDatasetNotSupportedException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -33,18 +32,16 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Cross-cluster twin of {@link CrossClusterViewIT} for datasets. Registers a dataset (and a normal index) on the
- * remote cluster, then asserts that a {@code FROM cluster-a:<dataset>} query fails on the remote-dataset detection
- * rail with {@link RemoteDatasetNotSupportedException} ("remote datasets are not supported"), while a plain
- * {@code FROM cluster-a:<index>} still succeeds. This is the dataset analogue of CrossClusterViewIT's
- * {@code testRemoteViewConcreteMatchFailsQuery}/{@code testRemoteViewWildcardMatchFailsQuery}.
+ * Cross-cluster counterpart of {@link CrossClusterViewIT} for datasets, and deliberately its opposite. Registers a
+ * dataset and an index on each remote, then asserts that the dataset is invisible from another cluster rather than
+ * fatal to the query: a wildcard returns the index rows beside it, and the exact qualified name resolves to nothing
+ * and reports an unknown index. A view in the same position still fails the query, which CrossClusterViewIT covers.
  *
  * <p>Multi-node remotes are safe: the diff-apply indices-lookup reuse guard now accounts for dataset metadata.
  */
@@ -55,6 +52,8 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_DATASET_2 = "remote_employees_b";
     private static final String REMOTE_PLAIN_INDEX = "logs_idx";
     private static final String REMOTE_LOGS_INDEX = "remote_logs";
+    /** {@code populateRemoteIndices} writes exactly this many documents per index. */
+    private static final int DOCS_PER_INDEX = 10;
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -149,21 +148,31 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    public void testRemoteDatasetConcreteMatchFailsQuery() {
-        // The query fails on the remote-dataset detection rail; the cause is a RemoteDatasetNotSupportedException
-        // (it may be wrapped by the transport layer by the time actionGet rethrows, so we assert on the message —
-        // matching CrossClusterViewIT.testRemoteViewConcreteMatchFailsQuery).
+    /**
+     * The exact qualified name of a remote dataset resolves to nothing, so it reports an unknown index — the error any
+     * name that does not exist gives. Nothing in the response advertises that a dataset is what it matched.
+     */
+    public void testRemoteDatasetResolvesAsMissingIndex() {
         Exception e = expectThrows(Exception.class, () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET, null));
-        assertRemoteDatasetRejected(e);
+        String message = ExceptionsHelper.unwrapCause(e).getMessage();
+        assertThat(message, containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "]"));
+        assertThat(message, not(containsString("remote datasets are not supported")));
     }
 
-    public void testRemoteDatasetWildcardMatchFailsQuery() {
-        // A wildcard that matches only the remote dataset fails the same way.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET.substring(0, 6) + "*", null)
-        );
-        assertRemoteDatasetRejected(e);
+    /**
+     * A wildcard matching both the remote dataset and a remote index returns exactly the index's rows. Asserting the
+     * row count rather than mere success is what separates a dropped dataset from a dropped index.
+     */
+    public void testWildcardOverRemoteDatasetReturnsOnlyIndexRows() {
+        try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":remote* | STATS c = COUNT(*)", null)) {
+            assertOk(resp);
+            assertThat(getValuesList(resp), equalTo(List.of(List.of((long) DOCS_PER_INDEX))));
+        }
+        // The rows are the index's: remote_logs carries id/tag/v, the dataset carries emp_no/first_name.
+        try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":remote* | KEEP id, tag | LIMIT 100", null)) {
+            assertOk(resp);
+            assertThat(getValuesList(resp).size(), equalTo(DOCS_PER_INDEX));
+        }
     }
 
     public void testRemoteIndexSucceeds() {
@@ -179,59 +188,14 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewExcludedSucceeds}: a wildcard that matches the
-     * dataset but explicitly excludes it succeeds (the excluded dataset never reaches the detection rail), and the
-     * response is non-partial. The wildcard {@code remot*} matches {@code remote_employees} and {@code remote_logs};
-     * excluding the dataset leaves the index, which resolves and reads cleanly.
+     * Invisibility holds on every cluster a pattern spans, not just the first. Both remotes hold a dataset and an
+     * index that {@code remot*} matches; the query succeeds, is not partial, and returns exactly the two indices' rows.
      */
-    public void testRemoteDatasetExcludedSucceeds() {
-        try (
-            var resp = runQuery(
-                "FROM "
-                    + REMOTE_CLUSTER_1
-                    + ":remot*,"
-                    + REMOTE_CLUSTER_1
-                    + ":-"
-                    + REMOTE_DATASET
-                    + ","
-                    + REMOTE_CLUSTER_1
-                    + ":"
-                    + REMOTE_PLAIN_INDEX,
-                null
-            )
-        ) {
+    public void testWildcardSpanningTwoRemotesReturnsOnlyIndexRows() {
+        try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":remot*," + REMOTE_CLUSTER_2 + ":remot* | STATS c = COUNT(*)", null)) {
             assertOk(resp);
+            assertThat(getValuesList(resp), equalTo(List.of(List.of((long) (2 * DOCS_PER_INDEX)))));
         }
-    }
-
-    /**
-     * Dataset analog of {@link CrossClusterViewIT#testAllViewsOnRemoteExcludedSucceeds}: a cluster-level exclusion of
-     * the dataset-bearing remote succeeds. {@code cluster*:*} would match both remotes' datasets, but {@code -cluster-a:*}
-     * removes cluster-a entirely (dataset and all), and {@code remote-b:logs-*} narrows remote-b to its plain index so
-     * its own dataset is never matched. Non-partial.
-     */
-    public void testAllDatasetsOnRemoteExcludedSucceeds() {
-        try (var resp = runQuery("FROM cluster*:logs-*,-" + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":logs-*", null)) {
-            assertOk(resp);
-        }
-    }
-
-    /**
-     * Dataset analog of {@link CrossClusterViewIT#testRemoteViewFailsOnOneCluster}: the dataset lives only on
-     * cluster-a; a query spanning cluster-a (matching the dataset) and remote-b (matching only a plain index) FAILS,
-     * and the rejection message names ONLY {@code cluster-a:remote_employees} — remote-b contributes no dataset to
-     * the matched set.
-     */
-    public void testRemoteDatasetFailsOnOneCluster() {
-        Exception e = expectThrows(
-            Exception.class,
-            () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":remot*," + REMOTE_CLUSTER_2 + ":logs-*", null)
-        );
-        assertRemoteDatasetRejected(e);
-        // The matched set is exactly cluster-a's dataset — remote-b's plain index does not appear, and crucially
-        // remote-b's own dataset (remote_employees_b) is NOT matched (logs-* excludes it).
-        assertMessageInCauseChain(e, "Matched [" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "]");
-        assertMessageAbsentFromCauseChain(e, REMOTE_CLUSTER_2 + ":" + REMOTE_DATASET_2);
     }
 
     /**
@@ -248,34 +212,6 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         try (var resp = runQuery("FROM no_such_*:" + REMOTE_DATASET, null)) {
             assertOk(resp);
         }
-    }
-
-    /**
-     * Asserts the unwrapped cause carries the full remote-dataset rejection message — headline + matched name + the
-     * copy-verbatim exclusion hint.
-     */
-    private void assertRemoteDatasetRejected(Throwable throwable) {
-        String matched = REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET;
-        String exclusionHint = REMOTE_CLUSTER_1 + ":-" + REMOTE_DATASET;
-        assertThat(
-            ExceptionsHelper.unwrapCause(throwable).getMessage(),
-            allOf(
-                containsString("ES|QL queries with remote datasets are not supported"),
-                containsString(matched),
-                containsString("Remove them from the query pattern or exclude them with"),
-                containsString("[" + exclusionHint + "]")
-            )
-        );
-    }
-
-    /** Asserts the unwrapped cause's message contains {@code needle}. */
-    private static void assertMessageInCauseChain(Throwable throwable, String needle) {
-        assertThat(ExceptionsHelper.unwrapCause(throwable).getMessage(), containsString(needle));
-    }
-
-    /** Asserts the unwrapped cause's message does not contain {@code needle}. */
-    private static void assertMessageAbsentFromCauseChain(Throwable throwable, String needle) {
-        assertThat(ExceptionsHelper.unwrapCause(throwable).getMessage(), not(containsString(needle)));
     }
 
     private static void assertOk(EsqlQueryResponse response) {

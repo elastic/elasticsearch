@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils;
@@ -174,7 +173,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                BlobCacheMetrics.NOOP,
+                TestUtils.NOOP_BLOB_CACHE_METRICS,
                 clusterService,
                 indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)

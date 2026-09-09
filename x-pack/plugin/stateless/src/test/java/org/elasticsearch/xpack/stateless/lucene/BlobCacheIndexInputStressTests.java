@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -45,6 +44,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
+import static org.elasticsearch.xpack.stateless.TestUtils.NOOP_BLOB_CACHE_METRICS;
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
@@ -172,7 +172,7 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
                             EsExecutors.DIRECT_EXECUTOR_SERVICE
                         ),
                         createBlobFileRanges(primaryTerm, primaryTerm, offset, checksumAndLength.length),
-                        BlobCacheMetrics.NOOP,
+                        NOOP_BLOB_CACHE_METRICS,
                         System::currentTimeMillis,
                         true
                     ),

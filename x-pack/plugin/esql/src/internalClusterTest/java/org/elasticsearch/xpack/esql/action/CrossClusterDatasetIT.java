@@ -211,6 +211,19 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    /**
+     * The exclusion the old error message told authors to write still parses and still runs, now that the name it
+     * excludes resolves to nothing. Excluding a name that matches nothing is ordinary, but this particular spelling was
+     * the documented way around the rejection, so queries in the wild carry it and it must not start failing.
+     */
+    public void testExcludingTheRemoteDatasetStillSucceeds() {
+        String query = "FROM " + REMOTE_CLUSTER_1 + ":remote*,-" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + " | STATS c = COUNT(*)";
+        try (var resp = runQuery(query, null)) {
+            assertOk(resp);
+            assertThat(getValuesList(resp), equalTo(List.of(List.of((long) DOCS_PER_INDEX))));
+        }
+    }
+
     public void testRemoteIndexSucceeds() {
         // The plain remote index resolves and executes normally; the dataset detection rail does not interfere.
         try (var resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_PLAIN_INDEX + " | STATS c = COUNT(*)", null)) {

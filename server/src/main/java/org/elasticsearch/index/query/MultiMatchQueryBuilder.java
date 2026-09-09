@@ -760,7 +760,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
             // no fields provided, defaults to index.query.default_field
             List<String> defaultFields = context.defaultFields();
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, QueryParserHelper.parseFieldsAndWeights(defaultFields));
-            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+            isAllField = context.hasAllFieldsWildcardDefaultField();
         } else {
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
             isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsBoosts.keySet());

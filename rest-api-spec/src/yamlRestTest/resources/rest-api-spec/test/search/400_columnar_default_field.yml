@@ -73,3 +73,149 @@ multi_match default_field resolves to indexed fields only in columnar mode:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
+
+---
+
+query_string is lenient about unparseable literals in columnar mode:
+  - do:
+      indices.create:
+        index: coerce
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              num:
+                type: long
+              ip:
+                type: ip
+              dt:
+                type: date
+              kw:
+                type: keyword
+
+  - do:
+      index:
+        index: coerce
+        id: "1"
+        refresh: true
+        body:
+          num: 7
+          ip: "10.0.0.1"
+          dt: "2024-01-02T03:04:05Z"
+          kw: "hello"
+
+  # index.query.default_field is the wildcard, which forces leniency so that one field failing to
+  # parse the value does not fail the query. Columnar mode expands that wildcard to concrete field
+  # names, and leniency has to survive the expansion.
+  - do:
+      search:
+        index: coerce
+        body:
+          query:
+            query_string:
+              query: "num:hello"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: coerce
+        body:
+          query:
+            query_string:
+              query: "ip:ring"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: coerce
+        body:
+          query:
+            query_string:
+              query: "dt:notadate"
+
+  - match: { hits.total.value: 0 }
+
+  # Leniency must not swallow literals the field can actually parse.
+  - do:
+      search:
+        index: coerce
+        body:
+          query:
+            query_string:
+              query: "num:7"
+
+  - match: { hits.total.value: 1 }
+
+  # Asking for strictness explicitly still reports the parse failure.
+  - do:
+      catch: /failed to create query/
+      search:
+        index: coerce
+        body:
+          query:
+            query_string:
+              query: "num:hello"
+              lenient: false
+
+---
+
+field-less query over a numeric and a keyword field in columnar mode:
+  - do:
+      indices.create:
+        index: mixed
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              num:
+                type: long
+                index: true
+              kw:
+                type: keyword
+                index: true
+
+  - do:
+      index:
+        index: mixed
+        id: "1"
+        refresh: true
+        body:
+          num: 7
+          kw: "hello"
+
+  # Both fields are indexed, so both are in the expanded default field list. The numeric one cannot
+  # parse "hello"; leniency lets the keyword field still match instead of failing the whole query.
+  - do:
+      search:
+        index: mixed
+        body:
+          query:
+            query_string:
+              query: "hello"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: mixed
+        body:
+          query:
+            multi_match:
+              query: "hello"
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: mixed
+        body:
+          query:
+            simple_query_string:
+              query: "hello"
+
+  - match: { hits.total.value: 1 }

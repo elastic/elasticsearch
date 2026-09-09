@@ -107,7 +107,9 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -605,72 +607,56 @@ public class SearchExecutionContextTests extends ESTestCase {
         List<FieldMapper> mappers = List.of(new MockFieldMapper(indexedField), new MockFieldMapper(nonIndexedField));
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, Collections.emptyList(), IndexMode.COLUMNAR);
 
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
-            mapperService,
-            mappingLookup,
-            null,
-            null,
-            XContentParserConfiguration.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            Map.of(),
-            null,
-            MapperMetrics.NOOP,
-            SearchExecutionContextHelper.SHARD_SEARCH_STATS
-        );
+        SearchExecutionContext context = createSearchExecutionContext(columnarSettings().build(), mappingLookup);
 
         assertThat(context.defaultFields(), containsInAnyOrder("indexed"));
     }
 
     public void testDefaultFieldsColumnarModeWithExplicitDefaultField() {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field")
-            .build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, MappingLookup.EMPTY, null);
-        SearchExecutionContext context = new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
-            mapperService,
-            MappingLookup.EMPTY,
-            null,
-            null,
-            XContentParserConfiguration.EMPTY,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            Map.of(),
-            null,
-            MapperMetrics.NOOP,
-            SearchExecutionContextHelper.SHARD_SEARCH_STATS
-        );
+        Settings settings = columnarSettings().put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field").build();
+        SearchExecutionContext context = createSearchExecutionContext(settings, MappingLookup.EMPTY);
 
         assertThat(context.defaultFields(), equalTo(List.of("explicit_field")));
+    }
+
+    /**
+     * Columnar mode replaces the wildcard in {@link SearchExecutionContext#defaultFields()} with concrete
+     * field names, which is why the wildcard has to be reported from the setting. Query builders force
+     * leniency on all-fields queries, and inferring that from the expanded list turned it off.
+     */
+    public void testColumnarModeStillReportsWildcardDefaultFieldAfterExpansion() {
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
+            Mapping.EMPTY,
+            List.of(new MockFieldMapper(new MockFieldMapper.FakeFieldType("indexed"))),
+            Collections.emptyList(),
+            IndexMode.COLUMNAR
+        );
+        SearchExecutionContext context = createSearchExecutionContext(columnarSettings().build(), mappingLookup);
+
+        assertThat(context.defaultFields(), not(hasItem("*")));
+        assertTrue(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    public void testExplicitDefaultFieldIsNotReportedAsWildcard() {
+        Settings settings = columnarSettings().put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field").build();
+        SearchExecutionContext context = createSearchExecutionContext(settings, MappingLookup.EMPTY);
+
+        assertFalse(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    public void testStandardModeReportsWildcardDefaultField() {
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
+            Map.of()
+        );
+
+        assertTrue(context.hasAllFieldsWildcardDefaultField());
+    }
+
+    private static Settings.Builder columnarSettings() {
+        return indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
     }
 
     // ------------------------------------------------------------------
@@ -930,6 +916,37 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, runtimeMappings, null);
+    }
+
+    /** For tests that need to control index settings, e.g. the index mode or the default field. */
+    private static SearchExecutionContext createSearchExecutionContext(Settings settings, MappingLookup mappingLookup) {
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            mappingLookup,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
     }
 
     private static SearchExecutionContext createSearchExecutionContext(

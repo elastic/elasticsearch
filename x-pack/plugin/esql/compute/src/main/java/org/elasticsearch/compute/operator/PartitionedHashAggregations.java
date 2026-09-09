@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
@@ -73,7 +75,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     @Override
     protected void closeInternal() {
         for (var gen : generations) {
-            gen.release(globalBreaker);
+            gen.releaseAll(globalBreaker);
         }
     }
 
@@ -82,28 +84,18 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     }
 
     private static PartitionedKeyAndAggs splitKeysAndAggs(CircuitBreaker breaker, HashAggregationOperator op) {
-        PartitionedHashTable.PartitionSplitter splitter = new PartitionedHashTable.PartitionSplitter() {
-            @Override
-            public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
-
-            }
-
-            @Override
-            public void release(CircuitBreaker breaker) {
-
-            }
-        };
-        PartitionedHashTable.PartitionedHashKeys partitionKeys = null;
+        PartitionedHashTable.PartitionedHashKeys partitionedKeys = null;
+        MultiAggsPartitionSplitter aggSplitter = new MultiAggsPartitionSplitter(breaker, op.aggregators);
         try {
-            partitionKeys = ((PartitionedHashTable) op.blockHash).splitPartition(breaker, splitter);
-            PartitionedKeyAndAggs result = new PartitionedKeyAndAggs(partitionKeys, null);
-            partitionKeys = null;
+            partitionedKeys = ((PartitionedHashTable) op.blockHash).splitPartition(breaker, aggSplitter);
+            PartitionedKeyAndAggs result = new PartitionedKeyAndAggs(partitionedKeys, aggSplitter.finishAll(breaker));
+            partitionedKeys = null;
             return result;
         } finally {
-            if (partitionKeys != null) {
-                partitionKeys.releaseAll(breaker);
+            aggSplitter.release(breaker);
+            if (partitionedKeys != null) {
+                partitionedKeys.releaseAll(breaker);
             }
-            splitter.release(breaker);
         }
     }
 
@@ -113,7 +105,8 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
     final class Combiner implements Releasable {
         private final HashAggregationOperator op;
         private final CircuitBreaker breaker;
-        private int[] mergedIds = null;
+        private int[][] allGenIds = null;
+        private boolean[] appendOnly;
 
         Combiner(HashAggregationOperator op) {
             this.op = op;
@@ -122,48 +115,135 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
 
         boolean combine(int p) {
             final int numGens = generations.size();
+            op.clearCurrentBatch();
             PartitionedBlockHash blockHash = (PartitionedBlockHash) op.blockHash;
-            blockHash.clear();
-            op.rowsAddedInCurrentBatch = 0;
+            if (allGenIds == null) {
+                allGenIds = new int[numGens][];
+            }
+            if (appendOnly == null) {
+                appendOnly = new boolean[numGens];
+            }
+            // Combine keys from every generation first, then combine each aggregation across all generations.
+            // This keeps accesses to the hash table and aggregation state cache-friendly.
             for (int g = 0; g < numGens; g++) {
                 PartitionedKeyAndAggs partitioned = generations.get(g);
                 var partitionedKeys = partitioned.keys;
                 int numKeys = partitionedKeys.keysInPartition(p);
                 if (numKeys > 0) {
-                    ensureMergedIdsForGen(numKeys);
-                    blockHash.combinePartition(partitionedKeys, p, mergedIds);
+                    ensureGenIds(g, numKeys);
+                    appendOnly[g] = blockHash.combinePartition(partitionedKeys, p, allGenIds[g]);
                     op.rowsAddedInCurrentBatch += numKeys;
                 }
                 partitionedKeys.releasePartition(breaker, p);
             }
+            // now combine aggregations
+            List<GroupingAggregator> aggregators = op.aggregators;
+            for (int i = 0; i < aggregators.size(); i++) {
+                final var aggregator = aggregators.get(i).aggregatorFunction();
+                aggregator.maybeEnsureCapacity(blockHash.numKeys() + 1);
+                for (int g = 0; g < generations.size(); g++) {
+                    PartitionedKeyAndAggs keysAndAggs = generations.get(g);
+                    GroupingAggregatorFunction.PartitionedState agg = keysAndAggs.aggs.states[i];
+                    aggregator.combinePartition(agg, p, appendOnly[g], allGenIds[g], keysAndAggs.keys.keysInPartition(p));
+                    agg.releasePartition(breaker, p);
+                }
+            }
             return true;
         }
 
-        private void ensureMergedIdsForGen(int numKeys) {
-            final int oldLength = mergedIds == null ? 0 : mergedIds.length;
+        private void ensureGenIds(int g, int numKeys) {
+            int[] genIds = allGenIds[g];
+            final int oldLength = genIds == null ? 0 : genIds.length;
             if (oldLength < numKeys) {
                 final int newLength = ArrayUtil.oversize(numKeys, Integer.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak((long) (newLength - oldLength) * Integer.BYTES, "PartitionedHashAggregations");
-                mergedIds = new int[newLength];
+                allGenIds[g] = new int[newLength];
             }
         }
 
         @Override
         public void close() {
-            if (mergedIds != null) {
-                breaker.addWithoutBreaking(-(long) (mergedIds.length) * Integer.BYTES, "PartitionedHashAggregations");
+            if (allGenIds != null) {
+                long bytes = 0;
+                for (int[] genIds : allGenIds) {
+                    if (genIds != null) {
+                        bytes += (long) genIds.length * Integer.BYTES;
+                    }
+                }
+                breaker.addWithoutBreaking(-bytes, "PartitionedHashAggregations");
             }
         }
     }
 
     private record PartitionedKeyAndAggs(PartitionedHashTable.PartitionedHashKeys keys, MultiAggsPartitionedState aggs) {
-        void release(CircuitBreaker breaker) {
+        void releaseAll(CircuitBreaker breaker) {
             keys.releaseAll(breaker);
+            aggs.releaseAll(breaker);
         }
     }
 
-    // TODO: for the follow-up
-    private record MultiAggsPartitionedState() {
+    private record MultiAggsPartitionedState(GroupingAggregatorFunction.PartitionedState[] states) {
+        void releaseAll(CircuitBreaker breaker) {
+            for (var state : states) {
+                state.releaseAll(breaker);
+            }
+        }
+    }
 
+    private static class MultiAggsPartitionSplitter implements PartitionedHashTable.PartitionSplitter {
+        final GroupingAggregatorFunction.PartitionSplitter[] splitters;
+
+        MultiAggsPartitionSplitter(CircuitBreaker breaker, List<GroupingAggregator> aggregators) {
+            this.splitters = new GroupingAggregatorFunction.PartitionSplitter[aggregators.size()];
+            boolean success = false;
+            try {
+                for (int i = 0; i < splitters.length; i++) {
+                    splitters[i] = aggregators.get(i).aggregatorFunction().partitioningSplitter(breaker);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    release(breaker);
+                }
+            }
+        }
+
+        public MultiAggsPartitionedState finishAll(CircuitBreaker breaker) {
+            GroupingAggregatorFunction.PartitionedState[] states = new GroupingAggregatorFunction.PartitionedState[splitters.length];
+            boolean success = false;
+            try {
+                for (int i = 0; i < splitters.length; i++) {
+                    states[i] = splitters[i].finish();
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    for (var state : states) {
+                        if (state != null) {
+                            state.releaseAll(breaker);
+                        }
+                    }
+                }
+            }
+            return new MultiAggsPartitionedState(states);
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] batchPartitionCounts, int[] partitionOffsets) {
+            for (var splitter : splitters) {
+                splitter.split(firstId, shiftedIds, batchSize, batchPartitionCounts, partitionOffsets);
+            }
+        }
+
+        @Override
+        public void release(CircuitBreaker breaker) {
+            for (int i = 0; i < splitters.length; i++) {
+                var splitter = splitters[i];
+                if (splitter != null) {
+                    splitters[i] = null;
+                    splitter.release(breaker);
+                }
+            }
+        }
     }
 }

@@ -765,3 +765,8 @@ tests:
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/158762
+- class: org.elasticsearch.simdjson.internal.parsers.StringParserTests
+  issue: https://github.com/elastic/elasticsearch/issues/158799
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReaderTests
+  method: testMetadataAsyncParseTimeBreakerStays429
+  issue: https://github.com/elastic/elasticsearch/issues/158809

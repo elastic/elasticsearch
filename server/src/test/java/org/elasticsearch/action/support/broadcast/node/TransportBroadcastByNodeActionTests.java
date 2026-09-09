@@ -707,11 +707,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertTrue(nodeResponseFuture.isDone());
         assertEquals(
             "task cancelled [simulated]",
-            expectThrows(
-                ExecutionException.class,
-                TaskCancelledException.class,
-                nodeResponseFuture::get
-            ).getMessage()
+            expectThrows(ExecutionException.class, TaskCancelledException.class, nodeResponseFuture::get).getMessage()
         );
     }
 
@@ -764,11 +760,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertTrue(nodeResponseFuture.isDone());
         assertEquals(
             "task cancelled [simulated]",
-            expectThrows(
-                ExecutionException.class,
-                TaskCancelledException.class,
-                nodeResponseFuture::get
-            ).getMessage()
+            expectThrows(ExecutionException.class, TaskCancelledException.class, nodeResponseFuture::get).getMessage()
         );
     }
 

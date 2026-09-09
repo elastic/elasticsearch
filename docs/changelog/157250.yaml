@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 157250
-summary: Reduce overhead of `TS` queries by pruning unused dimension fields
-type: bug

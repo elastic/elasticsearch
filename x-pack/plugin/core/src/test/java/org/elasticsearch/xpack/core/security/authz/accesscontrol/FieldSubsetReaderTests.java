@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -2153,7 +2154,14 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put("index.use_time_series_doc_values_format", true)
             .build();
-        final DocumentMapper mapper = createMapperService(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES, settings, mapping(b -> {
+
+        // Match the version gating in IgnoredSourceFieldMapper#ignoredSourceFormat so the mapper actually writes the DOC_VALUES format the
+        // reader below is wrapped with.
+        IndexVersion docValuesFormatVersion = Build.current().isSnapshot()
+            ? IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES
+            : IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES_NO_FF;
+
+        final DocumentMapper mapper = createMapperService(docValuesFormatVersion, settings, mapping(b -> {
             b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
             b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
             // keyword destination: has doc values; without the fix the copied values would leak via the doc-values loader

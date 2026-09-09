@@ -361,41 +361,35 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
                 }
               }
             }""");
-        client().prepareBulk()
-            .add(prepareIndexJson(nested, "0", """
+        client().prepareBulk().add(prepareIndexJson(nested, "0", """
+            {
+              "id": "n00",
+              "item": [
                 {
-                  "id": "n00",
-                  "item": [
-                    {
-                      "value": 100
-                    }
-                  ]
-                }"""))
-            .add(prepareIndexJson(nested, "1", """
+                  "value": 100
+                }
+              ]
+            }""")).add(prepareIndexJson(nested, "1", """
+            {
+              "id": "n01",
+              "item": [
                 {
-                  "id": "n01",
-                  "item": [
-                    {
-                      "value": 101
-                    }
-                  ]
-                }"""))
-            .add(prepareIndexJson(object, "0", """
-                {
-                  "id": "o00",
-                  "item": {
-                    "value": 1
-                  }
-                }"""))
-            .add(prepareIndexJson(object, "1", """
-                {
-                  "id": "o01",
-                  "item": {
-                    "value": 2
-                  }
-                }"""))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+                  "value": 101
+                }
+              ]
+            }""")).add(prepareIndexJson(object, "0", """
+            {
+              "id": "o00",
+              "item": {
+                "value": 1
+              }
+            }""")).add(prepareIndexJson(object, "1", """
+            {
+              "id": "o01",
+              "item": {
+                "value": 2
+              }
+            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(
             esql("SET unmapped_fields=\"load_all\"; FROM " + nested + ", " + object + " | KEEP " + keep + " | SORT id"),
             equalTo(List.of(Arrays.asList("n00", null), Arrays.asList("n01", null), Arrays.asList("o00", 1L), Arrays.asList("o01", 2L)))
@@ -446,27 +440,23 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
                 }
               }
             }""");
-        client().prepareBulk()
-            .add(prepareIndexJson(nested, "0", """
+        client().prepareBulk().add(prepareIndexJson(nested, "0", """
+            {
+              "id": "n00",
+              "item": [
                 {
-                  "id": "n00",
-                  "item": [
-                    {
-                      "value": 100
-                    }
-                  ]
-                }"""))
-            .add(prepareIndexJson(nested, "1", """
+                  "value": 100
+                }
+              ]
+            }""")).add(prepareIndexJson(nested, "1", """
+            {
+              "id": "n01",
+              "item": [
                 {
-                  "id": "n01",
-                  "item": [
-                    {
-                      "value": 101
-                    }
-                  ]
-                }"""))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+                  "value": 101
+                }
+              ]
+            }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         return nested;
     }
 

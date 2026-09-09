@@ -59,18 +59,37 @@ public final class ValueStream {
     /** Values behind one offset. Larger trades a longer walk on random access for a smaller offset table. */
     public static final int VALUES_PER_BLOCK = 128;
 
-    /** Marks a block whose lengths sit in front of their own values rather than together at its head. */
-    static final byte INLINE = 0;
+    /**
+     * The three on-disk block layouts. The first byte of every block is the {@link BlockLayout#id} of the
+     * layout that block was written with; any other value is a corrupt index.
+     */
+    enum BlockLayout {
+        /** Lengths interleaved with values: one vInt length in front of each value. */
+        INLINE((byte) 0),
+        /** Bit-packed lengths at the block head, values contiguous after. */
+        PACKED((byte) 1),
+        /** Repeated values stored once each with a repeat count. */
+        RUNS((byte) 2);
 
-    /** Marks a block whose lengths are bit-packed at its head and whose values follow contiguously. */
-    static final byte PACKED = 1;
+        /** The byte written as the first byte of every block of this layout. */
+        final byte id;
 
-    /** A block whose values repeat in runs: each distinct value once, with how many documents in a row hold it. */
-    static final byte RUNS = 2;
+        BlockLayout(byte id) {
+            this.id = id;
+        }
 
-    /** Every value a block's first byte may take; anything else is a corrupt index. */
-    static boolean knownMarker(byte marker) {
-        return marker == INLINE || marker == PACKED || marker == RUNS;
+        /**
+         * Returns the layout for the given marker byte, or {@code null} if the byte names no known layout.
+         * A {@code null} result means the index is corrupt.
+         */
+        static BlockLayout fromId(byte b) {
+            return switch (b) {
+                case 0 -> INLINE;
+                case 1 -> PACKED;
+                case 2 -> RUNS;
+                default -> null;
+            };
+        }
     }
 
     /** Mean value length below which a block keeps its lengths inline, when the stream allows it. */
@@ -81,7 +100,7 @@ public final class ValueStream {
      *
      * <p>A stream can be restricted to {@link #CONTIGUOUS_VALUES} at construction time, which keeps every
      * block's value bytes together behind one length header. Blocks that repeat naturally still take
-     * {@link #RUNS} regardless of which layouts is set.
+     * {@link BlockLayout#RUNS} regardless of which layouts is set.
      */
     public enum Layouts {
         /**
@@ -277,7 +296,7 @@ public final class ValueStream {
             final int headerBytes = ByteArrayInts.bitPackedLength(pendingCount, bits);
             final int length = 2 + headerBytes;
             scratch = ArrayUtil.growNoCopy(scratch, length);
-            scratch[0] = PACKED;
+            scratch[0] = BlockLayout.PACKED.id;
             scratch[1] = (byte) bits;
             ByteArrayInts.writeBitPacked(pending, pendingCount, bits, scratch, 2);
             chunks.append(scratch, 0, length);
@@ -338,7 +357,7 @@ public final class ValueStream {
         /** Each distinct value once, preceded by its length and how many documents in a row hold it. */
         private void writeRuns(int runCount) throws IOException {
             scratch = ArrayUtil.growNoCopy(scratch, 1 + 2 * runCount * ByteArrayInts.MAX_VINT_BYTES + pendingLength);
-            scratch[0] = RUNS;
+            scratch[0] = BlockLayout.RUNS.id;
             int header = 1;
             header += ByteArrayInts.writeVInt(runCount, scratch, header);
             for (int r = 0; r < runCount; r++) {
@@ -362,7 +381,7 @@ public final class ValueStream {
             // The block is assembled whole and handed over once. Appending a length and then a value for
             // every one of them costs two calls and two bounds checks per value, to move a handful of bytes.
             scratch = ArrayUtil.growNoCopy(scratch, 1 + pendingCount * ByteArrayInts.MAX_VINT_BYTES + pendingLength);
-            scratch[0] = INLINE;
+            scratch[0] = BlockLayout.INLINE.id;
             int at = 1;
             int from = 0;
             for (int i = 0; i < pendingCount; i++) {
@@ -479,58 +498,62 @@ public final class ValueStream {
             final int span = (int) (offsets.get(blockIndex + 1) - start);
             chunks.span(start, span, block);
             final byte[] bytes = block.bytes;
-            final byte marker = bytes[block.offset];
-            if (knownMarker(marker) == false) {
-                throw new CorruptIndexException("unknown block layout marker [" + marker + "]", chunks.toString());
+            final BlockLayout layout = BlockLayout.fromId(bytes[block.offset]);
+            if (layout == null) {
+                throw new CorruptIndexException("unknown block layout [" + (bytes[block.offset] & 0xFF) + "]", chunks.toString());
             }
             final long first = blockIndex << blockShift;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
-            if (marker == RUNS) {
-                cursor[0] = block.offset + 1;
-                final int runCount = ByteArrayInts.readVInt(bytes, cursor);
-                if (runLengths.length < runCount) {
-                    runLengths = new int[runCount];
-                    runRepeats = new int[runCount];
-                }
-                for (int r = 0; r < runCount; r++) {
-                    runLengths[r] = ByteArrayInts.readVInt(bytes, cursor);
-                    runRepeats[r] = ByteArrayInts.readVInt(bytes, cursor);
-                }
-                int at = cursor[0];
-                // Every value of a run points at the one copy of its bytes, so the run is expanded without
-                // the bytes being duplicated.
-                int position = at;
-                int value = 0;
-                for (int r = 0; r < runCount; r++) {
-                    for (int k = 0; k < runRepeats[r]; k++) {
-                        starts[value] = position;
-                        lengths[value] = runLengths[r];
-                        value++;
+            return switch (layout) {
+                case RUNS -> {
+                    cursor[0] = block.offset + 1;
+                    final int runCount = ByteArrayInts.readVInt(bytes, cursor);
+                    if (runLengths.length < runCount) {
+                        runLengths = new int[runCount];
+                        runRepeats = new int[runCount];
                     }
-                    position += runLengths[r];
+                    for (int r = 0; r < runCount; r++) {
+                        runLengths[r] = ByteArrayInts.readVInt(bytes, cursor);
+                        runRepeats[r] = ByteArrayInts.readVInt(bytes, cursor);
+                    }
+                    int at = cursor[0];
+                    // Every value of a run points at the one copy of its bytes, so the run is expanded without
+                    // the bytes being duplicated.
+                    int position = at;
+                    int value = 0;
+                    for (int r = 0; r < runCount; r++) {
+                        for (int k = 0; k < runRepeats[r]; k++) {
+                            starts[value] = position;
+                            lengths[value] = runLengths[r];
+                            value++;
+                        }
+                        position += runLengths[r];
+                    }
+                    yield count;
                 }
-                return count;
-            }
-            if (marker == INLINE) {
-                cursor[0] = block.offset + 1;
-                for (int i = 0; i < count; i++) {
-                    final int length = ByteArrayInts.readVInt(bytes, cursor);
-                    starts[i] = cursor[0];
-                    lengths[i] = length;
-                    cursor[0] += length;
+                case INLINE -> {
+                    cursor[0] = block.offset + 1;
+                    for (int i = 0; i < count; i++) {
+                        final int length = ByteArrayInts.readVInt(bytes, cursor);
+                        starts[i] = cursor[0];
+                        lengths[i] = length;
+                        cursor[0] += length;
+                    }
+                    yield count;
                 }
-                return count;
-            }
-            // PACKED: [bitsPerValue] [bit-packed lengths] [value bytes]
-            final int bits = bytes[block.offset + 1] & 0xFF;
-            final int headerBytes = ByteArrayInts.bitPackedLength(count, bits);
-            ByteArrayInts.readBitPacked(bytes, block.offset + 2, count, bits, lengths);
-            int position = block.offset + 2 + headerBytes;
-            for (int i = 0; i < count; i++) {
-                starts[i] = position;
-                position += lengths[i];
-            }
-            return count;
+                case PACKED -> {
+                    // [bitsPerValue] [bit-packed lengths] [value bytes]
+                    final int bits = bytes[block.offset + 1] & 0xFF;
+                    final int headerBytes = ByteArrayInts.bitPackedLength(count, bits);
+                    ByteArrayInts.readBitPacked(bytes, block.offset + 2, count, bits, lengths);
+                    int position = block.offset + 2 + headerBytes;
+                    for (int i = 0; i < count; i++) {
+                        starts[i] = position;
+                        position += lengths[i];
+                    }
+                    yield count;
+                }
+            };
         }
     }
 

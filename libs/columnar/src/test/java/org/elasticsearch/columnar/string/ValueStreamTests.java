@@ -256,11 +256,11 @@ public class ValueStreamTests extends ESTestCase {
 
     /** Every value a block's first byte may take; anything else is a corrupt index. */
     public void testUnknownLayoutMarkersAreNotAccepted() {
-        for (byte marker : new byte[] { ValueStream.INLINE, ValueStream.PACKED, ValueStream.RUNS }) {
-            assertTrue("marker " + marker + " is one this stream writes", ValueStream.knownMarker(marker));
+        for (ValueStream.BlockLayout layout : ValueStream.BlockLayout.values()) {
+            assertSame("id " + layout.id + " round-trips to " + layout, layout, ValueStream.BlockLayout.fromId(layout.id));
         }
         for (byte marker : new byte[] { 3, 4, 5, 6, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
-            assertFalse("marker " + marker + " names nothing this stream writes", ValueStream.knownMarker(marker));
+            assertNull("marker " + marker + " names no known layout", ValueStream.BlockLayout.fromId(marker));
         }
     }
 }

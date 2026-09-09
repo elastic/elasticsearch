@@ -150,12 +150,10 @@ time series. For most use cases, the regular aggregation functions are sufficien
 
 [`FROM`](/reference/query-languages/esql/commands/from.md) also supports histogram
 aggregations. Unlike `TS`, `FROM` does not perform an implicit per-series merge or handle
-metric temporality. Each histogram document is aggregated directly.
+metric temporality.
 
-For additive aggregations like `COUNT` and `SUM`, the results are mathematically equivalent
-to `TS`. For distribution-sensitive aggregations like `PERCENTILE` and `MEDIAN`, `TS` may
-produce more accurate results because it merges histograms per series before aggregating
-across series.
+If your data is stored in a time series data stream, use `TS`. Use `FROM` for non-TSDS data
+such as legacy indices or non-metrics use cases.
 
 ```esql
 FROM metrics-*

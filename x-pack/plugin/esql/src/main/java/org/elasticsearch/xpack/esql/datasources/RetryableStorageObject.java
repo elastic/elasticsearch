@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -25,6 +27,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Wraps a {@link StorageObject} with retry logic for transient storage failures.
@@ -188,6 +192,17 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public long lengthForFooterCacheKey() throws IOException {
+        return retryPolicy.execute(
+            delegate::lengthForFooterCacheKey,
+            "lengthForFooterCacheKey",
+            delegate.path(),
+            retryCounters::addRetryProfileOnly,
+            RetryPolicy.RetryTelemetry.NONE
+        );
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         // See length(): metadata-op retries stay off the read-scoped registry sink (RetryTelemetry.NONE +
         // addRetryProfileOnly), but still feed the per-query profile retry count.
@@ -251,7 +266,48 @@ class RetryableStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L);
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        AtomicBoolean cancelled = new AtomicBoolean();
+        AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, inflight, cancelled);
+        return () -> {
+            cancelled.set(true);
+            inflight.get().handle().close();
+        };
+    }
+
+    /**
+     * Generation-tagged cancel handle. A later retry must not be overwritten by a stale
+     * {@code startReadBytesAsync} return after an inline {@code onFailure} already started attempt N+1.
+     */
+    private record InflightSlot(int attempt, Releasable handle) {
+        static final InflightSlot NONE = new InflightSlot(-1, () -> {});
+    }
+
+    private static void registerInflight(int attempt, Releasable inner, AtomicReference<InflightSlot> inflight, AtomicBoolean cancelled) {
+        InflightSlot next = new InflightSlot(attempt, inner);
+        while (true) {
+            InflightSlot current = inflight.get();
+            if (current.attempt() > attempt) {
+                return;
+            }
+            if (inflight.compareAndSet(current, next)) {
+                if (cancelled.get()) {
+                    inner.close();
+                }
+                return;
+            }
+        }
     }
 
     private void readBytesAsyncWithRetry(
@@ -262,9 +318,15 @@ class RetryableStorageObject implements StorageObject {
         ActionListener<DirectReadBuffer> listener,
         int attempt,
         long startNanos,
-        long accumulatedBackoffMillis
+        long accumulatedBackoffMillis,
+        AtomicReference<InflightSlot> inflight,
+        AtomicBoolean cancelled
     ) {
-        delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+        if (cancelled.get()) {
+            listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
+            return;
+        }
+        Releasable inner = delegate.startReadBytesAsync(position, length, factory, executor, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer result) {
                 retryPolicy.notifySuccess();
@@ -289,6 +351,10 @@ class RetryableStorageObject implements StorageObject {
 
             @Override
             public void onFailure(Exception e) {
+                if (cancelled.get()) {
+                    listener.onFailure(e);
+                    return;
+                }
                 // One shared decision point (classify, budget, backoff) for every driver. The delegate has
                 // already released its DirectReadBuffer on the failure path, so a retry simply allocates a
                 // fresh one via the factory on the next attempt — nothing to release here.
@@ -323,7 +389,9 @@ class RetryableStorageObject implements StorageObject {
                             listener,
                             attempt + 1,
                             startNanos,
-                            accumulatedBackoffMillis + decision.delayMillis()
+                            accumulatedBackoffMillis + decision.delayMillis(),
+                            inflight,
+                            cancelled
                         ),
                         decision.delayMillis(),
                         executor
@@ -337,11 +405,17 @@ class RetryableStorageObject implements StorageObject {
                 }
             }
         });
+        registerInflight(attempt, inner, inflight, cancelled);
     }
 
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
+        return delegate.readBytesAsyncReleasesExecutor();
     }
 
     @Override

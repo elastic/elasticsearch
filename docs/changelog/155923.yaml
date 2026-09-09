@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 155923
-summary: Fix incorrect results when sorting on multiple keys with a `LIMIT`
-type: bug

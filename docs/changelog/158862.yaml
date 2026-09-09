@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 158862
+summary: Scope role mapping metadata to gateway and API
+type: bug

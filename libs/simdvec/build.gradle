@@ -100,11 +100,9 @@ tasks.named('benchmark').configure {
 
 tasks.named('benchmarkTest').configure {
   dependsOn ':libs:native:native-libraries:extractLibs'
-  if (buildParams.getRuntimeJavaVersion().map { it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
-  }
-  systemProperty 'es.nativelibs.path',
-    TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
+  jvmArgs '--add-modules=jdk.incubator.vector'
+
+  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file('../native/libraries/build/platform/').toString())
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

@@ -130,9 +130,9 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     /**
-     * Runs the bulk and per-vector variants of a filtered scoring benchmark across all {@link VectorScorerOSQBenchmark.VectorImplementation}s
-     * on the same input data, asserting per-implementation that the two paths agree at the selected offsets within each
-     * {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all implementations agree with each other.
+     * Runs the bulk and per-vector variants of a filtered scoring benchmark across all
+     * {@link VectorScorerOSQBenchmark.VectorImplementation}s on the same input data, asserting per-implementation that the two paths agree
+     * at the selected offsets within each {@link VectorScorerOSQBenchmark#BULK_SIZE} chunk, and that all implementations agree.
      *
      * <p>Non-selected scratch slots hold implementation-defined leftover values that differ between scoring paths and are intentionally
      * ignored.

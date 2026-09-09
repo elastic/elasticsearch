@@ -98,6 +98,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -279,6 +280,74 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(notice),
             inferredFuture.actionGet().warnings()
         );
+    }
+
+    /**
+     * Listing notices and schema notices are separate channels: a comma list with more segments than the cap raises one
+     * exclusion notice per segment, and the notice that the user's numbers came back as strings must still be delivered.
+     */
+    public void testListingNoticesDoNotStarveSchemaNotices() throws Exception {
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        List<String> segments = new ArrayList<>();
+        for (int i = 0; i < SkipWarnings.MAX_ADDED_WARNINGS + 5; i++) {
+            String prefix = "s3://bucket/p" + i + "/";
+            schemasByPath.put(prefix + "a.parquet", List.of(attr("id", DataType.INTEGER)));
+            listingsByPrefix.put(prefix, List.of(entry(prefix + "a.parquet", 100), entry(prefix + "_SUCCESS", 0)));
+            segments.add(prefix + "*");
+        }
+        // One segment disagrees on the type, so reconciliation widens [id] to keyword.
+        schemasByPath.put("s3://bucket/p0/b.parquet", List.of(attr("id", DataType.KEYWORD)));
+        listingsByPrefix.put(
+            "s3://bucket/p0/",
+            List.of(entry("s3://bucket/p0/a.parquet", 100), entry("s3://bucket/p0/b.parquet", 100), entry("s3://bucket/p0/_SUCCESS", 0))
+        );
+
+        ExternalSourceResolution resolution = resolveResourceWithConfig(
+            String.join(",", segments),
+            schemasByPath,
+            listingsByPrefix,
+            configFor(FormatReader.SchemaResolution.UNION_BY_NAME)
+        );
+
+        List<String> warnings = resolution.warnings();
+        assertThat(warnings, hasItem(containsString("widened columns to keyword")));
+        assertEquals(
+            "the listing channel is still capped on its own",
+            SkipWarnings.MAX_ADDED_WARNINGS,
+            warnings.stream().filter(w -> w.contains("was excluded by the [file_exclusions] dataset setting")).count()
+        );
+        assertEquals(SkipWarnings.overflowMessage(), warnings.get(warnings.size() - 1));
+    }
+
+    /**
+     * A brace group holds a comma the glob grammar owns, so the anchor for the once-per-path config notice must come
+     * from the shared comma decomposition; splitting on the first comma would leave no extension to resolve the format
+     * from and the notice would be dropped for a query that otherwise works.
+     */
+    public void testConfigWarningsDeliveredForBraceGroupGlob() throws Exception {
+        String glob = "s3://bucket/data/{a,b}/*.parquet";
+        String file = "s3://bucket/data/a/file1.parquet";
+        Map<String, List<Attribute>> schemasByPath = Map.of(file, List.of(attr("id", DataType.INTEGER)));
+        CountingStorageProvider provider = new CountingStorageProvider(
+            Map.of("s3://bucket/data/", List.of(entry(file, 100))),
+            schemasByPath
+        );
+        String notice = "option [x] is undone by option [y]";
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public List<String> configWarnings() {
+                return List.of(notice);
+            }
+        };
+        ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        ExternalSourceResolution resolution = future.actionGet();
+
+        assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        assertEquals(List.of(notice), resolution.warnings());
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====

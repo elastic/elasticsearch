@@ -331,8 +331,8 @@ public final class SchemaReconciliation {
      * both spellings of one name to one column and take no position on a name that only prefixes others.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
-     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go. Reconciliation runs on the resolver's executor, off the
-     *                    request thread, so the resolver passes its buffered sink.
+     * @param warningSink where the widening notices (keyword fallback, long/double precision loss) go. Reconciliation
+     *                    runs on the resolver's executor, off the request thread, so the resolver passes its buffered sink.
      * @return reconciliation result with unified schema and per-file mappings
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata, Consumer<String> warningSink) {

@@ -406,7 +406,7 @@ public class HashAggregationOperator implements Operator {
             this.supportPartitioning = parallelConfig != null
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
-                && aggregators.isEmpty();
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
             success = true;
         } finally {
             if (success == false) {

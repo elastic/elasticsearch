@@ -490,6 +490,68 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         assertMvSurvivors(bytes, not(like(tags, "Sen*")), Set.of(3L));
     }
 
+    /**
+     * 2-level {@code repeated} leaves are primitives, so minting a FilterPredicate used to throw
+     * parquet-mr's {@code FilterPredicates do not currently support repeated columns} out of
+     * RowGroupFilter. Decline at resolveNestedPrimitive; the MV-safe evaluator answers: empty
+     * repeated is null, {@code ==} is true only on a single-value cell.
+     */
+    public void testBareRepeatedPrimitivePredicates() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .repeated(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("v")
+            .named("bare_repeated_schema");
+
+        byte[] bytes = writeBareRepeatedParquet(schema);
+        ReferenceAttribute v = attr("v", DataType.INTEGER);
+
+        // Row 2 is empty repeated (= null). Exactly one IS NULL survivor.
+        assertMvSurvivors(bytes, isNull(v), Set.of(2L));
+        // v == 4: only the single-value 4 (row 1). MV rows excluded.
+        assertMvSurvivors(bytes, eq(v, 4, DataType.INTEGER), Set.of(1L));
+    }
+
+    private byte[] writeBareRepeatedParquet(MessageType schema) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            // Row 0: id=0, v=[1,2]
+            Group r0 = factory.newGroup();
+            r0.add("id", 0L);
+            r0.add("v", 1);
+            r0.add("v", 2);
+            writer.write(r0);
+
+            // Row 1: id=1, v=[4]
+            Group r1 = factory.newGroup();
+            r1.add("id", 1L);
+            r1.add("v", 4);
+            writer.write(r1);
+
+            // Row 2: id=2, v=[] (empty = null)
+            Group r2 = factory.newGroup();
+            r2.add("id", 2L);
+            writer.write(r2);
+
+            // Row 3: id=3, v=[7,5]
+            Group r3 = factory.newGroup();
+            r3.add("id", 3L);
+            r3.add("v", 7);
+            r3.add("v", 5);
+            writer.write(r3);
+        }
+        return out.toByteArray();
+    }
+
     private byte[] writeMvParquet(MessageType schema) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);

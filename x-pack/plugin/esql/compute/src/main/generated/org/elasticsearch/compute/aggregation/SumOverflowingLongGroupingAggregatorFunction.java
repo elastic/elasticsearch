@@ -39,7 +39,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
   SumOverflowingLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), SumOverflowingLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), SumOverflowingLongAggregator.init());
     this.driverContext = driverContext;
   }
 

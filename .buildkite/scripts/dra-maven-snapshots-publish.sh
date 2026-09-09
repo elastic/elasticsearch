@@ -30,10 +30,11 @@
 # overrides the source location so a future stand-alone publish step can point at
 # a downloaded buildkite artifact instead.
 #
+# The version is already encoded in the exploded maven tree's directory layout
+# and the S3 target is the root `maven/` prefix, so no version env var is needed.
+#
 # Required environment:
 #   DRA_WORKFLOW           snapshot|staging (default: snapshot)
-#   ES_VERSION             version incl. optional -<qualifier>, e.g. 9.3.0-alpha1
-#   VERSION_SUFFIX         "-SNAPSHOT" for snapshots, empty for staging
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY [/ AWS_SESSION_TOKEN]
 #                          exported via USE_MAVEN_S3_CREDENTIALS in pre-command
 
@@ -42,8 +43,6 @@ set -euo pipefail
 # Default matches dra-workflow.sh's `WORKFLOW="${DRA_WORKFLOW:-snapshot}"` so
 # this script is safe to run standalone.
 DRA_WORKFLOW="${DRA_WORKFLOW:-snapshot}"
-: "${ES_VERSION:?ES_VERSION must be set}"
-VERSION_SUFFIX="${VERSION_SUFFIX-}"
 
 case "$DRA_WORKFLOW" in
   snapshot) BUCKET="snapshots.elastic.co" ;;

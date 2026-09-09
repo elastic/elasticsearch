@@ -34,6 +34,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
@@ -42,7 +43,7 @@ import javax.inject.Inject;
 /**
  * Repackages the Maven Central compliant aggregation zip produced by
  * `com.gradleup.nmcp.aggregation` into the layout the DRA snapshot repo
- * (`snapshots.elastic.co/&lt;buildId&gt;/maven/`) expects.
+ * (`snapshots.elastic.co/maven/`) expects.
  *
  * <p>The aggregation content is intentionally Central Portal shaped: for
  * snapshot builds it emits Maven-timestamped filenames like
@@ -122,11 +123,16 @@ public abstract class PrepareDraSnapshotMavenAggregation extends DefaultTask {
         String lastUpdated = ZonedDateTime.now(ZoneOffset.UTC)
             .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         Path root = outDir.toPath();
+        // Collect the version directories eagerly before writing anything: we
+        // mutate each directory (adding maven-metadata.xml + sidecars) and must
+        // not do so while the lazy Files.walk directory stream is still open.
+        List<Path> versionDirs;
         try (Stream<Path> stream = Files.walk(root)) {
-            stream.filter(Files::isDirectory)
+            versionDirs = stream.filter(Files::isDirectory)
                 .filter(PrepareDraSnapshotMavenAggregation::isVersionDirectory)
-                .forEach(versionDir -> writeSnapshotMetadata(root, versionDir, lastUpdated));
+                .toList();
         }
+        versionDirs.forEach(versionDir -> writeSnapshotMetadata(root, versionDir, lastUpdated));
     }
 
     private static boolean isVersionDirectory(Path dir) {

@@ -297,7 +297,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_parquet_absent_warn",
         "employees_ndjson_absent_warn",
         "drift_pq_type_ffw",
-        "widen_pq_type_ffw"
+        "widen_pq_type_ffw",
+        "drift_csv_type_ffw",
+        "ul_pq_type_ffw"
     );
 
     /**
@@ -6170,6 +6172,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // The anchor pins x to int32, which cannot represent part-b's int64, so part-b's x is read as null: the
         // dataset the query sees holds 1, 2, null, null. Every form of every aggregate must answer over that.
+        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        assertThat(scanWarnings, not(empty()));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6180,6 +6184,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
         assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            collectWarningsContaining("FROM drift_pq_type_ffw | STATS c = COUNT(x)", "incompatible with planner type"),
+            not(empty())
+        );
     }
 
     public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {
@@ -6202,6 +6210,38 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(documentsReadBy("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
     }
 
+    public void testFirstFileWinsTextWarmCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-a.csv"), "x\n1\n2\n");
+        Files.writeString(dir.resolve("part-b.csv"), "x\n3000000000\n4000000000\n");
+        putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
+
+        // File B infers LONG from values outside the integer range. The INTEGER anchor cannot represent
+        // that type, so null_field nulls those cells: the scan sees 1, 2, null, null. Cold COUNT harvests
+        // per-file stats; the next COUNT must stay warm and answer 2, not a harvest taken under file B's
+        // own LONG schema.
+        assertThat(firstRowOf("FROM drift_csv_type_ffw | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
+            assertThat(getValuesList(response).get(0), equalTo(List.of(2L)));
+            assertThat(response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    public void testFirstFileWinsWarmMinMaxMatchesTheScanOnUnsignedLongPlusLong() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, 0L, 200L);
+        putFirstFileWinsGlob("ul_pq_type_ffw", dir);
+
+        // The UINT_64 anchor keeps part-b and coerces in-range INT64 cells to unsigned_long. Warm MIN/MAX
+        // must answer over that coerced domain, not mix encoded uint64 footer extrema with raw signed harvests.
+        List<Object> scan = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+    }
+
     private long documentsReadBy(String query) {
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             return response.documentsFound();
@@ -6209,15 +6249,47 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void putFirstFileWinsGlob(String dataset, Path dir) {
+        putFirstFileWinsGlob(dataset, dir, "parquet", Map.of());
+    }
+
+    private static void writeInt64Parquet(Path target, boolean unsigned, long... values) throws IOException {
+        MessageType schema;
+        if (unsigned) {
+            schema = Types.buildMessage()
+                .required(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.intType(64, false))
+                .named("x")
+                .named("m");
+        } else {
+            schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("m");
+        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withRowGroupSize(1024L)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
+                writer.write(factory.newGroup().append("x", value));
+            }
+        }
+        Files.write(target, baos.toByteArray());
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir, String format, Map<String, Object> extra) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", format);
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("file_sort_by", "name");
+        settings.putAll(extra);
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                putDatasetRequest(
-                    dataset,
-                    "local_ds",
-                    StoragePath.fileUri(dir) + "/*.parquet",
-                    Map.of("format", "parquet", "schema_resolution", "first_file_wins", "file_sort_by", "name")
-                )
+                putDatasetRequest(dataset, "local_ds", StoragePath.fileUri(dir) + "/*." + format, settings)
             )
         );
     }

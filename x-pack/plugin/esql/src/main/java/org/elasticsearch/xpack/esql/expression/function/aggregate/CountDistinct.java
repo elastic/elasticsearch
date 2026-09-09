@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
-public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+public class CountDistinct extends UnaryAggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

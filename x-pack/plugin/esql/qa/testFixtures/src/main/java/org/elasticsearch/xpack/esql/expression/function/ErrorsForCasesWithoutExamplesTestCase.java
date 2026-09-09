@@ -90,7 +90,8 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             // https://github.com/elastic/elasticsearch/pull/139797,
             // and until https://github.com/elastic/elasticsearch/issues/100634 is solved.
             // TODO: This doesn't take into account aggs with multiple aggregating parameters
-            if (expression instanceof AggregateFunction af && af.field().dataType() == DataType.NULL) {
+            // TODO(jan): investigate!
+            if (expression instanceof AggregateFunction af && af.fields().getFirst().dataType() == DataType.NULL) {
                 continue;
             }
             assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());

@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction
+public class Count extends UnaryAggregateFunction
     implements
         ToAggregator,
         SurrogateExpression,
@@ -339,7 +339,7 @@ public class Count extends AggregateFunction
         return null;
     }
 
-    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+    public static Expression AggregateMetricDoubleSurrogate(UnaryAggregateFunction af) {
         var s = af.source();
         return new Sum(
             s,

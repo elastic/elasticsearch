@@ -36,7 +36,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Variance extends AggregateFunction implements ToAggregator {
+public class Variance extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Variance", Variance::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Variance.class)
         .unary(Variance::new)

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PromqlHistogramFractionAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -40,12 +42,8 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PromqlHistogramFraction",
-        PromqlHistogramFraction::new
+        PromqlHistogramFraction::readFrom
     );
-
-    private final Expression upperBound;
-    private final Expression lower;
-    private final Expression upper;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -59,41 +57,57 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
         @Param(name = "lower", type = { "double", "integer", "long" }) Expression lower,
         @Param(name = "upper", type = { "double", "integer", "long" }) Expression upper
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, upperBound, lower, upper);
+        this(source, field, upperBound, Literal.TRUE, NO_WINDOW, lower, upper);
     }
 
     public PromqlHistogramFraction(
         Source source,
         Expression field,
+        Expression upperBound,
         Expression filter,
         Expression window,
-        Expression upperBound,
         Expression lower,
         Expression upper
     ) {
-        super(source, field, filter, window, List.of(upperBound, lower, upper));
-        this.upperBound = upperBound;
-        this.lower = lower;
-        this.upper = upper;
+        super(source, List.of(field, upperBound), filter, window, List.of(lower, upper));
     }
 
-    private PromqlHistogramFraction(StreamInput in) throws IOException {
-        super(in);
-        this.upperBound = parameters().get(0);
-        this.lower = parameters().get(1);
-        this.upper = parameters().get(2);
+    private static PromqlHistogramFraction readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility.
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> rest = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new PromqlHistogramFraction(source, field, rest.get(0), filter, window, rest.get(1), rest.get(2));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility.
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(upperBound(), lower(), upper()));
+    }
+
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression upperBound() {
-        return upperBound;
+        return fields().get(1);
     }
 
     public Expression lower() {
-        return lower;
+        return parameters().get(0);
     }
 
     public Expression upper() {
-        return upper;
+        return parameters().get(1);
     }
 
     @Override
@@ -109,14 +123,14 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
     @Override
     protected TypeResolution resolveType() {
         return isType(field(), dt -> dt == DataType.DOUBLE, sourceText(), FIRST, "double").and(
-            isType(upperBound, dt -> dt == DataType.KEYWORD, sourceText(), SECOND, "keyword")
+            isType(upperBound(), dt -> dt == DataType.KEYWORD, sourceText(), SECOND, "keyword")
         )
-            .and(isType(lower, PromqlHistogramFraction::isSupportedBoundType, sourceText(), THIRD, "numeric except unsigned_long"))
-            .and(isFoldable(lower, sourceText(), THIRD))
-            .and(isNotNull(lower, sourceText(), THIRD))
-            .and(isType(upper, PromqlHistogramFraction::isSupportedBoundType, sourceText(), FOURTH, "numeric except unsigned_long"))
-            .and(isFoldable(upper, sourceText(), FOURTH))
-            .and(isNotNull(upper, sourceText(), FOURTH));
+            .and(isType(lower(), PromqlHistogramFraction::isSupportedBoundType, sourceText(), THIRD, "numeric except unsigned_long"))
+            .and(isFoldable(lower(), sourceText(), THIRD))
+            .and(isNotNull(lower(), sourceText(), THIRD))
+            .and(isType(upper(), PromqlHistogramFraction::isSupportedBoundType, sourceText(), FOURTH, "numeric except unsigned_long"))
+            .and(isFoldable(upper(), sourceText(), FOURTH))
+            .and(isNotNull(upper(), sourceText(), FOURTH));
     }
 
     private static boolean isSupportedBoundType(DataType dataType) {
@@ -125,7 +139,7 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
 
     @Override
     protected NodeInfo<PromqlHistogramFraction> info() {
-        return NodeInfo.create(this, PromqlHistogramFraction::new, field(), filter(), window(), upperBound, lower, upper);
+        return NodeInfo.create(this, PromqlHistogramFraction::new, field(), upperBound(), filter(), window(), lower(), upper());
     }
 
     @Override
@@ -143,12 +157,12 @@ public class PromqlHistogramFraction extends AggregateFunction implements ToAggr
 
     @Override
     public PromqlHistogramFraction withFilter(Expression filter) {
-        return new PromqlHistogramFraction(source(), field(), filter, window(), upperBound, lower, upper);
+        return new PromqlHistogramFraction(source(), field(), upperBound(), filter, window(), lower(), upper());
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        return new PromqlHistogramFractionAggregatorFunctionSupplier(source(), boundValue(lower), boundValue(upper));
+        return new PromqlHistogramFractionAggregatorFunctionSupplier(source(), boundValue(lower()), boundValue(upper()));
     }
 
     private double boundValue(Expression bound) {

@@ -75,7 +75,7 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override

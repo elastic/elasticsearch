@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * Extends {@link AggregateFunction} to support aggregation per time_series,
  * such as {@link Rate} or {@link MaxOverTime}.
  */
-public abstract class TimeSeriesAggregateFunction extends AggregateFunction implements OptionalArgument {
+public abstract class TimeSeriesAggregateFunction extends UnaryAggregateFunction implements OptionalArgument {
 
     protected TimeSeriesAggregateFunction(
         Source source,

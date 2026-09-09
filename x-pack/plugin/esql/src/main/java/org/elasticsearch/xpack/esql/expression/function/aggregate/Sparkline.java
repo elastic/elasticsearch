@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggregate;
 
 import java.io.IOException;
@@ -87,7 +89,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Sparkline",
-        Sparkline::new
+        Sparkline::readFrom
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sparkline.class)
         .quinary(Sparkline::new)
@@ -131,20 +133,20 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             description = "End of the range. Can be a date or a date expressed as a string."
         ) Expression to
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, key, buckets, from, to);
+        this(source, field, key, Literal.TRUE, NO_WINDOW, buckets, from, to);
     }
 
     public Sparkline(
         Source source,
         Expression field,
+        Expression key,
         Expression filter,
         Expression window,
-        Expression key,
         Expression buckets,
         Expression from,
         Expression to
     ) {
-        super(source, field, filter, window, List.of(key, buckets, from, to));
+        super(source, List.of(field, key), filter, window, List.of(buckets, from, to));
     }
 
     @Override
@@ -226,8 +228,26 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         }
     }
 
-    private Sparkline(StreamInput in) throws IOException {
-        super(in);
+    private static Sparkline readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new Sparkline(source, field, parameters.get(0), filter, window, parameters.get(1), parameters.get(2), parameters.get(3));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(key(), buckets(), from(), to()));
     }
 
     @Override
@@ -242,23 +262,27 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @Override
     protected NodeInfo<Sparkline> info() {
-        return NodeInfo.create(this, Sparkline::new, field(), filter(), window(), key(), buckets(), from(), to());
+        return NodeInfo.create(this, Sparkline::new, field(), key(), filter(), window(), buckets(), from(), to());
+    }
+
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression key() {
-        return parameters().get(0);
+        return fields().get(1);
     }
 
     public Expression buckets() {
-        return parameters().get(1);
+        return parameters().get(0);
     }
 
     public Expression from() {
-        return parameters().get(2);
+        return parameters().get(1);
     }
 
     public Expression to() {
-        return parameters().get(3);
+        return parameters().get(2);
     }
 
     @Override
@@ -277,6 +301,6 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @Override
     public Sparkline withFilter(Expression filter) {
-        return new Sparkline(source(), field(), filter, window(), key(), buckets(), from(), to());
+        return new Sparkline(source(), field(), key(), filter, window(), buckets(), from(), to());
     }
 }

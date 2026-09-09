@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     </li>
  * </ul>
  */
-public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
+public abstract class NumericAggregate extends UnaryAggregateFunction implements ToAggregator {
 
     NumericAggregate(Source source, Expression field, Expression filter, Expression window, List<Expression> parameters) {
         super(source, field, filter, window, parameters);

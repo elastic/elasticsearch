@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Latest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Latest";
-    private final Expression timestamp;
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Latest.class).binary(Latest::new).name("latest");
 
     @FunctionInfo(
@@ -98,12 +98,20 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
         ) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, timestamp, Literal.TRUE, NO_WINDOW);
     }
 
-    private Latest(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
-        this.timestamp = timestamp;
+    private Latest(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
+    }
+
+    public Expression field() {
+        return fields().get(0);
+    }
+
+    @Override
+    public Expression timestamp() {
+        return fields().get(1);
     }
 
     @Override
@@ -112,13 +120,13 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
     }
 
     @Override
-    public Expression surrogate() {
-        return new Last(source(), field(), timestamp);
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
-    public Expression timestamp() {
-        return timestamp;
+    public Expression surrogate() {
+        return new Last(source(), field(), timestamp());
     }
 
     @Override
@@ -165,7 +173,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
             "numeric except counter types"
         ).and(
             isType(
-                timestamp,
+                timestamp(),
                 dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 IMPLICIT,
@@ -176,7 +184,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Latest::new, field(), timestamp);
+        return NodeInfo.create(this, Latest::new, field(), timestamp());
     }
 
     @Override
@@ -186,7 +194,7 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
 
     @Override
     public Latest withFilter(Expression filter) {
-        return new Latest(source(), field(), filter, window(), timestamp);
+        return new Latest(source(), field(), timestamp(), filter, window());
     }
 
     @Override

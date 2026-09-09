@@ -29,7 +29,7 @@ import static java.util.Collections.emptyList;
 /**
  * A specialization of {@link Values} for collecting dimension fields in time-series queries.
  */
-public class DimensionValues extends AggregateFunction implements ToAggregator {
+public class DimensionValues extends UnaryAggregateFunction implements ToAggregator {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.KEYWORD, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
         Map.entry(DataType.TEXT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),

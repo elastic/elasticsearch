@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
-public class Values extends AggregateFunction implements ToAggregator {
+public class Values extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
         .unary(Values::new)

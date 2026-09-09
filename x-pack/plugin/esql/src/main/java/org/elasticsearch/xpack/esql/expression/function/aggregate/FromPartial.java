@@ -36,7 +36,7 @@ import java.util.stream.IntStream;
 /**
  * @see ToPartial
  */
-public class FromPartial extends AggregateFunction implements ToAggregator {
+public class FromPartial extends UnaryAggregateFunction implements ToAggregator {
     private static final String NAME = "FromPartial";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, FromPartial::new);
 

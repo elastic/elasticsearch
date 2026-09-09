@@ -230,7 +230,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 if (outer instanceof Sparkline sparkline) {
                     failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
                 }
-                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                outer.fields().getFirst().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {
                         failures.add(
                             fail(
@@ -242,7 +242,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                             )
                         );
                     }
-                    nested.field()
+                    // TODO(jan): investigate/fix
+                    nested.fields()
+                        .getFirst()
                         .forEachDown(
                             AggregateFunction.class,
                             nested2 -> failures.add(

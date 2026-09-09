@@ -143,9 +143,10 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
          * or TO_PARTIAL, then unwrap them and operate on the internal agg.
          */
         if (aggFunction instanceof ToPartial toPartial && toPartial.function() instanceof AggregateFunction inner) {
-            return DataType.isNull(inner.field().dataType());
+            // TODO(jan): investigate
+            return DataType.isNull(inner.fields().getFirst().dataType());
         }
-        return DataType.isNull(unwrapFromPartial(aggFunction).field().dataType());
+        return DataType.isNull(unwrapFromPartial(aggFunction).fields().getFirst().dataType());
     }
 
     private static boolean hasFalseFilter(AggregateFunction aggFunction) {

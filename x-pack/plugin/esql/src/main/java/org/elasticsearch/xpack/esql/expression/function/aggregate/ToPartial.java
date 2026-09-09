@@ -61,7 +61,7 @@ import java.util.stream.IntStream;
  * @see ToPartialGroupingAggregatorFunction
  * @see FromPartialGroupingAggregatorFunction
  */
-public class ToPartial extends AggregateFunction implements ToAggregator {
+public class ToPartial extends UnaryAggregateFunction implements ToAggregator {
     private static final String NAME = "ToPartial";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, ToPartial::new);
 

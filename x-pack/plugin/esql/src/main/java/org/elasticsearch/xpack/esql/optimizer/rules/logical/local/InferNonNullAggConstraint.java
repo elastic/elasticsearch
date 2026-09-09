@@ -67,7 +67,8 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                     // `IgnoresNulls` and take it from there.
                     return aggregate;
                 }
-                Expression field = af.field();
+                // TODO(jan): investigate
+                Expression field = af.fields().getFirst();
                 if (field.foldable()) {
                     // Ignore literals (e.g. COUNT(1))
                     return aggregate;

@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
 
-public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
+public class Sample extends UnaryAggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
         .binary(Sample::new)

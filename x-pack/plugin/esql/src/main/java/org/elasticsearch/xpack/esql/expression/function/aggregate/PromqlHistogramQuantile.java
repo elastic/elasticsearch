@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -49,7 +51,7 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PromqlHistogramQuantile",
-        PromqlHistogramQuantile::new
+        PromqlHistogramQuantile::readFrom
     );
 
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -82,9 +84,6 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
         .name("histogram_quantile");
 
-    private final Expression upperBound;
-    private final Expression quantile;
-
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
@@ -96,34 +95,52 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
         @Param(name = "upper_bound", type = { "keyword" }) Expression upperBound,
         @Param(name = "quantile", type = { "double", "integer", "long" }) Expression quantile
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, upperBound, quantile);
+        this(source, field, upperBound, Literal.TRUE, NO_WINDOW, quantile);
     }
 
     public PromqlHistogramQuantile(
         Source source,
         Expression field,
+        Expression upperBound,
         Expression filter,
         Expression window,
-        Expression upperBound,
         Expression quantile
     ) {
-        super(source, field, filter, window, List.of(upperBound, quantile));
-        this.upperBound = upperBound;
-        this.quantile = quantile;
+        super(source, List.of(field, upperBound), filter, window, List.of(quantile));
     }
 
-    private PromqlHistogramQuantile(StreamInput in) throws IOException {
-        super(in);
-        this.upperBound = parameters().get(0);
-        this.quantile = parameters().get(1);
+    private static PromqlHistogramQuantile readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new PromqlHistogramQuantile(source, field, parameters.get(0), filter, window, parameters.get(1));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(upperBound(), quantile()));
+    }
+
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression upperBound() {
-        return upperBound;
+        return fields().get(1);
     }
 
     public Expression quantile() {
-        return quantile;
+        return parameters().get(0);
     }
 
     @Override
@@ -139,18 +156,24 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     @Override
     protected TypeResolution resolveType() {
         return isType(field(), dt -> dt == DataType.DOUBLE, sourceText(), FIRST, "double").and(
-            isType(upperBound, dt -> dt == DataType.KEYWORD, sourceText(), SECOND, "keyword")
+            isType(upperBound(), dt -> dt == DataType.KEYWORD, sourceText(), SECOND, "keyword")
         )
             .and(
-                isType(quantile, dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), THIRD, "numeric except unsigned_long")
+                isType(
+                    quantile(),
+                    dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+                    sourceText(),
+                    THIRD,
+                    "numeric except unsigned_long"
+                )
             )
-            .and(isFoldable(quantile, sourceText(), THIRD))
-            .and(isNotNull(quantile, sourceText(), THIRD));
+            .and(isFoldable(quantile(), sourceText(), THIRD))
+            .and(isNotNull(quantile(), sourceText(), THIRD));
     }
 
     @Override
     protected NodeInfo<PromqlHistogramQuantile> info() {
-        return NodeInfo.create(this, PromqlHistogramQuantile::new, field(), filter(), window(), upperBound, quantile);
+        return NodeInfo.create(this, PromqlHistogramQuantile::new, field(), upperBound(), filter(), window(), quantile());
     }
 
     @Override
@@ -167,7 +190,7 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
 
     @Override
     public PromqlHistogramQuantile withFilter(Expression filter) {
-        return new PromqlHistogramQuantile(source(), field(), filter, window(), upperBound, quantile);
+        return new PromqlHistogramQuantile(source(), field(), upperBound(), filter, window(), quantile());
     }
 
     @Override
@@ -176,6 +199,6 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
     }
 
     private double quantileValue() {
-        return doubleValueOf(quantile, source().text(), "PromqlHistogramQuantile");
+        return doubleValueOf(quantile(), source().text(), "PromqlHistogramQuantile");
     }
 }

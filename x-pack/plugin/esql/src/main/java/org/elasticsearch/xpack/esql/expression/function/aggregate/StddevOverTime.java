@@ -75,7 +75,7 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements ToAgg
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override

@@ -353,7 +353,8 @@ public abstract class AbstractPhysicalOperationProviders {
                         sourceAttr = intermediateInputs.inputAttributes(aggregateFunction);
                     } else {
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        Expression field = aggregateFunction.field();
+                        // TODO(jan): investigate
+                        Expression field = aggregateFunction.fields().getFirst();
                         // Only count can now support literals - all the other aggs should be optimized away
                         if (field.foldable()) {
                             if (aggregateFunction instanceof Count || aggregateFunction instanceof CountApproximate) {

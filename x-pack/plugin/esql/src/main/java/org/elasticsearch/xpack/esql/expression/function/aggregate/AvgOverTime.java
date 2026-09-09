@@ -89,7 +89,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override

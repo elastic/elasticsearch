@@ -8,17 +8,14 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -33,7 +30,6 @@ import java.util.function.Supplier;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 /**
  * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
@@ -62,41 +58,50 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     public static final Literal NO_WINDOW = Literal.timeDuration(Source.EMPTY, Duration.ZERO);
     public static final TransportVersion WINDOW_INTERVAL = TransportVersion.fromName("aggregation_window");
 
-    private final Expression field;
+    private final List<? extends Expression> fields;
     private final List<? extends Expression> parameters;
     private final Expression filter;
     private final Expression window;
 
-    protected AggregateFunction(Source source, Expression field) {
-        this(source, field, Literal.TRUE, NO_WINDOW, emptyList());
+    protected AggregateFunction(Source source, List<? extends Expression> fields) {
+        this(source, fields, Literal.TRUE, NO_WINDOW, emptyList());
     }
 
-    protected AggregateFunction(Source source, Expression field, List<? extends Expression> parameters) {
-        this(source, field, Literal.TRUE, NO_WINDOW, parameters);
+    protected AggregateFunction(Source source, List<? extends Expression> fields, List<? extends Expression> parameters) {
+        this(source, fields, Literal.TRUE, NO_WINDOW, parameters);
     }
 
+    /**
+     * @param fields     the per-row input fields processed by the aggregate function
+     *                   (e.g. WEIGHTED_AVG's value and weight)
+     * @param parameters the configuration constants of this aggregate, folded into the supplier
+     *                   (e.g. TOP's limit and order)
+     */
     protected AggregateFunction(
         Source source,
-        Expression field,
+        List<? extends Expression> fields,
         Expression filter,
         Expression window,
         List<? extends Expression> parameters
     ) {
-        super(source, CollectionUtils.combine(asList(field, filter, window), parameters));
-        this.field = field;
+        super(source, buildChildren(fields, filter, window, parameters));
+        this.fields = fields;
         this.filter = filter;
         this.window = Objects.requireNonNull(window, "[window] must be specified; use NO_WINDOW instead");
         this.parameters = parameters;
     }
 
-    protected AggregateFunction(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class)
-        );
+    /**
+     * The order of the children: fields, filter, window, parameters. Note this differs from the wire layout (see {@link #writeTo}),
+     * which for backwards compatibility leads with a single field, followed by the parameters and the remaining fields.
+     */
+    private static List<Expression> buildChildren(
+        List<? extends Expression> fields,
+        Expression filter,
+        Expression window,
+        List<? extends Expression> parameters
+    ) {
+        return CollectionUtils.combine(CollectionUtils.combine(fields, asList(filter, window)), parameters);
     }
 
     protected static Expression readWindow(StreamInput in) throws IOException {
@@ -107,40 +112,21 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         }
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field);
-        out.writeNamedWriteable(filter);
-        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
-            out.writeNamedWriteable(window);
-        }
-        out.writeNamedWriteableCollection(parameters);
-    }
-
-    public Expression field() {
-        return field;
-    }
-
-    public List<? extends Expression> parameters() {
-        return parameters;
+    /**
+     * The per-row fields processed by the aggregate function (e.g. {@code WEIGHTED_AVG}'s field and weight).
+     * Configuration constants are not here; see {@link #parameters()}.
+     */
+    public List<? extends Expression> fields() {
+        return fields;
     }
 
     /**
-     * All fields processed by the aggregate function.
-     * <p>
-     * Defaults to just [field], because most aggregates only process a single field.
-     * However, some (e.g. WEIGHTED_AVG and TOP(..., outputField) process multiple fields.
-     * <p>
-     * Configuration constants folded into the
-     * {@link org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier}
-     * (e.g. TOP's limit and order) are not fields.
-     * <p>
-     * TODO: internally, fields beyond the first one are part of the parameters list,
-     * but that needs some refactoring.
+     * The configuration constants of this aggregate (e.g. {@code TOP}'s limit and order), folded into the
+     * {@link org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier}.
+     * Per-row input fields are not here; see {@link #fields()}.
      */
-    public List<? extends Expression> fields() {
-        return List.of(field);
+    public List<? extends Expression> parameters() {
+        return parameters;
     }
 
     public boolean hasFilter() {
@@ -150,11 +136,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     public Expression filter() {
         return filter;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return TypeResolutions.isExact(field, sourceText(), DEFAULT);
     }
 
     /**
@@ -171,13 +152,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return expression;
         }
         return expression.stream().map(e -> withFilter(e, filter)).toList();
-    }
-
-    public AggregateFunction withParameters(List<? extends Expression> parameters) {
-        if (parameters == this.parameters) {
-            return this;
-        }
-        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
     }
 
     /**
@@ -202,10 +176,9 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      * The order must align with the input channels expected by the aggregator.
      */
     public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
-        List<Attribute> attributes = new ArrayList<>(1 + parameters.size());
-        attributes.addAll(field.references());
-        for (Expression p : parameters) {
-            attributes.addAll(p.references());
+        List<Attribute> attributes = new ArrayList<>(fields.size());
+        for (Expression field : fields) {
+            attributes.addAll(field.references());
         }
         return attributes;
     }
@@ -221,7 +194,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             AggregateFunction other = (AggregateFunction) obj;
-            return Objects.equals(other.field(), field())
+            return Objects.equals(other.fields(), fields())
                 && Objects.equals(other.filter(), filter())
                 && Objects.equals(other.window(), window())
                 && Objects.equals(other.parameters(), parameters());
@@ -240,27 +213,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         };
     }
 
-    public AggregateFunction withField(Expression newField) {
-        if (newField == this.field) {
-            return this;
-        }
-        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), parameters));
-    }
-
     public AggregateFunction withFields(List<? extends Expression> newFields) {
-        // Most aggregate functions only have a single field, hence this default implementation.
-        // Aggregate functions that have multiple fields (e.g. TOP(..., outputField)) should override this method.
-        assert newFields.size() == 1;
-        if (newFields.getFirst() == this.field) {
+        if (newFields == this.fields) {
             return this;
         }
-        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newFields.getFirst(), filter, window), parameters));
+        return (AggregateFunction) replaceChildren(buildChildren(newFields, filter, window, parameters));
     }
 
     public AggregateFunction withWindow(Expression newWindow) {
         if (newWindow == this.window) {
             return this;
         }
-        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter, newWindow), parameters));
+        return (AggregateFunction) replaceChildren(buildChildren(fields, filter, newWindow, parameters));
     }
 }

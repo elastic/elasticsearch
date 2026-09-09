@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 /**
  * Internal aggregation function that collects the first seen docId per group.
  */
-public class FirstDocId extends AggregateFunction implements ToAggregator {
+public class FirstDocId extends UnaryAggregateFunction implements ToAggregator {
 
     public FirstDocId(Source source, Expression v) {
         this(source, v, Literal.TRUE, NO_WINDOW);

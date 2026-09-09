@@ -36,7 +36,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDev extends AggregateFunction implements ToAggregator {
+public class StdDev extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

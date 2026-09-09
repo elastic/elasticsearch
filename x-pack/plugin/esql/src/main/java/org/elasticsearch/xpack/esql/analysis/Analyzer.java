@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -4109,7 +4110,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
-            var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+            var newPlan = plan.transformExpressionsOnly(UnaryAggregateFunction.class, aggFunc -> {
                 Expression child;
                 if (aggFunc.field() instanceof ToAggregateMetricDouble toAMD) {
                     child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context);
@@ -4178,7 +4179,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression tryToTransformFunction(
-            AggregateFunction aggFunc,
+            UnaryAggregateFunction aggFunc,
             Expression field,
             Holder<Boolean> aborted,
             Map<String, FieldAttribute> unionFields,
@@ -4356,7 +4357,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             final boolean isTimeSeries = indexMode.get().isTsdb();
-            return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+            return plan.transformExpressionsOnly(UnaryAggregateFunction.class, aggFunc -> {
                 if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, isTimeSeries)) {
                     return aggFunc;
                 }

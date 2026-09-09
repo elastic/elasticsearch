@@ -25,7 +25,7 @@ import static java.util.Collections.emptyList;
  * The AggregateMapper class will generate multiple aggregation functions for each combination, allowing the planner to
  * select the best one.
  */
-public abstract class SpatialAggregateFunction extends AggregateFunction implements LicenseAware {
+public abstract class SpatialAggregateFunction extends UnaryAggregateFunction implements LicenseAware {
     protected final FieldExtractPreference fieldExtractPreference;
 
     protected SpatialAggregateFunction(

@@ -401,9 +401,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         Alias bucketInput = null;
         AggregateFunction bucketInputAggregation = null;
         for (NamedExpression candidate : firstPassAggs) {
-            if (candidate instanceof Alias alias
-                && Alias.unwrap(alias) instanceof AggregateFunction aggregation
-                && aggregation.field().semanticEquals(bucket.field())) {
+            if (candidate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction aggregation
+            // TODO(jan): investigate
+                && aggregation.fields().getFirst().semanticEquals(bucket.field())) {
                 if (bucketInputAggregation != null && bucketInputAggregation.semanticEquals(aggregation) == false) {
                     throw new EsqlIllegalArgumentException(
                         "all uses of histogram field [{}] must have the same per-series aggregation",

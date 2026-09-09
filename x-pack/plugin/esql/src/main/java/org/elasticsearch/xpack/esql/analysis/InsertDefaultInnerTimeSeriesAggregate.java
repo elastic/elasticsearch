@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -108,7 +109,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         last.sort(),
                         timestamp,
                         changed,
-                        new DefaultTimeSeriesAggregateFunction(last.field(), timestamp),
+                        new DefaultTimeSeriesAggregateFunction(last.fields().getFirst(), timestamp),
                         MaxOverTime::new,
                         LastOverTime::new
                     )
@@ -124,8 +125,14 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         FirstOverTime::new
                     )
                     : first;
-                // only transform field, not all children (such as inline filter or window)
-                case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
+                // only transform the (first) field, not all children (such as inline filter or window)
+                case AggregateFunction af -> {
+                    // TODO(jan): transform all fields.
+                    // The query "TS k8s | STATS WEIGHTED_AVG(...)" is broken.
+                    List<Expression> newFields = new ArrayList<>(af.fields());
+                    newFields.set(0, addDefaultInnerAggs(af.fields().getFirst(), timestamp, changed));
+                    yield af.withFields(newFields);
+                }
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
                 case ConvertFunction convert when expr.allMatch(e -> e instanceof ConvertFunction || e instanceof TypedAttribute) -> {
@@ -167,6 +174,6 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
         var newSort = sort.semanticEquals(timestamp)
             ? onTimestampSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp)
             : onOtherSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp);
-        return agg.replaceChildren(List.of(newField, agg.filter(), agg.window(), newSort));
+        return agg.withFields(List.of(newField, newSort));
     }
 }

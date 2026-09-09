@@ -107,7 +107,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override

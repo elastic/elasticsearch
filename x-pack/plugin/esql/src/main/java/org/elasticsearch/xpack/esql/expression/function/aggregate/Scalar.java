@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 /**
  * Returns the sample value if there is exactly one element, otherwise returns NaN.
  */
-public class Scalar extends AggregateFunction implements SurrogateExpression {
+public class Scalar extends UnaryAggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalar", Scalar::new);
 
     public Scalar(Source source, Expression field) {

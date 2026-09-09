@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
-public class HistogramMerge extends AggregateFunction implements ToAggregator {
+public class HistogramMerge extends UnaryAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "HistogramMerge",

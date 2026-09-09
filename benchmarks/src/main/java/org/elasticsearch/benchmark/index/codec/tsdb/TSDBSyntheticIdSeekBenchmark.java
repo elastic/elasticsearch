@@ -11,7 +11,6 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,8 +27,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.SyntheticIdField;
@@ -119,7 +118,7 @@ public class TSDBSyntheticIdSeekBenchmark {
             false
         );
         final var syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        final var delegate = new Lucene104Codec() {
+        final var codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return docValuesFormat;
@@ -127,13 +126,12 @@ public class TSDBSyntheticIdSeekBenchmark {
 
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
-                // Merging rewrites the per-field format attribute of _id, and the codec rejects a segment whose _id is not
-                // marked synthetic, so the delegate has to name the synthetic id format for that field.
+                // _id has to name the synthetic id format, since merging rewrites the per-field format attribute.
                 return SYNTHETIC_ID.equals(field) ? syntheticIdPostingsFormat : super.getPostingsFormatForField(field);
             }
         };
         final var config = new IndexWriterConfig();
-        config.setCodec(new ES93TSDBDefaultCompressionLucene103Codec(delegate));
+        config.setCodec(codec);
         config.setIndexSort(
             new Sort(new SortField(TS_ID, SortField.Type.STRING, false), new SortedNumericSortField(TIMESTAMP, SortField.Type.LONG, true))
         );

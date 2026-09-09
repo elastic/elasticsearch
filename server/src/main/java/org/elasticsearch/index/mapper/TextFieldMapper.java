@@ -1869,18 +1869,6 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // usesBinaryDocValues() requires doc_values enabled, which also excludes the SORTED_SET and
-        // no-doc-values fallback paths. index_phrases/index_prefixes emit extra Lucene fields outside
-        // this dispatch and are not yet supported.
-        //
-        // The multi-value guard mirrors KeywordFieldMapper.supportsColumnarDocValues(). In practice
-        // usesArrayOrderBinaryDocValues() is always true for multi_value=true in columnar mode
-        // (MappingBuilder.isSourceSynthetic() covers both SYNTHETIC and COLUMNAR_STORED), so this
-        // fires only as a defensive invariant against future source modes.
-        //
-        // offsetsFieldName is forced to null by the Builder whenever usesBinaryDocValues() &&
-        // isStrictColumnar() (see Builder.build), so this check is redundant today but makes that
-        // coupling explicit.
         return indexSettings.getMode().isStrictColumnar()
             && fieldType().usesBinaryDocValues()
             && (fieldType().usesArrayOrderBinaryDocValues() || docValuesParameters.multiValue() == false)
@@ -1910,11 +1898,7 @@ public final class TextFieldMapper extends FieldMapper {
      */
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        // store:true is rejected at mapping time, so fieldType.stored() is always false;
-        // it is omitted here because LuceneBinaryColumn stores BINARY while the row path stores STRING.
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE;
-        // emitDvs is always true on the supported path (supportsColumnarParse requires usesBinaryDocValues()),
-        // but kept for symmetry with KeywordFieldMapper.
         final boolean emitDvs = docValuesParameters.enabled();
         if (emitTerms || emitDvs) {
             if (fieldType().usesArrayOrderBinaryDocValues()) {
@@ -1929,25 +1913,21 @@ public final class TextFieldMapper extends FieldMapper {
     private void mapColumnBatchArrayOrder(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
         final int docCount = ctx.docCount();
 
-        // retainValues=false: values are appended to docBlob before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         final EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
         final EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
         final EscfColumnBuilder dvCounts = emitDvs ? mergeLongColumn(ctx.recycler()) : null;
 
         int currentDoc = -1;
-        // binaryDvs.setString copies docBlob immediately, so the buffer is safe to reuse per doc.
         final BytesRefBuilder docBlob = emitDvs ? new BytesRefBuilder() : null;
         int pos = 0;
         int docSlotCount = 0;
-        // Read only when docSlotCount==1 && hasNonNull, so a stale value from a prior doc is never observed.
         int lastValueLength = 0;
         boolean hasNonNull = false;
 
         while (true) {
             final int nextDoc = cursor.nextDoc();
             if (nextDoc != currentDoc) {
-                // Flush: all-null docs write counts but no blob.
                 if (binaryDvs != null && docSlotCount > 0) {
                     dvCounts.setLong(currentDoc, docSlotCount);
                     if (hasNonNull) {
@@ -1966,7 +1946,6 @@ public final class TextFieldMapper extends FieldMapper {
 
             final BytesRef value = cursor.value();
 
-            // text has no null_value: a JSON null records a null slot only.
             if (value == null) {
                 if (binaryDvs != null) {
                     pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
@@ -1986,7 +1965,6 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // binaryDvs and dvCounts are decoupled: all-null docs emit counts but no blob.
         if (terms != null && terms.isEmpty() == false) {
             ctx.addColumn(LuceneBinaryColumn.of(terms.finish(docCount), fieldType().name(), fieldType));
         }
@@ -1999,15 +1977,12 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private void mapColumnBatchSingleValue(BatchMappingContext ctx, EscfColumn source, boolean emitTerms, boolean emitDvs) {
-        // Only reachable when multi_value=false (supportsColumnarParse enforces this); emitting plain
-        // BinaryDocValuesField.TYPE with no .counts sidecar is only correct for single-valued fields.
         assert docValuesParameters.multiValue() == false
             : "mapColumnBatchSingleValue called on multi_value=true field [" + fullPath() + "]; this would corrupt doc-values";
 
         final int docCount = ctx.docCount();
         boolean valuesProduced = false;
 
-        // retainValues=false: each value is consumed before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
         EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && (emitTerms || emitDvs)
             ? mergeStringColumn(ctx.recycler())
@@ -2026,12 +2001,10 @@ public final class TextFieldMapper extends FieldMapper {
             }
             final BytesRef value = cursor.value();
             if (value == null) {
-                // text has no null_value: JSON null -> absent.
                 continue;
             }
 
             if (valueSeenThisDoc) {
-                // Bail out; ShardBatchMapper falls back to the row path for the correct per-doc error.
                 throw new UnsupportedOperationException(
                     "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + currentDoc + "]"
                 );
@@ -2044,10 +2017,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // Both columns share the same EscfColumnData (one serialization, two field-type wrappers).
         if (valuesProduced) {
-            // STRING columns carry no null slots (nulls are in the validity bitmap, not the data),
-            // so source.columnData() can be reused directly without rebuilding.
             assert values != null || source.leafValueKind() == EscfColumnKind.STRING
                 : "zero-copy reuse of source.columnData() is only safe for STRING columns";
             final EscfColumnData data = values != null ? values.finish(docCount) : source.columnData();

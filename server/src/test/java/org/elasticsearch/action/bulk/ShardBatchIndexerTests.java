@@ -723,7 +723,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             assertFalse("batch indexing should not fail", items[0].getPrimaryResponse().isFailed());
             batchShard.refresh("test");
 
-            // "brown fox" spans the boundary between the two array values.
             PhraseQuery boundaryPhrase = new PhraseQuery("f", "brown", "fox");
 
             try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
@@ -740,7 +739,6 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
                 }
             }
 
-            // Verify raw positions match between paths (quick=0, fox=102 for default gap, fox=2 for gap=0).
             try (Engine.Searcher rowSearcher = rowShard.acquireSearcher("test")) {
                 try (Engine.Searcher batchSearcher = batchShard.acquireSearcher("test")) {
                     for (String term : new String[] { "quick", "fox" }) {

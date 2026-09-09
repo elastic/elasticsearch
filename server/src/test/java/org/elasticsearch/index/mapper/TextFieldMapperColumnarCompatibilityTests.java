@@ -135,7 +135,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testNestedArray() throws IOException {
-        // Nested arrays are flattened, matching the row-path behaviour in DocumentParser.
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "text").endObject()),
             columnarSettings(),
@@ -168,7 +167,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testSingleValueMultiValueFalse() throws IOException {
-        // One string value, one absent doc, and an empty string.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -186,7 +184,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testAbsentAndNullMultiValueFalse() throws IOException {
-        // Present value, absent doc ({}), and explicit JSON null -> absent (text has no null_value).
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -204,7 +201,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testIndexedAndDocValuesMultiValueFalse() throws IOException {
-        // Default index:true — both an indexed (tokenized) column and a binary DV column are emitted.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -222,7 +218,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testScalarCoercionsMultiValueFalse() throws IOException {
-        // Numeric and boolean scalars are stringified by utf8Cursor, matching the row path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -240,7 +235,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testAllPresentDenseMultiValueFalse() throws IOException {
-        // Every doc has a string value; no absent docs. Exercises the dense (validity==null) wrap in the fast path.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -258,7 +252,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testManyMixedPresentAbsentMultiValueFalse() throws IOException {
-        // Larger interleaved present/absent batch to stress the SPARSE wrap.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -280,7 +273,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testSingleElementArrayMultiValueFalse() throws IOException {
-        // A single-element array {"f":["a"]} is a legal value for a multi_value=false field.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();
@@ -297,11 +289,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
     }
 
-    // ---- multi-fields ---------------------------------------------------------------------------
-
     public void testMultiFieldSingleValue() throws IOException {
-        // text with a keyword multi-field: the most common real-world mapping pattern (dynamic mapping's
-        // default "text" + ".keyword").
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("fields");
@@ -351,7 +339,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testMultiFieldNotIndexedParent() throws IOException {
-        // The parent is not indexed (doc values only) while its multi-field is fully indexed.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "text").field("index", false);
             b.startObject("fields");
@@ -363,8 +350,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             batch("multi-field not-indexed parent", 1L, doc("d1", 1L, "{\"f\":\"only_dv_and_multifield\"}"), doc("d2", 2L, "{}"))
         );
     }
-
-    // ---- fields not yet supported: verify correct fallback ---------------------------------------
 
     public void testIndexPhrasesFallsBack() throws IOException {
         MapperService ms = createMapperService(
@@ -388,8 +373,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testMultiFieldWithNonColumnarMultiFieldFallsBack() throws IOException {
-        // A multi-field that is itself disqualified from columnar parse (here, a "text" multi-field with
-        // index_phrases) must disqualify the parent too - recursion via multiFieldsSupportColumnarParse.
         MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("fields");
@@ -403,8 +386,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testCopyToFallsBack() {
-        // copy_to is rejected at mapping time in columnar mode; the supportsColumnarParse guard is
-        // defence-in-depth for if that restriction is ever relaxed.
         expectThrows(Exception.class, () -> createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "text").field("copy_to", "other").endObject();
             b.startObject("other").field("type", "text").endObject();
@@ -422,8 +403,6 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     }
 
     public void testMultiValueFalseBailsOutOnMultipleValues() throws IOException {
-        // UnsupportedOperationException causes ShardBatchMapper to fall back to the row path for the
-        // correct per-document error.
         MapperService ms = createMapperService(columnarSettings(), mapping(b -> {
             b.startObject(FIELD).field("type", "text");
             b.startObject("doc_values").field("multi_value", false).endObject();

@@ -193,6 +193,35 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return Math.toIntExact(ordinals.valueAt(valueAddress));
     }
 
+    /**
+     * The extreme value, decided over ordinals. The dictionary is in term order, so the largest ordinal a document
+     * holds names its largest value and the smallest its smallest - the terms are never read to find out, and only the
+     * one that wins is resolved.
+     *
+     * <p>Two slots do not order that way. A null is no value, so it is passed over. An escaped value sorts wherever
+     * its bytes do, which its ordinal - one past every term - does not say, so a document holding one is decided by
+     * comparing bytes after all.
+     */
+    @Override
+    public BytesRef extreme(int rank, boolean max, BytesRef dst) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        int best = -1;
+        for (long i = 0; i < count; i++) {
+            final int ordinal = ordinalAt(first + i);
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                continue;
+            }
+            if (ordinal == escapeOrdinal) {
+                return super.extreme(rank, max, dst);
+            }
+            if (best < 0 || (max ? ordinal > best : ordinal < best)) {
+                best = ordinal;
+            }
+        }
+        return best < 0 ? null : termAt(best, dst);
+    }
+
     /** The value behind the escape marker at {@code valueAddress}, for a consumer that took ordinals. */
     public BytesRef resolveEscape(long valueAddress, BytesRef dst) throws IOException {
         escapes.get(escapeRankOf(valueAddress), dst);

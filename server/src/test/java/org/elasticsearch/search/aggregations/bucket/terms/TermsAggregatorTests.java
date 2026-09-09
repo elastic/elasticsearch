@@ -629,6 +629,28 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * An unmapped field builds no filter, so the pattern is validated before the aggregator is built: a malformed or
+     * over-long include/exclude must not be accepted silently with an empty result, as it was rejected at request parse
+     * before compilation moved to the shard.
+     */
+    public void testIncludeExcludeRegexValidatedOnUnmappedField() throws Exception {
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocument(new Document());
+        String tooLong = "a".repeat(IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY) + 1);
+        for (IncludeExclude includeExclude : List.of(
+            new IncludeExclude("[", null, null, null),
+            new IncludeExclude(null, tooLong, null, null)
+        )) {
+            AggregationBuilder builder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                .includeExclude(includeExclude)
+                .field("unmapped");
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> testCase(buildIndex, (StringTerms result) -> fail("the regex must be rejected"), new AggTestConfig(builder))
+            );
+        }
+    }
+
     public void testStringIncludeExclude() throws Exception {
         MappedFieldType ft1 = new KeywordFieldMapper.KeywordFieldType("mv_field", randomBoolean(), true, Collections.emptyMap());
         MappedFieldType ft2 = new KeywordFieldMapper.KeywordFieldType("sv_field", randomBoolean(), true, Collections.emptyMap());

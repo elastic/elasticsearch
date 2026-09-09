@@ -25,12 +25,17 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -43,6 +48,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Supplier;
 
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
@@ -212,9 +218,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private final Set<BytesRef> valids;
         private final Set<BytesRef> invalids;
 
-        private SetAndRegexStringFilter(DocValueFormat format, int maxRegexLength) {
-            Automaton automaton = toAutomaton(maxRegexLength);
-            this.runAutomaton = automaton == null ? null : new ByteRunAutomaton(automaton);
+        private SetAndRegexStringFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
+            Automaton automaton = toAutomaton(maxRegexLength, breaker);
+            this.runAutomaton = automaton == null ? null : reserving(automaton, breaker, () -> new ByteRunAutomaton(automaton));
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -269,9 +275,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private final SortedSet<BytesRef> valids;
         private final SortedSet<BytesRef> invalids;
 
-        private SetAndRegexOrdinalsFilter(DocValueFormat format, int maxRegexLength) {
-            Automaton automaton = toAutomaton(maxRegexLength);
-            this.compiled = automaton == null ? null : new CompiledAutomaton(automaton);
+        private SetAndRegexOrdinalsFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
+            Automaton automaton = toAutomaton(maxRegexLength, breaker);
+            this.compiled = automaton == null ? null : reserving(automaton, breaker, () -> new CompiledAutomaton(automaton));
             this.valids = parseForDocValues(includeValues, format);
             this.invalids = parseForDocValues(excludeValues, format);
         }
@@ -332,7 +338,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Kept as source text and compiled only in {@link #toAutomaton(int)}: parsing happens on the coordinator's HTTP thread
+     * Kept as source text and compiled only in {@link #toAutomaton(int, CircuitBreaker)}: parsing happens on the coordinator's HTTP thread
      * and on every data node's transport thread, and a deep pattern can overflow the stack in Lucene's parser, so it must
      * not run before the length check.
      */
@@ -516,18 +522,35 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
-    private Automaton toAutomaton(int maxRegexLength) {
+    private static final int REGEX_FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+
+    /**
+     * Rejects a pattern the shard could never compile, before the aggregator is built. An unmapped field builds no
+     * filter, so without this a malformed or over-long pattern on one would be accepted silently instead of failing as
+     * it did when the request was parsed.
+     */
+    public void validateRegex(int maxRegexLength) {
+        checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
+        checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
+        parse(include, INCLUDE_FIELD);
+        parse(exclude, EXCLUDE_FIELD);
+    }
+
+    private Automaton toAutomaton(int maxRegexLength, CircuitBreaker breaker) {
         if (include == null && exclude == null) {
             return null;
         }
         checkRegexLength(include, INCLUDE_FIELD, maxRegexLength);
         checkRegexLength(exclude, EXCLUDE_FIELD, maxRegexLength);
         try {
-            Automaton a = include != null ? compile(include, INCLUDE_FIELD) : Automata.makeAnyString();
+            Automaton a = include != null ? compile(include, INCLUDE_FIELD, breaker) : Automata.makeAnyString();
             if (exclude != null) {
-                a = Operations.minus(a, compile(exclude, EXCLUDE_FIELD), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                // Determinize the exclude under the breaker first: minus() complements it, and complementing an
+                // already-deterministic automaton is the one step of that operation that cannot blow up.
+                Automaton excluded = determinize(compile(exclude, EXCLUDE_FIELD, breaker), breaker);
+                a = Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             }
-            return Operations.determinize(a, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return determinize(a, breaker);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException(
                 "The regex used in the [include] or [exclude] of an aggregation is too complex to determinize",
@@ -536,19 +559,71 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    private static Automaton compile(String regex, ParseField field) {
+    private static Automaton determinize(Automaton a, CircuitBreaker breaker) {
+        return CircuitBreakingOperations.determinize(
+            a,
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+            breaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
+    }
+
+    @Nullable
+    private static RegExp parse(@Nullable String regex, ParseField field) {
+        if (regex == null) {
+            return null;
+        }
         try {
-            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
+            return new RegExp(regex, REGEX_FLAGS);
         } catch (StackOverflowError e) {
-            // Lucene's parser and toAutomaton() both recurse on nesting; outside the aggregation-build guards this Error is fatal.
-            throw new IllegalArgumentException(
-                "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too deeply nested"
-            );
+            throw tooDeeplyNested(field);
+        }
+    }
+
+    /**
+     * Builds the NFA with its estimated peak heap reserved on {@code breaker}, as the regexp query does: a short pattern of
+     * nested bounded repeats expands to a state count that no length limit catches, and an {@code OutOfMemoryError} is
+     * as fatal to the node as the stack overflow.
+     */
+    private static Automaton compile(String regex, ParseField field, CircuitBreaker breaker) {
+        try {
+            RegExp re = parse(regex, field);
+            // The estimator walks the parse tree recursively too, so it stays inside the overflow guard.
+            long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+            breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            try {
+                return re.toAutomaton();
+            } finally {
+                breaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            }
+        } catch (StackOverflowError e) {
+            throw tooDeeplyNested(field);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException(
                 "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too complex to determinize",
                 e
             );
+        }
+    }
+
+    /** Lucene's parser and toAutomaton() both recurse on nesting; outside the aggregation-build guards this Error is fatal. */
+    private static IllegalArgumentException tooDeeplyNested(ParseField field) {
+        return new IllegalArgumentException(
+            "The regex used in the [" + field.getPreferredName() + "] of an aggregation is too deeply nested"
+        );
+    }
+
+    /**
+     * Runs {@code build}, which expands a DFA into its UTF-8 run form, with that expansion's estimated heap reserved on
+     * {@code breaker} for the duration.
+     */
+    private static <T> T reserving(Automaton dfa, CircuitBreaker breaker, Supplier<T> build) {
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        breaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return build.get();
+        } finally {
+            breaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
         }
     }
 
@@ -571,12 +646,14 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     /**
      * @param maxRegexLength the index's {@link IndexSettings#MAX_REGEX_LENGTH_SETTING}; patterns longer than this are rejected
      *                       before compilation, the same bound the regexp query applies
+     * @param breaker        charged with the automaton's estimated peak heap while it is built, the same accounting the
+     *                       regexp query applies
      */
-    public StringFilter convertToStringFilter(DocValueFormat format, int maxRegexLength) {
+    public StringFilter convertToStringFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
         if (isPartitionBased()) {
             return new PartitionedStringFilter();
         }
-        return new SetAndRegexStringFilter(format, maxRegexLength);
+        return new SetAndRegexStringFilter(format, maxRegexLength, breaker);
     }
 
     private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
@@ -594,13 +671,14 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
     /**
      * @param maxRegexLength the index's {@link IndexSettings#MAX_REGEX_LENGTH_SETTING}; see {@link #convertToStringFilter}
+     * @param breaker        see {@link #convertToStringFilter}
      */
-    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, int maxRegexLength) {
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, int maxRegexLength, CircuitBreaker breaker) {
         if (isPartitionBased()) {
             return new PartitionedOrdinalsFilter();
         }
 
-        return new SetAndRegexOrdinalsFilter(format, maxRegexLength);
+        return new SetAndRegexOrdinalsFilter(format, maxRegexLength, breaker);
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {

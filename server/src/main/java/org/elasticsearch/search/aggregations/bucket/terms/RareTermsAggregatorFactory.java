@@ -143,6 +143,9 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
+        if (includeExclude != null) {
+            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
+        }
         this.maxDocCount = maxDocCount;
         this.precision = precision;
     }
@@ -196,7 +199,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
-                    : includeExclude.convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength());
+                    : includeExclude.convertToStringFilter(format, context.getIndexSettings().getMaxRegexLength(), context.breaker());
                 return new StringRareTermsAggregator(
                     name,
                     factories,

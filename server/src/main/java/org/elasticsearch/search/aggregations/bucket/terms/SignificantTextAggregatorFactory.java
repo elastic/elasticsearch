@@ -101,6 +101,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         this.includeExclude = includeExclude;
+        if (includeExclude != null) {
+            includeExclude.validateRegex(context.getIndexSettings().getMaxRegexLength());
+        }
         this.backgroundFilter = backgroundFilter;
         this.filterDuplicateText = filterDuplicateText;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -171,7 +174,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         final IncludeExclude.StringFilter incExcFilter = includeExclude == null
             ? null
-            : includeExclude.convertToStringFilter(DocValueFormat.RAW, context.getIndexSettings().getMaxRegexLength());
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW, context.getIndexSettings().getMaxRegexLength(), context.breaker());
 
         final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, fieldType, DocValueFormat.RAW, backgroundFilter);
         final CollectorSource collectorSource = createCollectorSource();

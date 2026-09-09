@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,15 +57,13 @@ import static org.hamcrest.Matchers.not;
 /**
  * Base class for tests that fetch embeddings from an inference field via {@link SearchSourceBuilder#fetchEmbeddingsField}, across every
  * embedding task type and dense vector element type the field mapper supports. Covers explicit and inferred {@link VectorType}, mismatched
- * vector types, and the empty-index case. Searches are issued from a coordinating-only node so that fetched embeddings cross the transport
- * layer.
- * <p>
- * Subclasses supply the field mapping for the concrete inference field type under test.
- * </p>
+ * vector types, the empty-index case, and a document with no value for any inference field. Searches are issued from a coordinating-only
+ * node so that fetched embeddings cross the transport layer.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 1, supportsDedicatedMasters = false)
 abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
     static final int VECTOR_DIMENSIONS = 128;  // Use a dimension count that is compatible with BIT element type
+    static final String NON_INFERENCE_FIELD = "non_inference_field";
 
     private static final Map<String, Object> SPARSE_SERVICE_SETTINGS = Map.of("model", "my_model", "api_key", "my_api_key");
 
@@ -137,7 +137,13 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
 
     abstract String fieldTypeName();
 
-    abstract XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException;
+    /**
+     * Writes the mapping fragment for each inference field into an already-open {@code properties} object.
+     *
+     * @param builder                   the mapping builder, positioned inside {@code properties}
+     * @param fieldNameToInferenceIdMap field name to the inference endpoint ID it should use
+     */
+    abstract void addInferenceFieldsToMapping(XContentBuilder builder, Map<String, String> fieldNameToInferenceIdMap) throws IOException;
 
     public void testFetchEmbeddingsFields() throws Exception {
         createIndex();
@@ -215,6 +221,52 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
         }
     }
 
+    public void testFetchEmbeddingsFieldsNoFieldValue() throws Exception {
+        createIndex();
+
+        BulkRequestBuilder bulk = client().prepareBulk(indexName);
+        bulk.add(client().prepareIndex(indexName).setSource(Map.of(NON_INFERENCE_FIELD, randomAlphaOfLength(10))));
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        assertNoFailures(bulk.get(TEST_REQUEST_TIMEOUT));
+        ensureGreen(indexName);
+
+        for (InferenceFieldConfig inferenceField : inferenceFields) {
+            String fieldName = inferenceField.fieldName();
+            VectorType expectedVectorType = getExpectedVectorType(inferenceField);
+            String message = describe(inferenceField);
+
+            assertEmbeddingsFields(message, indexName, singletonMap(fieldName, null), List.of(Map.of()));
+            assertEmbeddingsFields(message, indexName, Map.of(fieldName, expectedVectorType), List.of(Map.of()));
+
+            // The field has no model_settings yet, so no vector-type check is performed and the mismatched request succeeds rather than
+            // being rejected.
+            assertEmbeddingsFields(
+                message,
+                indexName,
+                Map.of(fieldName, randomValueOtherThan(expectedVectorType, () -> randomFrom(VectorType.values()))),
+                List.of(Map.of())
+            );
+        }
+
+        if (inferenceFields.size() > 1) {
+            Map<String, VectorType> embeddingsFields = new HashMap<>();
+            inferenceFields.forEach(f -> embeddingsFields.put(f.fieldName(), null));
+
+            assertEmbeddingsFields("Fetching all inference fields", indexName, embeddingsFields, List.of(Map.of()));
+        }
+    }
+
+    /**
+     * Builds the index mapping: one entry per inference field, plus {@link #NON_INFERENCE_FIELD}, which lets a document be indexed
+     * that matches the query but has no value for any inference field.
+     */
+    private XContentBuilder generateMapping(Map<String, String> fieldNameToInferenceIdMap) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        addInferenceFieldsToMapping(builder, fieldNameToInferenceIdMap);
+        builder.startObject(NON_INFERENCE_FIELD).field("type", "keyword").endObject();
+        return builder.endObject().endObject();
+    }
+
     private void createIndex() throws IOException {
         indexName = randomIndexName();
         final Map<String, String> fieldNameToInferenceIdMap = inferenceFields.stream()
@@ -260,7 +312,7 @@ abstract class AbstractInferenceFieldEmbeddingsFieldIT extends ESIntegTestCase {
                 for (int i = 0; i < expectedFieldsPerHit.size(); i++) {
                     SearchHit hit = response.getHits().getAt(i);
                     Map<String, VectorType> expected = expectedFieldsPerHit.get(i);
-                    assertThat(message, hit.getFields().size(), equalTo(expected.size()));
+                    assertThat(message, hit.getDocumentFields().size(), equalTo(expected.size()));
                     for (var entry : expected.entrySet()) {
                         String fieldName = entry.getKey();
                         VectorType vectorType = entry.getValue();

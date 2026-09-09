@@ -162,7 +162,8 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                data,
+                ValueStream.Layouts.CONTIGUOUS_VALUES
             );
             AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, directory, context, data.getName());
             // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
@@ -256,7 +257,8 @@ public final class StringColumnWriter {
                     directory,
                     context,
                     data.getName(),
-                    data
+                    data,
+                    ValueStream.Layouts.ANY
                 )
             ) {
                 for (int ordinal = 0; ordinal < size; ordinal++) {
@@ -319,7 +321,8 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                data,
+                ValueStream.Layouts.ANY
             )
         ) {
             for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
@@ -505,7 +508,8 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                data,
+                ValueStream.Layouts.ANY
             )
         ) {
             final BytesRef value = new BytesRef();

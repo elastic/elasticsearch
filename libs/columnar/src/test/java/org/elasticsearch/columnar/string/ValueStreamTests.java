@@ -15,40 +15,45 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
-import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.lessThan;
+
 /**
  * The byte sequence a string column stores its values in, on its own: whatever is written reads back, at
- * every block layout and every width a packed length takes.
+ * every block layout and every bit width a packed length takes.
  */
 public class ValueStreamTests extends ESTestCase {
 
     private static final String FILE = "stream.bin";
 
-    /** Values short enough that a block keeps each length beside its own value. */
+    /** Values short enough that a block keeps each length beside its own value with the ANY layout. */
     public void testInlineLengths() throws IOException {
         assertRoundTrip(values(between(200, 2000), 0, 20));
     }
 
-    /** One byte per length: long enough for a block to pack them, short enough to fit in a byte. */
-    public void testPackedLengthsOneByte() throws IOException {
+    /** Values of length 0 and 1, so the packed header is 1 bit per value. */
+    public void testPackedOneBit() throws IOException {
+        assertRoundTrip(values(between(200, 2000), 0, 1));
+    }
+
+    /** Values up to 255 bytes, so the packed header is at most 8 bits per value. */
+    public void testPackedEightBits() throws IOException {
         assertRoundTrip(values(between(200, 1500), 40, 255));
     }
 
-    /** Two bytes per length. */
-    public void testPackedLengthsTwoBytes() throws IOException {
-        assertRoundTrip(values(between(100, 600), 300, 5000));
+    /** Values up to 4095 bytes, so the packed header is at most 12 bits per value. */
+    public void testPackedTwelveBits() throws IOException {
+        assertRoundTrip(values(between(100, 600), 300, 4000));
     }
 
-    /** Four bytes per length, which needs a value past sixty-five thousand. */
-    public void testPackedLengthsFourBytes() throws IOException {
-        final List<BytesRef> values = new ArrayList<>(values(between(4, 20), 66_000, 66_500));
-        assertRoundTrip(values);
+    /** Values whose length needs 17 bits, past what two bytes could hold. */
+    public void testPackedSeventeenBits() throws IOException {
+        assertRoundTrip(values(between(4, 20), 66_000, 66_500));
     }
 
     /** A column that mixes them, so the layout differs from one block to the next. */
@@ -86,7 +91,78 @@ public class ValueStreamTests extends ESTestCase {
     /** A value larger than the bytes a chunk holds, which a chunk has to grow past rather than split. */
     public void testValueLargerThanAChunk() throws IOException {
         final List<BytesRef> values = values(between(4, 30), 600, 1200);
-        assertRoundTrip(values, randomFrom(8, 32, 128), randomChunkCodec(), 256);
+        assertRoundTrip(values, randomFrom(8, 32, 128), randomChunkCodec(), 256, randomLayouts());
+    }
+
+    /**
+     * A stream restricted to contiguous values never writes the inline layout, even when the values are
+     * short enough that a stream set to {@link ValueStream.Layouts#ANY} would choose inline. The on-disk
+     * size with an identity codec (no compression) confirms packed was chosen: packed at a few bits per
+     * value uses a shorter header than one vint per value.
+     */
+    public void testContiguousValuesNeverWritesInline() throws IOException {
+        // Values short enough that ANY would choose inline (mean < INLINE_MEAN_LENGTH = 32).
+        // CONTIGUOUS_VALUES must use packed instead.
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 256; i++) {
+            values.add(new BytesRef(randomAlphaOfLength(15)));
+        }
+        assertRoundTrip(values, 128, ChunkCodec.IDENTITY, 1024 * 1024, ValueStream.Layouts.CONTIGUOUS_VALUES);
+
+        // Packed at bitsRequired(15) = 4 bits writes 64 bytes of length header per 128-value block.
+        // Inline writes ~128 vint bytes. The identity codec removes compression from the equation, so
+        // the difference in file size is purely the layout — packed should be smaller.
+        try (Directory dir = newDirectory()) {
+            final long anyBytes;
+            try (IndexOutput out = dir.createOutput("any.bin", IOContext.DEFAULT)) {
+                try (
+                    ValueStream.Writer writer = new ValueStream.Writer(
+                        ChunkCodec.IDENTITY,
+                        1024 * 1024,
+                        128,
+                        values.size(),
+                        dir,
+                        IOContext.DEFAULT,
+                        "x",
+                        out,
+                        ValueStream.Layouts.ANY
+                    )
+                ) {
+                    for (BytesRef value : values)
+                        writer.add(value);
+                    writer.finish();
+                }
+            }
+            anyBytes = dir.fileLength("any.bin");
+
+            final long contigBytes;
+            try (IndexOutput out = dir.createOutput("contig.bin", IOContext.DEFAULT)) {
+                try (
+                    ValueStream.Writer writer = new ValueStream.Writer(
+                        ChunkCodec.IDENTITY,
+                        1024 * 1024,
+                        128,
+                        values.size(),
+                        dir,
+                        IOContext.DEFAULT,
+                        "x",
+                        out,
+                        ValueStream.Layouts.CONTIGUOUS_VALUES
+                    )
+                ) {
+                    for (BytesRef value : values)
+                        writer.add(value);
+                    writer.finish();
+                }
+            }
+            contigBytes = dir.fileLength("contig.bin");
+
+            assertThat(
+                "packed (4 bits/value) should write a smaller header than inline (1 vint/value) for uniform 15-byte values",
+                contigBytes,
+                lessThan(anyBytes)
+            );
+        }
     }
 
     private static List<BytesRef> values(int count, int minLength, int maxLength) {
@@ -101,13 +177,32 @@ public class ValueStreamTests extends ESTestCase {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }
 
+    private static ValueStream.Layouts randomLayouts() {
+        return randomFrom(ValueStream.Layouts.values());
+    }
+
     private void assertRoundTrip(List<BytesRef> values) throws IOException {
-        assertRoundTrip(values, randomFrom(8, 32, 128, 512), randomChunkCodec(), randomFrom(64, 512, 4096, 64 * 1024));
+        assertRoundTrip(values, randomFrom(8, 32, 128, 512), randomChunkCodec(), randomFrom(64, 512, 4096, 64 * 1024), randomLayouts());
     }
 
     /** Writes the values, reads every one back in order, backwards, and at random. */
-    private void assertRoundTrip(List<BytesRef> values, int valuesPerBlock, ChunkCodec codec, int targetChunkBytes) throws IOException {
-        final String label = "codec=" + codec + " perBlock=" + valuesPerBlock + " chunk=" + targetChunkBytes + " n=" + values.size();
+    private void assertRoundTrip(
+        List<BytesRef> values,
+        int valuesPerBlock,
+        ChunkCodec codec,
+        int targetChunkBytes,
+        ValueStream.Layouts layouts
+    ) throws IOException {
+        final String label = "codec="
+            + codec
+            + " perBlock="
+            + valuesPerBlock
+            + " chunk="
+            + targetChunkBytes
+            + " layouts="
+            + layouts
+            + " n="
+            + values.size();
         try (Directory dir = newDirectory()) {
             final ValueStream.Metadata metadata;
             try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
@@ -120,7 +215,8 @@ public class ValueStreamTests extends ESTestCase {
                         dir,
                         IOContext.DEFAULT,
                         "stream",
-                        out
+                        out,
+                        layouts
                     )
                 ) {
                     for (BytesRef value : values) {
@@ -158,34 +254,12 @@ public class ValueStreamTests extends ESTestCase {
         }
     }
 
-    /**
-     * A block says which layout it took in its first byte, and a packed block says the width its lengths are
-     * written at in the same byte. The two share one space, so the widths a block can be packed at must stay
-     * clear of the values that name a layout, and nothing but arithmetic keeps them apart.
-     */
-    public void testPackedWidthsNeverCollideWithALayout() {
-        for (int max : new int[] { 0, 1, 0xFF, 0x100, 0xFFFF, 0x10000, 0xFFFFFF, 0x1000000, Integer.MAX_VALUE }) {
-            final int width = ByteArrayInts.widthFor(max);
-            assertNotEquals(
-                "a block of values up to " + max + " bytes packs its lengths at the width naming a run",
-                ValueStream.RUNS,
-                (byte) width
-            );
-            assertNotEquals(
-                "a block of values up to " + max + " bytes packs at the width naming an inline block",
-                ValueStream.INLINE,
-                (byte) width
-            );
-            assertTrue("width " + width + " is not a marker this stream writes", ValueStream.knownMarker((byte) width));
-        }
-    }
-
-    /** A marker no layout and no width takes is turned away rather than read as whichever shares its number. */
+    /** Every value a block's first byte may take; anything else is a corrupt index. */
     public void testUnknownLayoutMarkersAreNotAccepted() {
-        for (byte marker : new byte[] { ValueStream.INLINE, 1, 2, ValueStream.RUNS, 4 }) {
+        for (byte marker : new byte[] { ValueStream.INLINE, ValueStream.PACKED, ValueStream.RUNS }) {
             assertTrue("marker " + marker + " is one this stream writes", ValueStream.knownMarker(marker));
         }
-        for (byte marker : new byte[] { 5, 6, 7, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+        for (byte marker : new byte[] { 3, 4, 5, 6, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
             assertFalse("marker " + marker + " names nothing this stream writes", ValueStream.knownMarker(marker));
         }
     }

@@ -40,11 +40,15 @@ import java.util.Arrays;
  *
  * <p>A block records its values one of three ways, chosen per block by what the values in it look like.
  * <b>Inline</b> puts each length beside its own value, where a length and its value compress together as one
- * pattern. <b>Packed</b> puts the lengths at one fixed width at the block's head, where walking past a long
- * value to reach the next one would cost more than the packing saves. <b>Runs</b> stores each distinct value
- * once with how many values in a row hold it, for a block whose values repeat — the shape a column sorted on
- * this field takes. The block's first byte says which of the three was picked, and {@link #knownMarker} is
- * what the reader trusts it against.
+ * pattern. <b>Packed</b> puts the lengths bit-packed at one fixed bit width at the block's head and the
+ * values contiguously after them, where the exact bit count is narrower than a whole byte and the value bytes
+ * are uninterrupted. <b>Runs</b> stores each distinct value once with how many values in a row hold it, for a
+ * block whose values repeat — the shape a column sorted on this field takes. The block's first byte says which
+ * of the three was picked.
+ *
+ * <p>A stream's {@link Layouts} controls which layouts it may use. {@link Layouts#CONTIGUOUS_VALUES} forbids
+ * inline, so every block keeps its value bytes contiguous — nothing interleaved between them — which both
+ * tightens the length header and gives a compressor an unbroken run of value bytes to match against.
  *
  * <p>Blocks and chunks are separate on purpose. A block of long values and a block of short ones are the same
  * count of values and nothing like the same number of bytes, so the unit that is addressed cannot also be the
@@ -58,24 +62,39 @@ public final class ValueStream {
     /** Marks a block whose lengths sit in front of their own values rather than together at its head. */
     static final byte INLINE = 0;
 
-    /**
-     * A block whose values repeat in runs: each distinct value once, with how many documents in a row hold
-     * it. Three, because one, two and four are the widths a packed block records its lengths at.
-     */
-    static final byte RUNS = 3;
+    /** Marks a block whose lengths are bit-packed at its head and whose values follow contiguously. */
+    static final byte PACKED = 1;
 
-    /**
-     * Every value a block's first byte may take. A packed block marks itself with the width its lengths are
-     * written at, so those widths and the layouts share one byte and a layout added later has to take a
-     * value none of them use. {@link #knownMarker} is what says which those are, and the reader turns away
-     * anything else rather than reading it as the layout that happens to share its number.
-     */
+    /** A block whose values repeat in runs: each distinct value once, with how many documents in a row hold it. */
+    static final byte RUNS = 2;
+
+    /** Every value a block's first byte may take; anything else is a corrupt index. */
     static boolean knownMarker(byte marker) {
-        return marker == INLINE || marker == RUNS || marker == 1 || marker == 2 || marker == 4;
+        return marker == INLINE || marker == PACKED || marker == RUNS;
     }
 
-    /** Mean value length below which a block keeps its lengths inline. */
+    /** Mean value length below which a block keeps its lengths inline, when the stream allows it. */
     private static final int INLINE_MEAN_LENGTH = 32;
+
+    /**
+     * The block layouts a stream may write.
+     *
+     * <p>A stream can be restricted to {@link #CONTIGUOUS_VALUES} at construction time, which keeps every
+     * block's value bytes together behind one length header. Blocks that repeat naturally still take
+     * {@link #RUNS} regardless of which layouts is set.
+     */
+    public enum Layouts {
+        /**
+         * All three layouts: inline, packed and runs. A block of short values keeps each length beside
+         * its own value, where the two repeat as one pattern a compressor matches whole.
+         */
+        ANY,
+        /**
+         * Runs and packed only, so every block's values sit contiguously behind one length header.
+         * Removing the interleaved lengths gives a compressor an unbroken run of value bytes to match.
+         */
+        CONTIGUOUS_VALUES
+    }
 
     /**
      * What a written stream records about itself.
@@ -140,6 +159,7 @@ public final class ValueStream {
         private final IndexOutput data;
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
+        private final Layouts layouts;
         private long count = 0;
         private long valueBytes = 0;
         private boolean closed = false;
@@ -164,9 +184,11 @@ public final class ValueStream {
             Directory dir,
             IOContext ctx,
             String prefix,
-            IndexOutput data
+            IndexOutput data,
+            Layouts layouts
         ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
+            this.layouts = layouts;
             this.data = data;
             this.pending = new int[valuesPerBlock];
             // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
@@ -203,35 +225,35 @@ public final class ValueStream {
         }
 
         /**
-         * Emits the buffered block in whichever of the three layouts fits it.
+         * Emits the buffered block in whichever of the allowed layouts fits it.
          *
          * <p><b>Runs</b> stores each distinct value once with how many values in a row hold it. It is taken
-         * first and only where it is genuinely smaller, sized against what inline would store rather than
-         * guessed at from how the values look.
+         * first and only where it is genuinely smaller, sized against what the stream would otherwise write.
          *
-         * <p><b>Packed</b> puts the lengths at one fixed width ahead of the bytes, so the block's values are
-         * placed by a running sum of numbers already in hand rather than by a walk that reads each value to
-         * find where the next one's length begins. It suits long values.
+         * <p><b>Packed</b> bit-packs the lengths at their exact bit width ahead of the bytes, so a block
+         * whose values are long or dissimilar keeps them contiguous and hands a compressor an unbroken run.
          *
-         * <p><b>Inline</b> keeps each length in front of its own value. It suits short repeated values,
-         * because the length and the value then repeat as one pattern that a compressor matches whole —
-         * splitting them apart costs more than the walk saves.
+         * <p><b>Inline</b> keeps each length in front of its own value. It suits short repeated values when
+         * {@link Layouts#ANY} is set, because the length and the value then repeat as one pattern that a
+         * compressor matches whole — splitting them apart costs more than the packing saves. A stream set to
+         * {@link Layouts#CONTIGUOUS_VALUES} never writes inline, so all its value bytes sit together.
          */
         private void flushBlock() throws IOException {
             chunks.boundary();
             offsets.add(chunks.uncompressedLength());
+            // max and its bit width feed both runsAreSmaller (for sizing) and writePacked.
             int max = 0;
             for (int i = 0; i < pendingCount; i++) {
                 max = Math.max(max, pending[i]);
             }
-            final int width = ByteArrayInts.widthFor(max);
+            final int bits = ByteArrayInts.bitsRequired(max);
             // A run of equal values is stored once with a repeat, which is what a column sorted on this
             // field is made of. Worth it only where the runs are long enough to pay for the repeats, so the
             // two forms are sized against each other rather than guessed at.
             // Finding the runs is the part that compares bytes, so it is done once and what it found is what
             // the sizing and the write both read.
             final int runCount = stageRuns();
-            if (runsAreSmaller(runCount)) {
+            if (runsAreSmaller(runCount, bits)) {
                 writeRuns(runCount);
                 pendingCount = 0;
                 pendingLength = 0;
@@ -241,24 +263,23 @@ public final class ValueStream {
             // choose between them. What separates them is how long the values are: short ones repeat
             // together with their length as a single pattern, and splitting the two apart costs more than
             // the walk saves. The threshold is where the measured shapes turn over.
-            if (pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
+            if (layouts == Layouts.ANY && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
                 writeInline();
             } else {
-                writePacked(width);
+                writePacked(bits);
             }
             pendingCount = 0;
             pendingLength = 0;
         }
 
-        private void writePacked(int width) throws IOException {
-            final int length = 1 + pendingCount * width;
+        private void writePacked(int bits) throws IOException {
+            // [PACKED marker] [bitsPerValue] [bit-packed lengths] [value bytes follow via second append]
+            final int headerBytes = ByteArrayInts.bitPackedLength(pendingCount, bits);
+            final int length = 2 + headerBytes;
             scratch = ArrayUtil.growNoCopy(scratch, length);
-            scratch[0] = (byte) width;
-            int at = 1;
-            for (int i = 0; i < pendingCount; i++) {
-                ByteArrayInts.writeIntLE(pending[i], width, scratch, at);
-                at += width;
-            }
+            scratch[0] = PACKED;
+            scratch[1] = (byte) bits;
+            ByteArrayInts.writeBitPacked(pending, pendingCount, bits, scratch, 2);
             chunks.append(scratch, 0, length);
             chunks.append(pendingBytes, 0, pendingLength);
         }
@@ -293,7 +314,7 @@ public final class ValueStream {
             return runs;
         }
 
-        private boolean runsAreSmaller(int runCount) {
+        private boolean runsAreSmaller(int runCount, int bits) {
             if (runCount == pendingCount) {
                 return false;
             }
@@ -301,8 +322,17 @@ public final class ValueStream {
             for (int r = 0; r < runCount; r++) {
                 runBytes += runLens[r];
             }
-            // Two vints a run against one a value, plus the bytes each form actually stores.
-            return runBytes + 2L * runCount < pendingLength + pendingCount;
+            // Compare runs against whichever layout the stream would actually write. Inline costs one vint
+            // per value; packed costs a bitsPerValue byte plus the bit-packed header. Sizing against inline
+            // when the stream cannot write it would over-favour runs on short-value blocks.
+            final long alternative;
+            if (layouts == Layouts.ANY && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
+                alternative = pendingLength + pendingCount; // inline: ~one byte of vint per value
+            } else {
+                alternative = pendingLength + 1L + ByteArrayInts.bitPackedLength(pendingCount, bits); // packed
+            }
+            // Two vints a run against whatever the other form costs, plus the bytes each actually stores.
+            return runBytes + 2L * runCount < alternative;
         }
 
         /** Each distinct value once, preceded by its length and how many documents in a row hold it. */
@@ -449,13 +479,13 @@ public final class ValueStream {
             final int span = (int) (offsets.get(blockIndex + 1) - start);
             chunks.span(start, span, block);
             final byte[] bytes = block.bytes;
-            final byte width = bytes[block.offset];
-            if (knownMarker(width) == false) {
-                throw new CorruptIndexException("unknown block layout marker [" + width + "]", chunks.toString());
+            final byte marker = bytes[block.offset];
+            if (knownMarker(marker) == false) {
+                throw new CorruptIndexException("unknown block layout marker [" + marker + "]", chunks.toString());
             }
             final long first = blockIndex << blockShift;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
-            if (width == RUNS) {
+            if (marker == RUNS) {
                 cursor[0] = block.offset + 1;
                 final int runCount = ByteArrayInts.readVInt(bytes, cursor);
                 if (runLengths.length < runCount) {
@@ -481,7 +511,7 @@ public final class ValueStream {
                 }
                 return count;
             }
-            if (width == INLINE) {
+            if (marker == INLINE) {
                 cursor[0] = block.offset + 1;
                 for (int i = 0; i < count; i++) {
                     final int length = ByteArrayInts.readVInt(bytes, cursor);
@@ -491,14 +521,14 @@ public final class ValueStream {
                 }
                 return count;
             }
-            int at = block.offset + 1;
-            int position = at + count * width;
+            // PACKED: [bitsPerValue] [bit-packed lengths] [value bytes]
+            final int bits = bytes[block.offset + 1] & 0xFF;
+            final int headerBytes = ByteArrayInts.bitPackedLength(count, bits);
+            ByteArrayInts.readBitPacked(bytes, block.offset + 2, count, bits, lengths);
+            int position = block.offset + 2 + headerBytes;
             for (int i = 0; i < count; i++) {
-                final int length = ByteArrayInts.readIntLE(bytes, at, width);
-                at += width;
                 starts[i] = position;
-                lengths[i] = length;
-                position += length;
+                position += lengths[i];
             }
             return count;
         }

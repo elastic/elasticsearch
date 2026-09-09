@@ -110,7 +110,28 @@ public class ValueStreamRunsTests extends ESTestCase {
         assertThat("a run of " + repeat + " equal values should store one copy, not " + repeat, runsBytes * 10, lessThan(inlineBytes));
     }
 
+    /**
+     * Runs are still preferred over the packed layout on a contiguous-values stream, where the run-sizing
+     * comparison is against the bit-packed header rather than against inline.
+     */
+    public void testRunsAreActuallyChosenWithContiguousValues() throws IOException {
+        final int distinct = 200;
+        final int repeat = 40;
+        final List<BytesRef> repeated = runs(distinct, repeat);
+        final List<BytesRef> allDistinct = new ArrayList<>();
+        for (int i = 0; i < repeated.size(); i++) {
+            allDistinct.add(new BytesRef("host-" + i + ".eu-west-1.internal"));
+        }
+        final long runsBytes = write(repeated, ChunkCodec.IDENTITY, ValueStream.Layouts.CONTIGUOUS_VALUES);
+        final long packedBytes = write(allDistinct, ChunkCodec.IDENTITY, ValueStream.Layouts.CONTIGUOUS_VALUES);
+        assertThat("a run of " + repeat + " equal values should store one copy, not " + repeat, runsBytes * 10, lessThan(packedBytes));
+    }
+
     private long write(List<BytesRef> values, ChunkCodec codec) throws IOException {
+        return write(values, codec, ValueStream.Layouts.ANY);
+    }
+
+    private long write(List<BytesRef> values, ChunkCodec codec, ValueStream.Layouts layouts) throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
                 try (
@@ -122,7 +143,8 @@ public class ValueStreamRunsTests extends ESTestCase {
                         dir,
                         IOContext.DEFAULT,
                         "runs",
-                        out
+                        out,
+                        layouts
                     )
                 ) {
                     for (BytesRef value : values) {
@@ -160,7 +182,8 @@ public class ValueStreamRunsTests extends ESTestCase {
                             dir,
                             IOContext.DEFAULT,
                             "runs",
-                            out
+                            out,
+                            randomFrom(ValueStream.Layouts.values())
                         )
                     ) {
                         for (BytesRef value : values) {

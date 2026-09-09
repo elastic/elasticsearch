@@ -194,6 +194,87 @@ public class ByteArrayIntsTests extends ESTestCase {
         }
     }
 
+    /** Zero max maps to zero bits, non-zero max maps to the narrowest count that fits. */
+    public void testBitsRequired() {
+        assertEquals(0, ByteArrayInts.bitsRequired(0));
+        assertEquals(1, ByteArrayInts.bitsRequired(1));
+        assertEquals(4, ByteArrayInts.bitsRequired(15));
+        assertEquals(5, ByteArrayInts.bitsRequired(16));
+        assertEquals(8, ByteArrayInts.bitsRequired(255));
+        assertEquals(9, ByteArrayInts.bitsRequired(256));
+        assertEquals(17, ByteArrayInts.bitsRequired(65537));
+        assertEquals(31, ByteArrayInts.bitsRequired(Integer.MAX_VALUE));
+        for (int i = 0; i < 1000; i++) {
+            final int v = randomNonNegativeInt();
+            final int bits = ByteArrayInts.bitsRequired(v);
+            assertTrue("bits=" + bits + " must hold " + v, bits == 0 || (v >> (bits - 1)) > 0);
+            if (bits < 31) {
+                assertTrue("bits=" + bits + " is not more than needed for " + v, (v >> bits) == 0);
+            }
+        }
+    }
+
+    /** The packed byte count matches what the write actually uses. */
+    public void testBitPackedLength() {
+        assertEquals(0, ByteArrayInts.bitPackedLength(128, 0));
+        assertEquals(16, ByteArrayInts.bitPackedLength(128, 1));
+        assertEquals(64, ByteArrayInts.bitPackedLength(128, 4));
+        assertEquals(80, ByteArrayInts.bitPackedLength(128, 5));
+        assertEquals(128, ByteArrayInts.bitPackedLength(128, 8));
+        assertEquals(208, ByteArrayInts.bitPackedLength(128, 13));
+        // Partial trailing byte: 3 values at 5 bits = 15 bits = 2 bytes
+        assertEquals(2, ByteArrayInts.bitPackedLength(3, 5));
+    }
+
+    /** Every value packed then unpacked matches; the trailing partial byte is zeroed correctly. */
+    public void testBitPackedRoundTrip() {
+        for (int bits : new int[] { 0, 1, 4, 5, 6, 7, 8, 9, 12, 13, 16, 17, 24, 31 }) {
+            for (int count : new int[] { 0, 1, 3, 7, 8, 9, 127, 128, 129, 512 }) {
+                final int max = bits == 0 ? 0 : bits == 31 ? Integer.MAX_VALUE : (1 << bits) - 1;
+                final int[] src = new int[count];
+                for (int i = 0; i < count; i++) {
+                    src[i] = bits == 0 ? 0 : between(0, max);
+                }
+                final int len = ByteArrayInts.bitPackedLength(count, bits);
+                final byte[] buf = new byte[len + 4]; // +4 to catch off-by-ones past the end
+                final int offset = between(0, 4);
+                final byte[] bufWithOffset = new byte[offset + len + 4];
+                ByteArrayInts.writeBitPacked(src, count, bits, bufWithOffset, offset);
+                final int[] dst = new int[count];
+                ByteArrayInts.readBitPacked(bufWithOffset, offset, count, bits, dst);
+                for (int i = 0; i < count; i++) {
+                    assertEquals("bits=" + bits + " count=" + count + " at " + i, src[i], dst[i]);
+                }
+                // Bytes before and after the written region must be untouched
+                for (int b = 0; b < offset; b++) {
+                    assertEquals("bits=" + bits + " count=" + count + " byte before at " + b, 0, bufWithOffset[b]);
+                }
+            }
+        }
+    }
+
+    /**
+     * The bit-packing format matches what {@link org.elasticsearch.index.codec.tsdb.DocOffsetsCodec}
+     * BITPACKING uses — MSB-first, same accumulator logic — so ColumNAR and TSDB bit-packed values
+     * are encoded identically.
+     */
+    public void testBitPackedIsConsistentWithDocOffsetsCodecBitpacking() {
+        // Three values at 5 bits: 10 (01010), 20 (10100), 5 (00101) → 01010 10100 00101 0 (padded)
+        // Packed into bytes MSB-first: 0101 0101 = 0x55, 0000 1010 = 0x0A (with zero pad)
+        // Byte layout: [0x55, 0x0A]
+        final int[] values = { 10, 20, 5 };
+        final byte[] buf = new byte[ByteArrayInts.bitPackedLength(3, 5)];
+        ByteArrayInts.writeBitPacked(values, 3, 5, buf, 0);
+        assertEquals("byte 0", (byte) 0b01010101, buf[0]);
+        assertEquals("byte 1", (byte) 0b00001010, buf[1]);
+
+        final int[] dst = new int[3];
+        ByteArrayInts.readBitPacked(buf, 0, 3, 5, dst);
+        for (int i = 0; i < values.length; i++) {
+            assertEquals("at " + i, values[i], dst[i]);
+        }
+    }
+
     private static void assertVIntMatchesLucene(int value) throws IOException {
         final byte[] mine = new byte[ByteArrayInts.MAX_VINT_BYTES];
         final int written = ByteArrayInts.writeVInt(value, mine, 0);

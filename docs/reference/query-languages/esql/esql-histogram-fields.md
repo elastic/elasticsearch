@@ -8,33 +8,36 @@ navigation_title: "Histogram fields"
 # Query histogram fields in {{esql}} [esql-histogram-fields]
 
 Histogram fields store pre-aggregated value distributions rather than individual data points.
-They appear in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
-(TSDS) as metrics that capture latency distributions, request sizes, or other measurements
-where storing every raw value is not practical. For example, an OpenTelemetry agent can record
-thousands of HTTP request durations per minute and ship them as a single exponential histogram
-per collection interval, giving you percentile estimates at query time without the storage cost
-of every individual sample.
+They are useful anywhere you have high-volume numeric data and need percentile, average, or
+count queries without the storage cost of keeping every raw value. The most common source is
+observability pipelines: an OpenTelemetry agent can record thousands of HTTP request durations
+per minute and ship them as a single exponential histogram per collection interval.
 
 This page explains the histogram field types available in {{esql}}, how to query them, and
 how to create value-distribution histograms from them.
 
 ## Why histogram fields exist
 
-Counters and gauges are the most common metric types, but they fall short when you need to
-understand the distribution of values rather than just a total or an average. For example,
-knowing that your average HTTP response time is 3ms tells you little about outliers. The best
-insights come from analyzing the full distribution through median and percentile calculations.
+When you need to understand the distribution of values across a large population, storing
+every individual observation is often impractical. A histogram compresses those observations
+into a compact summary that still supports percentile queries, averages, and counts. This
+makes histograms useful anywhere you have high-volume numeric data and care about the shape
+of the distribution, not just a single aggregate.
 
-Classic Prometheus-style histograms address this by defining fixed buckets (for example, one for
-response times in the range `[0s, 1s)`, one for `[1s, 4s)`, and so on) and associating a counter
-with each. However, you have to know the distribution of your data up front to define useful
-buckets. If the boundaries are wrong, you lose accuracy.
+For example, knowing that your average HTTP response time is 3ms tells you little about
+outliers. A histogram preserves enough detail to answer questions like "what is the 99th
+percentile?" without storing every request.
 
-Exponential histograms solve this problem. They assign values to buckets whose sizes increase
-exponentially: small buckets for small values, wider buckets for larger values. The boundaries
-adapt dynamically based on collected values, so you do not need to define them up front. This
-gives you a guaranteed upper bound on relative error for every percentile. For a deeper
-explanation, refer to the
+### Histograms in metrics and observability
+
+Histograms are widely used in metrics pipelines.
+[OpenTelemetry](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram)
+and [Prometheus](https://prometheus.io/docs/specs/native_histograms/) both define exponential
+histogram formats that dynamically adapt bucket boundaries to the data, giving a guaranteed
+upper bound on relative error for every percentile. Classic Prometheus-style histograms use
+fixed buckets instead, which requires knowing the value distribution up front.
+
+For a deeper explanation of how exponential bucketing works, refer to the
 [OpenTelemetry exponential histograms introduction](https://opentelemetry.io/blog/2022/exponential-histograms/).
 
 ## Histogram field types
@@ -83,10 +86,7 @@ Apply regular [aggregation functions](/reference/query-languages/esql/functions-
 directly to histogram fields. Aggregations act as if you were running them on the raw
 observations that produced the histogram. For example, `COUNT(responseTime)` returns the
 total number of HTTP requests whose response times were recorded, not the number of
-histogram documents. You do not need a time series aggregation function like
-[`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) or
-[`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md).
-The following functions support histogram inputs:
+histogram documents. The following functions support histogram inputs:
 
 | Function | What it returns for histogram fields |
 |---|---|
@@ -101,33 +101,31 @@ The following functions support histogram inputs:
 | [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) / [`LATEST`](/reference/query-languages/esql/functions-operators/aggregation-functions/latest.md) | Last histogram value by sort order / timestamp {applies_to}`stack: ga 9.5` |
 
 For example, to calculate the count, average, and 99th-percentile duration of garbage collection
-events per action in 5-minute buckets:
+events per action:
 
 ```esql
-TS metrics-*
-| WHERE TRANGE(1 hour)
+FROM metrics-*
 | STATS count = COUNT(jvm.gc.duration),
         avg = AVG(jvm.gc.duration),
         p99 = PERCENTILE(jvm.gc.duration, 99)
-  BY jvm.gc.action, TBUCKET(5 minutes)
+  BY jvm.gc.action
 ```
 
-Because `PERCENTILE` works on the merged histogram directly, you can query any percentile at
+Because `PERCENTILE` works on the histogram directly, you can query any percentile at
 runtime without having to pre-define bucket boundaries at index time. This is a key advantage
 of the `exponential_histogram` type over classic fixed-bucket approaches.
 
 You can combine multiple aggregations in a single query to get a complete picture of the
-distribution over time. For example, to compare the minimum, median, 99th percentile, and
-maximum of major garbage collection durations across time buckets:
+distribution. For example, to compare the minimum, median, 99th percentile, and maximum of
+major garbage collection durations:
 
 ```esql
-TS metrics-*
+FROM metrics-*
 | WHERE jvm.gc.action == "end of major GC"
 | STATS MAX(jvm.gc.duration),
         PERCENTILE(jvm.gc.duration, 99),
         MEDIAN(jvm.gc.duration),
         MIN(jvm.gc.duration)
-  BY TBUCKET(100)
 ```
 
 ### Using `TS` with histogram fields
@@ -138,13 +136,28 @@ merge: all histogram documents within each time series are combined into a singl
 and the metric's temporality (delta or cumulative) is respected during the merge. The outer
 aggregation then operates on these merged per-series histograms.
 
+You do not need a time series aggregation function like
+[`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) or
+[`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md)
+to query histogram fields. Use the regular aggregation functions from the table above, combined
+with `TBUCKET` for time-based grouping:
+
+```esql
+TS metrics-*
+| WHERE TRANGE(1 hour)
+| STATS count = COUNT(jvm.gc.duration),
+        avg = AVG(jvm.gc.duration),
+        p99 = PERCENTILE(jvm.gc.duration, 99)
+  BY jvm.gc.action, TBUCKET(5 minutes)
+```
+
 The [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
 (`*_OVER_TIME` variants) also accept histogram inputs for windowed aggregation within a time
 series. You can use these when you need finer control over the aggregation window, for example
 [`FIRST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/first_over_time.md)
 or [`LAST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
 to select the histogram from a specific point in the
-time series. For most use cases, the regular aggregation functions above are sufficient.
+time series. For most use cases, the regular aggregation functions are sufficient.
 
 ### Using `FROM` with histogram fields
 
@@ -181,7 +194,7 @@ bucket as the second argument to `COUNT` to count the histogram values that fall
 bucket:
 
 ```esql
-TS exp_histo_sample
+FROM exp_histo_sample
 | WHERE instance == "instance-0"
 | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
 | SORT RANGE_MIN(bucket)
@@ -207,7 +220,7 @@ Histograms record approximate value distributions, so the counts per bucket are 
 The same pattern works for `tdigest` fields. [Cast the field](#cast-between-histogram-types) if needed:
 
 ```esql
-TS histogram_timeseries_index
+FROM histogram_timeseries_index
 | WHERE instance == "instance-0"
 | STATS count = COUNT(responseTime::tdigest, bucket) BY bucket = BUCKET(responseTime::tdigest, 1)
 | SORT RANGE_MIN(bucket)
@@ -237,9 +250,8 @@ Use the [casting operator (`::`)](/reference/query-languages/esql/functions-oper
   as T-Digest centroids.
 
 ```esql
-TS metrics-*
-| WHERE TRANGE(1 hour)
-| STATS avg = AVG(response_time::exponential_histogram) BY TBUCKET(5 minutes)
+FROM metrics-*
+| STATS avg = AVG(response_time::exponential_histogram) BY instance
 ```
 
 You can also use the explicit conversion functions
@@ -258,9 +270,8 @@ Thanks to [union types](/reference/query-languages/esql/esql-multi-index.md#esql
 you can query across both by adding a `::exponential_histogram` cast:
 
 ```esql
-TS metrics-*
-| WHERE TRANGE(1 hour)
-| STATS avg = AVG(jvm.gc.duration::exponential_histogram) BY TBUCKET(5 minutes)
+FROM metrics-*
+| STATS avg = AVG(jvm.gc.duration::exponential_histogram) BY jvm.gc.action
 ```
 
 When this query encounters `histogram` fields, it converts them to exponential histograms.

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -41,6 +42,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
+    private static final TransportVersion RESTORE_OVER_EXISTING = TransportVersion.fromName("restore_over_existing");
+
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -55,6 +58,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private boolean restoreOverExisting = false;
 
     // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
     private boolean skipOperatorOnlyState = false;
@@ -95,6 +99,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
+        restoreOverExisting = in.getTransportVersion().supports(RESTORE_OVER_EXISTING) && in.readBoolean();
     }
 
     @Override
@@ -115,6 +120,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
+        if (out.getTransportVersion().supports(RESTORE_OVER_EXISTING)) {
+            out.writeBoolean(restoreOverExisting);
+        }
     }
 
     @Override
@@ -354,6 +362,26 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * Returns true if the restore is allowed to target a destination index that is currently open, in which case Elasticsearch
+     * atomically combines the equivalent of closing that index with restore initialization in a single cluster-state update, rather
+     * than requiring the caller to close the destination first. Defaults to {@code false}, preserving the older behavior.
+     *
+     * @return true if the destination index for a matching restore may be open
+     */
+    public boolean restoreOverExisting() {
+        return restoreOverExisting;
+    }
+
+    /**
+     * @param restoreOverExisting true to allow restoring over a destination index that is currently open
+     * @return this request
+     */
+    public RestoreSnapshotRequest restoreOverExisting(boolean restoreOverExisting) {
+        this.restoreOverExisting = restoreOverExisting;
+        return this;
+    }
+
+    /**
      * Sets the list of index settings and index settings groups that shouldn't be restored from snapshot
      */
     public RestoreSnapshotRequest ignoreIndexSettings(String... ignoreIndexSettings) {
@@ -561,6 +589,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
+            } else if (name.equals("restore_over_existing")) {
+                restoreOverExisting = nodeBooleanValue(entry.getValue(), "restore_over_existing");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -621,6 +651,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
+        builder.field("restore_over_existing", restoreOverExisting);
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -646,6 +677,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && partial == that.partial
             && includeAliases == that.includeAliases
             && quiet == that.quiet
+            && restoreOverExisting == that.restoreOverExisting
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -674,7 +706,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             quiet,
             indexSettings,
             snapshotUuid,
-            skipOperatorOnlyState
+            skipOperatorOnlyState,
+            restoreOverExisting
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

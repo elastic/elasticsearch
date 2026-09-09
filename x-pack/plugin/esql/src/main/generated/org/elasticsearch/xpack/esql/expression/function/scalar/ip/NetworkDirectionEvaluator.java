@@ -81,10 +81,11 @@ public final class NetworkDirectionEvaluator implements ExpressionEvaluator {
       BytesRef destinationIpScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
+        if (sourceIpBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (sourceIpBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -92,10 +93,11 @@ public final class NetworkDirectionEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (destinationIpBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (destinationIpBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

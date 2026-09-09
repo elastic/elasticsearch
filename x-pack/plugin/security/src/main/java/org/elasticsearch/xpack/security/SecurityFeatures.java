@@ -19,8 +19,22 @@ public class SecurityFeatures implements FeatureSpecification {
 
     public static final NodeFeature SECURITY_STATS_ENDPOINT = new NodeFeature("security_stats_endpoint");
 
+    /**
+     * Gates creating user-managed service accounts. A node that does not publish this feature still
+     * resolves a service account's privileges from the built-in account of the same name and fails
+     * the request when there is none, so accounts must not be created until every node understands
+     * them. Deleting is deliberately not gated: it is the remedy for a cluster that already holds
+     * such an account.
+     */
+    public static final NodeFeature USER_MANAGED_SERVICE_ACCOUNTS = new NodeFeature("user_managed_service_accounts");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE, SECURITY_STATS_ENDPOINT);
+        return Set.of(
+            QUERYABLE_BUILT_IN_ROLES_FEATURE,
+            CERTIFICATE_IDENTITY_FIELD_FEATURE,
+            SECURITY_STATS_ENDPOINT,
+            USER_MANAGED_SERVICE_ACCOUNTS
+        );
     }
 }

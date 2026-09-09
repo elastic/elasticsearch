@@ -55,6 +55,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -78,6 +79,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
@@ -675,6 +677,73 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertTrue(region0.isEvicted());
             assertFalse(region1.isEvicted());
             assertEquals(4, cacheService.freeRegionCount());
+        }
+    }
+
+    public void testEvictedUsedRegionsMetricOnlyTracksCachePressure() throws IOException {
+        final int regionCount = randomIntBetween(1, 10);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100L * regionCount)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry)
+            )
+        ) {
+            final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> activeRegions = new HashMap<>();
+            for (int i = 0; i < regionCount; i++) {
+                TestCacheKey key;
+                do {
+                    key = generateCacheKey();
+                } while (activeRegions.containsKey(key));
+                activeRegions.put(key, cacheService.get(key, size(100), 0, irrelevantTimestamp()));
+            }
+            assertEquals(0, cacheService.freeRegionCount());
+
+            final int operationCount = randomIntBetween(2, 20);
+            final List<Boolean> forceEvictionOperations = new ArrayList<>(operationCount);
+            forceEvictionOperations.add(true);
+            forceEvictionOperations.add(false);
+            for (int i = 2; i < operationCount; i++) {
+                forceEvictionOperations.add(randomBoolean());
+            }
+            Collections.shuffle(forceEvictionOperations, random());
+
+            long expectedPressureEvictions = 0L;
+            for (boolean forceEviction : forceEvictionOperations) {
+                if (forceEviction) {
+                    final TestCacheKey victim = randomFrom(activeRegions.keySet());
+                    assertEquals(1, cacheService.forceEvict(victim.shardId(), victim::equals));
+                    assertTrue(activeRegions.remove(victim).isEvicted());
+                } else {
+                    expectedPressureEvictions++;
+                }
+
+                TestCacheKey replacementKey;
+                do {
+                    replacementKey = generateCacheKey();
+                } while (activeRegions.containsKey(replacementKey));
+                final var replacementRegion = cacheService.get(replacementKey, size(100), 0, irrelevantTimestamp());
+                activeRegions.entrySet().removeIf(entry -> entry.getValue().isEvicted());
+                activeRegions.put(replacementKey, replacementRegion);
+                assertEquals(regionCount, activeRegions.size());
+                assertEquals(0, cacheService.freeRegionCount());
+            }
+
+            final List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL);
+            assertEquals(expectedPressureEvictions, measurements.stream().mapToLong(Measurement::getLong).sum());
         }
     }
 

@@ -114,7 +114,10 @@ public class BooleansBlockLoader extends AbstractNumericBlockLoader {
 
         @Override
         protected BooleanBuilder newBuilder(BlockFactory factory, int count) {
-            return factory.booleansFromDocValues(count);
+            // Values are emitted in source insertion order (not sorted ascending), so we must
+            // not claim SORTED_ASCENDING here. The booleansFromDocValues path would be wrong
+            // for any MV function (e.g. MV_MIN) that uses the ascending fast path.
+            return factory.booleans(count);
         }
 
         @Override

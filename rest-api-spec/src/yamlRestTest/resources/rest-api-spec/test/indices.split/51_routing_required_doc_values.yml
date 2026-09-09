@@ -1,6 +1,7 @@
 routing required:
   - requires:
       cluster_features: ["mapper.routing_as_doc_values"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "routing stored as doc values requires mapper.routing_as_doc_values"
 
   - do:
@@ -16,6 +17,8 @@ routing required:
             _routing:
               required: true
               doc_values: true
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:
@@ -106,6 +109,7 @@ routing required:
 nested:
   - requires:
       cluster_features: ["mapper.routing_as_doc_values", "gte_v8.5.0"]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "routing stored as doc values requires mapper.routing_as_doc_values; nested split fixed in 8.5.0"
 
   - do:
@@ -124,6 +128,8 @@ nested:
             properties:
               n:
                 type: nested
+      allowed_warnings:
+        - "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
 
   - do:
       index:

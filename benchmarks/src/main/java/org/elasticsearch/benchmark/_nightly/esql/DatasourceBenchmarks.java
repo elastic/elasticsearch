@@ -24,12 +24,12 @@ import java.time.Instant;
  * {@link NdJsonReadBenchmark}, {@link CsvReadBenchmark},
  * {@link CrossFormatReadBenchmark}). Mirrors the in-memory {@code StorageObject}
  * pattern that {@code ParallelParsingBenchmark} and {@code CsvErrorPolicyBenchmark}
- * use inline, extracted into one place so the five new benches don't each carry
+ * use inline, extracted into one place so the datasource benches don't each carry
  * their own copy.
  *
  * <p>Also exposes {@link #SELF_TEST_ROW_COUNT}: a small fixture size used by every
  * {@code selfTest()} so the per-PR JUnit smoke tests stay fast even though the JMH
- * runs use 10k/100k rows.
+ * runs use the row counts each bench declares.
  */
 final class DatasourceBenchmarks {
 

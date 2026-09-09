@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,7 +47,7 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), mtime));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 
@@ -61,6 +60,7 @@ public class FileListCompactorTests extends ESTestCase {
             assertEquals("size at " + i, raw.size(i), compact.size(i));
             assertEquals("mtime at " + i, raw.lastModifiedMillis(i), compact.lastModifiedMillis(i));
         }
+        assertEquals("exclusion warnings", raw.exclusionWarnings(), compact.exclusionWarnings());
         return compact;
     }
 
@@ -357,6 +357,26 @@ public class FileListCompactorTests extends ESTestCase {
         assertThat(compact, Matchers.instanceOf(DictionaryFileList.class));
     }
 
+    /** Compaction must copy {@code file_exclusions} warnings onto the compact encoding. */
+    public void testCompactPreservesExclusionWarnings() {
+        String base = "s3://b/data/";
+        String warning = "1 of 3 objects matching the resource under ["
+            + base
+            + "] was excluded by the [file_exclusions] dataset setting, for example [_SUCCESS] which matched entry [**/_*]";
+        GenericFileList raw = new GenericFileList(
+            List.of(
+                new StorageEntry(StoragePath.of(base + "a.parquet"), 100L, Instant.EPOCH),
+                new StorageEntry(StoragePath.of(base + "b.parquet"), 200L, Instant.EPOCH)
+            ),
+            base + "*.parquet",
+            null,
+            List.of(warning)
+        );
+        FileList compact = assertRoundTrip(base, raw);
+        assertThat(compact, Matchers.not(Matchers.instanceOf(GenericFileList.class)));
+        assertEquals(List.of(warning), compact.exclusionWarnings());
+    }
+
     /**
      * Many uniquely-named files in a handful of directories: the dictionary's token table overflows on
      * the distinct leaf names while the directory-grouped encoding (a per-file leaf array, no leaf
@@ -404,7 +424,7 @@ public class FileListCompactorTests extends ESTestCase {
         for (int i = 0; i < keys.length; i++) {
             entries.add(new StorageEntry(StoragePath.of(keys[i]), 100L * (i + 1), Instant.ofEpochMilli(mtimesMillis[i])));
         }
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
 }

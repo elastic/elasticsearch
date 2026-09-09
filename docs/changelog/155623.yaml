@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 155623
-summary: Fix `TS` queries that name a time bucket after the timestamp field
-type: bug

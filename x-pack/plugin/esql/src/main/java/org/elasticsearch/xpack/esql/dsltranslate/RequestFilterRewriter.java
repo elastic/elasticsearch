@@ -44,12 +44,9 @@ import java.util.Set;
  * the relation is read unfiltered <em>with a warning</em>, which is the behavior datasets had before this feature
  * existed — never a silent drop.
  *
- * <p>The rewrite is also version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do
- * not have; the inserted {@code Filter} rides inside the fragment distributed to data nodes, so on a mixed-version
- * cluster an older node would fail to deserialize it. Below {@link #ESQL_REQUEST_FILTER_ON_DATASET} the rewrite is
- * skipped entirely — datasets are read unfiltered (the pre-feature behavior) with a warning — rather than shipping a
- * plan a peer cannot read. This mirrors how the analyzer and verifier gate version-sensitive rewrites on
- * {@code context.minimumVersion()}.
+ * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: the translated filter may contain
+ * {@code mv_in_range}/{@code mv_greater}/{@code mv_less}, which older nodes cannot deserialize. Below that version the
+ * rewrite is skipped (unfiltered + warning).
  */
 public final class RequestFilterRewriter {
 

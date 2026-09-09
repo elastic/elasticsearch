@@ -81,6 +81,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -103,6 +104,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -180,8 +182,10 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -3271,6 +3275,81 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
     }
 
+    /**
+     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
+     * {@link FetchFieldsContext}, silently skips unmapped fields, and rejects fields that cannot produce
+     * embeddings of the requested type.
+     */
+    public void testFetchEmbeddingsFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // No embeddings fields set — fetchFieldsContext should remain null.
+        assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
+
+        // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
+
+        // dense_vector with explicit DENSE_VECTOR type → same result.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null))
+        );
+
+        // sparse_vector with explicit SPARSE_VECTOR type → resolved.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
+            contains(new FieldAndFormat("sparse", null))
+        );
+
+        // dense_vector field requested as SPARSE_VECTOR → type mismatch, rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR),
+            "Field [dense] of type [dense_vector] does not support [sparse_vector] embeddings"
+        );
+
+        // keyword field produces no embeddings → rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("keyword", null),
+            "Field [keyword] of type [keyword] does not support embeddings"
+        );
+
+        // Unmapped field → skipped, no context.
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
+
+        // Mix: unmapped skipped, dense resolved → only dense in result.
+        assertThat(
+            resolveFetchFields(
+                "emb_test",
+                s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
+            ),
+            contains(new FieldAndFormat("dense", null))
+        );
+    }
+
+    /**
+     * Tests that when both an explicit {@code fields} request and embeddings fields are present,
+     * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
+     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped (e.g.
+     * because the field is unmapped).
+     */
+    public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // embeddings field resolved → placed before user fields in the merged list.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
+        );
+
+        // embeddings field skipped (unmapped) → pre-existing fetchFieldsContext is left intact.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("unmapped", null)),
+            contains(new FieldAndFormat("keyword", null))
+        );
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -3281,6 +3360,72 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             false,
             0L
         );
+    }
+
+    private void createEmbeddingsTestIndex(String indexName) throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("dense")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", "cosine")
+            .endObject()
+            .startObject("sparse")
+            .field("type", "sparse_vector")
+            .endObject()
+            .startObject("keyword")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY);
+        client().admin().indices().preparePutMapping(indexName).setSource(mapping).get();
+    }
+
+    /**
+     * Creates a search context for {@code indexName} with a source configured by {@code sourceConsumer},
+     * and returns the fields that {@code SearchService#parseSource} placed in the
+     * {@link FetchFieldsContext}, or {@code null} when no fetch-fields context was set.
+     */
+    private List<FieldAndFormat> resolveFetchFields(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        searchRequest.source(source);
+        sourceConsumer.accept(source);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        try (
+            ReaderContext reader = createReaderContext(indexService, indexShard);
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
+        ) {
+            FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
+            return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+        }
+    }
+
+    /**
+     * Asserts that {@code SearchService#parseSource} rejects the embeddings fields configured by
+     * {@code sourceConsumer} with {@code expectedMessage}.
+     */
+    private void assertEmbeddingsFieldRejected(String indexName, Consumer<SearchSourceBuilder> sourceConsumer, String expectedMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveFetchFields(indexName, sourceConsumer));
+        assertThat(e.getMessage(), equalTo(expectedMessage));
     }
 
     private List<String> parseFeatureData(SearchHit hit, String fieldName) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.bootstrap;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystem;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 
 import java.nio.file.Path;
@@ -23,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 class TestPathLookup implements PathLookup {
@@ -31,6 +33,10 @@ class TestPathLookup implements PathLookup {
     TestPathLookup(Path tempDir) {
         baseDirPaths = new ConcurrentHashMap<>();
         baseDirPaths.put(TEMP, List.of(tempDir));
+        String nativeLibPath = System.getProperty("es.nativelibs.path");
+        if (nativeLibPath != null) {
+            baseDirPaths.put(LIB, List.of(PathUtils.get(nativeLibPath)));
+        }
     }
 
     @Override
@@ -60,7 +66,7 @@ class TestPathLookup implements PathLookup {
     }
 
     void reset() {
-        baseDirPaths.keySet().retainAll(List.of(TEMP));
+        baseDirPaths.keySet().retainAll(List.of(TEMP, LIB));
     }
 
     void add(BaseDir baseDir, Path... paths) {

@@ -458,7 +458,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
     private static void setTestSysProps(Random random) {
-        System.setProperty("log4j.shutdownHookEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
 
         // Enable Netty leak detection and monitor logger for logged leak errors

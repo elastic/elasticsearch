@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
@@ -19,14 +20,14 @@ import java.io.IOException;
 
 /**
  * Describes a numeric column — single- or multi-valued, in one format. Values live in one
- * ordinal-indexed, block-encoded store in the order they were written (never reordered). Two compact
+ * value-address-indexed, block-encoded store in the order they were written (never reordered). Two compact
  * {@code DirectMonotonic} tables address it:
  *
  * <ul>
  *   <li><b>block offsets</b> — the byte position of each value block; always present.</li>
- *   <li><b>value addresses</b> — the first value ordinal of each document, present only when the
+ *   <li><b>value addresses</b> — the first value address of each document, present only when the
  *       column is multi-valued ({@code numValues > numDocsWithField}). When every document has one
- *       value the table is dropped and a document's ordinal is its rank.</li>
+ *       value the table is dropped and a document's value address is its rank.</li>
  * </ul>
  *
  * Each table stores its data in the data file (read off-heap from the mapped input) and its small
@@ -48,7 +49,7 @@ public record NumericColumnMetadata(
     long valueAddressesDataLength,
     byte[] valueAddressesMeta,
     Skipper skipper
-) {
+) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     /** Descriptor of the default pipeline, stored on empty columns that serialize no block payload. */
@@ -57,10 +58,10 @@ public record NumericColumnMetadata(
 
     /**
      * The doc-values skip index for a range-indexed column: a multi-level structure of per-interval
-     * value bounds and doc-id ranges written into the data file, plus the column-wide summary. Present
+     * value bounds and doc-id ranges written into the skip-index file, plus the column-wide summary. Present
      * only when the field carries a range skip index.
      *
-     * @param dataOffset    start of the skip region in the data file
+     * @param dataOffset    start of the skip region in the skip-index file
      * @param dataLength    length of the skip region
      * @param minValue      smallest value in the column
      * @param maxValue      largest value in the column
@@ -150,6 +151,7 @@ public record NumericColumnMetadata(
         return numValues > numDocsWithField;
     }
 
+    @Override
     public void writeTo(DataOutput out) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);

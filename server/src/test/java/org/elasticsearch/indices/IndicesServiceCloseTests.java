@@ -287,7 +287,14 @@ public class IndicesServiceCloseTests extends ESTestCase {
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
         MappingLookup.CacheKey mappingCacheKey = indexService.mapperService().mappingLookup().cacheKey();
-        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), mappingCacheKey, searcher.getDirectoryReader(), new BytesArray("foo"));
+        cache.getOrCompute(
+            cacheEntity,
+            () -> new BytesArray("bar"),
+            mappingCacheKey,
+            searcher.getDirectoryReader(),
+            new BytesArray("foo"),
+            null
+        );
         assertEquals(1L, cache.count());
 
         searcher.close();

@@ -13,7 +13,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import java.nio.ByteBuffer;
 
 /**
- * A Parquet {@code ByteBufferAllocator} that uses a circuit breaker to manage memory usage.
+ * A Parquet {@code ByteBufferAllocator} that charges allocations to a circuit breaker.
+ * Callers that may allocate off the driver thread must pass
+ * {@link org.elasticsearch.compute.data.LocalCircuitBreaker#forAsyncIo(CircuitBreaker)} themselves;
+ * this class does not rewrite the breaker.
  */
 public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
     private final ByteBufferAllocator delegate;

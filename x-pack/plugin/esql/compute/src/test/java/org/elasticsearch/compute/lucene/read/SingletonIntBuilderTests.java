@@ -121,6 +121,35 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * Appends int slices via {@link SingletonIntBuilder#appendInts} and asserts the built vector holds them
+     * in order. Guards against a regression where the {@code appendInts} parameter shadowed the instance
+     * {@code values} field, so {@link System#arraycopy} copied the source onto itself and left the builder's
+     * array full of zeros. Uses a non-zero {@code from} offset because that shadowing bug also mishandled it.
+     */
+    public void testAppendInts() {
+        int count = 1000;
+        int[] source = new int[count + 5];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = i * 7 + 3;
+        }
+        int from = 5;
+        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, blockFactory())) {
+            int appended = 0;
+            while (appended < count) {
+                int length = Math.min(randomIntBetween(1, 64), count - appended);
+                builder.appendInts(source, from + appended, length);
+                appended += length;
+            }
+            try (IntVector build = (IntVector) builder.build().asVector()) {
+                assertThat(build.getPositionCount(), equalTo(count));
+                for (int i = 0; i < count; i++) {
+                    assertThat(build.getInt(i), equalTo(source[from + i]));
+                }
+            }
+        }
+    }
+
     static IndexWriter createIndexWriter(Directory directory) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
         iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));

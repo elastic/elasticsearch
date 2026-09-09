@@ -101,6 +101,8 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
         if (expectStoreBytesRead) {
             assertThat(coldCacheMetrics, hasKey(StoreMetrics.BYTES_READ_METRIC_KEY));
+            // the blob cache directory accounts its own reads, so this also covers the holder reaching its inputs
+            assertThat(coldCacheMetrics.get(StoreMetrics.BYTES_READ_METRIC_KEY), greaterThan(0L));
         } else {
             assertThat(coldCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
         }

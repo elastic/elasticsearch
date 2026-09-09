@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 156623
-summary: Fix the `auto_calibrate` index option being rejected by a leftover experimental flag
-type: bug

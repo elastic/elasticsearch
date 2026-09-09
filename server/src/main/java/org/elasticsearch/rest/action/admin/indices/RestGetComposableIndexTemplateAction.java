@@ -11,16 +11,19 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -31,6 +34,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
+
+    private static final String INCLUDE_MANAGED_FIELDS = "include_managed_fields";
 
     @Override
     public List<Route> routes() {
@@ -55,21 +60,34 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         RestUtils.consumeDeprecatedLocalParameter(request);
 
+        // registry_installed is an internal marker hide it by default
+        request.params()
+            .putIfAbsent(
+                ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM,
+                Boolean.toString(request.paramAsBoolean(INCLUDE_MANAGED_FIELDS, false) == false)
+            );
+
         final boolean implicitAll = getRequest.name() == null;
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetComposableIndexTemplateAction.INSTANCE,
             getRequest,
-            new RestToXContentListener<>(channel, r -> {
-                final boolean templateExists = r.indexTemplates().isEmpty() == false;
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            })
+            new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(GetComposableIndexTemplateAction.Response response) {
+                    final boolean templateExists = response.indexTemplates().isEmpty() == false;
+                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                }
+            }
         );
     }
 
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        Set<String> params = new HashSet<>(Settings.FORMAT_PARAMS);
+        params.add(INCLUDE_MANAGED_FIELDS);
+        params.add(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM);
+        return params;
     }
 
 }

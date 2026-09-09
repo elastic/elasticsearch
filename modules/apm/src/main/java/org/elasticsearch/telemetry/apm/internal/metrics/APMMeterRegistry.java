@@ -16,12 +16,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -51,11 +53,13 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
+    private final Registrar<DoubleAsyncGaugeAdapter> doubleAsyncGauges = new Registrar<>();
     private final Registrar<DoubleHistogramAdapter> doubleHistograms = new Registrar<>();
     private final Registrar<LongCounterAdapter> longCounters = new Registrar<>();
     private final Registrar<LongAsyncCounterAdapter> longAsynchronousCounters = new Registrar<>();
     private final Registrar<LongUpDownCounterAdapter> longUpDownCounters = new Registrar<>();
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
+    private final Registrar<LongAsyncGaugeAdapter> longAsyncGauges = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
 
     private Meter meter;
@@ -90,12 +94,14 @@ public class APMMeterRegistry implements MeterRegistry {
         doubleCounters,
         doubleAsynchronousCounters,
         doubleUpDownCounters,
-        doubleGauges,
+        longGauges,
+        doubleAsyncGauges,
         doubleHistograms,
         longCounters,
         longAsynchronousCounters,
         longUpDownCounters,
-        longGauges,
+        doubleGauges,
+        longAsyncGauges,
         longHistograms
     );
 
@@ -139,7 +145,14 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleGauge registerDoublesGauge(
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return register(doubleGauges, new DoubleGaugeAdapter(meter, name, description, unit));
+        }
+    }
+
+    @Override
+    public DoubleAsyncGauge registerDoublesAsyncGauge(
         String name,
         String description,
         String unit,
@@ -147,8 +160,8 @@ public class APMMeterRegistry implements MeterRegistry {
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
-                doubleGauges,
-                new DoubleGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(doubleGauges))
+                doubleAsyncGauges,
+                new DoubleAsyncGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(doubleAsyncGauges))
             );
         }
     }
@@ -197,11 +210,23 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+    public LongGauge registerLongGauge(String name, String description, String unit) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return register(longGauges, new LongGaugeAdapter(meter, name, description, unit));
+        }
+    }
+
+    @Override
+    public LongAsyncGauge registerLongsAsyncGauge(
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
-                longGauges,
-                new LongGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longGauges))
+                longAsyncGauges,
+                new LongAsyncGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longAsyncGauges))
             );
         }
     }
@@ -305,15 +330,15 @@ public class APMMeterRegistry implements MeterRegistry {
         return doubleAsynchronousCounters.get(name);
     }
 
-    DoubleGauge getDoubleGauge(String name) {
-        return doubleGauges.get(name);
+    DoubleAsyncGauge getDoubleGauge(String name) {
+        return doubleAsyncGauges.get(name);
     }
 
     LongAsyncCounter getLongAsyncCounter(String name) {
         return longAsynchronousCounters.get(name);
     }
 
-    LongGauge getLongGauge(String name) {
-        return longGauges.get(name);
+    LongAsyncGauge getLongGauge(String name) {
+        return longAsyncGauges.get(name);
     }
 }

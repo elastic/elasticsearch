@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -58,6 +59,7 @@ public class DateExtract extends EsqlConfigurationFunction implements AnyNullIsN
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "long",
+        signatures = { @Signature(params = { "STRING", "date|date_nanos" }, returnType = "long") },
         briefSummary = "Extracts parts of a date, like year, month, day, hour.",
         description = "Extracts parts of a date, like year, month, day, hour.",
         examples = {

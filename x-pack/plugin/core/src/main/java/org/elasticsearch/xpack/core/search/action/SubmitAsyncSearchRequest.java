@@ -30,10 +30,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SubmitAsyncSearchRequest extends UntypedActionRequest {
     public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
-    private TimeValue keepAlive = TimeValue.timeValueDays(5);
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
 
     private final SearchRequest request;
 

@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.util.List;
 
@@ -24,7 +27,10 @@ import java.util.List;
  * The fixtures are generated at build time by {@code ParquetFixtureGenerator} with the
  * corresponding codec and placed into codec-specific directories
  * ({@code standalone-snappy/}, {@code standalone-gzip/}, etc.).
+ * This class runs two csv-spec files across four codecs and exceeds
+ * {@link EsqlSpecTestCase}'s 10-minute suite budget.
  */
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTestCase {
 

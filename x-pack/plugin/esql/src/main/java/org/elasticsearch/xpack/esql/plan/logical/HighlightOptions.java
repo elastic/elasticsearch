@@ -22,10 +22,6 @@ import java.util.Locale;
  * Built once at local-execution-planning time from the (foldable) {@link MapExpression} so the operator factory only
  * deals with primitives.
  * <p>
- * {@code boundary_chars}, {@code boundary_max_scan} and {@code phrase_limit} are accepted for Query DSL parity but are
- * only honoured by the FastVectorHighlighter. HIGHLIGHT always uses the unified highlighter, so they are grammar-only
- * no-ops that never reach this record.
- * <p>
  * The validation done while building this record is also the single source of truth for analysis-time checks:
  * {@link Highlight#postAnalysisVerification} reuses {@link #validate} so invalid values fail during analysis rather
  * than only later during local planning.
@@ -127,26 +123,18 @@ public record HighlightOptions(
     /**
      * Type/range-checks a single (non-null, foldable) option value by parsing it exactly as {@link #from} would and
      * discarding the result, throwing {@link IllegalArgumentException} on a bad value. Enum options ({@code encoder},
-     * {@code boundary_scanner}, {@code order}) are checked separately against their {@link EnumOption} descriptor, and
-     * {@code phrase_limit} is grammar-only, so all of them are no-ops here. {@code boundary_chars} and
-     * {@code boundary_max_scan} are FastVectorHighlighter-only at execution but we still type-check them for Query DSL
-     * parity.
+     * {@code boundary_scanner}, {@code order}) are no-ops here because they are checked separately against their
+     * {@link EnumOption} descriptor.
      */
     public static void validate(String name, Expression value, FoldContext foldContext) {
         switch (name) {
             case Highlight.PRE_TAGS, Highlight.POST_TAGS -> string(name, value, foldContext, null);
             case Highlight.ANALYZER -> analyzerName(name, value, foldContext);
-            case Highlight.BOUNDARY_CHARS -> requireString(name, value.fold(foldContext));
             case Highlight.BOUNDARY_SCANNER_LOCALE -> locale(name, value, foldContext);
-            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE, Highlight.BOUNDARY_MAX_SCAN -> integer(
-                name,
-                value,
-                foldContext,
-                0
-            );
+            case Highlight.NUMBER_OF_FRAGMENTS, Highlight.FRAGMENT_SIZE, Highlight.NO_MATCH_SIZE -> integer(name, value, foldContext, 0);
             case Highlight.MAX_ANALYZED_OFFSET -> maxAnalyzedOffset(name, value, foldContext);
-            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER, Highlight.PHRASE_LIMIT -> {
-                // Handled elsewhere (enums against EnumOption, phrase_limit is grammar-only).
+            case Highlight.ENCODER, Highlight.BOUNDARY_SCANNER, Highlight.ORDER -> {
+                // Handled separately against their EnumOption descriptor.
             }
             // Unreachable: the parser already rejected anything not in VALID_OPTION_NAMES.
             default -> throw new AssertionError("Unexpected option [" + name + "] in HIGHLIGHT");

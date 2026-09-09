@@ -23,6 +23,7 @@ singleMatchWithKeywordFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: routing_function_update
+skip_columnar: columnar mode disables the inverted index on keyword fields by default (index.mapping.index_disabled_by_default=true), so author.keyword queries use a doc-values scan and return a constant score of 1.0 rather than a BM25 score
 
 from books metadata _score
 | where author.keyword:"William Faulkner"

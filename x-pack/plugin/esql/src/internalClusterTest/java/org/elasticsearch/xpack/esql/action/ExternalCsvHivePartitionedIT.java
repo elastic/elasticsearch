@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -78,10 +79,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Same fixture, queries with explicit {@code partition_path} key, asserting that
-     * {@code partition_path} is accepted by the coordinator-key validator (was also missing
-     * from COORDINATOR_KEYS before this fix). The primary assertion is that the query does
-     * not fail with "unknown option [partition_path]".
+     * Same fixture, with an explicit {@code partition_path}. This template names NO columns — the detector matches a
+     * path segment in full, so {@code year={year}} is not a placeholder. With no {@code partition_detection} the
+     * strategy is AUTO, which tries Hive first, so the dataset keeps the {@code year}/{@code month} columns it had
+     * before the setting reached the read path.
+     *
+     * <p>It previously asserted only that the query did not fail with "unknown option [partition_path]". An
+     * acceptance assertion cannot tell an applied template from an unapplied one, so it passed while the setting
+     * was unread. It now asserts the resulting columns.
      */
     public void testPartitionPathValidatesAndParses() throws Exception {
         Path root = createTempDir().resolve("template_csv");
@@ -92,9 +97,41 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         String dataset = registerDataset("template_csv", glob, Map.of("partition_path", "year={year}/month={month}/*.csv"));
         String query = "FROM " + dataset + " | LIMIT 1";
 
-        // Primary assertion: query does not throw "unknown option [partition_path]".
         try (var response = run(syncEsqlQueryRequest(query))) {
-            assertThat("expect at least 1 column", response.columns().size(), greaterThanOrEqualTo(1));
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            assertThat("the data columns must still be read", columnNames, hasItem("id"));
+            // The template names no columns, so AUTO falls through to Hive detection -- the same columns this
+            // dataset produced before partition_path reached the read path.
+            assertThat("the Hive-derived year must still appear", columnNames, hasItem("year"));
+            assertThat("and the Hive-derived month", columnNames, hasItem("month"));
+        }
+    }
+
+    /**
+     * The documented opt-out against a colliding layout: with {@code partition_detection: none} nothing is derived
+     * from the path, so the PHYSICAL {@code year} (1999) is read rather than the directory's 2024, and no shadow
+     * warning is emitted. This is the end-to-end form of the defect: the setting was inert, so the substitution happened regardless of
+     * what the user asked for.
+     */
+    public void testDetectionNoneReadsThePhysicalColumnOnACollidingLayout() throws Exception {
+        Path root = createTempDir().resolve("hive_collision_none_csv");
+        writeCollisionCsvFiles(root);
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("hive_collision_none_csv", glob, Map.of("partition_detection", "none"));
+
+        String query = "FROM " + dataset + " | KEEP id, year, value | LIMIT 5";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).collect(Collectors.toList());
+            int yearIdx = columnNames.indexOf("year");
+            assertThat("the physical year column must be readable", yearIdx, greaterThanOrEqualTo(0));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the rows from the data file", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertThat("partition_detection:none reads the file's own 1999, not the path's 2024", row.get(yearIdx), is(1999));
+            }
         }
     }
 
@@ -209,10 +246,11 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         List<String> shadowWarnings = new CopyOnWriteArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
-        // ActionListener.running mirrors WarningsIT: the transport client owns the response ref-count
-        // (closing it here would double-decRef), so we only read the coordinator's accumulated
-        // response headers from the thread handling completion.
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        // ActionListener.wrap (not running): a failed query would otherwise look like a missing
+        // Warning header. The transport client owns the response ref-count (closing it here would
+        // double-decRef), so we only read the coordinator's accumulated response headers.
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
             try {
                 ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                     .getThreadPool()
@@ -225,8 +263,14 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
             } finally {
                 latch.countDown();
             }
+        }, e -> {
+            failure.set(e);
+            latch.countDown();
         }));
         assertTrue("query did not complete within timeout", latch.await(30, TimeUnit.SECONDS));
+        if (failure.get() != null) {
+            throw new AssertionError("query must succeed so the shadow warning can reach the client", failure.get());
+        }
         assertThat(
             "the shadow warning must reach the client via the response Warning header",
             shadowWarnings.size(),
@@ -287,8 +331,9 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
      * A comma-separated resource has no glob metacharacter, so its pattern prefix is the whole comma string
      * and no listed key starts with it. A compact encoding that prepends that base to each key reads objects
      * that do not exist; the round-trip guard discards such an encoding and keeps the raw listing, so the
-     * reads succeed. {@code first_file_wins} routes through the compactor (the default
-     * {@code union_by_name} never compacts).
+     * reads succeed. This method pins {@code first_file_wins} on the inferred compact path (shared with
+     * default {@code union_by_name}); comma lists fall back to the raw listing when the encoding does
+     * not round-trip.
      */
     public void testCommaSeparatedResourceFirstFileWinsRoundTrips() throws Exception {
         Path root = createTempDir().resolve("comma_ffw_csv");
@@ -300,6 +345,54 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP id, val"))) {
             assertThat(getValuesList(response).size(), is(2));
+        }
+    }
+
+    /**
+     * Dedicated schema file first, then a recursive glob. FFW omitted knobs keep declaration order so
+     * {@code my_schema.csv} is the donor; the glob files still contribute rows.
+     */
+    public void testSchemaFileThenGlobFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("schema_then_glob_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/my_schema.csv," + StoragePath.fileUri(root) + "/events/**/*.csv";
+        String dataset = registerDataset("schema_then_glob_csv", uri, Map.of("schema_resolution", "first_file_wins"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
+        }
+    }
+
+    /**
+     * Recursive glob first, schema file last, {@code list}+{@code desc}: the last named file is the FFW
+     * donor and the glob files still contribute rows.
+     */
+    public void testGlobThenSchemaFileListDescFirstFileWins() throws Exception {
+        Path root = createTempDir().resolve("glob_then_schema_csv");
+        writeCsv(root.resolve("my_schema.csv"), "id,extra\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("a.csv"), "id,extra\n1,alpha\n");
+        writeCsv(root.resolve("events").resolve("2024").resolve("z.csv"), "id,extra\n2,zeta\n");
+
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String uri = StoragePath.fileUri(root) + "/events/**/*.csv," + StoragePath.fileUri(root) + "/my_schema.csv";
+        String dataset = registerDataset(
+            "glob_then_schema_csv",
+            uri,
+            Map.of("schema_resolution", "first_file_wins", "file_sort_by", "list", "file_order", "desc")
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP extra | WHERE extra IS NOT NULL | SORT extra"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), is(2));
+            assertThat(rows.get(0).get(0), is("alpha"));
+            assertThat(rows.get(1).get(0), is("zeta"));
         }
     }
 

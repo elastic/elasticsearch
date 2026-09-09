@@ -45,7 +45,7 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
+    Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Stream containing all non-{@code _source} stored fields required
@@ -91,7 +91,7 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
@@ -156,9 +156,15 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            var leaf = new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader);
+            var leaf = new SyntheticLeaf(
+                filter,
+                loader,
+                loader.docValuesLoader(ctx.reader(), docIdsInLeaf),
+                ignoredSourceFormat,
+                ctx.reader()
+            );
             if (metrics == SourceFieldMetrics.NOOP) {
                 return leaf;
             } else {
@@ -432,13 +438,21 @@ public interface SourceLoader {
         final SyntheticVectorsLoader patchLoader;
 
         SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
-            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this(sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter), patchLoader);
+        }
+
+        /**
+         * Patches vectors into the {@code _source} produced by {@code sourceLoader}. Used by {@code columnar_stored}, whose
+         * blob is read back by a {@link Synthetic} loader rather than from a stored field.
+         */
+        SyntheticVectors(SourceLoader sourceLoader, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceLoader;
             this.patchLoader = patchLoader;
         }
 
         @Override
         public boolean reordersFieldValues() {
-            return false;
+            return sourceLoader.reordersFieldValues();
         }
 
         @Override
@@ -447,9 +461,9 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            var sourceLeaf = sourceLoader.leaf(reader, docIdsInLeaf);
-            var patchLeaf = patchLoader.leaf(reader.getContext());
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
+            var sourceLeaf = sourceLoader.leaf(ctx, docIdsInLeaf);
+            var patchLeaf = patchLoader.leaf(ctx);
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {

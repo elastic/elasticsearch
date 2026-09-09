@@ -80,14 +80,12 @@ public class MvExpandOperatorTests extends OperatorTestCase {
                 return false;
             }
 
-            return currentBlock.getValueCount(nextPosition) == 0
-                || nextPosition < currentBlock.getPositionCount()
-                || pagesIterator.hasNext();
+            return currentBlock.isNull(nextPosition) || nextPosition < currentBlock.getPositionCount() || pagesIterator.hasNext();
         }
 
         @Override
         public Object next() {
-            if (currentBlock != null && currentBlock.getValueCount(nextPosition) == 0) {
+            if (currentBlock != null && currentBlock.isNull(nextPosition)) {
                 nextPosition++;
                 if (currentBlock.getPositionCount() == nextPosition) {
                     loadNextBlock();
@@ -133,7 +131,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
                 return false;
             }
 
-            return currentBlock.getValueCount(nextPosition) == 0
+            return currentBlock.isNull(nextPosition)
                 || nextInPosition < currentBlock.getValueCount(nextPosition)
                 || nextPosition < currentBlock.getPositionCount()
                 || pagesIterator.hasNext();
@@ -141,7 +139,7 @@ public class MvExpandOperatorTests extends OperatorTestCase {
 
         @Override
         public Object next() {
-            if (currentBlock != null && currentBlock.getValueCount(nextPosition) == 0) {
+            if (currentBlock != null && currentBlock.isNull(nextPosition)) {
                 nextPosition++;
                 if (currentBlock.getPositionCount() == nextPosition) {
                     loadNextBlock();

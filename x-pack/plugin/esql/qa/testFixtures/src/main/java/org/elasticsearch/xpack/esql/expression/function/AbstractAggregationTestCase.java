@@ -562,6 +562,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 return changed ? e.replaceChildren(newExpressionChildren) : e;
             });
 
+            expressionWithResolvedAggs = expressionWithResolvedAggs.transformUp(e -> {
+                Literal literal = literalsByField.get(e);
+                return literal == null ? e : literal;
+            });
+
             // Resolve final evaluation
             Object result = Foldables.valueOf(FoldContext.small(), expressionWithResolvedAggs);
             assertTestCaseResultAndWarnings(result);

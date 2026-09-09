@@ -9,6 +9,9 @@
 
 package org.elasticsearch.core;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
 public final class Booleans {
     private Booleans() {
         throw new AssertionError("No instances intended");
@@ -17,16 +20,37 @@ public final class Booleans {
     /**
      * Parses a char[] representation of a boolean value to <code>boolean</code>.
      *
-     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false" or the
-     * provided default value iff either text is <code>null</code> or length == 0.
+     * @return <code>true</code> iff the sequence of chars is "true", <code>false</code> iff the sequence of chars is "false", or the
+     * provided default value iff text is <code>null</code> or the slice is empty or contains only whitespace.
      * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
-        if (text == null || length == 0) {
+        if (text == null || hasText(text, offset, length) == false) {
             return defaultValue;
         } else {
-            return parseBoolean(new String(text, offset, length));
+            return parseBoolean(text, offset, length);
         }
+    }
+
+    /**
+     * Parses a char[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the provided value is "true". <code>false</code> iff the provided value is "false".
+     * @throws IllegalArgumentException if the string cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(char[] text, int offset, int length) {
+        if (text == null) {
+            throw new IllegalArgumentException("Failed to parse value [null] as only [true] or [false] are allowed.");
+        }
+        if (isFalse(text, offset, length)) {
+            return false;
+        }
+        if (isTrue(text, offset, length)) {
+            return true;
+        }
+        throw new IllegalArgumentException(
+            "Failed to parse value [" + new String(text, offset, length) + "] as only [true] or [false] are allowed."
+        );
     }
 
     /**
@@ -40,7 +64,59 @@ public final class Booleans {
         if (text == null || length == 0) {
             return false;
         }
-        return isBoolean(new String(text, offset, length));
+        return isFalse(text, offset, length) || isTrue(text, offset, length);
+    }
+
+    /**
+     * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the sequence of bytes is "true", <code>false</code> iff the sequence of bytes is "false", or the
+     * provided default value iff text is <code>null</code> or the slice is empty or contains only whitespace.
+     * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(byte[] text, int offset, int length, boolean defaultValue) {
+        if (text == null || hasText(text, offset, length) == false) {
+            return defaultValue;
+        } else {
+            return parseBoolean(text, offset, length);
+        }
+    }
+
+    /**
+     * Parses a UTF-8 byte[] representation of a boolean value to <code>boolean</code>.
+     *
+     * @return <code>true</code> iff the provided value is "true". <code>false</code> iff the provided value is "false".
+     * @throws IllegalArgumentException if the bytes cannot be parsed to boolean.
+     */
+    public static boolean parseBoolean(byte[] text, int offset, int length) {
+        if (text == null) {
+            throw new IllegalArgumentException("Failed to parse value [null] as only [true] or [false] are allowed.");
+        }
+        if (isFalse(text, offset, length)) {
+            return false;
+        }
+        if (isTrue(text, offset, length)) {
+            return true;
+        }
+        throw new IllegalArgumentException(
+            "Failed to parse value ["
+                + new String(text, offset, length, StandardCharsets.UTF_8)
+                + "] as only [true] or [false] are allowed."
+        );
+    }
+
+    /**
+     * returns true iff the sequence of UTF-8 bytes is one of "true","false".
+     *
+     * @param text   sequence to check
+     * @param offset offset to start
+     * @param length length to check
+     */
+    public static boolean isBoolean(byte[] text, int offset, int length) {
+        if (text == null || length == 0) {
+            return false;
+        }
+        return isFalse(text, offset, length) || isTrue(text, offset, length);
     }
 
     public static boolean isBoolean(String value) {
@@ -64,12 +140,34 @@ public final class Booleans {
     }
 
     private static boolean hasText(CharSequence str) {
-        if (str == null || str.length() == 0) {
+        if (str == null || str.isEmpty()) {
             return false;
         }
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
             if (Character.isWhitespace(str.charAt(i)) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasText(char[] text, int offset, int length) {
+        for (int i = offset; i < offset + length; i++) {
+            if (Character.isWhitespace(text[i]) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasText(byte[] text, int offset, int length) {
+        for (int i = offset; i < offset + length; i++) {
+            // & 0xFF converts the signed byte to an unsigned int code point. All Java whitespace
+            // characters are ASCII (< 128), so this is lossless for whitespace detection. Bytes
+            // >= 128 are leading or continuation bytes of multi-byte UTF-8 sequences and are never
+            // whitespace, so Character.isWhitespace correctly returns false for them.
+            if (Character.isWhitespace(text[i] & 0xFF) == false) {
                 return true;
             }
         }
@@ -98,7 +196,7 @@ public final class Booleans {
 
     /**
      * Wrapper around Boolean.parseBoolean for lenient parsing of booleans.
-     *
+     * <p>
      * Note: Lenient parsing is highly discouraged and should only be used if absolutely necessary.
      */
     @SuppressForbidden(reason = "allow lenient parsing of booleans")
@@ -121,5 +219,29 @@ public final class Booleans {
      */
     public static boolean isTrue(String value) {
         return "true".equals(value);
+    }
+
+    private static final char[] FALSE_CHARS = "false".toCharArray();
+
+    private static final char[] TRUE_CHARS = "true".toCharArray();
+
+    private static boolean isFalse(char[] value, int offset, int length) {
+        return Arrays.equals(FALSE_CHARS, 0, FALSE_CHARS.length, value, offset, offset + length);
+    }
+
+    private static boolean isTrue(char[] value, int offset, int length) {
+        return Arrays.equals(TRUE_CHARS, 0, TRUE_CHARS.length, value, offset, offset + length);
+    }
+
+    private static final byte[] FALSE_BYTES = "false".getBytes(StandardCharsets.UTF_8);
+
+    private static final byte[] TRUE_BYTES = "true".getBytes(StandardCharsets.UTF_8);
+
+    private static boolean isFalse(byte[] value, int offset, int length) {
+        return Arrays.equals(FALSE_BYTES, 0, FALSE_BYTES.length, value, offset, offset + length);
+    }
+
+    private static boolean isTrue(byte[] value, int offset, int length) {
+        return Arrays.equals(TRUE_BYTES, 0, TRUE_BYTES.length, value, offset, offset + length);
     }
 }

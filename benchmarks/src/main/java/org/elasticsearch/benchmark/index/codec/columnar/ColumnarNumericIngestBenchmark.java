@@ -21,7 +21,7 @@ import org.apache.lucene.store.FilterIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -55,8 +55,11 @@ import java.util.concurrent.TimeUnit;
 public class ColumnarNumericIngestBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
+
+    /** Segments the indexing loop flushes, so that the merge parameter has something to merge. */
+    private static final int SEGMENTS = 10;
 
     private static final String FIELD = NumericFormat.FIELD;
 
@@ -112,11 +115,17 @@ public class ColumnarNumericIngestBenchmark {
             config.setMergePolicy(NoMergePolicy.INSTANCE); // otherwise the default policy merges naturally
         }
         final BytesRefBuilder builder = new BytesRefBuilder();
+        // Flush periodically so the index holds more than one segment. Buffered on its own, the whole run
+        // lands in a single segment, and NoMergePolicy and forceMerge(1) then produce identical output.
+        final int docsPerSegment = Math.max(1, docCount / SEGMENTS);
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < docCount; i++) {
                 final Document doc = new Document();
                 format.addField(doc, FIELD, values[i], builder);
                 writer.addDocument(doc);
+                if ((i + 1) % docsPerSegment == 0) {
+                    writer.flush();
+                }
             }
             if (merge == Merge.FORCE) {
                 writer.forceMerge(1);

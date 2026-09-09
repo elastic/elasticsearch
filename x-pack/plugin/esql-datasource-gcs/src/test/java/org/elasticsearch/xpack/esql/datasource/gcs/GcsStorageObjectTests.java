@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpResponseException;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -34,6 +33,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -50,14 +50,7 @@ import static org.mockito.Mockito.when;
  */
 public class GcsStorageObjectTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -261,6 +254,26 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertEquals('x', wrapped.read());
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
         assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
+    }
+
+    public void testMidReadRetryAfterPropagatedFromStorageExceptionCauseChain() throws IOException {
+        // The mid-read path (GcsTransientTypingInputStream) must propagate the Retry-After hint just
+        // like the open-time path (GcsStorageObject.mapReadFailure). Chain: IOException → StorageException(429)
+        // → HttpResponseException(Retry-After: 12).
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("12");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException(se);
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertTrue("429 mid-read is throttling", e.throttling());
+        assertEquals("Retry-After header must be propagated from mid-read path", 12_000L, e.retryAfterMs());
     }
 
     public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
@@ -499,11 +512,50 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertNull(error.get());
         assertNotNull(result.get());
         try (DirectReadBuffer drb = result.get()) {
-            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertFalse("readBytesAsync must return a heap ByteBuffer", drb.buffer().isDirect());
             assertEquals(5, drb.buffer().remaining());
         }
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
+    }
+
+    public void testReadBytesAsyncConstrainsOverAllocatedDestination() throws Exception {
+        byte[] payload = "async".getBytes(StandardCharsets.UTF_8);
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        doAnswer(invocation -> {
+            ByteBuffer buffer = invocation.getArgument(0);
+            buffer.put(payload);
+            return payload.length;
+        }).when(mockReader).read(any(ByteBuffer.class));
+
+        AtomicInteger closeCalls = new AtomicInteger();
+        DirectBufferFactory overAllocatingFactory = length -> {
+            ByteBuffer buffer = ByteBuffer.allocate(length + 17);
+            buffer.limit(1);
+            return new DirectReadBuffer(buffer, closeCalls::incrementAndGet);
+        };
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        obj.readBytesAsync(10, payload.length, overAllocatingFactory, Runnable::run, ActionListener.wrap(result::set, error::set));
+
+        assertNull(error.get());
+        assertNotNull(result.get());
+        try (DirectReadBuffer drb = result.get()) {
+            assertEquals(payload.length + 17, drb.buffer().capacity());
+            assertEquals(payload.length, drb.buffer().remaining());
+            byte[] actual = new byte[payload.length];
+            drb.buffer().get(actual);
+            assertArrayEquals(payload, actual);
+        }
+        assertEquals(1, closeCalls.get());
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {
@@ -566,6 +618,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
         assertTrue(obj.supportsNativeAsync());
+        assertFalse(obj.readBytesAsyncReleasesExecutor());
     }
 
     /**
@@ -590,6 +643,58 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertEquals(rangeBytes, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    // --- Retry-After hint extraction tests ---
+
+    public void testRetryAfterMsExtractedFromHttpResponseExceptionInChain() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("5");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        assertEquals(5_000L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsAbsentWhenNoHttpResponseExceptionInChain() {
+        StorageException se = new StorageException(429, "Too Many Requests");
+
+        assertEquals(0L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsAbsentWhenHeaderNotPresent() {
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", new HttpHeaders()).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        assertEquals(0L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsFoundInDeeperExceptionWhenOuterHreHasNoHeader() {
+        // C2: the walk must not stop on the first HRE that has no Retry-After header — it must keep going
+        // and find the header on a deeper exception in the chain.
+        // Chain: StorageException → HttpResponseException (no header) → HttpResponseException (with header)
+        HttpHeaders innerHeaders = new HttpHeaders();
+        innerHeaders.setRetryAfter("7");
+        HttpResponseException inner = new HttpResponseException.Builder(429, "Too Many Requests", innerHeaders).build();
+        HttpResponseException outer = new HttpResponseException.Builder(429, "Too Many Requests", new HttpHeaders()).build();
+        outer.initCause(inner);
+        StorageException se = new StorageException(429, "Too Many Requests", outer);
+
+        assertEquals(7_000L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testNewStreamPassesRetryAfterToExceptionOnThrottling() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("10");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(se);
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("429 is throttling", e.throttling());
+        assertEquals("Retry-After header must be propagated", 10_000L, e.retryAfterMs());
     }
 
     /**

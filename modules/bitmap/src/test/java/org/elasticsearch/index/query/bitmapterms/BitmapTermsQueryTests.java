@@ -80,7 +80,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
     }
 
     /** Mirrors {@code NumberFieldMapper}'s {@code encodeIntIndexTerm}/{@code encodeLongIndexTerm}. */
-    private enum Width {
+    private enum NumberType {
         INT {
             @Override
             BitmapValues bitmapOf(long... valuesIn) {
@@ -138,7 +138,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
 
         abstract SortField.Type sortType();
 
-        /** Boxed as the type {@link SortField#setMissingValue} demands for this width. */
+        /** Boxed as the type {@link SortField#setMissingValue} demands for this type. */
         abstract Object missingValue(long value);
 
         void addField(Document doc, long value) {
@@ -164,30 +164,30 @@ public class BitmapTermsQueryTests extends ESTestCase {
         }
     }
 
-    private static Query query(Width width, long... valuesIn) {
-        return new BitmapTermsQuery(FIELD, width.bitmapOf(valuesIn));
+    private static Query query(NumberType type, long... valuesIn) {
+        return new BitmapTermsQuery(FIELD, type.bitmapOf(valuesIn));
     }
 
     public void testEqualsAndHashCode() {
-        for (Width width : Width.values()) {
-            Query a = query(width, 1, 2, 3);
-            Query b = query(width, 1, 2, 3);
-            Query c = query(width, 1, 2);
+        for (NumberType type : NumberType.values()) {
+            Query a = query(type, 1, 2, 3);
+            Query b = query(type, 1, 2, 3);
+            Query c = query(type, 1, 2);
             QueryUtils.check(a);
             QueryUtils.checkEqual(a, b);
             QueryUtils.checkUnequal(a, c);
-            QueryUtils.checkUnequal(a, new BitmapTermsQuery("g", width.bitmapOf(1, 2, 3)));
+            QueryUtils.checkUnequal(a, new BitmapTermsQuery("g", type.bitmapOf(1, 2, 3)));
         }
         // An int bitmap and a long bitmap holding the same values are different queries, because their
         // terms are encoded at different widths.
-        QueryUtils.checkUnequal(query(Width.INT, 1, 2, 3), query(Width.LONG, 1, 2, 3));
+        QueryUtils.checkUnequal(query(NumberType.INT, 1, 2, 3), query(NumberType.LONG, 1, 2, 3));
     }
 
     public void testToString() {
-        for (Width width : Width.values()) {
-            assertThat(new BitmapTermsQuery(FIELD, width.empty()).toString(FIELD), containsString("cardinality=0"));
+        for (NumberType type : NumberType.values()) {
+            assertThat(new BitmapTermsQuery(FIELD, type.empty()).toString(FIELD), containsString("cardinality=0"));
 
-            String description = query(width, 1, 100, 1000).toString(FIELD);
+            String description = query(type, 1, 100, 1000).toString(FIELD);
             assertThat(description, containsString("cardinality=3"));
             assertThat(description, containsString("first=1"));
             assertThat(description, containsString("last=1000"));
@@ -195,24 +195,24 @@ public class BitmapTermsQueryTests extends ESTestCase {
     }
 
     public void testNoIndexedField() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 w.addDocument(new Document());
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertThat(searcher.count(query(width, 1)), equalTo(0));
+                    assertThat(searcher.count(query(type, 1)), equalTo(0));
                 }
             }
         }
     }
 
     public void testSearch() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             for (boolean splitIntoSegments : new boolean[] { false, true }) {
                 try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                     for (int i = 0; i < 10; i++) {
                         Document doc = new Document();
-                        width.addField(doc, i);
+                        type.addField(doc, i);
                         w.addDocument(doc);
                         if (splitIntoSegments && i < 9 && randomBoolean()) {
                             w.commit();
@@ -223,13 +223,13 @@ public class BitmapTermsQueryTests extends ESTestCase {
 
                     try (IndexReader reader = w.getReader()) {
                         IndexSearcher searcher = newSearcher(reader);
-                        String message = "width=" + width + " splitIntoSegments=" + splitIntoSegments;
-                        assertThat(message, searcher.count(query(width, 1, 3, 5)), equalTo(3));
-                        assertThat(message, searcher.count(query(width, 100)), equalTo(0));
-                        assertThat(message, searcher.count(query(width, 0, 5, 9)), equalTo(3));
-                        assertThat(message, searcher.count(query(width, 0)), equalTo(1));
-                        assertThat(message, searcher.count(query(width, 9)), equalTo(1));
-                        assertThat(message, searcher.count(query(width, 3, 100)), equalTo(1));
+                        String message = "type=" + type + " splitIntoSegments=" + splitIntoSegments;
+                        assertThat(message, searcher.count(query(type, 1, 3, 5)), equalTo(3));
+                        assertThat(message, searcher.count(query(type, 100)), equalTo(0));
+                        assertThat(message, searcher.count(query(type, 0, 5, 9)), equalTo(3));
+                        assertThat(message, searcher.count(query(type, 0)), equalTo(1));
+                        assertThat(message, searcher.count(query(type, 9)), equalTo(1));
+                        assertThat(message, searcher.count(query(type, 3, 100)), equalTo(1));
                     }
                 }
             }
@@ -241,12 +241,12 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * which then has to skip a long run of values to catch up.
      */
     public void testBitmapSkipsManyValuesBetweenTerms() throws IOException {
-        for (Width width : Width.values()) {
-            long[] indexedValues = width == Width.INT ? new long[] { 0L, 1L << 20, 1L << 28 } : new long[] { 0L, 1L << 32, BEYOND_INT };
+        for (NumberType type : NumberType.values()) {
+            long[] indexedValues = type == NumberType.INT ? new long[] { 0L, 1L << 20, 1L << 28 } : new long[] { 0L, 1L << 32, BEYOND_INT };
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 for (long value : indexedValues) {
                     Document doc = new Document();
-                    width.addField(doc, value);
+                    type.addField(doc, value);
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
@@ -259,7 +259,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
                             queried[at++] = base + offset;
                         }
                     }
-                    assertThat(searcher.count(query(width, queried)), equalTo(indexedValues.length));
+                    assertThat(searcher.count(query(type, queried)), equalTo(indexedValues.length));
                 }
             }
         }
@@ -271,17 +271,17 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * because the bitmap holds no negatives, which the query builder enforces.
      */
     public void testNegativeDocumentValuesAreNotMatched() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 for (long value : new long[] { Integer.MIN_VALUE, -100, -1, 0, 1, 42 }) {
                     Document doc = new Document();
-                    width.addField(doc, value);
+                    type.addField(doc, value);
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertThat(searcher.count(query(width, 0, 1, 42)), equalTo(3));
-                    assertThat(searcher.count(query(width, 0)), equalTo(1));
+                    assertThat(searcher.count(query(type, 0, 1, 42)), equalTo(3));
+                    assertThat(searcher.count(query(type, 0)), equalTo(1));
                 }
             }
         }
@@ -296,8 +296,8 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * count while disagreeing on which documents, and that would be a silent correctness bug.
      */
     public void testAgreesWithTermInSetQuery() throws IOException {
-        for (Width width : Width.values()) {
-            long bound = width == Width.INT ? Integer.MAX_VALUE : Long.MAX_VALUE;
+        for (NumberType type : NumberType.values()) {
+            long bound = type == NumberType.INT ? Integer.MAX_VALUE : Long.MAX_VALUE;
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 int docCount = randomIntBetween(50, 300);
                 long[] indexed = new long[docCount];
@@ -306,7 +306,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
                     // term, exercising the postings bulk-add path.
                     indexed[i] = randomLongBetween(0, randomBoolean() ? 50 : bound);
                     Document doc = new Document();
-                    width.addField(doc, indexed[i]);
+                    type.addField(doc, indexed[i]);
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
@@ -314,9 +314,9 @@ public class BitmapTermsQueryTests extends ESTestCase {
                     for (int nTerms : TERM_COUNTS) {
                         long[] queried = randomQueryValues(nTerms, indexed, bound);
                         assertThat(
-                            "width=" + width + " nTerms=" + nTerms + " values=" + Arrays.toString(queried),
-                            matchingDocs(searcher, query(width, queried), docCount),
-                            equalTo(matchingDocs(searcher, width.termInSetQuery(queried), docCount))
+                            "type=" + type + " nTerms=" + nTerms + " values=" + Arrays.toString(queried),
+                            matchingDocs(searcher, query(type, queried), docCount),
+                            equalTo(matchingDocs(searcher, type.termInSetQuery(queried), docCount))
                         );
                     }
                 }
@@ -353,54 +353,62 @@ public class BitmapTermsQueryTests extends ESTestCase {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (long value : indexed) {
                 Document doc = new Document();
-                Width.LONG.addField(doc, value);
+                NumberType.LONG.addField(doc, value);
                 w.addDocument(doc);
             }
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(query(Width.LONG, indexed)), equalTo(indexed.length));
-                assertThat(searcher.count(query(Width.LONG, 1L << 32, Long.MAX_VALUE)), equalTo(2));
-                assertThat(searcher.count(query(Width.LONG, 1L << 32, 1L << 34)), equalTo(1));
-                assertThat(searcher.count(query(Width.LONG, (1L << 32) + 5)), equalTo(0));
+                assertThat(searcher.count(query(NumberType.LONG, indexed)), equalTo(indexed.length));
+                assertThat(searcher.count(query(NumberType.LONG, 1L << 32, Long.MAX_VALUE)), equalTo(2));
+                assertThat(searcher.count(query(NumberType.LONG, 1L << 32, 1L << 34)), equalTo(1));
+                assertThat(searcher.count(query(NumberType.LONG, (1L << 32) + 5)), equalTo(0));
             }
         }
     }
 
     public void testEmptyBitmapRewritesToMatchNoDocs() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
                 Document doc = new Document();
-                width.addField(doc, 1);
+                type.addField(doc, 1);
                 w.addDocument(doc);
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query rewritten = searcher.rewrite(new BitmapTermsQuery(FIELD, width.empty()));
+                    Query rewritten = searcher.rewrite(new BitmapTermsQuery(FIELD, type.empty()));
                     assertThat(rewritten, instanceOf(MatchNoDocsQuery.class));
                 }
             }
         }
     }
 
-    private static RandomIndexWriter sortedWriter(Width width, Directory dir) throws IOException {
+    private static RandomIndexWriter sortedWriter(NumberType type, Directory dir) throws IOException {
         IndexWriterConfig config = newIndexWriterConfig();
-        config.setIndexSort(new Sort(new SortedNumericSortField(FIELD, width.sortType())));
+        config.setIndexSort(new Sort(new SortedNumericSortField(FIELD, type.sortType())));
         return new RandomIndexWriter(random(), dir, config);
     }
 
     /**
-     * Asserts every leaf qualifies for the streaming scan, so a test written to cover it cannot quietly
-     * fall back to collecting into a builder and still pass.
+     * Asserts that every leaf carrying the field qualifies for the sorted-index optimization, so a test written to
+     * cover it cannot quietly fall back to collecting into a builder and still pass.
+     * <p>
+     * A leaf holding only documents without a value has no terms for the field at all, and the query skips
+     * such a segment outright rather than streaming it. {@link RandomIndexWriter} flushes where it likes,
+     * so a test that indexes valueless documents cannot pin down whether one exists.
      */
-    private static void assertStreamingApplies(IndexReader reader) throws IOException {
-        assertFalse("expected at least one leaf", reader.leaves().isEmpty());
+    private static void assertSortingOptimizationApplies(IndexReader reader) throws IOException {
+        int streamed = 0;
         for (LeafReaderContext context : reader.leaves()) {
+            Terms terms = context.reader().terms(FIELD);
+            if (terms == null) {
+                continue;
+            }
             Sort sort = context.reader().getMetaData().sort();
             assertNotNull("index sort did not survive to the leaf", sort);
             assertThat(sort.getSort()[0].getField(), equalTo(FIELD));
-            Terms terms = context.reader().terms(FIELD);
-            assertNotNull(terms);
             assertThat("field must be single-valued", terms.getSumDocFreq(), equalTo((long) terms.getDocCount()));
+            streamed++;
         }
+        assertThat("no leaf carried the field, so nothing exercised the sorted-index optimization", streamed, greaterThan(0));
     }
 
     /**
@@ -431,20 +439,20 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * {@code advance()} is verified against {@code nextDoc()} rather than only exhaustive iteration.
      */
     public void testSortedIndexAgainstBruteForce() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             int numDocs = atLeast(500);
             int maxValue = randomIntBetween(50, 500);
             long[] indexed = new long[numDocs];
-            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(type, dir)) {
                 for (int i = 0; i < numDocs; i++) {
                     indexed[i] = randomIntBetween(0, maxValue);
                     Document doc = new Document();
-                    width.addSortableField(doc, indexed[i]);
+                    type.addSortableField(doc, indexed[i]);
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertStreamingApplies(searcher.getIndexReader());
+                    assertSortingOptimizationApplies(searcher.getIndexReader());
                     for (int iter = 0; iter < 15; iter++) {
                         long[] queried = randomQueriedValues(maxValue);
                         Set<Long> wanted = Arrays.stream(queried).boxed().collect(Collectors.toSet());
@@ -454,8 +462,8 @@ public class BitmapTermsQueryTests extends ESTestCase {
                                 expected++;
                             }
                         }
-                        Query query = query(width, queried);
-                        assertThat("width=" + width, searcher.count(query), equalTo(expected));
+                        Query query = query(type, queried);
+                        assertThat("type=" + type, searcher.count(query), equalTo(expected));
                         QueryUtils.check(random(), query, searcher);
                     }
                 }
@@ -491,7 +499,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * identical data isolates the strategy from the data, which a brute-force oracle alone cannot do.
      */
     public void testSortedAndUnsortedAgree() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             int numDocs = atLeast(300);
             int maxValue = randomIntBetween(50, 300);
             long[] indexed = new long[numDocs];
@@ -500,25 +508,25 @@ public class BitmapTermsQueryTests extends ESTestCase {
             }
             try (
                 Directory sortedDir = newDirectory();
-                RandomIndexWriter sorted = sortedWriter(width, sortedDir);
+                RandomIndexWriter sorted = sortedWriter(type, sortedDir);
                 Directory plainDir = newDirectory();
                 RandomIndexWriter plain = new RandomIndexWriter(random(), plainDir)
             ) {
                 for (long value : indexed) {
                     Document doc = new Document();
-                    width.addSortableField(doc, value);
+                    type.addSortableField(doc, value);
                     sorted.addDocument(doc);
                     Document copy = new Document();
-                    width.addSortableField(copy, value);
+                    type.addSortableField(copy, value);
                     plain.addDocument(copy);
                 }
                 try (IndexReader sortedReader = sorted.getReader(); IndexReader plainReader = plain.getReader()) {
                     IndexSearcher sortedSearcher = newSearcher(sortedReader);
                     IndexSearcher plainSearcher = newSearcher(plainReader);
-                    assertStreamingApplies(sortedSearcher.getIndexReader());
+                    assertSortingOptimizationApplies(sortedSearcher.getIndexReader());
                     for (int iter = 0; iter < 10; iter++) {
-                        Query query = query(width, randomQueriedValues(maxValue));
-                        assertThat("width=" + width, matchedValues(sortedSearcher, query), equalTo(matchedValues(plainSearcher, query)));
+                        Query query = query(type, randomQueriedValues(maxValue));
+                        assertThat("type=" + type, matchedValues(sortedSearcher, query), equalTo(matchedValues(plainSearcher, query)));
                     }
                 }
             }
@@ -531,23 +539,23 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * exclude and this one does not.
      */
     public void testSortedIndexWithMissingValues() throws IOException {
-        for (Width width : Width.values()) {
-            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+        for (NumberType type : NumberType.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(type, dir)) {
                 int withValue = 0;
                 for (int i = 0; i < 200; i++) {
                     Document doc = new Document();
                     // Roughly a third of the documents carry no value at all.
                     if (i % 3 != 0) {
-                        width.addSortableField(doc, i);
+                        type.addSortableField(doc, i);
                         withValue++;
                     }
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertStreamingApplies(searcher.getIndexReader());
+                    assertSortingOptimizationApplies(searcher.getIndexReader());
                     long[] all = LongStream.range(0, 200).toArray();
-                    assertThat(searcher.count(query(width, all)), equalTo(withValue));
+                    assertThat(searcher.count(query(type, all)), equalTo(withValue));
                 }
             }
         }
@@ -565,26 +573,26 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * would expose the assumption if it were wrong.
      */
     public void testSortedIndexWithInterleavedMissingValues() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             IndexWriterConfig config = newIndexWriterConfig();
-            SortedNumericSortField sortField = new SortedNumericSortField(FIELD, width.sortType());
-            sortField.setMissingValue(width.missingValue(100));
+            SortedNumericSortField sortField = new SortedNumericSortField(FIELD, type.sortType());
+            sortField.setMissingValue(type.missingValue(100));
             config.setIndexSort(new Sort(sortField));
             try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, config)) {
                 int withValue = 0;
                 for (int i = 0; i < 200; i++) {
                     Document doc = new Document();
                     if (i % 3 != 0) {
-                        width.addSortableField(doc, i);
+                        type.addSortableField(doc, i);
                         withValue++;
                     }
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    assertStreamingApplies(searcher.getIndexReader());
-                    Query query = query(width, LongStream.range(0, 200).toArray());
-                    assertThat("width=" + width, searcher.count(query), equalTo(withValue));
+                    assertSortingOptimizationApplies(searcher.getIndexReader());
+                    Query query = query(type, LongStream.range(0, 200).toArray());
+                    assertThat("type=" + type, searcher.count(query), equalTo(withValue));
                     // Emitting doc ids out of order would fail the iterator contract here.
                     QueryUtils.check(random(), query, searcher);
                 }
@@ -599,14 +607,14 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * the iterator contract that streaming out of order would break.
      */
     public void testMultiValuedFieldIsNotStreamed() throws IOException {
-        for (Width width : Width.values()) {
-            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(width, dir)) {
+        for (NumberType type : NumberType.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(type, dir)) {
                 for (int i = 0; i < 100; i++) {
                     Document doc = new Document();
-                    width.addSortableField(doc, i);
+                    type.addSortableField(doc, i);
                     // A second, far higher value on every document, so the terms order and the doc order
                     // disagree as widely as possible.
-                    width.addSortableField(doc, 1000 + i);
+                    type.addSortableField(doc, 1000 + i);
                     w.addDocument(doc);
                 }
                 try (IndexReader reader = w.getReader()) {
@@ -615,7 +623,7 @@ public class BitmapTermsQueryTests extends ESTestCase {
                         Terms terms = context.reader().terms(FIELD);
                         assertThat("expected multi-valued", terms.getSumDocFreq(), greaterThan((long) terms.getDocCount()));
                     }
-                    Query query = query(width, 5, 1005, 40, 1040);
+                    Query query = query(type, 5, 1005, 40, 1040);
                     assertThat(searcher.count(query), equalTo(2));
                     QueryUtils.check(random(), query, searcher);
                 }
@@ -628,22 +636,22 @@ public class BitmapTermsQueryTests extends ESTestCase {
      * back to counting by iteration.
      */
     public void testCountWithDeletions() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             for (boolean sorted : new boolean[] { true, false }) {
                 try (
                     Directory dir = newDirectory();
-                    RandomIndexWriter w = sorted ? sortedWriter(width, dir) : new RandomIndexWriter(random(), dir)
+                    RandomIndexWriter w = sorted ? sortedWriter(type, dir) : new RandomIndexWriter(random(), dir)
                 ) {
                     for (int i = 0; i < 200; i++) {
                         Document doc = new Document();
-                        width.addSortableField(doc, i);
+                        type.addSortableField(doc, i);
                         w.addDocument(doc);
                     }
-                    w.deleteDocuments(new Term(FIELD, width.encodeTerm(100)));
+                    w.deleteDocuments(new Term(FIELD, type.encodeTerm(100)));
                     try (IndexReader reader = w.getReader()) {
                         IndexSearcher searcher = newSearcher(reader);
                         // 150 values queried, one of them deleted.
-                        assertThat(searcher.count(query(width, LongStream.range(0, 150).toArray())), equalTo(149));
+                        assertThat(searcher.count(query(type, LongStream.range(0, 150).toArray())), equalTo(149));
                     }
                 }
             }
@@ -652,24 +660,24 @@ public class BitmapTermsQueryTests extends ESTestCase {
 
     /** The docFreq count path needs no index sort, so it must agree with iteration on either layout. */
     public void testCountAgreesWithIteration() throws IOException {
-        for (Width width : Width.values()) {
+        for (NumberType type : NumberType.values()) {
             for (boolean sorted : new boolean[] { true, false }) {
                 int maxValue = 200;
                 try (
                     Directory dir = newDirectory();
-                    RandomIndexWriter w = sorted ? sortedWriter(width, dir) : new RandomIndexWriter(random(), dir)
+                    RandomIndexWriter w = sorted ? sortedWriter(type, dir) : new RandomIndexWriter(random(), dir)
                 ) {
                     for (int i = 0; i < 400; i++) {
                         Document doc = new Document();
-                        width.addSortableField(doc, randomIntBetween(0, maxValue));
+                        type.addSortableField(doc, randomIntBetween(0, maxValue));
                         w.addDocument(doc);
                     }
                     try (IndexReader reader = w.getReader()) {
                         IndexSearcher searcher = newSearcher(reader);
                         for (int iter = 0; iter < 10; iter++) {
-                            Query query = query(width, randomQueriedValues(maxValue));
+                            Query query = query(type, randomQueriedValues(maxValue));
                             assertThat(
-                                "width=" + width + " sorted=" + sorted,
+                                "type=" + type + " sorted=" + sorted,
                                 searcher.count(query),
                                 equalTo(matchedValues(searcher, query).size())
                             );
@@ -683,19 +691,19 @@ public class BitmapTermsQueryTests extends ESTestCase {
     /** Long-only: streaming must hold across high-32-bit bucket boundaries, not just within one. */
     public void testSortedIndexLongValuesBeyondIntRange() throws IOException {
         long[] indexed = { 0L, 1L, Integer.MAX_VALUE, 1L << 32, (1L << 32) + 1, 1L << 33, BEYOND_INT, Long.MAX_VALUE };
-        try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(Width.LONG, dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(NumberType.LONG, dir)) {
             for (long value : indexed) {
                 Document doc = new Document();
-                Width.LONG.addSortableField(doc, value);
+                NumberType.LONG.addSortableField(doc, value);
                 w.addDocument(doc);
             }
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertStreamingApplies(searcher.getIndexReader());
-                assertThat(searcher.count(query(Width.LONG, indexed)), equalTo(indexed.length));
-                assertThat(searcher.count(query(Width.LONG, 1L << 32, Long.MAX_VALUE)), equalTo(2));
-                assertThat(searcher.count(query(Width.LONG, (1L << 32) + 5)), equalTo(0));
-                QueryUtils.check(random(), query(Width.LONG, indexed), searcher);
+                assertSortingOptimizationApplies(searcher.getIndexReader());
+                assertThat(searcher.count(query(NumberType.LONG, indexed)), equalTo(indexed.length));
+                assertThat(searcher.count(query(NumberType.LONG, 1L << 32, Long.MAX_VALUE)), equalTo(2));
+                assertThat(searcher.count(query(NumberType.LONG, (1L << 32) + 5)), equalTo(0));
+                QueryUtils.check(random(), query(NumberType.LONG, indexed), searcher);
             }
         }
     }

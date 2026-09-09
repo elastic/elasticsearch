@@ -8,13 +8,24 @@ mapped_pages:
 
 # _routing field [mapping-routing-field]
 
-A document is routed to a particular shard in an index using the following formulas:
+A document is routed to a particular shard in an index using the following formula:
+
+```
+shard_num = hash(_routing) % num_primary_shards
+```
+
+`num_primary_shards` is the value of the [`index.number_of_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-shards) index setting.
+
+::::{note}
+Indices created before {{es}} 9.4.0 use the legacy routing function:
 
 ```
 routing_factor = num_routing_shards / num_primary_shards
 shard_num = (hash(_routing) % num_routing_shards) / routing_factor
 ```
-`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. `num_primary_shards` is the value of the [`index.number_of_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-shards) index setting.
+
+`num_routing_shards` is the value of the [`index.number_of_routing_shards`](/reference/elasticsearch/index-settings/index-modules.md#index-number-of-routing-shards) index setting. Existing indices keep the legacy routing function based on their creation version. Recreating or reindexing into a new index can change how documents are distributed across shards compared to the source index. [#137062](https://github.com/elastic/elasticsearch/pull/137062).
+::::
 
 The default `_routing` value is the document’s [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md). Custom routing patterns can be implemented by specifying a custom `routing` value per document. For instance:
 
@@ -139,9 +150,19 @@ When this setting is present, the formulas for calculating the shard become:
 
 ```
 routing_value = hash(_routing) + hash(_id) % routing_partition_size
+shard_num = routing_value % num_primary_shards
+```
+
+That is, the `_routing` field is used to calculate a set of shards within the index and then the `_id` is used to pick a shard within that set.
+
+::::{note}
+Indices created before {{es}} 9.4.0 use the legacy partitioned routing formula:
+
+```
+routing_value = hash(_routing) + hash(_id) % routing_partition_size
 shard_num = (routing_value % num_routing_shards) / routing_factor
 ```
-That is, the `_routing` field is used to calculate a set of shards within the index and then the `_id` is used to pick a shard within that set.
+::::
 
 To enable this feature, the `index.routing_partition_size` should have a value greater than 1 and less than `index.number_of_shards`.
 

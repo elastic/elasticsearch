@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -25,6 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
@@ -43,12 +43,12 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        var target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var target = extractRequiredString(map, TARGET_FIELD, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         var endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             AzureAiStudioEndpointType::fromString,
             EnumSet.allOf(AzureAiStudioEndpointType.class),
             validationException
@@ -56,7 +56,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             AzureAiStudioProvider::fromString,
             EnumSet.allOf(AzureAiStudioProvider.class),
             validationException

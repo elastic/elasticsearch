@@ -1763,6 +1763,7 @@ public abstract class EngineTestCase extends ESTestCase {
             uids,
             ids,
             routings,
+            null,
             contentTypes,
             sources,
             requestedVersion,

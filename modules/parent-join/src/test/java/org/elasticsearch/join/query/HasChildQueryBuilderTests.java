@@ -371,7 +371,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         );
         LateParsingQuery query = (LateParsingQuery) hasChildQueryBuilder.toQuery(searchExecutionContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, IndexVersion.current(), null);
-        assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
+        Similarity fieldSim = ((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string");
+        assertThat(SimilarityService.unwrap(fieldSim), instanceOf(expected.getClass()));
     }
 
     public void testIgnoreUnmapped() throws IOException {

@@ -201,9 +201,10 @@ public class ExternalNdJsonUnionByNameNumericWideningIT extends AbstractExternal
         String dataset = registerDataset("ubn_ndjson_long_double", glob, Map.of("schema_resolution", "union_by_name"));
         String query = "FROM " + dataset + " | STATS s = SUM(v)";
 
-        // Plan-time SkipWarnings land on the coordinator request thread. Execute there and read
-        // that node's Warning headers so the precision-loss phrases are asserted on the client
-        // path, not only via a hand-bound test ThreadContext (same pattern as
+        // Resolve-time SkipWarnings are sunk because reconciliation runs on metadataReadExecutor;
+        // a direct HeaderWarning write would land on that pool's ThreadContext and miss the client.
+        // Execute on the coordinator and read that node's Warning headers so the precision-loss
+        // phrases are asserted on the client path (same pattern as
         // ExternalCsvHivePartitionedIT.testHivePartitionShadowWarningReachesClient).
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         CountDownLatch latch = new CountDownLatch(1);

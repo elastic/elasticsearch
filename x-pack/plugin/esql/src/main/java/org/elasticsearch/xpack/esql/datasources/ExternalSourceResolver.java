@@ -1563,7 +1563,7 @@ public class ExternalSourceResolver {
                 Map<StoragePath, Set<String>> perFilePinnedColumns = new HashMap<>();
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : result.perFileInfo().entrySet()) {
                     SchemaReconciliation.FileSchemaInfo info = e.getValue();
-                    perFileTypes.put(e.getKey(), attributesToTypeMap(info.fileSchema().attributes()));
+                    perFileTypes.put(e.getKey(), statsFileTypesOf(info));
                     Set<String> pinnedColumns = pinnedColumnsOf(info);
                     if (pinnedColumns.isEmpty() == false) {
                         perFilePinnedColumns.put(e.getKey(), pinnedColumns);
@@ -1926,6 +1926,17 @@ public class ExternalSourceResolver {
             types.put(a.name(), a.dataType());
         }
         return types;
+    }
+
+    /**
+     * The type authority for normalizing this file's cached or footer stats to the reconciled type: the pre-retype
+     * inferred types when a pin or overlay populated them, otherwise the file schema itself (nothing retyped this
+     * file). A text UNION_BY_NAME pin stores the reconciled type on {@code fileSchema}, so using that map as the file
+     * type would make {@code file == reconciled} and skip {@code LONG} to {@code DOUBLE} conversion.
+     */
+    public static Map<String, DataType> statsFileTypesOf(SchemaReconciliation.FileSchemaInfo info) {
+        Map<String, DataType> inferred = info.inferredTypes();
+        return inferred != null ? inferred : attributesToTypeMap(info.fileSchema().attributes());
     }
 
     /**

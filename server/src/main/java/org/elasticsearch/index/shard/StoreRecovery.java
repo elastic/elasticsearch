@@ -394,13 +394,13 @@ public final class StoreRecovery {
                     listener.onResponse(false);
                     return;
                 }
-                if ((ex.getCause() instanceof IndexShardClosedException) || (ex.getCause() instanceof IndexShardNotStartedException)) {
+                if (ex.getCause() instanceof IndexShardClosedException) {
                     // got closed on us, just ignore this recovery
                     listener.onResponse(false);
                     return;
                 }
                 listener.onFailure(ex);
-            } else if (ex instanceof IndexShardClosedException || ex instanceof IndexShardNotStartedException) {
+            } else if (ex instanceof IndexShardClosedException) {
                 listener.onResponse(false);
             } else {
                 if (indexShard.state() == IndexShardState.CLOSED) {

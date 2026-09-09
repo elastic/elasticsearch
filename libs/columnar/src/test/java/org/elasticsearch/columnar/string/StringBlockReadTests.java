@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -67,6 +68,60 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
             docValues[d] = new BytesRef(terms[d % terms.length]);
         }
         assertPages(docValues, DictionaryPolicy.NONE, Shape.ORDINALS);
+    }
+
+    /**
+     * The budget a page's storage is charged against. It is charged before the storage grows, so a budget with
+     * no room refuses the page rather than discovering it afterwards, and the storage is reused, so a page no
+     * larger than one already served costs nothing.
+     */
+    public void testPageStorageIsChargedBeforeItGrows() throws IOException {
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final long[] charged = { 0 };
+            final PageBudget counting = bytes -> {
+                assertThat("a charge is for something", bytes, greaterThan(0L));
+                charged[0] += bytes;
+            };
+
+            final Rebuilt first = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, 256, first, counting));
+            final long afterFirst = charged[0];
+            assertThat("the first page is charged for its storage", afterFirst, greaterThan(0L));
+
+            // A page no larger reuses what the first one grew, so nothing more is charged.
+            final Rebuilt second = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, 256, second, counting));
+            assertEquals("a page that fits is charged nothing", afterFirst, charged[0]);
+
+            // A larger page grows the storage again, and only the difference is charged.
+            final Rebuilt third = new Rebuilt();
+            assertTrue(reader.readBlock(docs, 0, docs.length, third, counting));
+            assertThat("a larger page is charged the difference", charged[0], greaterThan(afterFirst));
+        });
+    }
+
+    /** A budget with no room refuses the page, and it does so before the storage is taken. */
+    public void testAPageWithNoBudgetIsRefused() throws IOException {
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("term-" + (d % 7));
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            final int[] docs = new int[docValues.length];
+            for (int d = 0; d < docs.length; d++) {
+                docs[d] = d;
+            }
+            final PageBudget refuses = bytes -> { throw new IllegalStateException("no room for " + bytes + " bytes"); };
+            expectThrows(IllegalStateException.class, () -> reader.readBlock(docs, 0, docs.length, new Rebuilt(), refuses));
+        });
     }
 
     /**

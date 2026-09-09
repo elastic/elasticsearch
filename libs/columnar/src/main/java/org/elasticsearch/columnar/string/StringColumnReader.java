@@ -16,6 +16,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -85,6 +86,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int[] pageLengths = new int[0];
     private byte[] pageBytes = new byte[0];
     protected int pageBytesLength;
+
+    private static final long BYTES_REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.shallowSizeOfInstance(
+        BytesRef.class
+    );
+
+    /** Charged before the page's storage grows; see {@link #readBlock}. */
+    private PageBudget budget = PageBudget.UNLIMITED;
 
     /** The running extreme, held so comparing one value against another survives the buffer being reused. */
     private final BytesRefBuilder extremeSoFar = new BytesRefBuilder();
@@ -540,6 +548,15 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      *         a time; true when {@code sink} was called exactly once
      */
     public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink) throws IOException {
+        return readBlock(docs, offset, count, sink, PageBudget.UNLIMITED);
+    }
+
+    /**
+     * As above, charging {@code budget} before the page's storage grows. The storage is reused between pages
+     * and only grows, so a page no larger than one already served is charged nothing.
+     */
+    public boolean readBlock(int[] docs, int offset, int count, StringBlockSink sink, PageBudget budget) throws IOException {
+        this.budget = budget;
         if (count == 0) {
             sink.appendValues(pageValues, 0, null, 0);
             return true;
@@ -564,6 +581,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             capacity <<= 1;
         }
         if (slotByHash.length < capacity) {
+            budget.charge(2L * (capacity - slotByHash.length) * Integer.BYTES);
             slotByHash = new int[capacity];
             slotStamp = new int[capacity];
             slotGeneration = 0;
@@ -615,7 +633,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Copies a value into the page's own bytes, so the reader's buffer can be reused for the next one. */
     protected void appendToPage(int slot, BytesRef value) {
         if (pageBytes.length < pageBytesLength + value.length) {
+            final int was = pageBytes.length;
             pageBytes = ArrayUtil.grow(pageBytes, pageBytesLength + value.length);
+            budget.charge(pageBytes.length - was);
         }
         System.arraycopy(value.bytes, value.offset, pageBytes, pageBytesLength, value.length);
         pageStarts[slot] = pageBytesLength;
@@ -635,6 +655,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Room for a page covering {@code docCount} documents, whatever they turn out to hold. */
     protected void growPageDocs(int docCount) {
         if (pageRanks.length < docCount) {
+            budget.charge(2L * (docCount - pageRanks.length) * Integer.BYTES);
             pageRanks = new int[docCount];
             pageValueCounts = new int[docCount];
         }
@@ -648,6 +669,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (pageOrdinals.length >= valueCount) {
             return;
         }
+        final int more = valueCount - pageOrdinals.length;
+        budget.charge((long) more * (3L * Integer.BYTES + Long.BYTES + 2L * BYTES_REF_BYTES));
         pageOrdinals = new int[valueCount];
         pageValueAddresses = new long[valueCount];
         pageStarts = new int[valueCount];

@@ -486,6 +486,21 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals("every reservation is released after the build", 0L, roomy.getUsed());
     }
 
+    /**
+     * The pair that exhausted a 512 MB heap while {@link IncludeExclude#PRODUCT_STATE_BYTES} was measured: both patterns pass
+     * the length check and compile within the determinize limit, and only the product is huge. It must be refused before it
+     * is built; building it here would exhaust the test JVM too.
+     */
+    public void testExcludeProductThatExhaustsTheHeapIsRefused() {
+        IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{5}", "(a|b)*b(a|b){10}", null, null);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, breaker)
+        );
+        assertEquals("every reservation is released on failure", 0L, breaker.getUsed());
+    }
+
     public void testTooComplexRegexIsAClientError() {
         // Exponential state blow-up under determinization, well within the length limit.
         IncludeExclude inexcl = new IncludeExclude("(a|b)*a(a|b){30}", null, null, null);

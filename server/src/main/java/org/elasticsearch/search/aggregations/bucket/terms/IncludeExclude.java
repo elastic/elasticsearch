@@ -557,17 +557,27 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     /**
-     * {@code Operations.minus} intersects {@code a} with the complement of {@code excluded}. The complement of a DFA is
-     * cheap, but the intersection is a product construction with no accounting of its own: up to one copy of {@code a}
-     * per state of {@code excluded}, and up to one copy of each of {@code a}'s transitions per transition of
-     * {@code excluded}. Reserve that bound before running it. A legitimate pair weighs kilobytes; only a pair the
-     * breaker should refuse comes near the limit.
+     * Heap reserved per reachable state of the include/exclude product, before {@code Operations.minus} builds it.
+     * Measured as the bytes allocated on the calling thread during {@code minus}, divided by include states times
+     * exclude states, over a corpus of realistic and adversarial pairs: dense products (a short pattern against an
+     * exclude that determinizes to thousands of states) cost 540 to 1,450 bytes per product state, sparse ones
+     * (two chains, two long alternations) 10 to 30. Density is unknowable before the build, so this covers the densest
+     * pair with margin and over-reserves sparse pairs for the duration of one build. The pair that exhausted a 512 MB
+     * heap in that measurement, {@code [ab]{1000}{5}} against {@code (a|b)*b(a|b){10}}, reserves 20 GB and is refused.
+     */
+    static final long PRODUCT_STATE_BYTES = 2048;
+    static final long PRODUCT_RESERVATION_FLOOR_BYTES = 64 * 1024;
+
+    /**
+     * {@code Operations.minus} intersects {@code a} with the complement of {@code excluded}: a product construction over
+     * both automata with no accounting of its own, whose reachable states are bounded by include states times exclude
+     * states. Reserve {@link #PRODUCT_STATE_BYTES} for each before running it.
      */
     private static Automaton minus(Automaton a, Automaton excluded, CircuitBreaker breaker) {
-        long copies = excluded.getNumStates() + (long) excluded.getNumTransitions();
         long reservation;
         try {
-            reservation = Math.multiplyExact(a.ramBytesUsed(), Math.max(1L, copies));
+            long productStates = Math.multiplyExact((long) a.getNumStates(), excluded.getNumStates());
+            reservation = Math.max(PRODUCT_RESERVATION_FLOOR_BYTES, Math.multiplyExact(productStates, PRODUCT_STATE_BYTES));
         } catch (ArithmeticException e) {
             reservation = Long.MAX_VALUE;
         }

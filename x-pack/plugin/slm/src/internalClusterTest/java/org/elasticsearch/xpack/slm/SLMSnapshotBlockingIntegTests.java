@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -278,17 +279,23 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Assert that the history document has been written for taking the snapshot and deleting it
             assertBusy(() -> {
-                assertResponse(
-                    prepareSearch(".slm-history*").setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)),
-                    resp -> {
-                        logger.info(
-                            "--> checking history written for {}, got: {}",
-                            completedSnapshotName,
-                            Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
-                        );
-                        assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
-                    }
-                );
+                try {
+                    assertResponse(
+                        prepareSearch(".slm-history*").setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)),
+                        resp -> {
+                            logger.info(
+                                "--> checking history written for {}, got: {}",
+                                completedSnapshotName,
+                                Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
+                            );
+                            assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
+                        }
+                    );
+                } catch (SearchPhaseExecutionException e) {
+                    // The history data stream is auto-created by the history store's bulk flush, so its shards may still
+                    // be initializing here. assertBusy only retries on AssertionError, so convert to one to keep waiting.
+                    throw new AssertionError("history search failed while shards were still initializing", e);
+                }
             });
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());

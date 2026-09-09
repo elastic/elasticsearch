@@ -45,8 +45,14 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
-            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES, false);
+        runPartitionTest(
+            recycler,
+            bigArrays,
+            breaker,
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            false
+        );
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
@@ -54,8 +60,14 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        runPartitionTest(recycler, bigArrays, breaker, BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
-            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES, true);
+        runPartitionTest(
+            recycler,
+            bigArrays,
+            breaker,
+            BytesRefSwissHash.FlatBytesRefPartitionedHashKeys.class,
+            BytesRefSwissHash.PAGED_PARTITION_THRESHOLD_BYTES,
+            true
+        );
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

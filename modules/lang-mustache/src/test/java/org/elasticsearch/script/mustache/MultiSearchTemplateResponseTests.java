@@ -164,4 +164,5 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             .dispose(MultiSearchTemplateResponse::decRef)
             .test();
     }
+
 }

@@ -99,8 +99,7 @@ public class SourceFilterTests extends ESTestCase {
 
             @Override
             public Source filter(SourceFilter sourceFilter) {
-                // We call filterBytes explicitly here but the filter should re-route to
-                // using filterMap because it contains an exclude filter with a wildcard
+                // We call filterBytes explicitly here to verify wildcard excludes use the byte path
                 return sourceFilter.filterBytes(this);
             }
         };

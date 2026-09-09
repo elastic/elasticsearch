@@ -1665,6 +1665,13 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES,
 
         /**
+         * Does the usage information for ESQL contain dense datasource inventory marginals
+         * ({@code datasources.config.datasources.by_auth.*}, {@code datasets.by_format.*},
+         * {@code by_schema.*}, {@code by_partitioning.*}, {@code by_compression.*})?
+         */
+        USAGE_CONTAINS_DATASOURCE_INVENTORY_MARGINALS,
+
+        /**
          * Does the usage information for ESQL contain per-format parse-row phone-home keys
          * ({@code datasources.parse.rows.by_format.<format>})?
          */
@@ -3883,6 +3890,12 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
+
+        /**
+         * Coordinator-driven remote fetch phase for deferred TopN fields after node-level reduction.
+         * Runtime enablement is gated by {@code esql.query.remote_fetch_topn.enabled}.
+         */
+        REMOTE_FETCH_TOPN_FETCH_PHASE,
 
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.

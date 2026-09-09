@@ -54,6 +54,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -83,6 +84,7 @@ final class SnapshotDeletionStartBatcher {
     private final String queueName;
     private final MasterServiceTaskQueue<Batch> snapshotDeletionBatchTaskQueue;
     private final ExecutorService snapshotExecutor;
+    private final RestoreSourceProtection restoreSourceProtection;
 
     /**
      * @param repositoriesService The {@link RepositoriesService}, needed because the underlying {@link Repository} instance may change from
@@ -108,6 +110,9 @@ final class SnapshotDeletionStartBatcher {
      * @param deletionStarter Callback invoked after successfully updating the cluster state to add a new
      *                        {@link SnapshotDeletionsInProgress.Entry} which is already in state
      *                        {@link SnapshotDeletionsInProgress.State#STARTED}, in order to trigger the execution of this deletion.
+     * @param restoreSourceProtection Consulted alongside {@link RestoreInProgress} to determine which snapshots are still the source of a
+     *                                restore and therefore cannot be deleted. {@link RestoreSourceProtection#NOOP} leaves
+     *                                {@link RestoreInProgress} as the only such evidence.
      */
     SnapshotDeletionStartBatcher(
         RepositoriesService repositoriesService,
@@ -118,7 +123,8 @@ final class SnapshotDeletionStartBatcher {
         Consumer<Snapshot> notifyAbortedByDeletion,
         SnapshotEnder snapshotEnder,
         ItemCompletionHandler subscribeToPendingDelete,
-        DeletionStarter deletionStarter
+        DeletionStarter deletionStarter,
+        RestoreSourceProtection restoreSourceProtection
     ) {
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
@@ -131,6 +137,7 @@ final class SnapshotDeletionStartBatcher {
         this.queueName = "snapshot-deletion-start" + ProjectRepo.projectRepoString(projectId, repositoryName);
         this.snapshotDeletionBatchTaskQueue = clusterService.createTaskQueue(queueName, Priority.NORMAL, new Executor());
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        this.restoreSourceProtection = Objects.requireNonNull(restoreSourceProtection);
     }
 
     /**
@@ -320,6 +327,14 @@ final class SnapshotDeletionStartBatcher {
             }
         }
 
+        // A RestoreInProgress entry is removed before a recovery implementation has durably recorded the restore's outcome, so it cannot be
+        // the only evidence that a snapshot is still being restored from. Resolved once per batch, like activeRestoreSources above.
+        final Map<SnapshotId, String> protectedRestoreSources = restoreSourceProtection.protectedSnapshots(
+            initialState,
+            projectId,
+            repositoryName
+        );
+
         final HashSet<SnapshotId> activeCloneSources = new HashSet<>();
         for (final var entry : repoSnapshotsInProgress) {
             if (entry.isClone()) {
@@ -448,6 +463,13 @@ final class SnapshotDeletionStartBatcher {
                         return new ConcurrentSnapshotExecutionException(
                             new Snapshot(projectId, repositoryName, snapshotId),
                             "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]"
+                        );
+                    }
+                    final String protectingRestoreUuid = protectedRestoreSources.get(snapshotId);
+                    if (protectingRestoreUuid != null) {
+                        return new ConcurrentSnapshotExecutionException(
+                            new Snapshot(projectId, repositoryName, snapshotId),
+                            "cannot delete snapshot because restore [" + protectingRestoreUuid + "] from it may still be in progress"
                         );
                     }
                 }

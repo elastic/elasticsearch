@@ -1389,6 +1389,24 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private final Map<ProjectId, Map<String, SnapshotDeletionStartBatcher>> snapshotDeletionStartBatchers = new HashMap<>();
 
     /**
+     * Applied to every {@link SnapshotDeletionStartBatcher} as it is created. Defaults to {@link RestoreSourceProtection#NOOP}, so an
+     * ordinary restore is protected from having its source snapshot deleted by its {@link org.elasticsearch.cluster.RestoreInProgress}
+     * entry alone.
+     */
+    private volatile RestoreSourceProtection restoreSourceProtection = RestoreSourceProtection.NOOP;
+
+    /**
+     * Registers the {@link RestoreSourceProtection} consulted when resolving snapshot deletions. Must be called before any deletion runs,
+     * i.e. during node startup, so that every batcher observes it.
+     */
+    public void setRestoreSourceProtection(RestoreSourceProtection restoreSourceProtection) {
+        if (this.restoreSourceProtection != RestoreSourceProtection.NOOP) {
+            throw new IllegalStateException("Restore source protection already set. Cannot change restore source protection");
+        }
+        this.restoreSourceProtection = Objects.requireNonNull(restoreSourceProtection);
+    }
+
+    /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
      * When <code>wait_for_completion</code> is set to true, the passed action listener will only complete when all
@@ -1414,7 +1432,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         this::notifyAbortedByDeletion,
                         this::endSnapshot,
                         this::completeOrAddDeleteListener,
-                        this::enterRepoLoopAndDeleteSnapshots
+                        this::enterRepoLoopAndDeleteSnapshots,
+                        restoreSourceProtection
                     )
                 );
         }

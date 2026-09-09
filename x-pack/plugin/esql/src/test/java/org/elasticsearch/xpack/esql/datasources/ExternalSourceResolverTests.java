@@ -242,6 +242,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // on a runtime-search field only when its type is TEXT, so a stored query that passes any now fails
         // verification. A warning that mentioned only the analyzing would leave that to be discovered as an error.
         assertThat(warnings.get(0), containsString("passes options on one now fails verification"));
+        // Scoring changes in silence, which is the other reason this warns: Match#toScorer routes only TEXT without
+        // options to the matched-term-weight scorer, so the same rows come back ordered differently.
+        assertThat(warnings.get(0), containsString("scores 1.0 instead of by matched terms"));
         assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
     }
 

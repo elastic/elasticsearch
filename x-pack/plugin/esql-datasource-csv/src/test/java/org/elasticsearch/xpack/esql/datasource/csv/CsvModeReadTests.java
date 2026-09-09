@@ -435,6 +435,16 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
+     * A read context without a sink (tests, benchmarks) falls back to this thread's response headers, the same fallback
+     * {@code SkipWarnings} uses, so the two read-time channels agree. Production read paths always supply a sink.
+     */
+    public void testPlainNullMarkerFallsBackToHeaderWarningWithoutSink() throws IOException {
+        CsvFormatReader reader = tsvReader(Map.of("mode", "plain", "header_row", false));
+        readAll(reader, "id0\t\\N\nid1\tplain note\n");
+        assertNullMarkerWarning(drainWarnings());
+    }
+
+    /**
      * Sharp-edge mitigation, config-time arm: {@code mode: escaped, quote: …} resolves to quoted, which hands the
      * escape char to Jackson and drops the C-style decode. The data scan can't catch this (Jackson rewrites
      * {@code \N} to {@code N} before the sample exists), so the notice is decided when the config is parsed and

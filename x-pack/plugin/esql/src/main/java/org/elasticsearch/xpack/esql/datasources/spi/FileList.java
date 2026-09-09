@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 
 import java.util.List;
 
@@ -183,7 +182,7 @@ public interface FileList {
         List<String> warnings = listingWarnings();
         long bytes = 0;
         for (int i = 0; i < warnings.size(); i++) {
-            bytes += SchemaCacheEntry.estimatedStringBytes(warnings.get(i));
+            bytes += HeapEstimates.stringBytes(warnings.get(i));
         }
         return bytes;
     }

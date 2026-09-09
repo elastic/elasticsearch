@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 
 import java.util.ArrayList;
@@ -170,14 +171,8 @@ public record SchemaCacheEntry(
         return bytes;
     }
 
-    /**
-     * Cache weight of one String: about 40 bytes for the {@code String} object and its backing array headers on a 64-bit
-     * JVM with compressed references, plus two bytes per character. Both parts round up on purpose (compact Latin-1
-     * strings use one byte per character); this feeds a cache budget, where over-counting evicts a little early and
-     * under-counting lets the cache outgrow its budget. Shared by every cached value that holds Strings.
-     */
-    public static long estimatedStringBytes(@Nullable String s) {
-        return 40 + (s != null ? s.length() * (long) Character.BYTES : 0);
+    static long estimatedStringBytes(@Nullable String s) {
+        return HeapEstimates.stringBytes(s);
     }
 
 }

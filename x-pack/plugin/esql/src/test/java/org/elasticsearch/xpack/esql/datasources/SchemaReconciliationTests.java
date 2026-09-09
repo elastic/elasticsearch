@@ -1207,13 +1207,10 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.perFileInfo().get(parquet).inferredTypes(), nullValue());
     }
 
-    // === Warning-header helpers ===
+    // === Warning helpers ===
     //
-    // ESTestCase sets up a fresh ThreadContext per test (auto-stashed in {@code @After}); the
-    // SchemaReconciliation emits warnings via SkipWarnings → HeaderWarning, which deposits them
-    // into that thread context. Drain reads + stashes (so a single test can verify multiple
-    // emit-events without warnings leaking across asserts), assertWarningMentions checks
-    // substring presence in the emitted summary + details.
+    // Reconciliation hands every notice to the caller's sink; tests collect them in a list. assertNoResponseWarnings
+    // pins that nothing leaks onto this thread's response headers on the way.
 
     private void assertNoResponseWarnings() {
         assertNull(

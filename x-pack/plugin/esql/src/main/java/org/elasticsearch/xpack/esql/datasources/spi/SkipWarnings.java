@@ -38,9 +38,9 @@ import java.util.function.Consumer;
  * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
  * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
  * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
- * {@code DriverCompletionInfo} carries back for the coordinator to emit. Direct {@link HeaderWarning} writes
- * remain right for plan-time work — schema resolution, split discovery — which already runs on the coordinator's
- * own request thread.
+ * {@code DriverCompletionInfo} carries back for the coordinator to emit. Plan-time work has the same problem in a
+ * different coat: schema resolution runs on the metadata-read executor, so {@code ExternalSourceResolver} buffers
+ * its notices onto the resolution rather than writing headers there.
  * <p>
  * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} (or the
  * sink-aware {@link #of(ErrorPolicy, String, Consumer)}) to obtain either a live collector or the

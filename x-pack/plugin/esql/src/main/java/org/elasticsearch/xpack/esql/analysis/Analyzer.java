@@ -1787,10 +1787,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
             boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
-                case LOAD, NULLIFY -> fork instanceof UnionAll == false;
-                // FORK is rejected under LOAD_ALL (see Verifier#checkLoadAllModeSupportedCommands), so this path is
-                // effectively unreachable for LOAD_ALL; treat it like DEFAULT and do no cross-branch alignment.
-                case DEFAULT, LOAD_ALL -> false;
+                case LOAD, NULLIFY, LOAD_ALL -> fork instanceof UnionAll == false;
+                case DEFAULT -> false;
             };
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
@@ -1819,12 +1817,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
                     // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
-                    // branch can't surface it: loaded from _source under load, null-typed under nullify. This keeps the branches' source
-                    // relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
+                    // branch can't surface it: loaded from _source under LOAD/LOAD_ALL, null-typed under nullify. This keeps the branches'
+                    // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
+                    // #142033
                     if (alignUnmappedAcrossBranches
                         && forkMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
-                        toLoad.add(unmappedResolution == UnmappedResolution.LOAD ? unmappedKeyword(attr) : nullifyField(attr));
+                        toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is

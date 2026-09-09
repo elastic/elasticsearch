@@ -13,7 +13,9 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -25,14 +27,78 @@ import java.util.function.Predicate;
  * <p>What makes that affordable is that a repeated value is stored once: the store answers two addresses in
  * the same run with the same token, so a run is decided once and copied once however many documents carry
  * it.
+ *
+ * <p>A null is stored as a zero-length value and its address tabled, bytes having no spare value to mean
+ * null with the way an ordinal does. So the table is the only thing separating a null from an empty string
+ * here, and every read and every filter has to ask it.
  */
 public final class PlainStringColumnReader extends StringColumnReader {
 
     private final ValueStream.Reader values;
 
+    /** The value addresses holding a null, ascending; null when no slot in the column is one. */
+    private final LongValues nullSlots;
+    private final long numNullSlots;
+
+    /** Index of the first null-slot entry at or after {@link #lastNullQuery}, and that entry's address. */
+    private long nullCursor;
+    private long nullCursorAddress;
+    private long lastNullQuery = -1;
+
     PlainStringColumnReader(StringColumnMetadata.Plain column, IndexInput data) throws IOException {
         super(column, data, column.values().valuesPerBlock());
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
+        this.numNullSlots = column.numNullSlots();
+        this.nullSlots = column.hasNullSlots()
+            ? MonotonicReader.open(
+                data,
+                column.nullSlots().meta(),
+                column.numNullSlots(),
+                column.nullSlots().dataOffset(),
+                column.nullSlots().dataLength()
+            )
+            : null;
+        this.nullCursorAddress = nullSlots == null ? Long.MAX_VALUE : nullSlots.get(0);
+    }
+
+    /**
+     * Whether the slot at {@code valueAddress} is null, which only the null-slot table says. Callers walk a
+     * document's addresses in order and documents in order, so this keeps a cursor into that table and
+     * advances it, making a full scan cost one pass over it. A caller that asks about an address behind the
+     * one it last asked about re-seeks by binary search.
+     */
+    @Override
+    public boolean isNullSlot(long valueAddress) throws IOException {
+        if (nullSlots == null) {
+            return false;
+        }
+        if (valueAddress < lastNullQuery) {
+            seekNullCursor(valueAddress);
+        }
+        lastNullQuery = valueAddress;
+        while (nullCursorAddress < valueAddress) {
+            nullCursor++;
+            nullCursorAddress = nullCursor < numNullSlots ? nullSlots.get(nullCursor) : Long.MAX_VALUE;
+        }
+        return nullCursorAddress == valueAddress;
+    }
+
+    /** Positions the cursor on the first null slot at or after {@code valueAddress}. */
+    private void seekNullCursor(long valueAddress) {
+        long low = 0;
+        long high = numNullSlots - 1;
+        long found = numNullSlots;
+        while (low <= high) {
+            final long mid = (low + high) >>> 1;
+            if (nullSlots.get(mid) >= valueAddress) {
+                found = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+        nullCursor = found;
+        nullCursorAddress = found < numNullSlots ? nullSlots.get(found) : Long.MAX_VALUE;
     }
 
     /**
@@ -48,6 +114,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     @Override
     public BytesRef valueAt(long valueAddress) throws IOException {
+        if (isNullSlot(valueAddress)) {
+            return null;
+        }
         values.get(valueAddress, value);
         return value;
     }
@@ -64,6 +133,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
                 final long first = firstValueAddress(rank);
                 final long count = valueCount(rank);
                 if (count == 1) {
+                    if (isNullSlot(first)) {
+                        return false;
+                    }
                     // A value repeating the one before it answers as it answered.
                     final long identity = values.read(first, value);
                     if (identity == lastSeen.identity && value.length == lastSeen.length) {
@@ -76,6 +148,10 @@ public final class PlainStringColumnReader extends StringColumnReader {
                     return matched;
                 }
                 for (long i = 0; i < count; i++) {
+                    // A null is stored as no bytes, so without this it would be offered as an empty string.
+                    if (isNullSlot(first + i)) {
+                        continue;
+                    }
                     values.get(first + i, value);
                     if (matcher.test(value)) {
                         return true;
@@ -118,8 +194,12 @@ public final class PlainStringColumnReader extends StringColumnReader {
         final long first = firstValueAddress(rank);
         final long count = valueCount(rank);
         // A document holding the same value as the one before it matches exactly as it did. On a column of
-        // runs that answers most documents without looking at a value at all.
+        // runs that answers most documents without looking at a value at all. A lone null is turned away
+        // first: it is stored as no bytes, so it would otherwise be compared as an empty string.
         if (count == 1) {
+            if (isNullSlot(first)) {
+                return false;
+            }
             final long identity = values.read(first, scratch);
             if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
                 return lastSeen.matched;
@@ -131,7 +211,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
             return matched;
         }
         for (long i = 0; i < count; i++) {
-            if (matches(valueAt(first + i), prefix, exact)) {
+            final BytesRef value = valueAt(first + i);
+            // A null is no term and starts with no prefix, so it is passed over rather than compared.
+            if (value != null && matches(value, prefix, exact)) {
                 return true;
             }
         }

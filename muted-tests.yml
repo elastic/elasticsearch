@@ -771,6 +771,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.stats.SearchContextStatsTests
   method: testSkipperKeywordSingleValuedWithAbsentSegmentIsDetectedAsSingleValued
   issue: https://github.com/elastic/elasticsearch/issues/158895
-- class: org.elasticsearch.repositories.s3.S3BlobStoreContainerTests
-  method: testConcurrentWriteBlobAtomicAborted
-  issue: https://github.com/elastic/elasticsearch/issues/158897

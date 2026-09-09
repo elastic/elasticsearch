@@ -180,12 +180,12 @@ public class CsvTestsDataLoader {
         // when supportsSourceFieldMapping=false (BWC / mixed-cluster runs); csv-spec tests against those indices must therefore also
         // gate on required_capability: source_field_mapping.
         new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv"),
-        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv")
-            .withIndex("unmapped_source_synthetic")
-            .withSetting("synthetic-source-settings.json"),
-        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv")
-            .withIndex("unmapped_source_synth_keep_all")
-            .withSetting("synthetic-source-keep-all-settings.json"),
+        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv").withIndex(
+            "unmapped_source_synthetic"
+        ).withSetting("synthetic-source-settings.json"),
+        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv").withIndex(
+            "unmapped_source_synth_keep_all"
+        ).withSetting("synthetic-source-keep-all-settings.json"),
         new TestDataset("unmapped_source_disabled", "mapping-unmapped_source_disabled.json", "unmapped_source.csv"),
         new TestDataset("unmapped_source_excludes", "mapping-unmapped_source_excludes.json", "unmapped_source.csv"),
         new TestDataset("unmapped_source_includes", "mapping-unmapped_source_includes.json", "unmapped_source.csv"),
@@ -199,7 +199,12 @@ public class CsvTestsDataLoader {
         // idx_std/idx_col/idx_col_dynamic_false: columnar LOAD_ALL boundary tests
         new TestDataset("idx_std", "mapping-idx_std.json", "idx_std.csv"),
         new TestDataset("idx_col", "mapping-idx_col.json", "idx_col.csv", "columnar-settings.json"),
-        new TestDataset("idx_col_dynamic_false", "mapping-idx_col_dynamic_false.json", "idx_col_dynamic_false.csv", "columnar-settings.json"),
+        new TestDataset(
+            "idx_col_dynamic_false",
+            "mapping-idx_col_dynamic_false.json",
+            "idx_col_dynamic_false.csv",
+            "columnar-settings.json"
+        ),
         new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
         new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))

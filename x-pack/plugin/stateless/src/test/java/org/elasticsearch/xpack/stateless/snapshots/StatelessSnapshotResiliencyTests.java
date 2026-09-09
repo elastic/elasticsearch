@@ -211,35 +211,36 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-            return new StatelessDeterministicThreadPool(runnableWrapper);
+            return new StatelessDeterministicThreadPool(deferProcessPendingDeletes(runnableWrapper));
         }
 
-        @Override
-        public void scheduleNow(Runnable task) {
-            if (isProcessPendingDeletes(task) == false) {
-                super.scheduleNow(task);
-                return;
-            }
-            // processPendingDeletes uses Semaphore.tryAcquire with a 30-minute wall-clock timeout.
-            // Under DTQ this can block the only thread while shard snapshots that still hold the lock
-            // sit in the runnable queue, so the suite times out. Re-enqueue until no other runnable
-            // work remains, matching production where generic and snapshot run on different threads.
-            super.scheduleNow(new Runnable() {
-                @Override
-                public void run() {
-                    if (hasRunnableTasks()) {
-                        logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", task);
-                        scheduleAt(getCurrentTimeMillis() + 1, this);
-                        return;
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return wrapped;
+                }
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            scheduleAt(getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
                     }
-                    task.run();
-                }
 
-                @Override
-                public String toString() {
-                    return task.toString();
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return wrapped.toString();
+                    }
+                };
+            };
         }
 
         private static boolean isProcessPendingDeletes(Runnable task) {

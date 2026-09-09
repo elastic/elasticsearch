@@ -30,19 +30,19 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
     private static final int BLOCK_SIZE = ColumNARDocValuesFormat.MIN_BLOCK_SIZE;
 
     public void testFootprintMonotonicTimestamps() throws IOException {
-        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66362);
+        runFootprintTest("MONOTONIC_TIMESTAMPS", (f, t) -> NumericPipeline::monotonicLongPipeline, 66363);
     }
 
     public void testFootprintTsdbSplit() throws IOException {
-        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4804);
+        runFootprintTest("TSDB_SPLIT", (f, t) -> NumericPipeline::monotonicLongPipeline, 4805);
     }
 
     public void testFootprintCounterSteady() throws IOException {
-        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 3988);
+        runFootprintTest("COUNTER_STEADY", (f, t) -> NumericPipeline::monotonicLongPipeline, 3989);
     }
 
     public void testFootprintGauge() throws IOException {
-        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53067);
+        runFootprintTest("GAUGE", (f, t) -> NumericPipeline::defaultPipeline, 53068);
     }
 
     public void testFootprintSensorDoubles() throws IOException {
@@ -58,7 +58,7 @@ public class ColumnarNumericFootprintTests extends ColumnarNumericStorageTestBas
     }
 
     public void testFootprintRandomFull() throws IOException {
-        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401839);
+        runFootprintTest("RANDOM_FULL", (f, t) -> NumericPipeline::defaultPipeline, 401840);
     }
 
     private void runFootprintTest(String workload, NumericPipelineSelector selector, long expectedBytes) throws IOException {

@@ -45,8 +45,14 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
  */
 public class NumericPipelineSelectorTests extends ESTestCase {
 
-    private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID, PatchedTransform.ID };
+    private static final byte[] DEFAULT_TRANSFORM_IDS = {
+        RunTransform.ID,
+        DeltaTransform.ID,
+        OffsetTransform.ID,
+        GcdTransform.ID,
+        PatchedTransform.ID };
     private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
+        RunTransform.ID,
         SplitDeltaTransform.ID,
         DeltaTransform.ID,
         OffsetTransform.ID,

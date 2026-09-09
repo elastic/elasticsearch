@@ -35,13 +35,19 @@ public final class NumericPipeline {
         return blockSize;
     }
 
-    /** The default chain: delta, offset, GCD, outliers set aside, then FOR bit-packing. */
+    /** The default chain: runs described, then delta, offset, GCD, outliers set aside, then FOR bit-packing. */
     public static NumericPipeline defaultPipeline(int blockSize) {
         return new NumericPipeline(
-            // Stateless transforms are shared singletons; the terminal and Patched own scratch buffers
-            // and must stay per-pipeline. Patched runs last, so it sees the values the terminal is about
-            // to pack and can choose the width they mostly need.
-            new BlockTransform[] { DeltaTransform.INSTANCE, OffsetTransform.INSTANCE, GcdTransform.INSTANCE, new PatchedTransform() },
+            // Stateless transforms are shared singletons; the terminal, Run and Patched own scratch
+            // buffers and must stay per-pipeline. Run comes first, since a run is a property of the values
+            // as they arrive and delta would leave nothing of it; Patched comes last, so it narrows what
+            // the terminal is about to pack.
+            new BlockTransform[] {
+                new RunTransform(blockSize),
+                DeltaTransform.INSTANCE,
+                OffsetTransform.INSTANCE,
+                GcdTransform.INSTANCE,
+                new PatchedTransform() },
             new ForTerminal(blockSize),
             blockSize
         );
@@ -54,6 +60,7 @@ public final class NumericPipeline {
     public static NumericPipeline monotonicLongPipeline(int blockSize) {
         return new NumericPipeline(
             new BlockTransform[] {
+                new RunTransform(blockSize),
                 new SplitDeltaTransform(),
                 DeltaTransform.INSTANCE,
                 OffsetTransform.INSTANCE,
@@ -145,6 +152,7 @@ public final class NumericPipeline {
                 case GcdTransform.ID -> GcdTransform.INSTANCE;
                 case SplitDeltaTransform.ID -> new SplitDeltaTransform();
                 case AlpDoubleTransform.ID -> new AlpDoubleTransform(blockSize);
+                case RunTransform.ID -> new RunTransform(blockSize);
                 case PatchedTransform.ID -> new PatchedTransform();
                 default -> throw new IllegalArgumentException("unknown block transform id [" + id + "]");
             };

@@ -1,0 +1,9 @@
+## Activates the fs-patch-agent, which substitutes the four pre-existing FsDirectoryFactory*
+## classes with patched bytes (gated on a SHA-256 fingerprint of the known stock class files).
+-javaagent:/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-patch-agent.jar
+
+## Injects the new FsDirectoryFactory$2 class (shipped in fs-directory-patch.jar) into the
+## org.elasticsearch.server module. org.elasticsearch.index.store is owned by that named module,
+## so the class cannot be added via the class path -- it must be patched into the module itself.
+## The patched FsDirectoryFactory installed by the agent above references this class.
+--patch-module=org.elasticsearch.server=/usr/share/elasticsearch/lib/tools/fs-patch-agent/fs-directory-patch.jar

@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+
+configurations {
+  // Consumed by the cloud ESS Docker image build to bundle the supplement jar alongside the agent.
+  supplement {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+dependencies {
+  testImplementation project(":test:framework")
+}
+
+tasks.named("jar").configure {
+  // The agent is identical across all 8.16.x patch levels, so the jar name is deliberately
+  // version-less: the cloud ESS image and its jvm.options.d reference a stable path.
+  archiveFileName = 'fs-patch-agent.jar'
+  manifest {
+    attributes(
+      'Premain-Class': 'org.elasticsearch.patch.FsDirectoryFactoryAgent',
+      'Can-Retransform-Classes': 'false'
+    )
+  }
+}
+
+// The agent jar carries the four pre-existing FsDirectoryFactory* classes under patches/, where the
+// transformer substitutes them at class-load time (gated on their stock SHA-256 fingerprint).
+tasks.named("processResources").configure {
+  from(project(':server').sourceSets.main.output.classesDirs) {
+    include 'org/elasticsearch/index/store/FsDirectoryFactory.class'
+    include 'org/elasticsearch/index/store/FsDirectoryFactory$1.class'
+    include 'org/elasticsearch/index/store/FsDirectoryFactory$HybridDirectory.class'
+    include 'org/elasticsearch/index/store/FsDirectoryFactory$PreLoadMMapDirectory.class'
+    eachFile { details -> details.path = 'patches/' + details.name }
+    includeEmptyDirs = false
+  }
+}
+
+// FsDirectoryFactory$2 is a brand-new class absent from the stock server jar, so it cannot be
+// introduced by the class-file transformer. It ships in a separate supplement jar at its real
+// package path and is injected into the org.elasticsearch.server module at runtime via
+// --patch-module (a jvm.options.d entry in the cloud ESS image), since org.elasticsearch.index.store
+// is owned by that named module and a copy on the class path would be invisible to it.
+def supplementJar = tasks.register("supplementJar", Jar) {
+  archiveFileName = 'fs-directory-patch.jar'
+  from(project(':server').sourceSets.main.output.classesDirs) {
+    include 'org/elasticsearch/index/store/FsDirectoryFactory$2.class'
+  }
+}
+
+artifacts {
+  supplement supplementJar
+}
+
+// This module deliberately has no compile-time dependency on :server or Lucene (it must run
+// before any ES class is loaded), so the default forbidden-apis signatures fail to parse.
+tasks.named("forbiddenApisMain").configure {
+  enabled = false
+}

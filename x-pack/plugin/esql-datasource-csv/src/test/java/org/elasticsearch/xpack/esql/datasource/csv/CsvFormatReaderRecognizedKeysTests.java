@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -184,5 +185,39 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "schema_sample_size" -> 10;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
+    }
+
+    /**
+     * Every key the reader consumes must either participate in the cache identity
+     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification. CSV has no inert
+     * keys: every recognised option changes record boundaries, values, null-ness, or whether inference fails, so
+     * every one of them must split the cache. A new option added without a decision fails here rather than
+     * silently sharing a cache entry with a read that interprets the same bytes differently.
+     */
+    private static final Set<String> IDENTITY_INERT_KEYS = Set.of();
+
+    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
+        for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
+            boolean affects = SchemaCacheKey.affectsIdentity(key);
+            boolean inert = IDENTITY_INERT_KEYS.contains(key);
+            assertTrue(
+                "key ["
+                    + key
+                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
+                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
+                    + "a justification that it cannot change which rows survive or what values they hold",
+                affects || inert
+            );
+            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
+        }
+    }
+
+    public void testDeclaredInertKeysAreStillRecognized() {
+        for (String key : IDENTITY_INERT_KEYS) {
+            assertTrue(
+                "stale IDENTITY_INERT_KEYS entry [" + key + "]: the reader no longer consumes it",
+                CsvFormatReader.RECOGNIZED_KEYS.contains(key)
+            );
+        }
     }
 }

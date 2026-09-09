@@ -55,12 +55,13 @@ public class NumericColumnMergeTests extends ESTestCase {
             }
             final boolean[] deleted = new boolean[numDocs];
 
-            final FieldType type = columnarBinaryFieldType(ColumnarFieldType.LONG);
+            final FieldType type = columnarBinaryFieldType();
 
             try (Directory dir = newDirectory()) {
                 // LogDocMergePolicy merges adjacent segments, so the merged order stays insertion order
                 // and the ordered check below also verifies per-document association.
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec()).setMergePolicy(new LogDocMergePolicy());
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.LONG))
+                    .setMergePolicy(new LogDocMergePolicy());
                 final BytesRefBuilder builder = new BytesRefBuilder();
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {

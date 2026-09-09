@@ -15,7 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -64,8 +67,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
      * picks it up automatically. Components contributing today: {@link ErrorPolicy},
-     * {@link FileSplitProvider}, {@link PartitionConfig}, the {@link #CONFIG_FORMAT} override read
-     * by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
+     * {@link FileSplitProvider}, {@link PartitionConfig}, {@link FileOrderConfig}, the {@link #CONFIG_FORMAT}
+     * override read by this class, and the {@link FormatNameResolver#CONFIG_READER} override read by the
      * format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
@@ -89,6 +92,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         keys.addAll(ExternalSourceResolver.CONFIG_KEYS);
         keys.addAll(PartitionConfig.CONFIG_KEYS);
+        keys.addAll(ExclusionConfig.CONFIG_KEYS);
+        keys.addAll(FileOrderConfig.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
@@ -96,6 +101,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    /**
+     * Executor for Phase-2 split discovery (Parquet/ORC footer fan-out and record-boundary probes).
+     * Production wires {@code esql_external_io}; tests may pass {@code null} and fall back to serial
+     * discovery on the calling thread. Must not be {@code SEARCH} or {@code GENERIC}: those pools must
+     * not issue object-store GETs, and {@code esql_external_io} must not join its own work.
+     */
     @Nullable
     private final ExecutorService splitDiscoveryExecutor;
     /**
@@ -294,6 +305,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 config
             );
             ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+            FileOrderConfig.validate(config);
         } finally {
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
@@ -559,6 +571,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
+                    // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
+                    // the operator factory. Computed here because the declared spec lives here; derived rather than
+                    // shipped, so both sides reach the same value from what the coordinator already minted.
+                    .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
+                    // For the split-less rails, which read one whole file and so have no per-split schema.
+                    .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
                     // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.
                     .idPath(context.declaredReadSpec().idPath())
                     // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime

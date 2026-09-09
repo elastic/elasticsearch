@@ -351,7 +351,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
             this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
-            final ElementType defaultElementType = this.indexMode == IndexMode.VECTORDB_DOCUMENT ? ElementType.BFLOAT16 : ElementType.FLOAT;
+            final ElementType defaultElementType = this.indexMode.isVectorDb() ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
                 if (elementType == null) {
@@ -361,7 +361,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return elementType;
             }, m -> toType(m).fieldType().element.elementType(), XContentBuilder::field, Objects::toString);
-            if (this.indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            if (this.indexMode.isVectorDb()) {
                 this.elementType.alwaysSerialize();
             }
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
@@ -400,7 +400,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
             this.indexed = Parameter.indexParam(
                 m -> toType(m).fieldType().indexed,
-                indexedByDefaultVersionCheck && indexDisabledByDefault == false
+                indexedByDefaultVersionCheck && (indexDisabledByDefault == false || this.indexMode.isSearchOptimizedColumnar())
             );
             if (indexedByDefaultVersionCheck) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -590,7 +590,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && indexed.getValue() && isExcludeSourceVectors;
+            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && (context.isSourceStored() || context.isSourceColumnarStored());
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -805,6 +805,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
 
+        /**
+         * Reads a single element from {@code byteBuffer}, advancing its position, and returns it boxed. Used to rebuild a
+         * vector held in binary doc values as a list.
+         */
+        public abstract Number readValue(ByteBuffer byteBuffer);
+
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
 
         abstract void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException;
@@ -926,6 +932,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(byteBuffer.get());
+        }
+
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return byteBuffer.get();
         }
 
         private KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
@@ -1261,6 +1272,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.value(byteBuffer.getFloat());
         }
 
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return byteBuffer.getFloat();
+        }
+
         private KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
             if (vector == null) {
                 throw new IllegalArgumentException("vector value must not be null");
@@ -1536,6 +1552,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
+        }
+
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return BFloat16.bFloat16ToFloat(byteBuffer.getShort());
         }
 
         @Override
@@ -2291,11 +2312,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 
@@ -2503,11 +2524,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 
@@ -4398,14 +4419,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (excludeSourceVectors) {
+        if (excludeSourceVectors == false) {
+            return null;
+        }
+        // Recreate the loader for each leaf so that different segments can be searched concurrently. It has to match where
+        // the vector lives: the vector index when the field is indexed, binary doc values otherwise.
+        if (fieldType().indexed) {
             return new SyntheticVectorsPatchFieldLoader<>(
-                // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
                 IndexedSyntheticFieldLoader::copyVectorAsList
             );
         }
-        return null;
+        return new SyntheticVectorsPatchFieldLoader<>(
+            () -> new DocValuesSyntheticFieldLoader(indexCreatedVersion),
+            DocValuesSyntheticFieldLoader::copyVectorAsList
+        );
     }
 
     @Override
@@ -4579,16 +4607,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return;
             }
             b.startArray(leafName());
-            BytesRef ref = values.binaryValue();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
+            ByteBuffer byteBuffer = byteBuffer();
             int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
                 fieldType().element.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        private ByteBuffer byteBuffer() throws IOException {
+            BytesRef ref = values.binaryValue();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            }
+            return byteBuffer;
+        }
+
+        /**
+         * Rebuilds the vector from its binary doc value as a list, mirroring {@link #write}.
+         */
+        private List<?> copyVectorAsList() throws IOException {
+            assert hasValue : "vector is null";
+            ByteBuffer byteBuffer = byteBuffer();
+            int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
+            List<Number> copyList = new ArrayList<>(dims);
+            for (int dim = 0; dim < dims; dim++) {
+                copyList.add(fieldType().element.readValue(byteBuffer));
+            }
+            return copyList;
         }
 
         @Override

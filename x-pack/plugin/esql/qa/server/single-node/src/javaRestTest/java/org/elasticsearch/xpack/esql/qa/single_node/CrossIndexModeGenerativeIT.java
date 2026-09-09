@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestTest;
+import org.elasticsearch.xpack.esql.qa.rest.generative.CrossIndexModeGenerativeRestRunner;
 import org.junit.ClassRule;
 
 /**
@@ -24,7 +24,7 @@ import org.junit.ClassRule;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 @TestLogging(value = "org.elasticsearch.xpack.esql.plugin.ComputeService", reason = "see query plans on failure")
-public class CrossIndexModeGenerativeIT extends CrossIndexModeGenerativeRestTest {
+public class CrossIndexModeGenerativeIT extends CrossIndexModeGenerativeRestRunner {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();

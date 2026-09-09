@@ -18,6 +18,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -27,10 +28,14 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -38,19 +43,19 @@ import static org.hamcrest.Matchers.hasSize;
 public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3DeprecationsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "deprecations_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
@@ -88,8 +93,12 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
             (b, p) -> b.field("type", S3Repository.TYPE)
                 .startObject("settings")
                 .value(
-                    settingsUnaryOperator.apply(Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("client", CLIENT))
-                        .build()
+                    settingsUnaryOperator.apply(
+                        Settings.builder()
+                            .put("bucket", bucketSupplier.get())
+                            .put("base_path", basePathSupplier.get())
+                            .put("client", CLIENT)
+                    ).build()
                 )
                 .endObject()
         );
@@ -138,6 +147,49 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         } finally {
             assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
         }
+    }
+
+    private static final String PLACEHOLDER_CLIENT = "placeholder";
+    private static final Map<String, String> DEPRECATED_CLIENT_SETTING_TEST_VALUES = Map.of(
+        "protocol",
+        "https",
+        "use_throttle_retries",
+        "true",
+        "signer_override",
+        "test_signer",
+        "disable_chunked_encoding",
+        "true"
+    );
+
+    public void testUpgradeAssistantReportsDeprecatedClientSettings() throws IOException {
+        for (var deprecatedClientSetting : DEPRECATED_CLIENT_SETTING_TEST_VALUES.entrySet()) {
+            final var settingKey = deprecatedClientSetting.getKey();
+            final var repoName = registerRepository(b -> b.put(settingKey, deprecatedClientSetting.getValue()), Strings.format("""
+                [s3.client.%s.%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
+                See the breaking changes documentation for the next major version.""", PLACEHOLDER_CLIENT, settingKey));
+            try {
+                assertDeprecationIssue(
+                    repoName,
+                    "S3 repository explicitly configures a deprecated client setting",
+                    ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                    S3Repository.deprecatedClientSettingDeprecationWarning(settingKey)
+                );
+            } finally {
+                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repoName)));
+            }
+        }
+    }
+
+    public void testAllDeprecatedClientSettingsAreCoveredByUpgradeAssistantTest() {
+        final Set<String> deprecatedClientSettings = new HashSet<>();
+        for (final var setting : S3RepositorySettings.DEPRECATED_CLIENT_SETTINGS) {
+            deprecatedClientSettings.add(
+                setting.getConcreteSettingForNamespace(PLACEHOLDER_CLIENT)
+                    .getKey()
+                    .substring(S3ClientSettings.REPOSITORY_CLIENT_SETTINGS_PREFIX.length())
+            );
+        }
+        assertThat(DEPRECATED_CLIENT_SETTING_TEST_VALUES.keySet(), equalTo(deprecatedClientSettings));
     }
 
     private static void assertDeprecationIssue(String repositoryName, String message, ReferenceDocs referenceDocs, String details)

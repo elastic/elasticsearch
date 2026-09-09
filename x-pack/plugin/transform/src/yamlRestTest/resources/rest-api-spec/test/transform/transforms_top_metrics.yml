@@ -1,0 +1,153 @@
+setup:
+  - do:
+      indices.create:
+        index: rum-sessions
+        body:
+          mappings:
+            properties:
+              session.id:
+                type: keyword
+              path:
+                type: keyword
+              "@timestamp":
+                type: date
+  - do:
+      bulk:
+        refresh: true
+        index: rum-sessions
+        body:
+          - '{"index": {}}'
+          - '{"session.id": "s1", "path": "/home", "@timestamp": "2026-08-16T10:00:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s1", "path": "/shop", "@timestamp": "2026-08-16T10:01:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s1", "path": "/checkout", "@timestamp": "2026-08-16T10:02:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s1", "path": "/confirm", "@timestamp": "2026-08-16T10:03:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s1", "path": "/thanks", "@timestamp": "2026-08-16T10:04:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s2", "path": "/a", "@timestamp": "2026-08-16T11:00:00Z"}'
+          - '{"index": {}}'
+          - '{"session.id": "s2", "path": "/b", "@timestamp": "2026-08-16T11:01:00Z"}'
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: rum-sessions
+        ignore: 404
+
+---
+"Preview top_metrics size 1 writes flatten and a top array of 1":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": {
+              "index": "rum-sessions",
+              "query": { "term": { "session.id": "s1" } }
+            },
+            "pivot": {
+              "group_by": { "session": { "terms": { "field": "session.id" } } },
+              "aggs": {
+                "token": {
+                  "top_metrics": {
+                    "metrics": { "field": "path" },
+                    "sort": { "@timestamp": "asc" },
+                    "size": 1
+                  }
+                }
+              }
+            }
+          }
+  - length: { preview: 1 }
+  - match: { preview.0.session: s1 }
+  - match: { preview.0.token.path: "/home" }
+  - length: { preview.0.token.top: 1 }
+  - match: { preview.0.token.top.0.sort.0: "2026-08-16T10:00:00.000Z" }
+  - match: { preview.0.token.top.0.metrics.path: "/home" }
+  - match: { generated_dest_index.mappings.properties.token\.path.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.token\.top\.metrics\.path.type: "keyword" }
+
+---
+"Preview top_metrics size greater than 1 writes a top array on the group doc":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": {
+              "index": "rum-sessions",
+              "query": { "term": { "session.id": "s1" } }
+            },
+            "pivot": {
+              "group_by": { "session": { "terms": { "field": "session.id" } } },
+              "aggs": {
+                "token": {
+                  "top_metrics": {
+                    "metrics": { "field": "path" },
+                    "sort": { "@timestamp": "asc" },
+                    "size": 3
+                  }
+                }
+              }
+            }
+          }
+  - length: { preview: 1 }
+  - match: { preview.0.session: s1 }
+  - match: { preview.0.token.path: "/home" }
+  - length: { preview.0.token.top: 3 }
+  - match: { preview.0.token.top.0.sort.0: "2026-08-16T10:00:00.000Z" }
+  - match: { preview.0.token.top.0.metrics.path: "/home" }
+  - match: { preview.0.token.top.1.metrics.path: "/shop" }
+  - match: { preview.0.token.top.2.metrics.path: "/checkout" }
+  - match: { generated_dest_index.mappings.properties.token\.path.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.token\.top\.metrics\.path.type: "keyword" }
+
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "rum-sessions" },
+            "pivot": {
+              "group_by": { "session": { "terms": { "field": "session.id" } } },
+              "aggs": {
+                "token": {
+                  "top_metrics": {
+                    "metrics": { "field": "path" },
+                    "sort": { "@timestamp": "asc" },
+                    "size": 3
+                  }
+                }
+              }
+            }
+          }
+  # size does not explode dest cardinality: one row per group_by key
+  - length: { preview: 2 }
+
+---
+"Preview top_metrics size 10 does not pad a short hit list":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": {
+              "index": "rum-sessions",
+              "query": { "term": { "session.id": "s2" } }
+            },
+            "pivot": {
+              "group_by": { "session": { "terms": { "field": "session.id" } } },
+              "aggs": {
+                "token": {
+                  "top_metrics": {
+                    "metrics": { "field": "path" },
+                    "sort": { "@timestamp": "asc" },
+                    "size": 10
+                  }
+                }
+              }
+            }
+          }
+  - length: { preview: 1 }
+  - match: { preview.0.token.path: "/a" }
+  - length: { preview.0.token.top: 2 }

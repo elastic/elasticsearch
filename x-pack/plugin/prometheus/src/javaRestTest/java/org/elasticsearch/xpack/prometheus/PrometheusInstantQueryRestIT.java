@@ -186,6 +186,26 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(instantSeries(METRIC + " > 1"), containsInAnyOrder(seriesWithValueAbove(1.0)));
     }
 
+    public void testInstantQuerySortOrdersByValueAscending() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(instantSeries("sort(" + METRIC + ")"), contains(LABELLED_SERIES.toArray(PromqlResponseSeries[]::new)));
+    }
+
+    public void testInstantQuerySortDescOrdersByValueAndOmitsSyntheticNanLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        List<PromqlResponseSeries> series = instantSeries("sort_desc(" + METRIC + ")");
+        List<PromqlResponseSeries> expected = LABELLED_SERIES.reversed();
+        assertThat(series, contains(expected.toArray(PromqlResponseSeries[]::new)));
+        for (PromqlResponseSeries s : series) {
+            for (String label : s.labels().keySet()) {
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.contains("promql_sort"));
+                assertFalse("synthetic sort key leaked into metric labels: " + s.labels(), label.startsWith("$$"));
+            }
+        }
+    }
+
     private static PromqlResponseSeries[] seriesWithValueAbove(double threshold) {
         return LABELLED_SERIES.stream().filter(series -> series.value() > threshold).toArray(PromqlResponseSeries[]::new);
     }

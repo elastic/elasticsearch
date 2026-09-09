@@ -1,6 +1,6 @@
 ---
 applies_to:
-  stack: preview 9.3, ga 9.4
+  stack: ga
   serverless: ga
 navigation_title: "Histogram fields"
 ---

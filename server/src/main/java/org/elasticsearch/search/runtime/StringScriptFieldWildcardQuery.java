@@ -45,7 +45,7 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
         if (caseInsensitive) {
             return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
         }
-        return WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.determinize(WildcardQuery.toAutomaton(term), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

@@ -386,7 +386,10 @@ abstract class BinaryDvConfirmedQuery extends Query {
         public Automaton getAutomaton(String field) {
             return caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(field, matchPattern))
-                : WildcardQuery.toAutomaton(new Term(field, matchPattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                : Operations.determinize(
+                    WildcardQuery.toAutomaton(new Term(field, matchPattern)),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                );
         }
     }
 

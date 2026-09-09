@@ -1387,7 +1387,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                         return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
@@ -1421,7 +1421,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                         return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return new WildcardQuery(term, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
         }

@@ -23,7 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
@@ -194,7 +193,6 @@ public class ScanningBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                     Query baselineQuery = new WildcardQuery(
                         new Term("baseline_field", randomWildcard),
-                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                         MultiTermQuery.DOC_VALUES_REWRITE
                     );
                     TopDocs baselineResults = searcher.search(baselineQuery, 32);

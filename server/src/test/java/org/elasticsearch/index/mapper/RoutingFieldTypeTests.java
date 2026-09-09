@@ -19,7 +19,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 
@@ -154,7 +153,6 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testWildcardQueryDocValues() {
         Query expected = new WildcardQuery(
             new Term("_routing", new BytesRef("foo*")),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT));

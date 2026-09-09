@@ -21,7 +21,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -243,7 +242,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             } else {
                 query = method == null
                     ? new WildcardQuery(term)
-                    : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+                    : new WildcardQuery(term, method);
             }
         }
         return query;

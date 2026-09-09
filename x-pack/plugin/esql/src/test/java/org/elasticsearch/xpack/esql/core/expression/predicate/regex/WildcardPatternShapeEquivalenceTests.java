@@ -201,7 +201,7 @@ public class WildcardPatternShapeEquivalenceTests extends ESTestCase {
         byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
         BytesRef valueRef = new BytesRef(valueBytes);
         ByteRunAutomaton automaton = new ByteRunAutomaton(
-            WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+            Operations.determinize(WildcardQuery.toAutomaton(new Term("f", pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
         );
         boolean fromAutomaton = automaton.run(valueBytes, 0, valueBytes.length);
         boolean fromRouted = switch (wp.shape()) {

@@ -1052,7 +1052,7 @@ public final class TextFieldMapper extends FieldMapper {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),

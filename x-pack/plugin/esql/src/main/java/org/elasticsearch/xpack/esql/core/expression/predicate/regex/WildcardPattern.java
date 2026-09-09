@@ -93,7 +93,7 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
                     .toAutomaton(),
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
             )
-            : WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            : Operations.determinize(WildcardQuery.toAutomaton(new Term(null, wildcard)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

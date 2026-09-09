@@ -35,7 +35,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
@@ -764,7 +763,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                return new WildcardQuery(term, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return new StringScriptFieldWildcardQuery(
                 new Script(""),

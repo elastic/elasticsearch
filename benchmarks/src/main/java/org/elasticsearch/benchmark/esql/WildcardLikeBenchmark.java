@@ -128,7 +128,7 @@ public class WildcardLikeBenchmark {
             valueArrays[i] = value.getBytes(StandardCharsets.UTF_8);
             valueRefs[i] = new BytesRef(valueArrays[i]);
         }
-        Automaton autom = WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton autom = Operations.determinize(WildcardQuery.toAutomaton(new Term("f", pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         automaton = new ByteRunAutomaton(autom);
         // Self-test: automaton and evaluator must agree on every value for this shape.
         for (int i = 0; i < NUM_VALUES; i++) {

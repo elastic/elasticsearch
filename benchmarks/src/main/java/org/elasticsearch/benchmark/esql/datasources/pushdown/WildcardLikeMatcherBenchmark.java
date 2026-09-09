@@ -119,7 +119,7 @@ public class WildcardLikeMatcherBenchmark {
         }
         String pattern = patternForShape(shape);
         // Compile once — same as ParquetPushedExpressions#automatonFor caches per query.
-        Automaton autom = WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton autom = Operations.determinize(WildcardQuery.toAutomaton(new Term("f", pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         automaton = new ByteRunAutomaton(autom);
         compiledShape = WildcardLikeShape.of(pattern);
         // Self-test: every value must produce identical answers across both implementations.

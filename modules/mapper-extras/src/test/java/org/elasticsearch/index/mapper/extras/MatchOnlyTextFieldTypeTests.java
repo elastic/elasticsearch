@@ -29,7 +29,6 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -621,7 +620,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(
             sortedSet.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
             Matchers.equalTo(
-                new WildcardQuery(new Term("field", "foo*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE)
+                new WildcardQuery(new Term("field", "foo*"), MultiTermQuery.DOC_VALUES_REWRITE)
             )
         );
 

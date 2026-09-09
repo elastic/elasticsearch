@@ -259,7 +259,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             try {
                 automaton = circuitBreaker != null
                     ? AutomatonQueries.toWildcardAutomaton(term, circuitBreaker)
-                    : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                    : Operations.determinize(WildcardQuery.toAutomaton(term), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
             } catch (TooComplexToDeterminizeException e) {
                 throw new IllegalArgumentException("Pattern was too complex to determinize", e);
             }

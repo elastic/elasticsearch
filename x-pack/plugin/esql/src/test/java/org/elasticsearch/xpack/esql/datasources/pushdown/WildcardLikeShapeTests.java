@@ -199,7 +199,7 @@ public class WildcardLikeShapeTests extends ESTestCase {
             WildcardLikeShape shape = WildcardLikeShape.of(pattern);
             assertNotNull("pattern [" + pattern + "] should be in the affix-contains family", shape);
             ByteRunAutomaton runner = new ByteRunAutomaton(
-                WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                Operations.determinize(WildcardQuery.toAutomaton(new Term("f", pattern)), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
             );
             for (String v : values) {
                 byte[] bytes = v.getBytes(StandardCharsets.UTF_8);

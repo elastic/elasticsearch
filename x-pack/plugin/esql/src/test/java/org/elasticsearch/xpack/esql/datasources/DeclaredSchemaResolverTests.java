@@ -21,6 +21,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
 public class DeclaredSchemaResolverTests extends ESTestCase {
 
     private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
@@ -130,13 +135,56 @@ public class DeclaredSchemaResolverTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeThrowsDefensively() {
+        // Both shapes the backstop must reject: a name that is not a type at all, and a real ES|QL type that was
+        // never declarable. Only `text` is read leniently (see testStoredTextResolvesToKeyword); everything else
+        // outside the whitelist still fails the query.
+        for (String bad : new String[] { "not_a_type", "geo_point" }) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("c", new DatasetFieldMapping(bad, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
+            );
+            assertThat(e.getMessage(), containsString(bad));
+        }
+    }
+
+    /**
+     * `text` was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry it.
+     * It reads as keyword rather than failing the query: the bytes are identical, and the dataset stays queryable
+     * across the upgrade. The warning that announces the substitution is emitted by ExternalSourceResolver, which
+     * is where it can reach the response — see ExternalSourceResolverTests#testWithdrawnDeclaredTextReadsAsKeywordAndWarns.
+     */
+    public void testStoredTextResolvesToKeyword() {
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("c", new DatasetFieldMapping("not_a_type", null));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("id", new DatasetFieldMapping("integer", null));
+
+        List<Attribute> declared = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+
+        assertThat(declared, hasSize(2));
+        assertThat(declared.get(0).name(), equalTo("msg"));
+        assertThat(declared.get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(declared.get(1).dataType(), equalTo(DataType.INTEGER));
+
+        // The same substitution on the non-strict rail, which retypes an inferred column rather than minting one.
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
+            List.of(attr("msg", DataType.KEYWORD), attr("id", DataType.INTEGER)),
+            mapping(props)
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("not_a_type"));
+        assertThat(o.output().get(0).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /** The columns a caller has to warn about are exactly the ones declared with the withdrawn type. */
+    public void testWithdrawnTextColumnsNamesOnlyTextColumns() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("keyword", null));
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("body", new DatasetFieldMapping("text", "body_raw"));
+        props.put("n", new DatasetFieldMapping("long", null));
+
+        assertThat(DeclaredSchemaResolver.withdrawnTextColumns(mapping(props)), equalTo(List.of("msg", "body")));
+        assertThat(DeclaredSchemaResolver.withdrawnTextColumns(null), empty());
     }
 
     public void testMoveConsumesPhysicalInPlace() {

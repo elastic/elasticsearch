@@ -175,6 +175,15 @@ public final class DeclaredSchemaResolver {
 
     private static DataType resolveType(String column, String type) {
         DataType resolved = DataType.fromNameOrAlias(type);
+        // `text` was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry it.
+        // Reading it as KEYWORD is representation-preserving — every reader's string arm is `case KEYWORD, TEXT` and
+        // produces the same BytesRef block — so the dataset stays queryable across the upgrade. What it does change is
+        // that MATCH/MATCH_PHRASE stop analyzing the column, which is why the read path warns: see
+        // ExternalSourceResolver#warnOnWithdrawnDeclaredTypes, the one place that emits, since this method runs once
+        // per file on the non-strict rail.
+        if (resolved == DataType.TEXT) {
+            return DataType.KEYWORD;
+        }
         // PUT-time DeclaredSchemaValidator already rejects undeclarable types; this is the defensive backstop for a
         // mapping that reached resolution another way (e.g. a hand-edited cluster state). Mirror the validator's
         // whitelist exactly so the backstop is as strict — a known-but-non-declarable type (e.g. geo_point) is rejected
@@ -183,5 +192,24 @@ public final class DeclaredSchemaResolver {
             throw new IllegalArgumentException("declared type [" + type + "] for column [" + column + "] is not a declarable type");
         }
         return resolved;
+    }
+
+    /**
+     * The logical columns of {@code mapping} whose declared type is the withdrawn {@code text}, in declaration order.
+     * They resolve to {@code keyword} (see {@link #resolveType}); this exposes them so the resolver can warn once per
+     * query rather than once per file. Empty for every mapping registered since the withdrawal.
+     */
+    public static List<String> withdrawnTextColumns(DatasetMapping mapping) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings == null) {
+            return List.of();
+        }
+        List<String> columns = new ArrayList<>();
+        for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
+            if (DataType.fromNameOrAlias(e.getValue().type()) == DataType.TEXT) {
+                columns.add(e.getKey());
+            }
+        }
+        return columns;
     }
 }

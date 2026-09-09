@@ -96,6 +96,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -210,6 +211,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
+
+    /**
+     * A mapping stored before {@code text} was withdrawn still carries it. The column reads as {@code keyword} and
+     * the substitution is announced on the resolution, not swallowed: the bytes are unchanged but MATCH stops
+     * analyzing, so a user whose query silently changes meaning has to be told. Warnings ride the resolution object
+     * rather than {@code ThreadContext} for the reason
+     * {@link #testShadowWarningReachesCallerAcrossAsyncCompletion} documents.
+     */
+    public void testWithdrawnDeclaredTextReadsAsKeywordAndWarns() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("n", new DatasetFieldMapping("long", null));
+
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("msg", DataType.KEYWORD), attr("n", DataType.LONG)),
+            props,
+            DatasetMapping.Dynamic.FALSE
+        );
+
+        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        assertThat(schema.get(0).name(), equalTo("msg"));
+        assertThat(schema.get(0).dataType(), equalTo(DataType.KEYWORD));
+
+        List<String> warnings = resolution.warnings();
+        assertEquals("summary + one detail", 2, warnings.size());
+        assertThat(warnings.get(0), containsString("withdrawn [text] type"));
+        assertThat(warnings.get(0), containsString("TO_TEXT"));
+        assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
+    }
+
+    /** No declared text column, no warning — the overwhelmingly common case must stay silent. */
+    public void testNoWarningWhenNothingDeclaresText() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("msg", new DatasetFieldMapping("keyword", null));
+
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("msg", DataType.KEYWORD)),
+            props,
+            DatasetMapping.Dynamic.FALSE
+        );
+
+        assertThat(resolution.warnings(), empty());
+    }
 
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
     private ExternalSourceResolution resolveWithDeclaredMapping(

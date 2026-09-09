@@ -435,6 +435,12 @@ public class ExternalSourceResolver {
         // across resolve() calls in tests.
         pendingShadowWarnings.clear();
 
+        // Once per query, before the per-path recursion: a mapping stored before `text` was withdrawn reads its
+        // text columns as keyword, and the user is told so. Emitting here rather than from the resolver keeps it
+        // to one warning per column however many paths and files the resource expands to, and covers the strict
+        // rail, which never reaches the non-strict overlay.
+        warnOnWithdrawnDeclaredTypes(declaredMappings, pendingShadowWarnings::add);
+
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
         // expansion, the FFW anchor / single-file footer read) and then hands the multi-file fan-out to async footer
@@ -2471,6 +2477,46 @@ public class ExternalSourceResolver {
         Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
         stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
         return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
+    }
+
+    /**
+     * Warns that columns declared with the withdrawn {@code text} type are read as {@code keyword}.
+     * <p>
+     * {@code text} was a declarable type before it was withdrawn, so a mapping stored by an earlier version can still
+     * carry it; {@link DeclaredSchemaResolver#resolveType} reads such a column as {@code keyword} rather than failing
+     * the query. The bytes are unchanged — every reader's string arm is {@code case KEYWORD, TEXT} — but
+     * {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column, so the substitution is announced rather than
+     * silent, and the message names the query-side replacement.
+     * <p>
+     * Called once per {@link #resolve} rather than per path or per file, so a column warns once however wide the
+     * resource expands. Takes {@code warningSink} for the same reason {@link #warnOnShadowedColumns} does: this runs
+     * on {@link #metadataReadExecutor}, so a direct {@code HeaderWarning} write would be discarded — see that method
+     * and elastic/elasticsearch#153780. A no-op for every mapping registered since the withdrawal.
+     */
+    private static void warnOnWithdrawnDeclaredTypes(
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Consumer<String> warningSink
+    ) {
+        if (declaredMappings == null || declaredMappings.isEmpty()) {
+            return;
+        }
+        // One resource can expand to several paths sharing a dataset's mapping, so dedupe by logical column name.
+        Set<String> columns = new LinkedHashSet<>();
+        for (DatasetMapping mapping : declaredMappings.values()) {
+            columns.addAll(DeclaredSchemaResolver.withdrawnTextColumns(mapping));
+        }
+        if (columns.isEmpty()) {
+            return;
+        }
+        SkipWarnings warnings = new SkipWarnings(
+            "one or more columns are declared with the withdrawn [text] type and are read as [keyword]; "
+                + "matching on them is no longer analyzed. Re-register the dataset declaring [keyword], and apply "
+                + "TO_TEXT in the query where an analyzed column is wanted.",
+            warningSink
+        );
+        for (String column : columns) {
+            warnings.add("column [" + column + "] is declared [text] and is read as [keyword]");
+        }
     }
 
     /**

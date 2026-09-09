@@ -318,8 +318,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final float allocationUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
-        // Disable the minimum shard write load threshold so that zero-load shards remain eligible for movement,
-        // keeping the scenario realistic for a cluster with no write-load estimates.
+        // Disable `hotspot_min_shard_write_load_threshold` so that all shards are eligible to move.
         final var settings = createSettings(allocationUtilizationThreshold, hotspotUtilizationThreshold, highLatencyThreshold, null, -1.0);
 
         final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);

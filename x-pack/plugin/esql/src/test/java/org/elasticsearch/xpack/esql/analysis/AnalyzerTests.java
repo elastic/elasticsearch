@@ -6540,6 +6540,37 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /**
+     * LOOKUP JOIN and FORK are not {@code UnaryPlan}, so they would otherwise leave {@code blockedBy} unset and
+     * report a missing WHERE even though one exists upstream of the barrier.
+     */
+    public void testHighlightImplicitQueryStopsAtNonUnaryBarriers() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        var blocked = allOf(
+            containsString("HIGHLIGHT cannot borrow the WHERE before"),
+            containsString("does not preserve documents")
+        );
+        supportsHighlight(basic().addLanguagesLookup()).error(
+            """
+                FROM test
+                | WHERE MATCH(first_name, "x")
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code
+                | HIGHLIGHT ON first_name
+                """,
+            allOf(blocked, containsString("LOOKUP JOIN languages_lookup ON language_code"))
+        );
+        supportsHighlight(basic()).error(
+            """
+                FROM test
+                | WHERE MATCH(first_name, "x")
+                | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+                | HIGHLIGHT ON first_name
+                """,
+            allOf(blocked, containsString("FORK (WHERE emp_no > 1) (WHERE emp_no > 2)"))
+        );
+    }
+
+    /**
      * INLINE STATS appends aggregate columns rather than collapsing rows, so the walk continues through it to the WHERE.
      */
     public void testHighlightImplicitQueryDescendsThroughInlineStats() {

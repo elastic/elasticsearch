@@ -274,7 +274,6 @@ which field types are in use across backing indices.
 - [`VALUES`](/reference/query-languages/esql/functions-operators/aggregation-functions/values.md) does not accept histogram types.
 - Multivalue functions like [`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md), [`MV_LAST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_last.md), and [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_count.md) reject histogram fields.
 - Counts and percentiles derived from histogram fields are estimates because the underlying data structures store distributions, not exact values.
-- [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md) works on `exponential_histogram` and `histogram` fields but does not currently support `tdigest`.
 
 ## Further reading
 

@@ -322,38 +322,36 @@ public class FoldNullTests extends ESTestCase {
 
     public void testEqualsNullSuggestsIsNull() {
         var field = getFieldAttribute("emp_no");
-        Source source = new Source(1, 19, "emp_no == NULL");
-        assertNullLiteral(foldNull(new Equals(source, field, NULL)));
-        assertWarnings("Line 1:20: Expression [emp_no == NULL] always evaluates to NULL, did you mean [emp_no IS NULL]?");
+        Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
+        assertNullLiteral(foldNull(equals));
+        assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
     }
 
     public void testNotEqualsNullSuggestsIsNotNull() {
         var field = getFieldAttribute("emp_no");
-        Source source = new Source(1, 19, "emp_no != NULL");
-        assertNullLiteral(foldNull(new NotEquals(source, field, NULL)));
-        assertWarnings("Line 1:20: Expression [emp_no != NULL] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?");
+        NotEquals notEquals = new NotEquals(new Source(1, 19, "emp_no != NULL"), field, NULL);
+        assertNullLiteral(foldNull(notEquals));
+        assertEquals("emp_no IS NOT NULL", notEquals.nullMisuseAlternative());
     }
 
     public void testInsensitiveEqualsNullSuggestsIsNull() {
         var field = getFieldAttribute("name", KEYWORD);
-        Source source = new Source(1, 12, "name =~ NULL");
-        assertNullLiteral(foldNull(new InsensitiveEquals(source, field, NULL)));
-        assertWarnings("Line 1:13: Expression [name =~ NULL] always evaluates to NULL, did you mean [name IS NULL]?");
+        InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);
+        assertNullLiteral(foldNull(insensitiveEquals));
+        assertEquals("name IS NULL", insensitiveEquals.nullMisuseAlternative());
     }
 
     public void testNotSuggestsIsNotNullWhenChildIsEquals() {
         var field = getFieldAttribute("emp_no");
         Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
-        Source source = new Source(1, 19, "NOT (emp_no == NULL)");
-        assertNullLiteral(foldNull(new Not(source, equals)));
-        assertWarnings("Line 1:20: Expression [NOT (emp_no == NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?");
+        Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
+        assertNullLiteral(foldNull(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }
 
     public void testArithmeticNullHasNoAlternative() {
         var field = getFieldAttribute("emp_no");
-        Source source = new Source(1, 16, "emp_no + NULL");
-        assertNullLiteral(foldNull(new Add(source, field, NULL, TEST_CFG)));
-        assertWarnings("Line 1:17: Expression [emp_no + NULL] always evaluates to NULL.");
+        assertNullLiteral(foldNull(new Add(new Source(1, 16, "emp_no + NULL"), field, NULL, TEST_CFG)));
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -1167,9 +1167,8 @@ emp_no:integer|x:boolean
 1             |null
 ;
 
-# The null is nested two levels deep: the outermost viral-null expression folds first, so a single
-# warning covers the whole expression and there is no IS NULL suggestion (neither direct operand
-# of == is a guaranteed null).
+# The explicit NULL is a direct child of the inner CONCAT, so the warning points there
+# rather than at the enclosing comparison the null later propagates to.
 nestedConcatNullWarning
 required_capability: fold_null_literal_warning
 
@@ -1180,7 +1179,7 @@ FROM employees
 | LIMIT 1
 ;
 
-warning:Line 2:12: Expression [first_name == CONCAT(first_name, CONCAT(NULL, last_name))] always evaluates to NULL.
+warning:Line 2:45: Expression [CONCAT(NULL, last_name)] always evaluates to NULL.
 
 emp_no:integer|x:boolean
 10001         |null

@@ -7,13 +7,23 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.WarnNullMisuse;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class FoldNullWarningTests extends AbstractLogicalPlanOptimizerTests {
+    @Override
+    protected LogicalPlan plan(String query) {
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        new WarnNullMisuse().apply(analyzed, ActionListener.noop());
+        return optimize(analyzed);
+    }
+
     public void testEqualsNullSuggestsIsNull() {
         plan("""
             ROW emp_no = 1
@@ -55,24 +65,23 @@ public class FoldNullWarningTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * The null is nested two levels deep. FoldNull transforms DOWN, so the outermost viral-null
-     * expression folds first and emits a single warning covering the whole expression; there is
-     * no IS NULL suggestion because neither direct operand of == is a guaranteed null.
+     * The explicit NULL is a direct child of the inner CONCAT, so the warning points there
+     * rather than at the enclosing comparison the null later propagates to.
      */
-    public void testNestedConcatNullWarnsOnceOnWholeExpression() {
+    public void testNestedConcatNullWarnsOnInnerConcat() {
         plan("""
             FROM test
             | EVAL x = first_name == CONCAT(first_name, CONCAT(NULL, last_name))
             """);
-        assertWarnings("Line 2:12: Expression [first_name == CONCAT(first_name, CONCAT(NULL, last_name))] always evaluates to NULL.");
+        assertWarnings("Line 2:45: Expression [CONCAT(NULL, last_name)] always evaluates to NULL.");
     }
 
-    public void testNestedConcatNullOnLiteralRowWarnsOnceOnWholeExpression() {
+    public void testNestedConcatNullOnLiteralRowWarnsOnInnerConcat() {
         plan("""
             ROW a = "x", b = "y", f = "z"
             | EVAL c = f == CONCAT(a, CONCAT(NULL, b))
             """);
-        assertWarnings("Line 2:12: Expression [f == CONCAT(a, CONCAT(NULL, b))] always evaluates to NULL.");
+        assertWarnings("Line 2:27: Expression [CONCAT(NULL, b)] always evaluates to NULL.");
     }
 
     public void testNullOnLeftSuggestsIsNull() {
@@ -84,15 +93,15 @@ public class FoldNullWarningTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * When the null comes from a null-typed reference rather than a literal, the kept operand is
-     * the literal side, producing an odd suggestion. Documents current behavior.
+     * A NULL-typed reference is not an explicit NULL literal, so no warning is emitted
+     * even though the comparison will fold to NULL later.
      */
-    public void testNullTypedReferenceComparisonSuggestsLiteralIsNull() {
+    public void testNullTypedReferenceComparisonDoesNotWarn() {
         plan("""
             ROW x = null
             | WHERE x == 5
             """);
-        assertWarnings("Line 2:9: Expression [x == 5] always evaluates to NULL, did you mean [5 IS NULL]?");
+        ensureNoWarnings();
     }
 
     public void testIndentedAddNullWarningLocation() {

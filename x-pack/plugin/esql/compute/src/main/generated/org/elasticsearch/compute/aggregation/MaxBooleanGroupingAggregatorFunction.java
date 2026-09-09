@@ -36,7 +36,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   MaxBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new BooleanArrayState(driverContext.bigArrays(), MaxBooleanAggregator.init());
+    this.state = new BooleanArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxBooleanAggregator.init());
     this.driverContext = driverContext;
   }
 

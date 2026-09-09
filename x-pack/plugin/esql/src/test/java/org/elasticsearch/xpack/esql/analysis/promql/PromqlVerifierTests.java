@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
@@ -397,6 +398,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testVectorMatchingRequiresInstantVectors() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }

@@ -14,6 +14,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
@@ -80,6 +81,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int[] pageLengths = new int[0];
     private byte[] pageBytes = new byte[0];
     protected int pageBytesLength;
+
+    /** The running extreme, held so comparing one value against another survives the buffer being reused. */
+    private final BytesRefBuilder extremeSoFar = new BytesRefBuilder();
 
     // A page's slots found by the bytes in them, so a value the page already holds is one slot and not two.
     // Stamped by generation rather than cleared, as the ordinal slots of a dictionary column are.
@@ -221,6 +225,38 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     public boolean valuesSorted() {
         return meta.valuesSorted();
+    }
+
+    /**
+     * The largest or smallest value a document holds, or null when it holds none - its slots were all null, or it has
+     * no slot at all. The returned {@link BytesRef} is only valid until the next call.
+     *
+     * <p>Compared here as bytes, which is all a column that stores its values can do.
+     * {@link DictionaryStringColumnReader} decides it over ordinals instead, and reads one term rather than all of
+     * them.
+     */
+    public BytesRef extreme(int rank, boolean max, BytesRef dst) throws IOException {
+        final long first = firstValueAddress(rank);
+        final long count = valueCount(rank);
+        boolean found = false;
+        for (long i = 0; i < count; i++) {
+            final BytesRef value = valueAt(first + i);
+            if (value == null) {
+                continue;
+            }
+            // Copied rather than pointed at: the next read reuses the buffer this one came back in.
+            if (found == false || (max ? value.compareTo(extremeSoFar.get()) > 0 : value.compareTo(extremeSoFar.get()) < 0)) {
+                extremeSoFar.copyBytes(value);
+                found = true;
+            }
+        }
+        if (found == false) {
+            return null;
+        }
+        dst.bytes = extremeSoFar.bytes();
+        dst.offset = 0;
+        dst.length = extremeSoFar.length();
+        return dst;
     }
 
     /** Whether this column names its values with ordinals rather than storing them. */

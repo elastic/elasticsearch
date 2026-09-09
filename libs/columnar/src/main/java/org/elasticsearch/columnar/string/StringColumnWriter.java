@@ -73,19 +73,22 @@ public final class StringColumnWriter {
      * Encodes a string column into {@code data}: iterator metadata, the block-encoded values, then the block
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
-     * @param maxDoc           documents in the segment
-     * @param numDocsWithField documents that have at least one slot
-     * @param numValues        total number of slots across all documents, null slots included
-     * @param numNullSlots     how many of those slots are null; the null-slot table is written only when
-     *                         this is positive
-     * @param cursors          supplies fresh forward cursors over the documents that have a slot; called
-     *                         once for the iterator and once for the values
-     * @param valuesPerBlock   values behind one offset in the byte stream
-     * @param chunkCodec       how a chunk of the byte stream is compressed
-     * @param targetChunkBytes bytes a chunk holds before it is closed
-     * @param directory        directory used for the temporary table files
-     * @param context          IO context for the temporary table files
-     * @param data             data output (iterator, value blocks, and the tables are appended)
+     * @param maxDoc                    documents in the segment
+     * @param numDocsWithField          documents that have at least one slot
+     * @param numValues                 total number of slots across all documents, null slots included
+     * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
+     *                                  this is positive
+     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
+     *                                  once for the iterator and once for the values
+     * @param valuesPerBlock            values behind one offset in the byte stream
+     * @param chunkCodec                how a chunk of the byte stream is compressed
+     * @param targetChunkBytes          bytes a chunk holds before it is closed on the dictionary path
+     * @param plainPathTargetChunkBytes bytes a chunk holds before it is closed on the plain path; may be
+     *                                  larger than {@code targetChunkBytes} since plain-path columns are
+     *                                  scanned sequentially and never bisected
+     * @param directory                 directory used for the temporary table files
+     * @param context                   IO context for the temporary table files
+     * @param data                      data output (iterator, value blocks, and the tables are appended)
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -96,6 +99,7 @@ public final class StringColumnWriter {
         int valuesPerBlock,
         ChunkCodec chunkCodec,
         int targetChunkBytes,
+        int plainPathTargetChunkBytes,
         DictionaryPolicy policy,
         Vocabulary.Terms known,
         Directory directory,
@@ -152,7 +156,7 @@ public final class StringColumnWriter {
         try (
             ValueStream.Writer stream = new ValueStream.Writer(
                 chunkCodec,
-                targetChunkBytes,
+                plainPathTargetChunkBytes,
                 valuesPerBlock,
                 numValues,
                 directory,

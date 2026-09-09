@@ -1,0 +1,6 @@
+area: Columnar
+issues:
+ - 158754
+pr: 158763
+summary: "Fix(search): support columnar keyword fields in composite aggregation pagination"
+type: bug

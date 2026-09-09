@@ -162,6 +162,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             if (hasRemoteViews && hasRemoteDatasets) {
                 return new RemoteResourceNotSupportedException(remoteViews, remoteDatasets);
             } else if (hasRemoteViews) {
+                // This branch might still happen if older (9.5) cluster executes a CCS query against this newer cluster
                 return new RemoteViewNotSupportedException(remoteViews);
             } else {
                 return new RemoteDatasetNotSupportedException(remoteDatasets);

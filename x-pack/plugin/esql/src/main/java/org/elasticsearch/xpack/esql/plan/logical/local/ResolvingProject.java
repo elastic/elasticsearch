@@ -125,6 +125,16 @@ public class ResolvingProject extends Project {
         return command.unmappedFieldsPattern();
     }
 
+    /**
+     * Whether a source field named {@code name}, materialized in the child only after this node was resolved, would survive this
+     * projection — {@link #replaceChild} re-resolves the projections, so a matching pattern picks the field up. Answered from the
+     * pattern for a {@code KEEP} only: {@link UnmappedFieldsPattern#forDrop} records solely wildcard removals and a {@code RENAME}
+     * reports {@link UnmappedFieldsPattern#ALL}, so for those two the pattern cannot rule out an explicitly named field.
+     */
+    public boolean admitsLateUnmappedField(String name) {
+        return command.kind() == Kind.KEEP && unmappedFieldsPattern().matches(name);
+    }
+
     @Override
     protected NodeInfo<Project> info() {
         return NodeInfo.create(

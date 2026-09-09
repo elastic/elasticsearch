@@ -1799,7 +1799,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // output, so UnionPlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
-            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchHasUnprojectedRelation)) {
                 addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> unionColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -1829,7 +1829,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
                     if (alignMentionedUnmapped
                         && unionMaterializedUnmappedFieldNames.contains(attr.name())
-                        && branchCanSurfaceLoadedField(logicalPlan)) {
+                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
@@ -1839,7 +1839,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // reads as null where the document lacks the field and fails at runtime where the document carries a value.
                     if (unionPlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
-                        && branchCanSurfaceLoadedField(logicalPlan)
+                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())
                         && attr instanceof FieldAttribute fa
                         && fa instanceof UnsupportedAttribute == false
                         && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
@@ -2166,10 +2166,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Whether an unmapped field materialized at this branch's source would reach the branch output: true only if walking
-         * column-preserving unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
+         * Whether a field named {@code name} materialized at this branch's source would reach the branch output. A
+         * {@link ResolvingProject} is asked whether the terms it was written with admit the name, so {@code KEEP *} lets it through
+         * while a pattern-less {@code KEEP} does not. Any other {@link Project} has no pattern to consult and an {@link Aggregate}
+         * collapses the rows, so neither can surface it.
          */
-        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
+            if (plan instanceof EsRelation esRelation) {
+                return esRelation.indexMode() != IndexMode.LOOKUP;
+            }
+            if (plan instanceof ResolvingProject resolvingProject) {
+                return resolvingProject.admitsLateUnmappedField(name) && branchCanSurfaceLoadedField(resolvingProject.child(), name);
+            }
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return false;
+            }
+            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+                return branchCanSurfaceLoadedField(join.left(), name);
+            } else if (plan instanceof UnaryPlan unaryPlan) {
+                return branchCanSurfaceLoadedField(unaryPlan.child(), name);
+            } else {
+                return false;
+            }
+        }
+
+        /**
+         * Whether any field materialized at this branch's source would reach the branch output. Unlike
+         * {@link #branchCanSurfaceLoadedField} this cannot consult the projection's pattern: a literal {@code DROP x} restricts
+         * nothing there ({@code UnmappedFieldsPattern.forDrop} records only wildcard removals), yet it is exactly the case that must
+         * keep {@code x} out of the FORK output when every branch drops it.
+         */
+        private static boolean branchHasUnprojectedRelation(LogicalPlan plan) {
             if (plan instanceof EsRelation esRelation) {
                 return esRelation.indexMode() != IndexMode.LOOKUP;
             }
@@ -2177,9 +2204,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return false;
             }
             if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
-                return branchCanSurfaceLoadedField(join.left());
+                return branchHasUnprojectedRelation(join.left());
             } else if (plan instanceof UnaryPlan unaryPlan) {
-                return branchCanSurfaceLoadedField(unaryPlan.child());
+                return branchHasUnprojectedRelation(unaryPlan.child());
             } else {
                 return false;
             }

@@ -921,6 +921,36 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | fork2         | 1                     | a                       | 1756468
 ;
 
+// Same pattern-awareness as the subquery case: KEEP * admits unmapped_message, so the mention still reaches this branch.
+forkKeepStarBranchStillGetsMention
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "43") (KEEP *)
+| STATS with_message = COUNT(*) WHERE unmapped_message IS NOT NULL, rows = COUNT(*)
+;
+
+with_message:long | rows:long
+8                 | 8
+;
+
+// Contrast with the KEEP * branch above: messag* does not admit unmapped_message, so the mention stops at the branch that made it.
+forkKeepPatternNotAdmittingMentionNullFills
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (WHERE unmapped_message == "43") (KEEP messag*)
+| STATS with_message = COUNT(*) WHERE unmapped_message IS NOT NULL, rows = COUNT(*)
+;
+
+with_message:long | rows:long
+1                 | 8
+;
+
 forkDropInOneBranchNullFillsNamedField
 required_capability: optional_fields_load_all_fork
 required_capability: fork_v9
@@ -1802,6 +1832,34 @@ ignoreOrder:true
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
+// KEEP * admits every name, so it must not stop the branch from reading a sibling-mapped column: 14, not the 7 mapped rows alone.
+loadAllSubqueryKeepStarBranchStillLoadsMappedSibling
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP *)
+| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, rows = COUNT(*)
+;
+
+with_timestamp:long | rows:long
+14                  | 14
+;
+
+// The pattern is consulted, not merely its presence: unmapped* does not admit @timestamp, so that branch null-fills it.
+loadAllSubqueryKeepPatternNotAdmittingMappedSiblingNullFills
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | KEEP unmapped*)
+| STATS with_timestamp = COUNT(*) WHERE @timestamp IS NOT NULL, rows = COUNT(*)
+;
+
+with_timestamp:long | rows:long
+7                   | 14
+;
+
 // text has no implicit cast from keyword; text_state_nonexistent has no txt in _source, so there is nothing to fail on.
 // The failing case (a sibling that does carry a value) is in 298_unmapped_load_all_subquery_non_loadable.yml.
 loadAllSubqueryMappedTextNullsOnSiblingWithoutSourceValue
@@ -2059,20 +2117,20 @@ FROM (FROM no_mapping_sample_data | KEEP unmapped_message, *), (FROM partial_map
 ignoreOrder:true
 
 unmapped_message:keyword   | @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
-Disconnected from 10.1.0.3 | null                     | null         | null                | null                   | 4                     | g                       | 3450234
-Disconnected from 10.1.0.2 | null                     | null         | null                | null                   | 3                     | f                       | 2764890
-43                         | null                     | null         | null                | null                   | 2                     | e                       | 1232383
-Disconnection error        | null                     | null         | null                | null                   | 1                     | d                       | 725449
-Disconnection error        | null                     | null         | null                | null                   | 3                     | c                       | 8268154
-Disconnection error        | null                     | null         | null                | null                   | 2                     | b                       | 5033756
-Disconnected from 10.1.0.1 | null                     | null         | null                | null                   | 1                     | a                       | 1756468
-Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
-Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
 43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+43                         | 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383
+Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+Disconnected from 10.1.0.2 | 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890
+Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnected from 10.1.0.3 | 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234
+Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
 Disconnection error        | 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449
 Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
+Disconnection error        | 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154
 Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
-Disconnected from 10.1.0.1 | 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468
+Disconnection error        | 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756
 ;
 
 loadAllSubqueryKeepStarUnmappedLoadsOnSiblingReversed
@@ -2086,19 +2144,19 @@ ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | unmapped_message:keyword   | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 43                         | 2                     | e                       | 1232383
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | Disconnection error        | 1                     | d                       | 725449
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | Disconnection error        | 3                     | c                       | 8268154
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | Disconnection error        | 2                     | b                       | 5033756
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
-null                     | null         | null                | null                   | Disconnected from 10.1.0.3 | 4                     | g                       | 3450234
-null                     | null         | null                | null                   | Disconnected from 10.1.0.2 | 3                     | f                       | 2764890
-null                     | null         | null                | null                   | 43                         | 2                     | e                       | 1232383
-null                     | null         | null                | null                   | Disconnection error        | 1                     | d                       | 725449
-null                     | null         | null                | null                   | Disconnection error        | 3                     | c                       | 8268154
-null                     | null         | null                | null                   | Disconnection error        | 2                     | b                       | 5033756
-null                     | null         | null                | null                   | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | 1                     | a                       | 1756468
 ;
 
 loadAllSubqueryKeepStarLongLoadsOnUnmappedSibling
@@ -2112,19 +2170,19 @@ ignoreOrder:true
 
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
 2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | 1                     | d                       | 725449                          | Disconnection error
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 2                     | b                       | 5033756                         | Disconnection error
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
-null                     | null         | 3450232             | null                   | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
-null                     | null         | 2764888             | null                   | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
-null                     | null         | 1232381             | null                   | 2                     | e                       | 1232383                         | 43
-null                     | null         | 725447              | null                   | 1                     | d                       | 725449                          | Disconnection error
-null                     | null         | 8268152             | null                   | 3                     | c                       | 8268154                         | Disconnection error
-null                     | null         | 5033754             | null                   | 2                     | b                       | 5033756                         | Disconnection error
-null                     | null         | 1756466             | null                   | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 loadAllSubqueryKeepStarAmdLoadsOnUnmappedSibling

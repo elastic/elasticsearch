@@ -58,6 +58,19 @@ public class KibanaPluginTests extends ESTestCase {
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-internal"));
         assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-state"));
+        assertTrue(KibanaPlugin.WORKFLOWS_INDEX_DESCRIPTOR.matchesIndexPattern(".workflows-workflows"));
+    }
+
+    public void testWorkflowsExecutionIndicesAreNotSystemIndices() {
+        var indexDescriptors = new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY);
+        assertFalse(
+            "'.workflows-executions' must not be a system index after the carve-out",
+            indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-executions"))
+        );
+        assertFalse(
+            "'.workflows-step-executions' must not be a system index after the carve-out",
+            indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-step-executions"))
+        );
     }
 
     public void testKibanaSystemIndexDescriptorStillCoversKibanaSavedObjects() {

@@ -39,8 +39,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.codec.DefaultCompressionPerFieldMapperCodec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -591,6 +593,38 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testGetMinAndGetMax() throws IOException {
+        // Reproduces the node crash observed during a serverless primary-shard relocation. On the relocation target,
+        // IndexEngine#prewarmIdLookups calls Terms#getMax() on the _id field. Lucene's default getMax() drills into the
+        // terms with incomplete probe keys via seekCeil(). When a probe's _tsid matches an indexed one,
+        // SyntheticIdTermsEnum#seekCeil used to call extractTimestampFromSyntheticId() on the probe, whose trailing
+        // 8 bytes are not a real (Long.MAX_VALUE - timestamp) delta, so the decoded delta is negative and tripped
+        // `assert timestamp >= 0`. The uncaught-exception handler turned that into a node exit.
+        runTest(false, (writer, parser) -> {
+            indexMultiBlockSegment(writer, parser);
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves(), hasSize(1));
+                var terms = reader.leaves().getFirst().reader().terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                BytesRef expectedMin = null;
+                BytesRef expectedMax = null;
+                var iter = terms.iterator();
+                for (BytesRef term = iter.next(); term != null; term = iter.next()) {
+                    if (expectedMin == null) {
+                        expectedMin = BytesRef.deepCopyOf(term);
+                    }
+                    expectedMax = BytesRef.deepCopyOf(term);
+                }
+                assertThat(expectedMin, notNullValue());
+                assertThat(expectedMax, notNullValue());
+
+                assertThat(terms.getMin(), equalTo(expectedMin));
+                assertThat(terms.getMax(), equalTo(expectedMax));
+            }
+        });
+    }
+
     public void testSortedDeleteTermsResolveAcrossSkipperBlocks() throws IOException {
         // We rely on skippers being enabled
         runTest(false, (writer, parser) -> {
@@ -687,6 +721,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testConcurrentSeekExactRandomDirectory() throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         doTestConcurrentSeekExact(directory);
     }
@@ -740,6 +775,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      */
     public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
         final var directory = newDirectory();
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTestWithRandomDocs(directory, test);
     }
@@ -835,10 +871,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static void runTest(boolean disableSkippers, CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test)
         throws IOException {
         final var directory = newDirectory();
-        // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms, something
-        // that is not supported in TSDBSyntheticIdFieldsProducer today.
-        //
-        // TODO would be nice to enable check-index-on-close
+        // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects.
         directory.setCheckIndexOnClose(false);
         runTest(disableSkippers, directory, test);
     }
@@ -857,8 +890,10 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             final var indexWriterConfig = newIndexWriterConfig();
             indexWriterConfig.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new DefaultCompressionPerFieldMapperCodec(
+                    new PerFieldMapperCodec(
                         Lucene104Codec.Mode.BEST_SPEED,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
                         mapperService,
                         BigArrays.NON_RECYCLING_INSTANCE,
                         null

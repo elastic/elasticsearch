@@ -73,6 +73,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BatchMappingContext;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
@@ -729,7 +730,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     if (usesArrayOrderBinaryDocValues) {
                         return new KeyedArrayOrderInlineNullTermQuery(name(), keyedValue);
                     }
-                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, false);
+                    return new ScanningBinaryDocValuesTermQuery(name(), keyedValue, BinaryDocValuesFormat.SEPARATE_COUNT);
                 } else {
                     return XSortedSetDocValuesRangeQuery.newSlowExactQuery(name(), indexedValueForSearch(value));
                 }
@@ -759,7 +760,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                         return new KeyedArrayOrderInlineNullPrefixQuery(name(), new BytesRef(keyPrefix));
                     }
                     // Separate-count binary blob: slots are full key\0value, so a prefix scan finds any value under this key.
-                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, false);
+                    return new ScanningBinaryDocValuesPrefixQuery(name(), keyPrefix, false, BinaryDocValuesFormat.SEPARATE_COUNT);
                 }
 
                 // SortedSet doc-values: match any ord in [key\0, key\1) i.e. any value stored under this key.
@@ -1682,6 +1683,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final int passthroughPriority; // -1 means passthrough disabled
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
+    private final boolean writeDimensionRouting;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1696,6 +1698,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         Map<String, Object> passthroughConfig = builder.passthrough.getValue();
         this.passthroughPriority = passthroughConfig != null ? XContentMapValues.nodeIntegerValue(passthroughConfig.get("priority")) : -1;
         this.passthrough = this.passthroughPriority >= 0;
+        this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1710,9 +1715,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
-            builder.dimensions.getValue().isEmpty() == false
-                && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
-                && efs.extractDimensionsWhileMapping(),
+            this.writeDimensionRouting,
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
@@ -1824,7 +1827,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
      * Whether this flattened field can be driven through the columnar batch-mapping path. Only the strict-columnar
      * {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} configuration is supported, which writes exactly two output
      * columns ({@code <root>._keyed} plus its {@code .counts} companion). Everything else — the sorted-unique keyed encoding, root
-     * doc values, the inverted index, the {@code _offsets} sidecar, mapped sub-fields, dimensions, scripts, {@code copy_to} and
+     * doc values, the inverted index, the {@code _offsets} sidecar, mapped sub-fields, scripts, {@code copy_to} and
      * multi-fields — falls back to the row path.
      */
     @Override
@@ -1838,7 +1841,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             && fieldType().indexType().hasTerms() == false
             && fieldType().hasRootDocValues == false
             && mappedSubFields.isEmpty()
-            && fieldType().dimensions().isEmpty()
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false;

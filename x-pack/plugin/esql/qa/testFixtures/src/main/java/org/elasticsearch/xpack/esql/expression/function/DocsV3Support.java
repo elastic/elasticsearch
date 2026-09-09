@@ -1658,7 +1658,10 @@ public abstract class DocsV3Support {
 
         // For functions like DATE_PARSE, with an optional parameter at the start, detect if it's being used or not
         // At least 1 missing parameter, with the first parameter being optional
-        if (args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional) {
+        // Also when every parameter is optional, omitted parameters are trailing. COUNT is special because the parser also permits
+        // omitting its first parameter, but any non-empty signature still starts with that parameter.
+        if ((args.size() >= 2 && args.size() > sig.argTypes().size() && args.get(0).optional)
+            && args.stream().anyMatch(arg -> arg.optional == false)) {
             assert args.get(1).optional == false : "This function isn't prepared to handle +1 optional parameters at the beginning";
             long optionalParameters = args.stream().filter(EsqlFunctionRegistry.ArgSignature::optional).count();
             if (

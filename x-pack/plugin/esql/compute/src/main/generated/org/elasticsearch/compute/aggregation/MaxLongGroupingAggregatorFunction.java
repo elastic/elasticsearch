@@ -38,7 +38,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   MaxLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), MaxLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxLongAggregator.init());
     this.driverContext = driverContext;
   }
 

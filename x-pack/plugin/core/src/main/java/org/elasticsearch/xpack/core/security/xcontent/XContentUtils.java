@@ -151,6 +151,12 @@ public class XContentUtils {
                 builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
                 builder.endObject();
             }
+            case CLOUD_SERVICE_ACCOUNT -> {
+                builder.startObject("cloud_service_account");
+                builder.field("id", subject.getUser().principal());
+                builder.array(User.Fields.ROLES.getPreferredName(), subject.getUser().roles());
+                builder.endObject();
+            }
         }
     }
 

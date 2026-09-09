@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.After;
 import org.junit.Before;
@@ -88,7 +88,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 10),
             null,
             "k:keyword\nhelloworld12\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
                 + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -101,7 +101,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             null,
             "k:keyword\n\"helloworld\"\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -114,7 +114,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of("max_field_size", 5),
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
+            "CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
                 + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
                 + "(or null_field) to skip and warn instead of failing"
         );
@@ -136,7 +136,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             Map.of(),
             null,
             "k:keyword\n\"x\"y\n",
-            "line -1:-1: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
+            "CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
                 + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
                 + "instead of failing"
         );
@@ -168,7 +168,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Runs both the direct-block and Jackson arms under FAIL_FAST and asserts each throws a
-     * {@link ParsingException} whose message equals {@code expectedMessage}. Pinning the literal also
+     * {@link ExternalClientException} whose message equals {@code expectedMessage}. Pinning the literal also
      * guards the Jackson baseline: a Jackson upgrade that reworded the constraint message trips this test.
      *
      * <p>Pinned under {@link Locale#ROOT}: Jackson formats the length numbers in this particular message
@@ -196,8 +196,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     private String captureFailFastMessage(CsvFormatReader reader, List<String> projection, String content) throws IOException {
         try {
             drain(reader, projection, 1024, ErrorPolicy.STRICT, content);
-            throw new AssertionError("expected a ParsingException but the read completed");
-        } catch (ParsingException e) {
+            throw new AssertionError("expected an ExternalClientException but the read completed");
+        } catch (ExternalClientException e) {
             return e.getMessage();
         }
     }
@@ -367,9 +367,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testKeywordWhitespacePreservedByDefault() throws IOException {
         // Default is no-trim: a string column keeps its surrounding whitespace, identically on both paths.
         // Uses a second column so the value under test is not at column 0; column-0 leading-whitespace
-        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which now
-        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). (Escaped mode is the only
-        // dialect that still eats col-0 leading whitespace — it stays on Jackson; not exercised here.)
+        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which
+        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). Escaped no-trim also
+        // preserves col-0 leading whitespace (house grammar); not exercised here.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\nx,  spaced  \n");
         assertEquals(List.of(row(br("x"), br("  spaced  "))), rows);
     }
@@ -707,7 +707,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
         String content = "id:long,ts:datetime\n1,not-a-date\n";
         CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
-        String expected = "line -1:-1: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        String expected = "CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
         for (boolean directBlock : List.of(false, true)) {
             String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
             assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
@@ -1498,7 +1498,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * A custom {@code null_value} is matched by Jackson against the RAW token on both escaped arms, so projecting
+     * A custom {@code null_value} is matched against the decoded field on both escaped arms, so projecting
      * {@code _rowPosition} must not change which cells are null nor re-decode the surviving ones.
      */
     public void testRowPositionEscapedCustomNullValueUnchanged() throws IOException {
@@ -1521,10 +1521,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
-     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
-     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
-     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     * Stripe ALL + escaped uses the house iterator, which already decodes. Guards against running
+     * {@code decodeFieldValue} a second time (or skipping it) on that seam.
      */
     public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
         assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
@@ -1637,9 +1635,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     ) throws IOException {
         CsvFormatReader configured = config.isEmpty() ? baseReader(tsv) : (CsvFormatReader) baseReader(tsv).withConfig(config);
         // Parity harness: read once with the direct-to-block path (default) and once with it forced
-        // off (Jackson), and assert the two agree row-for-row. For modes that are not eligible for the
-        // direct path (e.g. bracket multi-values or escaped mode) both arms are Jackson and the
-        // comparison is trivially true, but the golden assertEquals in each test still pins behavior.
+        // off, and assert the two agree row-for-row. For modes that are not eligible for the
+        // direct path (bracket multi-values, escaped) both arms use the same house/Jackson tokenizer
+        // and the comparison is trivially true, but the golden assertEquals in each test still pins
+        // behavior.
         // The direct arm is read first so a test using assertThrows still observes the direct path's
         // exception.
         List<List<Object>> direct = drain(configured.withDirectBlockEnabled(true), projection, batchSize, policy, content);

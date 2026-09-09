@@ -24,8 +24,8 @@ import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -67,7 +67,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorIOBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String TEST_DIR = "/home/esbench/.rally/benchmarks/races/index";
@@ -128,7 +128,7 @@ public class VectorIOBenchmark {
 
         if (currentVectors < numVectors) {
             IndexWriterConfig iwc = new IndexWriterConfig();
-            iwc.setCodec(new Elasticsearch92Lucene103Codec() {
+            iwc.setCodec(new Elasticsearch96Codec() {
                 @Override
                 public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                     return new ES93FlatVectorFormat();

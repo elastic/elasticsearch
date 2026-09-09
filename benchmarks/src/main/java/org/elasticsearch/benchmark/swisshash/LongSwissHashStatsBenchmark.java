@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.swisshash;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
@@ -58,7 +58,7 @@ import java.util.concurrent.TimeUnit;
 public class LongSwissHashStatsBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /** Distinct groups, i.e. the final table size. {@code rows = cardinality * DUP_FACTOR}. */

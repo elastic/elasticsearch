@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
@@ -19,8 +20,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Classifies a failure raised while reading an external data source into the exception the
- * {@code AsyncExternalSourceOperator} should surface, so that it maps to the right HTTP status. The
+ * Classifies a failure raised while reading an external data source into the exception an external-read
+ * operator should surface, so that it maps to the right HTTP status. The
  * companion {@link #surface} helper is used at the worker rethrow sites inside parallel coordinators and
  * page iterators to pre-type the failure: it wraps a raw {@link IOException} in an already-classified
  * {@link ExternalClientException} (400) so the read boundary's {@link #classify} sees a status-typed
@@ -28,12 +29,14 @@ import java.util.concurrent.ExecutionException;
  * {@link RuntimeException} wrapper; callers must therefore pass the <em>raw</em> stored throwable, not a
  * pre-wrapped one.
  * <p>
- * {@link #classify} is the single boundary where external-source reads turn into a user-visible error,
- * and it is reached only for external-source queries (the operator exists only for them), so index queries
- * are unaffected. It runs co-located with the throw, on the node that reads the external source, before
- * the failure is serialized back to the coordinator — so classification relies on the concrete
- * exception type while it is still available, and only the resulting {@code status()} needs to cross
- * the wire (see {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
+ * {@link #classify} is the shared policy boundary where external-source reads turn into a user-visible
+ * error. Both eager reads in {@code AsyncExternalSourceOperator} and deferred reads in
+ * {@code ExternalFieldExtractOperator} invoke it at their local read boundary; neither operator exists
+ * for index queries, so those are unaffected. Classification runs co-located with the throw, on the node
+ * that reads the external source, before the failure is serialized back to the coordinator — so it relies
+ * on the concrete exception type while it is still available, and only the resulting public exception
+ * name and {@code status()} need to cross the wire (see
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.ExternalException}). The policy:
  * <ul>
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
@@ -136,8 +139,8 @@ public final class ExternalFailures {
      *     after a worker thread was interrupted) becomes an {@link ExternalServerException} (500): we have
      *     no evidence it is the caller's fault, so we keep the bug visible.</li>
      * </ul>
-     * Calling {@code surface} at the worker rethrow site lets {@code AsyncExternalSourceOperator}'s
-     * {@link #classify} compose cleanly on the result: an {@link ExternalException} returned here passes
+     * Calling {@code surface} at the worker rethrow site lets a read-boundary {@link #classify} call
+     * compose cleanly on the result: an {@link ExternalException} returned here passes
      * straight through {@code classify} unchanged; a non-classified {@link RuntimeException} is the only
      * shape {@code classify} still actively re-wraps (into {@link ExternalServerException}, the same status
      * {@code surface} would have produced for an unrecognized worker fault).
@@ -201,8 +204,25 @@ public final class ExternalFailures {
      * here twice when the cause includes it.
      */
     public static String resolutionFailureMessage(String location, Throwable cause) {
-        String detail = detail(cause);
-        return detail.contains(location) ? detail : "Failed to resolve metadata for [" + location + "]: " + detail;
+        return locate("Failed to resolve metadata for", location, detail(cause));
+    }
+
+    /**
+     * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
+     * so the path is not printed twice. Callers that have already resolved their own detail string use this
+     * directly rather than re-deriving it from the cause.
+     */
+    public static String locate(String prefix, String location, @Nullable String detail) {
+        if (detail == null) {
+            // A message-less throwable reaches here from the arms that pass getMessage() straight in --
+            // EsRejectedExecutionException has a no-argument constructor. Name the location and stop, rather
+            // than appending the word "null".
+            return prefix + " [" + location + "]";
+        }
+        // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
+        // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
+        // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.
+        return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
     }
 
     /**
@@ -221,15 +241,25 @@ public final class ExternalFailures {
      * because that message is the more specific one. Cycle-guarded and depth-bounded.
      */
     public static String rootDetail(Throwable failure) {
+        return detail(rootCause(failure));
+    }
+
+    /**
+     * The throwable {@link #rootDetail} takes its message from. Chain this rather than the wrapper when building a
+     * user-facing exception: a wrapper whose message is the cause's {@code toString()} renders a JVM type name into
+     * {@code caused_by}. {@code ExceptionsHelper#unwrapCause} does not help here — it only steps through
+     * {@code ElasticsearchWrapperException}, and the wrapper in this path is a plain {@code ExecutionException}.
+     */
+    public static Throwable rootCause(Throwable failure) {
         Throwable current = failure;
         for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
             Throwable cause = current.getCause();
             if (cause == null || cause == current || derivesMessageFrom(current, cause) == false) {
-                return detail(current);
+                return current;
             }
             current = cause;
         }
-        return detail(current);
+        return current;
     }
 
     /**

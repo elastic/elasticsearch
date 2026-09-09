@@ -7,13 +7,18 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+
+import java.util.Arrays;
 
 /**
  * Aggregator state for an array of ints. It is created in a mode where it
@@ -31,36 +36,50 @@ import org.elasticsearch.core.Releasables;
  * </p>
  */
 final class IntArrayState extends AbstractArrayState implements GroupingAggregatorState {
+    static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
+    private static final int PAGE_MASK = PAGE_SIZE - 1;
+    private static final int INITIAL_SIZE = 256;
+
     private final int init;
+    private final CircuitBreaker breaker;
+    private long usedBytes;
+    private int capacity;
+    private int[][] pages;
 
-    private IntArray values;
-
-    IntArrayState(BigArrays bigArrays, int init) {
+    IntArrayState(BigArrays bigArrays, CircuitBreaker breaker, int init) {
         super(bigArrays);
-        this.values = bigArrays.newIntArray(1, false);
-        this.values.set(0, init);
+        this.breaker = breaker;
         this.init = init;
+        reserveBytes(bytesUsedByPagesArray(1) + bytesUsedByPage(INITIAL_SIZE));
+        this.pages = new int[1][INITIAL_SIZE];
+        this.capacity = INITIAL_SIZE;
+        if (init != 0) {
+            Arrays.fill(pages[0], init);
+        }
     }
 
     int get(int groupId) {
-        return values.get(groupId);
-    }
-
-    int getOrDefault(int groupId) {
-        return groupId < values.size() ? values.get(groupId) : init;
+        return pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK];
     }
 
     void set(int groupId, int value) {
-        ensureCapacity(groupId);
-        values.set(groupId, value);
+        if (groupId >= capacity) {
+            grow(groupId + 1);
+        }
+        pages[groupId >>> PAGE_SHIFT][groupId & PAGE_MASK] = value;
         trackGroupId(groupId);
+    }
+
+    int getOrDefault(int groupId) {
+        return groupId < capacity ? get(groupId) : init;
     }
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendInt(i, values.get(selected.getInt(i)));
+                    builder.appendInt(i, get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -69,7 +88,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
-                    builder.appendInt(values.get(group));
+                    builder.appendInt(get(group));
                 } else {
                     builder.appendNull();
                 }
@@ -78,12 +97,54 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
         }
     }
 
-    private void ensureCapacity(int groupId) {
-        if (groupId >= values.size()) {
-            long prevSize = values.size();
-            values = bigArrays.grow(values, groupId + 1);
-            values.fill(prevSize, values.size(), init);
+    void ensureCapacity(int minSize) {
+        if (minSize > capacity) {
+            grow(minSize);
         }
+    }
+
+    private void grow(int minSize) {
+        if (capacity < PAGE_SIZE) {
+            final int oldLength = capacity;
+            final int newLength = Math.min(PAGE_SIZE, ArrayUtil.oversize(minSize, Integer.BYTES));
+            reserveBytes(bytesUsedByPage(newLength));
+            pages[0] = Arrays.copyOf(pages[0], newLength);
+            releaseBytes(bytesUsedByPage(oldLength));
+            if (init != 0) {
+                Arrays.fill(pages[0], oldLength, newLength, init);
+            }
+            capacity = newLength;
+            if (minSize <= capacity) {
+                return;
+            }
+        }
+        final int pageIndex = (minSize - 1) >>> PAGE_SHIFT;
+        if (pageIndex >= pages.length) {
+            final int newLength = ArrayUtil.oversize(pageIndex + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+            reserveBytes(bytesUsedByPagesArray(newLength));
+            final int oldLength = pages.length;
+            pages = Arrays.copyOf(pages, newLength);
+            releaseBytes(bytesUsedByPagesArray(oldLength));
+        }
+        if (minSize == capacity + 1) {
+            pages[pageIndex] = newPage();
+            capacity += PAGE_SIZE;
+            return;
+        }
+        for (int p = capacity >>> PAGE_SHIFT; p <= pageIndex; p++) {
+            assert pages[p] == null;
+            pages[p] = newPage();
+        }
+        capacity = (pageIndex + 1) * PAGE_SIZE;
+    }
+
+    private int[] newPage() {
+        reserveBytes(bytesUsedByPage(PAGE_SIZE));
+        final int[] page = new int[PAGE_SIZE];
+        if (init != 0) {
+            Arrays.fill(page, init);
+        }
+        return page;
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
@@ -102,8 +163,8 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size() && hasValue(group)) {
-                    valuesBuilder.appendInt(i, values.get(group));
+                if (group < capacity && hasValue(group)) {
+                    valuesBuilder.appendInt(i, get(group));
                     hasValueBuilder.appendBoolean(i, true);
                 } else {
                     allHaveValue = false;
@@ -121,8 +182,31 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
         }
     }
 
+    private void reserveBytes(long bytes) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, "IntArrayState");
+        usedBytes += bytes;
+    }
+
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        usedBytes -= bytes;
+    }
+
+    static long bytesUsedByPagesArray(int length) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * length
+        );
+    }
+
+    static long bytesUsedByPage(int length) {
+        return RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * length);
+    }
+
     @Override
     public void close() {
-        Releasables.close(values, super::close);
+        pages = null;
+        final long bytes = usedBytes;
+        usedBytes = 0;
+        Releasables.close(() -> breaker.addWithoutBreaking(-bytes), super::close);
     }
 }

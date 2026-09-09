@@ -128,14 +128,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
     BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
-        this(
-            recycler,
-            breaker,
-            bigArrays,
-            new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays),
-            true,
-            PAGED_PARTITION_THRESHOLD_BYTES
-        );
+        this(recycler, breaker, bigArrays, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true, PAGED_PARTITION_THRESHOLD_BYTES);
     }
 
     /**
@@ -448,6 +441,20 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             for (int i = 0; i < len; i++) {
                 key.offset = offsets[i];
                 key.length = offsets[i + 1] - offsets[i];
+                final long hash = hash64(key);
+                final int id = add(key, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
+        boolean mergeKeys(byte[] data, int fixedLength, int len, int[] ids) {
+            final BytesRef key = new BytesRef();
+            key.bytes = data;
+            key.length = fixedLength;
+            final int preSize = size;
+            for (int i = 0; i < len; i++) {
+                key.offset = i * fixedLength;
                 final long hash = hash64(key);
                 final int id = add(key, hash);
                 ids[i] = id >= 0 ? id : -1 - id;
@@ -822,6 +829,31 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             return size == preSize + len;
         }
 
+        boolean mergeKeys(byte[] data, int fixedLength, int len, int[] ids) {
+            final BytesRef key = new BytesRef();
+            key.bytes = data;
+            key.length = fixedLength;
+            final int preSize = size;
+            if (preSize == 0) {
+                for (int id = 0; id < len; id++) {
+                    key.offset = id * fixedLength;
+                    final long hash64 = hash64(key);
+                    insert(hash(hash64), control(hash64), (int) bytesRefs.size());
+                    bytesRefs.append(key);
+                    ids[id] = id;
+                }
+                size = len;
+                return true;
+            }
+            for (int i = 0; i < len; i++) {
+                key.offset = i * fixedLength;
+                final long hash64 = hash64(key);
+                final int id = addImpl(key, hash64);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
         void clear() {
             Arrays.fill(controlData, EMPTY);
             insertProbes = 0;
@@ -960,7 +992,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
         final long totalKeyBytes = bytesRefs.totalBytes();
         final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionBytesThreshold
-            ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes)
+            ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes, bytesRefs.fixedLength())
             : new PagedBytesRefPartitionedHashKeys(bigArrays, size, totalKeyBytes);
         final int[] partitionOffsets = partitionedKeys.partitionCounts;
         boolean success = false;
@@ -1005,6 +1037,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         ensureCapacity(needed);
         if (keys instanceof FlatBytesRefPartitionedHashKeys flat) {
             assert flat.partitionData[partitionIndex] != null : "partition [" + partitionIndex + "] was already released";
+            if (flat.fixedLength >= 0) {
+                return smallCore != null
+                    ? smallCore.mergeKeys(flat.partitionData[partitionIndex], flat.fixedLength, keysInPartition, resultIds)
+                    : bigCore.mergeKeys(flat.partitionData[partitionIndex], flat.fixedLength, keysInPartition, resultIds);
+            }
             if (smallCore != null) {
                 return smallCore.mergeKeys(
                     flat.partitionData[partitionIndex],
@@ -1052,24 +1089,35 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     static final class FlatBytesRefPartitionedHashKeys extends BytesRefPartitionedHashKeys {
+        final int fixedLength;
         final int[] partitionDataUsed;
         byte[][] partitionData;
         int[][] partitionOffsets;
 
-        FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes) {
+        FlatBytesRefPartitionedHashKeys(CircuitBreaker breaker, int totalKeys, long totalKeyBytes, int fixedLength) {
+            this.fixedLength = fixedLength;
             final int avgKeysPerPartition = Math.max(Math.ceilDiv(totalKeys, NUM_PARTITIONS), 1);
             final int avgBytesPerPartition = (int) Math.ceilDiv(totalKeyBytes, NUM_PARTITIONS);
             final int initialBytes = ArrayUtil.oversize(avgBytesPerPartition, 1);
-            final int initialOffsets = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
-            long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS
-                * initialOffsets * Integer.BYTES;
-            breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
             partitionDataUsed = new int[NUM_PARTITIONS];
             partitionData = new byte[NUM_PARTITIONS][];
-            partitionOffsets = new int[NUM_PARTITIONS][];
-            for (int p = 0; p < NUM_PARTITIONS; p++) {
-                partitionData[p] = new byte[initialBytes];
-                partitionOffsets[p] = new int[initialOffsets];
+            if (fixedLength < 0) {
+                final int initialOffsets = ArrayUtil.oversize(avgKeysPerPartition + 1, Integer.BYTES);
+                long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes + (long) NUM_PARTITIONS
+                    * initialOffsets * Integer.BYTES;
+                breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
+                partitionOffsets = new int[NUM_PARTITIONS][];
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    partitionData[p] = new byte[initialBytes];
+                    partitionOffsets[p] = new int[initialOffsets];
+                }
+            } else {
+                long usedBytes = (long) NUM_PARTITIONS * Integer.BYTES + (long) NUM_PARTITIONS * initialBytes;
+                breaker.addEstimateBytesAndMaybeBreak(usedBytes, "BytesRefSwissHash#partition");
+                partitionOffsets = null;
+                for (int p = 0; p < NUM_PARTITIONS; p++) {
+                    partitionData[p] = new byte[initialBytes];
+                }
             }
         }
 
@@ -1083,16 +1131,22 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 }
                 final int base = p * PARTITION_WRITE_BATCH;
                 final int keyBase = partitionCounts[p];
-                ensureOffsetCapacity(breaker, p, keyBase + c + 1);
+                if (fixedLength < 0) {
+                    ensureOffsetCapacity(breaker, p, keyBase + c + 1);
+                }
                 for (int i = 0; i < c; i++) {
                     final int id = idOffset + (positions[base + i] & 0xFFFF);
                     bytesRefs.get(id, scratch);
                     ensureDataCapacity(breaker, p, partitionDataUsed[p] + scratch.length);
-                    partitionOffsets[p][keyBase + i] = partitionDataUsed[p];
+                    if (fixedLength < 0) {
+                        partitionOffsets[p][keyBase + i] = partitionDataUsed[p];
+                    }
                     System.arraycopy(scratch.bytes, scratch.offset, partitionData[p], partitionDataUsed[p], scratch.length);
                     partitionDataUsed[p] += scratch.length;
                 }
-                partitionOffsets[p][keyBase + c] = partitionDataUsed[p];
+                if (fixedLength < 0) {
+                    partitionOffsets[p][keyBase + c] = partitionDataUsed[p];
+                }
             }
         }
 
@@ -1122,10 +1176,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         public void releasePartition(CircuitBreaker breaker, int partition) {
             final byte[] data = partitionData[partition];
             if (data != null) {
-                final int[] offsets = partitionOffsets[partition];
                 partitionData[partition] = null;
-                partitionOffsets[partition] = null;
-                breaker.addWithoutBreaking(-data.length - (long) offsets.length * Integer.BYTES);
+                long freed = data.length;
+                if (partitionOffsets != null) {
+                    final int[] offsets = partitionOffsets[partition];
+                    partitionOffsets[partition] = null;
+                    freed += (long) offsets.length * Integer.BYTES;
+                }
+                breaker.addWithoutBreaking(-freed);
             }
         }
 
@@ -1137,9 +1195,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 if (data != null) {
                     bytes += data.length;
                 }
-                final int[] offsets = partitionOffsets[p];
-                if (offsets != null) {
-                    bytes += (long) offsets.length * Integer.BYTES;
+                if (partitionOffsets != null) {
+                    final int[] offsets = partitionOffsets[p];
+                    if (offsets != null) {
+                        bytes += (long) offsets.length * Integer.BYTES;
+                    }
                 }
             }
             partitionData = null;

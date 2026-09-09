@@ -190,6 +190,17 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
             }
 
+            // _ignored_source must always pass through to the synthetic-source loader so FLS content-filtering runs inside
+            // FilteredIgnoredSourceDocValues. Blocking the binary doc values field entirely makes the loader see an empty
+            // doc values iterator, silently dropping every value stored only in _ignored_source (e.g. dynamically-mapped
+            // text fields in a logsdb index). The field is user-invisible regardless: getBinaryDocValues wraps it in
+            // FilteredIgnoredSourceDocValues, which applies the FLS automaton to each stored entry.
+            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                && IgnoredSourceFieldMapper.NAME.equals(name)) {
+                filteredInfos.add(fi);
+                continue;
+            }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -314,8 +325,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     filtered.put(key, filteredValue);
                 }
             } else if (value instanceof Iterable<?> iterableValue) {
+                // Check emptiness before filtering: an empty original array carries no user data to deny.
+                // Dropping it would silently remove _ignored_source suppression tombstones written for
+                // copy_to destination fields, letting the doc-values loader leak copied values into _source.
+                boolean originallyEmpty = iterableValue.iterator().hasNext() == false;
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
-                if (filteredValue.isEmpty() == false) {
+                if (filteredValue.isEmpty() == false || originallyEmpty) {
                     filtered.put(key, filteredValue);
                 }
             } else if (includeAutomaton.isAccept(state)) {

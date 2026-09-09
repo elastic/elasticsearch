@@ -45,8 +45,8 @@ doc id → rank.
 
 ## Surface
 
-Every field is a `BinaryDocValues` field tagged with a `ColumnarFieldType` (the `columnar.type`
-`FieldInfo` attribute), set by the integration:
+Every field is a `BinaryDocValues` field whose `ColumnarFieldType` the integration supplies through an
+injected `ColumnarFieldTypeSelector` (and which is re-read from the column metadata at read time):
 
 - **`LONG` / `DOUBLE`** — packed as a `NumericBinaryPayload` and stored on the adaptive long column
   (a double arrives as a sortable long). Read back through:

@@ -60,6 +60,7 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
+  'benchmarks:common',
   'benchmarks:processor',
   'distribution:archives:integ-test-zip',
   'distribution:archives:windows-zip',

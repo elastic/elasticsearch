@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class OptimizedScalarQuantizerBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "384", "702", "1024" })

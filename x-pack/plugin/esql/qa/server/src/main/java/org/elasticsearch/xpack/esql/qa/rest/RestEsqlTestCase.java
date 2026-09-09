@@ -2004,6 +2004,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         assertResultMap(
             result,
+            getResultMatcher(result).entry("approximation_applied", false),
             matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
                 .item(
                     matchesMap().entry("name", "_approximation_confidence_interval(count)")

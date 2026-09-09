@@ -120,7 +120,7 @@ The following search functions are available for datasets:
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-The operations below require structures that only exist in an {{es}} index, such as the inverted index, doc values, or time series metadata. Each fails with a clear error rather than wrong results.
+The limitations below include operations that require structures available only in an {{es}} index, such as the inverted index, doc values, or time series metadata, as well as unsupported data shapes. Unsupported operations fail with a clear error; representation limitations are described in the table.
 
 | Operation | Reason | Error |
 |---|---|---|
@@ -134,6 +134,7 @@ The operations below require structures that only exist in an {{es}} index, such
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Datasets on a remote cluster cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
 | Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
+| `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
 
 ## Troubleshooting
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -62,6 +63,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  * @param warnings Fully-formatted warning strings accumulated per driver into each {@link DriverContext}'s sink
  *                 during execution. Deduplicated across drivers: each unique warning string appears at most once.
+ * @param approximationApplied Whether query approximation was applied on this node. If query approximation is enabled,
+ *                             applying it may be skipped when the query can be efficiently pushed down to Lucene.
  */
 public record DriverCompletionInfo(
     long documentsFound,
@@ -75,6 +78,7 @@ public record DriverCompletionInfo(
     List<PlanProfile> planProfiles,
     Map<String, List<Map<String, Object>>> capturedSourceMetadata,
     boolean partial,
+    boolean approximationApplied,
     Set<String> warnings
 ) implements Writeable {
 
@@ -95,12 +99,63 @@ public record DriverCompletionInfo(
         List.of(),
         Map.of(),
         false,
+        false,
         Set.of()
     );
 
     public DriverCompletionInfo {
         capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
         warnings = warnings == null ? Set.of() : warnings;
+    }
+
+    public DriverCompletionInfo withoutApproximationApplied() {
+        if (approximationApplied == false) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            partial,
+            false,
+            warnings
+        );
+    }
+
+    /**
+     * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
+     * order (existing warnings first). Empty or null input returns {@code this}.
+     */
+    public DriverCompletionInfo withAdditionalWarnings(Collection<String> additional) {
+        if (additional == null || additional.isEmpty()) {
+            return this;
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>(warnings);
+        if (merged.addAll(additional) == false) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            partial,
+            approximationApplied,
+            Collections.unmodifiableSet(merged)
+        );
     }
 
     /**
@@ -119,7 +174,8 @@ public record DriverCompletionInfo(
         String planTree,
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile,
-        long planningBytesRead
+        long planningBytesRead,
+        boolean approximationApplied
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
@@ -154,6 +210,7 @@ public record DriverCompletionInfo(
             List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
             collectCapturedSourceMetadata(drivers),
             collectPartial(drivers),
+            approximationApplied,
             collectWarnings(drivers)
         );
     }
@@ -166,7 +223,7 @@ public record DriverCompletionInfo(
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
      */
-    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers, long planningBytesRead) {
+    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers, long planningBytesRead, boolean approximationApplied) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
@@ -199,6 +256,7 @@ public record DriverCompletionInfo(
             List.of(),
             collectCapturedSourceMetadata(drivers),
             collectPartial(drivers),
+            approximationApplied,
             collectWarnings(drivers)
         );
     }
@@ -272,7 +330,8 @@ public record DriverCompletionInfo(
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_EXTERNAL_PARTIAL_RESULTS = TransportVersion.fromName("esql_external_partial_results");
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
-    static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
 
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();
@@ -317,6 +376,7 @@ public record DriverCompletionInfo(
             captured = Map.of();
         }
         boolean partial = in.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS) && in.readBoolean();
+        boolean approximationApplied = in.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED) && in.readBoolean();
         Set<String> warnings;
         if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             warnings = Collections.unmodifiableSet(in.readCollection(LinkedHashSet::new, (stream, set) -> set.add(stream.readString())));
@@ -345,6 +405,7 @@ public record DriverCompletionInfo(
             planProfiles,
             captured,
             partial,
+            approximationApplied,
             warnings
         );
     }
@@ -380,6 +441,9 @@ public record DriverCompletionInfo(
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_PARTIAL_RESULTS)) {
             out.writeBoolean(partial);
         }
+        if (out.getTransportVersion().supports(ESQL_APPROXIMATION_APPLIED)) {
+            out.writeBoolean(approximationApplied);
+        }
         if (out.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             out.writeStringCollection(warnings);
         }
@@ -398,6 +462,7 @@ public record DriverCompletionInfo(
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
         private boolean partial;
         private final Set<String> warnings = new LinkedHashSet<>();
+        private boolean approximationApplied;
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
@@ -412,6 +477,7 @@ public record DriverCompletionInfo(
             mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
             this.partial |= info.partial;
             this.warnings.addAll(info.warnings);
+            this.approximationApplied |= info.approximationApplied;
         }
 
         public DriverCompletionInfo finish() {
@@ -427,6 +493,7 @@ public record DriverCompletionInfo(
                 planProfiles,
                 capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata),
                 partial,
+                approximationApplied,
                 warnings.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(warnings))
             );
         }
@@ -444,6 +511,7 @@ public record DriverCompletionInfo(
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
         private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
         private final AtomicBoolean partial = new AtomicBoolean();
+        private final AtomicBoolean approximationApplied = new AtomicBoolean();
         private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
         public void accumulate(DriverCompletionInfo info) {
@@ -461,6 +529,9 @@ public record DriverCompletionInfo(
             }
             if (info.partial) {
                 this.partial.set(true);
+            }
+            if (info.approximationApplied) {
+                this.approximationApplied.set(true);
             }
             this.warnings.addAll(info.warnings);
         }
@@ -492,6 +563,7 @@ public record DriverCompletionInfo(
                 planProfiles,
                 snapshot,
                 partial.get(),
+                approximationApplied.get(),
                 warningsSnapshot
             );
         }

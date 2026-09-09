@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaCompleti
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.mistral.MistralUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Locale;
 
@@ -128,23 +128,23 @@ public enum GoogleModelGardenProvider {
 
         static final ResponseHandler META_COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
             "Google Model Garden Meta completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
-        static final ResponseHandler HUGGING_FACE_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler HUGGING_FACE_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden Hugging Face completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
-        static final ResponseHandler MISTRAL_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler MISTRAL_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden Mistral completion",
-            OpenAiChatCompletionResponseEntity::fromResponse,
+            OpenAiCompletionResponseEntity::fromResponse,
             ErrorResponse::fromResponse
         );
 
-        static final ResponseHandler AI21_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler AI21_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden AI21 completion",
-            OpenAiChatCompletionResponseEntity::fromResponse,
+            OpenAiCompletionResponseEntity::fromResponse,
             ErrorResponse::fromResponse
         );
     }
@@ -156,22 +156,22 @@ public enum GoogleModelGardenProvider {
 
         static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
             "Google Model Garden Meta chat completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler HUGGING_FACE_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
             "Google Model Garden Hugging Face chat completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler MISTRAL_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
             "Google Model Garden Mistral chat completions",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
             "Google Model Garden AI21 chat completions",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
     }
 

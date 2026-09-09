@@ -20,6 +20,7 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -83,7 +84,7 @@ public class OrcReadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         byte[] orcBytes = generateOrcFixture(rowCount);
         fixtureBytes = orcBytes.length;

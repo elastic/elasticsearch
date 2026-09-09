@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
@@ -110,6 +112,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -133,8 +136,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecu
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
- * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
- * This method is responsible for splitting physical plan into coordinator and data node plans.
+ * Once a query is parsed and validated, this service coordinates its distributed execution. Late plan preparation is delegated to
+ * dedicated planner classes before each plan is executed.
  * <p>
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
  * and is prepared to collect and merge pages from data nodes into the final query result.
@@ -1344,36 +1347,33 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            resolvedPlan,
-            configuration
-        );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
         });
-        PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
-
-        if (exchangeSinkSupplier == null) {
-            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
+        boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
+        var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
+        PhysicalPlan coordinatorPlan = coordinatorAndDataNode.v1();
+        try {
+            ensureNoRemoteFetchBoundary("coordinator", coordinatorPlan);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
         }
 
-        PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
+        if (exchangeSinkSupplier == null) {
+            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+        }
+
+        PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
         if (dataNodePlan != null && dataNodePlan instanceof ExchangeSinkExec == false) {
             assert false : "expected data node plan starts with an ExchangeSink; got " + dataNodePlan;
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-        boolean hasConcreteIndices = false;
-        for (OriginalIndices v : clusterToConcreteIndices.values()) {
-            if (v.indices().length > 0) {
-                hasConcreteIndices = true;
-                break;
-            }
-        }
         if (dataNodePlan == null) {
             if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
@@ -1442,6 +1442,9 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
+        final boolean retainSearchContexts = dataNodePlan.anyMatch(
+            plan -> plan instanceof RemoteFetchBoundaryExec boundary && boundary.requiresRetainedSearchContexts()
+        );
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1449,7 +1452,18 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        // Releases retained sessions on every data node at query end. Fetch operators also release the sessions
+        // they actually fetch from (the winning nodes), earlier. The overlap is intentional and safe: release is
+        // idempotent, and this releaser is the only one that reaches nodes whose rows lost the global TopN.
+        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = retainSearchContexts
+            ? remoteFetchService.newRetainedSessionReleaser()
+            : null;
+        listener = ActionListener.runBefore(listener, () -> {
+            if (remoteFetchRetainedSessionReleaser != null) {
+                remoteFetchRetainedSessionReleaser.close();
+            }
+            exchangeService.removeExchangeSourceHandler(sessionId);
+        });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             failIfAllShardsFailed(execInfo, collectedPages);
@@ -1518,6 +1532,8 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            retainSearchContexts,
+                            remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1803,6 +1819,7 @@ public class ComputeService {
                 projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
+                remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()
@@ -2025,10 +2042,43 @@ public class ComputeService {
         boolean reduceNodeLateMaterialization,
         PlanTimeProfile planTimeProfile
     ) {
+        return reductionPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            originalPlan,
+            runNodeLevelReduction,
+            reduceNodeLateMaterialization,
+            null,
+            null,
+            planTimeProfile
+        );
+    }
+
+    static ReductionPlan reductionPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec originalPlan,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        @Nullable String localNodeId,
+        @Nullable String retainedSessionId,
+        PlanTimeProfile planTimeProfile
+    ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        RemoteFetchBoundaryExec remoteFetchBoundary = originalPlan.child() instanceof RemoteFetchBoundaryExec boundary ? boundary : null;
+        if (remoteFetchBoundary == null && originalPlan.output().stream().anyMatch(RemoteFetchHandle::isRemoteFetchHandleCarrier)) {
+            throw new IllegalStateException("remote-fetch handle without a boundary cannot be planned for node reduction");
+        }
+        if (remoteFetchBoundary == null && (localNodeId != null || retainedSessionId != null)) {
+            throw new IllegalArgumentException("remote-fetch runtime identity supplied without a remote-fetch boundary");
+        }
+        if (remoteFetchBoundary == null && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -2036,44 +2086,54 @@ public class ComputeService {
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
             originalPlan
         );
+        Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory = stats -> new LocalPhysicalOptimizerContext(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            stats
+        );
 
-        // The default plan is just the exchange source piped directly into the exchange sink.
-        ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
-                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
-                // aggregations, we also need the original plan, since we add the project in the reduction node.
-                LateMaterializationPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+        final ReductionPlan reductionPlan;
+        if (remoteFetchBoundary != null) {
+            if (localNodeId == null || retainedSessionId == null) {
+                throw new IllegalStateException("remote-fetch boundary requires local-node and retained-session IDs");
+            }
+            reductionPlan = LateMaterializationPlanner.planRemoteFetchTopN(contextFactory, originalPlan, localNodeId, retainedSessionId)
+                .orElseThrow(() -> new IllegalStateException("remote-fetch boundary was not consumed"));
+        } else {
+            // The default plan is just the exchange source piped directly into the exchange sink.
+            reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+                case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization -> LateMaterializationPlanner.planReduceDriverTopN(
+                    contextFactory,
                     originalPlan
                 )
-                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
+                    // Fallback to a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-            case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization
-                && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
-                    .planReduceDriverTopNBy(
-                        stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                        originalPlan
-                    ).orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
-            case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
-            case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization
-                && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
-                    .planReduceDriverLimitBy(
-                        stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                        originalPlan
-                    ).orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
-            case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
-            // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
-            default -> passThroughReduction;
-        };
+                case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+                case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization
+                    && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
+                        .planReduceDriverTopNBy(contextFactory, originalPlan)
+                        .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
+                case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
+                case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization
+                    && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
+                        .planReduceDriverLimitBy(contextFactory, originalPlan)
+                        .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
+                case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
+                // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
+                case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
+                default -> passThroughReduction;
+            };
+        }
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
 
-        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
-        // able to perform this check.
+        ensureNoRemoteFetchBoundary("data-node", reductionPlan.dataNodePlan());
+        ensureNoRemoteFetchBoundary("node-reduce", reductionPlan.nodeReducePlan());
+
+        // Intermediate attributes prevent clean dependency verification for these plan shapes, so skip the check for them.
         if (Assertions.ENABLED == false
             || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
                 && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
@@ -2086,6 +2146,12 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
+    }
+
+    private static void ensureNoRemoteFetchBoundary(String planName, PhysicalPlan plan) {
+        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
+            throw new IllegalStateException("remote-fetch boundary survived into executable " + planName + " plan");
+        }
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

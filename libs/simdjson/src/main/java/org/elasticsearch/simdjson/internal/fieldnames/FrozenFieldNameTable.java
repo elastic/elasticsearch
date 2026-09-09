@@ -191,10 +191,31 @@ public final class FrozenFieldNameTable {
     }
 
     /**
-     * Immutable frozen hash table state.
+     * Immutable open-addressed hash table mapping field name bytes to their canonical
+     * {@link String}. Built once by {@link #build} and never mutated afterwards; both a
+     * {@link Child}'s own table and the one shared across children are instances of this record.
+     *
+     * <p>Storage is a set of parallel arrays of length {@code hashes.length}, a power of two,
+     * with {@code mask == hashes.length - 1}. Slot {@code i} across all arrays describes the same
+     * table entry: {@code hashes[i]} is that entry's {@link FieldNameHash#hashName hash} (guaranteed
+     * non-zero), {@code lens[i]} and {@code keys[i]} are the raw field name bytes, {@code prefix8[i]}
+     * is the first 8 bytes of those same bytes read as a little-endian long, and {@code names[i]} is
+     * the canonical {@code String}. An entry is looked up by probing from {@code hash & mask}
+     * linearly forward, wrapping with {@code (i + 1) & mask}; {@code hashes[i] == 0} marks a slot
+     * that was never written, i.e. the probe missed. There is no deletion and so no tombstones.
+     *
+     * <p>{@code prefix8} exists to reject a hash collision cheaply: two names with different bytes
+     * but the same hash almost always differ in their first 8 bytes too, so comparing longs weeds
+     * out most false hash matches before falling back to a full {@code byte[]} comparison. For
+     * names of 8 bytes or fewer the prefix comparison already covers every byte, so the full
+     * comparison is skipped entirely.
+     *
+     * <p>{@code count} is the number of occupied slots, always at most half of {@code hashes.length}
+     * (see {@link #build}), which keeps probe sequences short.
      */
     record Frozen(int mask, int[] hashes, int[] lens, long[] prefix8, byte[][] keys, String[] names, int count) {
 
+        /** Looks up a field name, computing its prefix8 from the bytes; see {@link #lookup(byte[], int, int, int, long)}. */
         String lookup(byte[] buf, int off, int len, int h) {
             return lookup(buf, off, len, h, readPrefix8(buf, off, len));
         }

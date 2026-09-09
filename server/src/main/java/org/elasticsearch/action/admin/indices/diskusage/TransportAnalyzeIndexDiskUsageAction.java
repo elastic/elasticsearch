@@ -34,6 +34,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -230,6 +232,10 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {
+                String restoreUuid = RestoreService.activeRestoreUuid(group.shardId(), clusterState);
+                if (restoreUuid != null) {
+                    throw new ShardRestoringException(group.shardId(), restoreUuid);
+                }
                 throw new NoShardAvailableActionException(group.shardId());
             }
         }

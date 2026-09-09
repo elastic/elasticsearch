@@ -18,6 +18,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -146,6 +147,14 @@ public class TermVectorsService {
         } catch (StaleRequestException sre) {
             // The exception type is important to execute retries during resharding.
             throw sre;
+        } catch (RuntimeException ex) {
+            // Shard-not-available exceptions (e.g. IllegalIndexShardStateException) must propagate
+            // unwrapped so that TransportSingleShardAction can classify them correctly and substitute
+            // ShardRestoringException when the shard is recovering from a snapshot.
+            if (TransportActions.isShardNotAvailableException(ex)) {
+                throw ex;
+            }
+            throw new ElasticsearchException("failed to execute term vector request", ex);
         } catch (Exception ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -89,7 +90,8 @@ public final class MlRecoverableErrorClassifier {
         if (cause instanceof SearchPhaseExecutionException) {
             return true;
         }
-        if (cause instanceof NoShardAvailableActionException) {
+        // TODO: consider broadening to TransportActions.isShardNotAvailableException(e) in final PR
+        if (cause instanceof NoShardAvailableActionException || cause instanceof ShardRestoringException) {
             return true;
         }
         if (cause instanceof IndexPrimaryShardNotAllocatedException) {

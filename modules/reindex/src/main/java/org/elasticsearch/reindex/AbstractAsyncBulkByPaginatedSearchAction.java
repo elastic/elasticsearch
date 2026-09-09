@@ -40,6 +40,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -85,7 +86,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES;
-import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
@@ -1039,7 +1039,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {
-        if (failure.getStatus() == CONFLICT) {
+        // Check for the specific exception type rather than HTTP 409 status, because ShardRestoringException
+        // also returns 409 and must not be silently swallowed as a version conflict.
+        if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
             worker.countVersionConflict();
             if (false == mainRequest.isAbortOnVersionConflict()) {
                 return;

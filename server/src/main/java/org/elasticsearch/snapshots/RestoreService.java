@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -1216,7 +1217,7 @@ public final class RestoreService implements ClusterStateApplier {
      * routing table that produced {@code primary}, so that the two cannot disagree.
      *
      * @param restoreInProgress the restore custom from the current cluster state
-     * @param primary           the primary shard routing being evaluated; must be in the INITIALIZING state
+     * @param primary           the primary shard routing being evaluated; must be in the UNASSIGNED or INITIALIZING state
      * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
      */
     public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
@@ -1264,6 +1265,66 @@ public final class RestoreService implements ClusterStateApplier {
             return false;
         }
         return shardStatus.state().completed() == false;
+    }
+
+    /**
+     * Returns the restore UUID for the given index if any of its primary shards are currently being restored from an API-level snapshot
+     * restore, or {@code null} if no such correlation exists. Serves index-level callers (e.g. {@code _field_caps}, Fleet checkpoints)
+     * that do not have a concrete {@link ShardId} available at the point of failure.
+     *
+     * <p>Both the routing table and the {@link RestoreInProgress} are read from {@code state}, which guarantees they are consistent with
+     * each other. Callers must use the same {@code state} snapshot throughout the request handling to avoid TOCTOU races.
+     *
+     * @param index the index to query
+     * @param state the cluster state to read from
+     * @return the restore UUID (cross-referenceable via {@code GET _recovery}'s {@code restoreUUID} field), or {@code null}
+     */
+    @Nullable
+    public static String activeRestoreUuidForIndex(Index index, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable().index(index);
+        if (indexRouting == null) {
+            return null;
+        }
+        RestoreInProgress restoreInProgress = RestoreInProgress.get(state);
+        for (int i = 0; i < indexRouting.size(); i++) {
+            ShardRouting primary = indexRouting.shard(i).primaryShard();
+            if (primary != null && primary.active() == false && isRestoringShardFromSnapshot(restoreInProgress, primary)) {
+                return ((SnapshotRecoverySource) primary.recoverySource()).restoreUUID();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the restore UUID for the given shard if its primary is currently in the UNASSIGNED or INITIALIZING state and is being
+     * restored from an API-level snapshot restore, or {@code null} if no such correlation exists.
+     *
+     * <p>Both the routing table and the {@link RestoreInProgress} are read from {@code state}, which guarantees they are consistent with
+     * each other. Callers must use the same {@code state} snapshot throughout the request handling to avoid TOCTOU races.
+     *
+     * @param shardId the shard to query
+     * @param state   the cluster state to read from
+     * @return the restore UUID (cross-referenceable via {@code GET _recovery}'s {@code restoreUUID} field), or {@code null}
+     */
+    @Nullable
+    public static String activeRestoreUuid(ShardId shardId, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable().index(shardId.getIndex());
+        if (indexRouting == null) {
+            return null;
+        }
+        var shardTable = indexRouting.shard(shardId.id());
+        if (shardTable == null) {
+            return null;
+        }
+        ShardRouting primary = shardTable.primaryShard();
+        if (primary == null || primary.active()) {
+            // STARTED or RELOCATING — restore is complete or this is not a restore
+            return null;
+        }
+        if (isRestoringShardFromSnapshot(RestoreInProgress.get(state), primary) == false) {
+            return null;
+        }
+        return ((SnapshotRecoverySource) primary.recoverySource()).restoreUUID();
     }
 
     /**

@@ -8,9 +8,12 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -42,9 +45,28 @@ abstract class SearchPhase {
     }
 
     protected static void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
+        doCheckNoMissingShards(phaseName, request, shardsIts, null);
+    }
+
+    /**
+     * Like {@link #doCheckNoMissingShards(String, SearchRequest, List)} but uses {@code clusterState} to correlate
+     * missing shards against an in-progress API-level snapshot restore. When every missing shard belongs to the same
+     * active restore, the thrown {@link SearchPhaseExecutionException} carries a {@link ShardRestoringException} as
+     * its cause, which causes {@link SearchPhaseExecutionException#status()} to return HTTP 409 instead of 503.
+     * Pass {@code null} for {@code clusterState} to get the original 503 behaviour (used by callers that do not
+     * have cluster-state access, e.g. {@link CanMatchPreFilterSearchPhase}).
+     */
+    protected static void doCheckNoMissingShards(
+        String phaseName,
+        SearchRequest request,
+        List<SearchShardIterator> shardsIts,
+        ClusterState clusterState
+    ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
+            ShardRestoringException restoringCause = null;
+            boolean allMissingAreRestoring = true;
             // Fail-fast verification of all shards being available
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
@@ -53,12 +75,29 @@ abstract class SearchPhase {
                         missingShards.append(", ");
                     }
                     missingShards.append(shardRoutings.shardId());
+                    if (clusterState != null && allMissingAreRestoring) {
+                        String restoreUuid = RestoreService.activeRestoreUuid(shardRoutings.shardId(), clusterState);
+                        if (restoreUuid != null) {
+                            if (restoringCause == null) {
+                                restoringCause = new ShardRestoringException(shardRoutings.shardId(), restoreUuid);
+                            }
+                        } else {
+                            // at least one missing shard is not restoring — fall back to 503
+                            allMissingAreRestoring = false;
+                            restoringCause = null;
+                        }
+                    }
                 }
             }
             if (missingShards.isEmpty() == false) {
                 // Status red - shard is missing all copies and would produce partial results for an index search
                 final String msg = makeMissingShardsError(missingShards);
-                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
+                throw new SearchPhaseExecutionException(
+                    phaseName,
+                    msg,
+                    allMissingAreRestoring ? restoringCause : null,
+                    ShardSearchFailure.EMPTY_ARRAY
+                );
             }
         }
     }

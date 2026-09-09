@@ -44,6 +44,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -496,6 +498,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 String nodeId = shard.currentNodeId();
                 nodesAndShards.computeIfAbsent(nodeId, k -> new HashSet<>()).add(shard.shardId());
             } else {
+                String restoreUuid = RestoreService.activeRestoreUuid(shard.shardId(), clusterState);
+                if (restoreUuid != null) {
+                    throw new ShardRestoringException(shard.shardId(), restoreUuid);
+                }
                 throw new NoShardAvailableActionException(shard.shardId(), " no primary shards available for shard [" + shard + "]");
             }
         }

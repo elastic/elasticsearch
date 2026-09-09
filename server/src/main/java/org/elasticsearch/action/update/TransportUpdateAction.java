@@ -73,6 +73,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -653,14 +655,20 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                             actionName
                         );
                     } else {
-                        listenFailure = new UnavailableShardsException(
-                            shardIt.shardId(),
-                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
-                            shardIt.size(),
-                            shardIt.sizeActive(),
-                            request.timeout(),
-                            actionName
-                        );
+                        ShardId shardId = shardIt.shardId();
+                        String restoreUuid = RestoreService.activeRestoreUuid(shardId, clusterService.state());
+                        if (restoreUuid != null) {
+                            listenFailure = new ShardRestoringException(shardId, restoreUuid);
+                        } else {
+                            listenFailure = new UnavailableShardsException(
+                                shardId,
+                                "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}",
+                                shardIt.size(),
+                                shardIt.sizeActive(),
+                                request.timeout(),
+                                actionName
+                            );
+                        }
                     }
                 }
                 listener.onFailure(listenFailure);

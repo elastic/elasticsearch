@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -264,7 +265,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(users);
             }, (e) -> {
                 logger.error("failed to retrieve reserved users", e);
-                if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
+                // TODO: reconsider in final PR whether this should use TransportActions.isShardNotAvailableException(e)
+                if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException
+                    || ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException) {
                     // Surface a 503 so callers retry, mirroring getUserInfo.
                     listener.onFailure(Exceptions.authenticationProcessError("failed to retrieve reserved users", e));
                 } else {
@@ -283,7 +286,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             }
         }, (e) -> {
             logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
-            if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
+            // TODO: reconsider in final PR whether this should use TransportActions.isShardNotAvailableException(e)
+            if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException
+                || ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException) {
                 // Surface a 503 so callers retry instead of a 401.
                 listener.onFailure(
                     Exceptions.authenticationProcessError("failed to retrieve password hash for reserved user [" + username + "]", e)

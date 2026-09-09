@@ -43,6 +43,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -160,6 +162,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private final ShardsIterator shardIt;
         private final InternalRequest internalRequest;
         private final DiscoveryNodes nodes;
+        private final ClusterState clusterState;
         private volatile Exception lastFailure;
 
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
@@ -175,6 +178,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 );
             }
             nodes = project.cluster().nodes();
+            clusterState = project.cluster();
             ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
@@ -234,13 +238,20 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
+                var routings = shardIt.getShardRoutings();
+                ShardId exhaustedShardId = routings.isEmpty() ? null : routings.get(0).shardId();
+                String restoreUuid = exhaustedShardId != null ? RestoreService.activeRestoreUuid(exhaustedShardId, clusterState) : null;
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(
-                        null,
-                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
-                        failure
-                    );
+                    if (restoreUuid != null) {
+                        failure = new ShardRestoringException(exhaustedShardId, restoreUuid);
+                    } else {
+                        failure = new NoShardAvailableActionException(
+                            null,
+                            LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
+                            failure
+                        );
+                    }
                 } else {
                     logger.debug(() -> format("%s: failed to execute [%s]", null, internalRequest.request()), failure);
                 }

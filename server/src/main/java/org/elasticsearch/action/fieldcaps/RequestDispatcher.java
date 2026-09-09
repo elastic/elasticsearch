@@ -16,10 +16,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,6 +36,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -173,8 +177,24 @@ final class RequestDispatcher {
         for (String failedIndex : failedIndices) {
             final IndexSelector indexSelector = indexSelectors.remove(failedIndex);
             assert indexSelector != null;
-            final Exception failure = indexSelector.getFailure();
+            Exception failure = indexSelector.getFailure();
             if (failure != null) {
+                if (TransportActions.isShardNotAvailableException(failure)) {
+                    var indexMeta = clusterState.getMetadata().getProject().index(failedIndex);
+                    if (indexMeta != null) {
+                        String restoreUuid = RestoreService.activeRestoreUuidForIndex(indexMeta.getIndex(), clusterState);
+                        if (restoreUuid != null) {
+                            IndexRoutingTable indexRouting = clusterState.routingTable().index(indexMeta.getIndex());
+                            for (int i = 0; indexRouting != null && i < indexRouting.size(); i++) {
+                                ShardRouting primary = indexRouting.shard(i).primaryShard();
+                                if (primary != null && primary.active() == false) {
+                                    failure = new ShardRestoringException(primary.shardId(), restoreUuid);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 onIndexFailure.accept(failedIndex, failure);
             }
         }

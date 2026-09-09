@@ -52,6 +52,8 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
@@ -361,6 +363,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     static DiscoveryNode getCurrentNodeOfPrimary(ProjectState clusterState, ShardId shardId) {
         final var primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         if (primaryShard.active() == false) {
+            String restoreUuid = RestoreService.activeRestoreUuid(shardId, clusterState.cluster());
+            if (restoreUuid != null) {
+                throw new ShardRestoringException(shardId, restoreUuid);
+            }
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
         DiscoveryNode node = clusterState.cluster().nodes().get(primaryShard.currentNodeId());

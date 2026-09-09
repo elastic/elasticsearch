@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -38,6 +39,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -205,10 +208,36 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     int active = routingTable.primaryShardsActive();
                     int total = indexMetadata.getNumberOfShards();
                     listener.onFailure(
-                        new UnavailableShardsException(null, "Primary shards were not active [shards={}, active={}]", total, active)
+                        checkpointUnavailableException(
+                            state,
+                            indexMetadata.getIndex(),
+                            routingTable,
+                            "Primary shards were not active [shards={}, active={}]",
+                            total,
+                            active
+                        )
                     );
                 }
             }
+        }
+
+        private static Exception checkpointUnavailableException(
+            ClusterState state,
+            Index index,
+            IndexRoutingTable routingTable,
+            String message,
+            Object... args
+        ) {
+            String restoreUuid = RestoreService.activeRestoreUuidForIndex(index, state);
+            if (restoreUuid != null) {
+                for (int i = 0; i < routingTable.size(); i++) {
+                    ShardRouting primary = routingTable.shard(i).primaryShard();
+                    if (primary != null && primary.active() == false) {
+                        return new ShardRestoringException(primary.shardId(), restoreUuid);
+                    }
+                }
+            }
+            return new UnavailableShardsException(null, message, args);
         }
 
         private void handleIndexNotReady(ClusterState initialState, Request request, ActionListener<Response> listener) {
@@ -231,13 +260,17 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                                 TimeValue.timeValueNanos(remainingNanos)
                             ).run();
                         } else {
+                            var idxMeta = state.getMetadata().getProject().index(index);
+                            var idxRouting = state.routingTable().index(index);
                             listener.onFailure(
-                                new UnavailableShardsException(
-                                    null,
+                                checkpointUnavailableException(
+                                    state,
+                                    idxMeta.getIndex(),
+                                    idxRouting,
                                     "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                     request.timeout(),
-                                    state.getMetadata().getProject().index(index).getNumberOfShards(),
-                                    state.routingTable().index(index).primaryShardsActive()
+                                    idxMeta.getNumberOfShards(),
+                                    idxRouting.primaryShardsActive()
                                 )
                             );
                         }
@@ -251,13 +284,17 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                     try {
                         var state = clusterService.state();
                         var index = resolver.concreteSingleIndex(state, request);
+                        var idxMeta = state.getMetadata().getProject().index(index);
+                        var idxRouting = state.routingTable().index(index);
                         listener.onFailure(
-                            new UnavailableShardsException(
-                                null,
+                            checkpointUnavailableException(
+                                state,
+                                idxMeta.getIndex(),
+                                idxRouting,
                                 "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
                                 request.timeout(),
-                                state.getMetadata().getProject().index(index).getNumberOfShards(),
-                                state.routingTable().index(index).primaryShardsActive()
+                                idxMeta.getNumberOfShards(),
+                                idxRouting.primaryShardsActive()
                             )
                         );
                     } catch (Exception e) {

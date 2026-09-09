@@ -141,6 +141,8 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -2763,6 +2765,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // wiring entirely.
                 if (shard.isReadAllowed()) {
                     shard.ensureShardSearchActive(threadPool.executor(Names.SEARCH), b -> delegate.onResponse(request));
+                    return;
+                }
+                // Shard is recovering from a snapshot: fail immediately with 409 rather than blocking
+                // in waitForSearchReady until the restore finishes.
+                String restoreUuid = RestoreService.activeRestoreUuid(shard.shardId(), clusterService.state());
+                if (restoreUuid != null) {
+                    delegate.onFailure(new ShardRestoringException(shard.shardId(), restoreUuid));
                     return;
                 }
                 // notifyOnce guards against double-completion: both the task cancellation listener

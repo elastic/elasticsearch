@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -64,6 +65,7 @@ import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -554,7 +556,22 @@ public class EnrichPolicyRunner {
                             );
                         }
                     }
-                    delegate.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
+                    // If any search failure was caused by a restoring shard, surface that exception directly
+                    // so callers receive the 409 status. Other concurrent failures are subordinated — the
+                    // enrich reindex cannot proceed regardless, and the 409 gives operators the actionable cause.
+                    Exception searchFailure = null;
+                    for (PaginatedSearchFailure failure : bulkByPaginatedSearchResponse.getSearchFailures()) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(failure.getReason());
+                        if (cause instanceof ShardRestoringException sre) {
+                            searchFailure = sre;
+                            break;
+                        }
+                    }
+                    delegate.onFailure(
+                        searchFailure != null
+                            ? searchFailure
+                            : new ElasticsearchException("Encountered search failures during reindex process")
+                    );
                 } else {
                     logger.info(
                         "Policy [{}]: Transferred [{}] documents to enrich index [{}]",

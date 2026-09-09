@@ -62,6 +62,8 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -1006,7 +1008,12 @@ public abstract class TransportReplicationAction<
                         request,
                         state.version()
                     );
-                    retryBecauseUnavailable(request.shardId(), "primary shard is not active");
+                    String restoreUuid = RestoreService.activeRestoreUuid(request.shardId(), state);
+                    if (restoreUuid != null) {
+                        finishAsFailed(new ShardRestoringException(request.shardId(), restoreUuid));
+                    } else {
+                        retryBecauseUnavailable(request.shardId(), "primary shard is not active");
+                    }
                     return;
                 }
                 if (state.nodes().nodeExists(primary.currentNodeId()) == false) {

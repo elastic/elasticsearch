@@ -34,6 +34,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -372,7 +373,10 @@ abstract class DataNodeRequestSender {
 
     private static Exception unwrapFailure(ShardId shardId, Exception e) {
         e = e instanceof TransportException te ? FailureCollector.unwrapTransportException(te) : e;
-        if (TransportActions.isShardNotAvailableException(e)) {
+        if (TransportActions.isShardNotAvailableException(e)
+            && !(ExceptionsHelper.unwrapCause(e) instanceof ShardRestoringException)) {
+            // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
+            // temporary error. ShardRestoringException is excluded so its 409 status is preserved.
             var ex = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
             ex.setShard(shardId);
             return ex;

@@ -67,6 +67,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1087,7 +1088,8 @@ public class TrainedModelProvider {
                 return org.elasticsearch.ExceptionsHelper.unwrap(
                     e,
                     SearchPhaseExecutionException.class,
-                    NoShardAvailableActionException.class
+                    NoShardAvailableActionException.class,
+                    ShardRestoringException.class
                 ) != null;
             }
         }.run();

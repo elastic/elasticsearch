@@ -16,7 +16,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -41,6 +43,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -450,7 +453,7 @@ public class ReservedRealmTests extends ESTestCase {
         }
     }
 
-    public void testGetUsersPropagatesUnavailableShardsAs503() {
+    public void testGetUsersPropagatesShardUnavailableExceptionsAs503() {
         final ReservedRealm reservedRealm = new ReservedRealm(
             mock(Environment.class),
             Settings.EMPTY,
@@ -458,10 +461,11 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
+        final Exception shardException = randomShardNotAvailableException();
         doAnswer(i -> {
             @SuppressWarnings("unchecked")
             ActionListener<Map<String, ReservedUserInfo>> callback = (ActionListener<Map<String, ReservedUserInfo>>) i.getArguments()[0];
-            callback.onFailure(new UnavailableShardsException(null, "security index not available"));
+            callback.onFailure(shardException);
             return null;
         }).when(usersStore).getAllReservedUserInfo(anyActionListener());
 
@@ -496,7 +500,7 @@ public class ReservedRealmTests extends ESTestCase {
         }
     }
 
-    public void testAuthenticatePropagatesUnavailableShardsAs503() {
+    public void testAuthenticatePropagatesShardUnavailableExceptionsAs503() {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("bootstrap.password", "foobar longer than 14 chars because of FIPS");
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
@@ -507,10 +511,11 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
+        final Exception shardException = randomShardNotAvailableException();
         doAnswer(i -> {
             @SuppressWarnings("unchecked")
             ActionListener<ReservedUserInfo> callback = (ActionListener<ReservedUserInfo>) i.getArguments()[1];
-            callback.onFailure(new UnavailableShardsException(null, "security index not available"));
+            callback.onFailure(shardException);
             return null;
         }).when(usersStore).getReservedUserInfo(eq(ElasticUser.NAME), anyActionListener());
 
@@ -928,6 +933,16 @@ public class ReservedRealmTests extends ESTestCase {
         }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, new SecureString(password.toCharArray())), listener);
         assertFailedAuthentication(listener, principal);
+    }
+
+    private Exception randomShardNotAvailableException() {
+        final ShardId shardId = new ShardId(".security", "uuid", 0);
+        return randomFrom(
+            List.<Exception>of(
+                new UnavailableShardsException(shardId, "primary not active"),
+                new ShardRestoringException(shardId, "restore-uuid")
+            )
+        );
     }
 
     private User randomReservedUser(boolean enabled) {

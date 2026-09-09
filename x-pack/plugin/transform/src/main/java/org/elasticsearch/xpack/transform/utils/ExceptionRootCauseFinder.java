@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Collection;
@@ -83,6 +84,12 @@ public final class ExceptionRootCauseFinder {
     }
 
     public static boolean isExceptionIrrecoverable(ElasticsearchException elasticsearchException) {
+        // A restoring shard is transient and self-resolving, but can take a long time. This must be an explicit
+        // type check rather than adding CONFLICT (409) to IRRECOVERABLE_REST_STATUSES, because
+        // VersionConflictEngineException also returns 409 and must not be treated as irrecoverable.
+        if (elasticsearchException instanceof ShardRestoringException) {
+            return true;
+        }
         if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
 
             // Even if the status indicates the exception is irrecoverable, some exceptions

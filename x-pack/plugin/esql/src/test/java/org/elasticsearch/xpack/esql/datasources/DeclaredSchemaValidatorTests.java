@@ -181,7 +181,12 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            allOf(containsString("unsupported declared type [text] for column [msg]"), containsString(DeclaredSchemaValidator.TEXT_ROUTE))
+            allOf(
+                containsString("unsupported declared type [text] for column [msg]"),
+                // The literal, not the constant: asserting DeclaredSchemaValidator.TEXT_ROUTE moves both sides
+                // together, so renaming the function in the message would keep this green.
+                containsString("apply TO_TEXT in the query")
+            )
         );
         // The list the message prints must no longer advertise the withdrawn type. Pinned as the whole list rather
         // than as the absence of a substring: the names are sorted, so `text` lands mid-list and every "does not

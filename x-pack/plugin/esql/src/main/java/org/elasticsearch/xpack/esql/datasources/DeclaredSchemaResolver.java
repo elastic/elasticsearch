@@ -180,9 +180,10 @@ public final class DeclaredSchemaResolver {
      * {@code text} was declarable before it was withdrawn, so a mapping stored by an earlier version can still carry
      * it. Reading it as {@code keyword} is representation-preserving — every reader's string arm is
      * {@code case KEYWORD, TEXT} and produces the same {@code BytesRef} block — so the dataset stays queryable across
-     * the upgrade. What it does change is that {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column, which is
-     * why the read path warns: see {@code ExternalSourceResolver#warnOnWithdrawnDeclaredTypes}, the one place that
-     * emits, since resolution here runs once per file on the non-strict rail.
+     * the upgrade. What it does change is how the column matches — {@code MATCH}/{@code MATCH_PHRASE} stop analyzing
+     * it, and a call passing options on it stops planning — which is why the read path warns: see
+     * {@code ExternalSourceResolver#warnOnWithdrawnDeclaredTypes}, the one place that emits, since resolution here
+     * runs once per file on the non-strict rail.
      * <p>
      * Every site that turns a stored declared type into an ES|QL type calls this, so the substitution cannot hold on
      * one rail and be missed on another. It deliberately does not apply the declarable-type whitelist: callers that

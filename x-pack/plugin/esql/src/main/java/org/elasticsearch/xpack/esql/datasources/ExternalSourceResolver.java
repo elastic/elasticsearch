@@ -2485,8 +2485,10 @@ public class ExternalSourceResolver {
      * {@code text} was a declarable type before it was withdrawn, so a mapping stored by an earlier version can still
      * carry it; {@link DeclaredSchemaResolver#resolveType} reads such a column as {@code keyword} rather than failing
      * the query. The bytes are unchanged — every reader's string arm is {@code case KEYWORD, TEXT} — but
-     * {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column, so the substitution is announced rather than
-     * silent, and the message names the query-side replacement.
+     * {@code MATCH}/{@code MATCH_PHRASE} stop analyzing the column, and a call on it that passes options stops
+     * planning at all — both functions accept options on a runtime-search field only when its type is
+     * {@code TEXT}. That last one a user cannot absorb without editing the query, which is why the substitution is
+     * announced rather than silent and the message names it alongside the query-side replacement.
      * <p>
      * Called once per {@link #resolve} rather than per path or per file, so a column warns once however wide the
      * resource expands. Takes {@code warningSink} for the same reason {@link #warnOnShadowedColumns} does: this runs
@@ -2513,8 +2515,9 @@ public class ExternalSourceResolver {
         }
         SkipWarnings warnings = new SkipWarnings(
             "one or more columns are declared with the withdrawn [text] type and are read as [keyword]; "
-                + "matching on them is no longer analyzed. Re-declare those columns as [keyword], and apply "
-                + "TO_TEXT in the query where an analyzed column is wanted.",
+                + "matching on them is no longer analyzed, and a MATCH or MATCH_PHRASE that passes options on one "
+                + "now fails verification. Re-declare those columns as [keyword], and apply TO_TEXT in the query "
+                + "where an analyzed column is wanted.",
             warningSink
         );
         for (String column : columns) {

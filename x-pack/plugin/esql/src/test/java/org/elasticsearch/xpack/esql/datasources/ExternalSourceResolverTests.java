@@ -238,6 +238,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("summary + one detail", 2, warnings.size());
         assertThat(warnings.get(0), containsString("withdrawn [text] type"));
         assertThat(warnings.get(0), containsString("TO_TEXT"));
+        // The consequence a user cannot absorb by reading their results: both MATCH and MATCH_PHRASE accept options
+        // on a runtime-search field only when its type is TEXT, so a stored query that passes any now fails
+        // verification. A warning that mentioned only the analyzing would leave that to be discovered as an error.
+        assertThat(warnings.get(0), containsString("passes options on one now fails verification"));
         assertThat(warnings.get(1), containsString("column [msg] is declared [text] and is read as [keyword]"));
     }
 

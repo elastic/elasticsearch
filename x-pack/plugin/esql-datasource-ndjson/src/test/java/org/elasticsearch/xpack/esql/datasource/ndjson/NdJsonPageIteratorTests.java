@@ -1599,7 +1599,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testDeclaredTextColumnReadsString() throws IOException {
-        // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
+        // TEXT is no longer declarable on a dataset mapping, but it still reaches the reader: TO_TEXT produces a
+        // TEXT column, and an index-sourced text column is read at this type too. It decodes like KEYWORD — a
+        // BytesRef block — which is exactly why the declared type was withdrawn as a duplicate of keyword.
         String ndjson = "{\"t\": \"hello\"}\n";
         var object = new BytesStorageObject("file:///text.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);

@@ -262,6 +262,15 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns {@code true} when the field's dimension status does not block the columnar parse path. A dimension
+     * field that writes routing ({@code writeDimensionRouting=true}) must fall back to the row path because the
+     * routing hash is computed incrementally during row-level parse and is not available in the batch path.
+     */
+    protected static boolean dimensionAllowsColumnarParse(MappedFieldType fieldType, boolean writeDimensionRouting) {
+        return fieldType.isDimension() == false || writeDimensionRouting == false;
+    }
+
+    /**
      * Maps all documents in a batch for this field from the supplied ESCF source column. Called by
      * the columnar bulk batch driver once per field per batch, only for mappers whose
      * {@link #supportsColumnarParse(IndexSettings)} returned {@code true}. Attaches the resulting

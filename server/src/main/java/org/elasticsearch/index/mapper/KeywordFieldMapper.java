@@ -1648,7 +1648,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && normalizerName == null
-            && (fieldType().isDimension() == false || writeDimensionRouting == false);
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
     }
 
     /**

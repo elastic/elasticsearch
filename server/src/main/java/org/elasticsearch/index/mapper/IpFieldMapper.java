@@ -835,7 +835,7 @@ public class IpFieldMapper extends FieldMapper {
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
-            && (fieldType().isDimension() == false || writeDimensionRouting == false)
+            && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting)
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 

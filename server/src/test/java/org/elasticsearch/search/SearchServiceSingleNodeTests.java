@@ -2379,8 +2379,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(ex.getCause().getMessage(), containsString("simulated freeReaderContext failure"));
 
         assertThat(
-            "circuit breaker bytes reserved for the successful fetch must not leak when freeReaderContext fails "
-                + "right afterwards",
+            "circuit breaker bytes reserved for the successful fetch must not leak when freeReaderContext fails " + "right afterwards",
             breaker.getUsed(),
             equalTo(breakerBefore)
         );

@@ -54,9 +54,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
-import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -748,7 +749,14 @@ public class PruningMergePolicyTests extends ESTestCase {
         if (IndexSettings.SYNTHETIC_ID.get(indexSettings.getSettings())) {
             iwc.setCodec(
                 new ES93TSDBDefaultCompressionLucene103Codec(
-                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                    new PerFieldMapperCodec(
+                        Lucene104Codec.Mode.BEST_SPEED,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                        mapperService,
+                        BigArrays.NON_RECYCLING_INSTANCE,
+                        null
+                    )
                 )
             );
         }

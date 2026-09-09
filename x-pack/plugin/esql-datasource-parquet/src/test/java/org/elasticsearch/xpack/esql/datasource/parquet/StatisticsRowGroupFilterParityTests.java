@@ -26,9 +26,11 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -53,6 +55,13 @@ import java.util.Set;
  * resolution) on the optimized read path.
  */
 public class StatisticsRowGroupFilterParityTests extends ESTestCase {
+
+    /**
+     * Footer byte cache handed to every adapter this test constructs. In production the owning
+     * format reader supplies its instance; a fresh per-test-class cache gives the same sharing
+     * within a test and automatic isolation between tests.
+     */
+    private final FooterByteCache footerByteCache = FooterByteCache.fromSettings(Settings.EMPTY);
 
     private BlockFactory blockFactory;
     private CircuitBreaker breaker;
@@ -155,7 +164,7 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
         Set<Long> survivingStarts = new HashSet<>();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), breaker),
+                new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), footerByteCache, breaker),
                 PlainParquetReadOptions.builder(codecFactory).withRecordFilter(FilterCompat.get(predicate)).build()
             )
         ) {
@@ -187,7 +196,7 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), breaker),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), footerByteCache, breaker),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

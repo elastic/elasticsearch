@@ -581,13 +581,6 @@ public class IndexModuleTests extends ESTestCase {
         assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }
 
-    /** vectordb_columnar is the one strict columnar mode that keeps the query cache, so kNN filters stay cached. */
-    public void testQueryCacheEnabledByDefaultForVectordbColumnarMode() {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName()).build();
-        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
-    }
-
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)

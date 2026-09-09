@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.builder;
@@ -120,11 +121,7 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     private List<IndexMode> columnarModes() {
-        var modes = new java.util.ArrayList<>(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.VECTORDB_COLUMNAR);
-        }
-        return modes;
+        return Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList();
     }
 
     public void testFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {

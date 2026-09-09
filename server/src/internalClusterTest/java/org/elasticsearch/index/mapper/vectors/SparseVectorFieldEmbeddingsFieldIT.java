@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -22,7 +23,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -98,6 +102,16 @@ public class SparseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbed
     @Override
     SparseVectorFieldConfig createVectorFieldConfig(String fieldName) {
         return new SparseVectorFieldConfig(fieldName);
+    }
+
+    @Override
+    Consumer<SearchResponse> noFieldValueResponse(String message, Set<String> requestedFieldNames) {
+        // ValueFetcher.fetchDocumentField returns null when a document has no values for the field, so FieldFetcher omits
+        // it and the hit carries no fields.
+        return response -> {
+            assertThat(message, response.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(message, response.getHits().getAt(0).getDocumentFields(), anEmptyMap());
+        };
     }
 
     @Override

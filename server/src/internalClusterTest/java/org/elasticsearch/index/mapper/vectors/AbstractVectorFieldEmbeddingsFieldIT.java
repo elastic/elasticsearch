@@ -12,7 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,12 +34,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -163,6 +168,13 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
      */
     abstract void assertEmbeddingsFieldValue(String message, C field, DocumentField actual);
 
+    /**
+     * Returns the assertion applied to a search response for a document that has no value for any requested vector field.
+     * The two fetch paths disagree here: {@code DOC_VALUES} always adds an empty {@link DocumentField} for each requested
+     * field, while {@code FIELDS} omits the field entirely, so each subclass states the expectation for its own path.
+     */
+    abstract Consumer<SearchResponse> noFieldValueResponse(String message, Set<String> requestedFieldNames);
+
     @Before
     private void createVectorFields() {
         int numFields = vectorFieldCount();
@@ -199,8 +211,9 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
     }
 
     /**
-     * When the search request returns no documents, the fetch phase is skipped and the vector type match check in {@code embeddingsField}
-     * isn't executed.
+     * When the search request returns no documents, the fetch phase is skipped. However, {@code embeddingsField} is called in
+     * {@code SearchService#parseSource} at search-context creation, before any document matching, so a mismatched vector type
+     * still fails even against an empty index.
      */
     public void testFetchEmbeddingsFieldsNoDocuments() throws Exception {
         indexName = randomIndexName();
@@ -211,22 +224,27 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
             String fieldName = field.fieldName();
             String message = field.toString();
 
-            assertEmbeddingsFieldsNoHits(message, singletonMap(fieldName, null));
-            assertEmbeddingsFieldsNoHits(message, Map.of(fieldName, field.vectorType()));
-            assertEmbeddingsFieldsNoHits(
-                message,
-                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values())))
+            assertEmbeddingsFieldsSuccess(singletonMap(fieldName, null), noHitsResponse(message));
+            assertEmbeddingsFieldsSuccess(Map.of(fieldName, field.vectorType()), noHitsResponse(message));
+
+            VectorType mismatched = randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()));
+            assertEmbeddingsFieldsFailure(
+                Map.of(fieldName, mismatched),
+                RestStatus.BAD_REQUEST,
+                "Field [" + fieldName + "] of type [" + field.vectorType() + "] does not support [" + mismatched + "] embeddings"
             );
         }
 
         Map<String, VectorType> allRequested = new HashMap<>();
         vectorFields.forEach(f -> allRequested.put(f.fieldName(), null));
-        assertEmbeddingsFieldsNoHits("Fetching all vector fields at once", allRequested);
+        assertEmbeddingsFieldsSuccess(allRequested, noHitsResponse("Fetching all vector fields at once"));
     }
 
     /**
-     * When a document is indexed with no value for any vector field, the fetch phase runs and the vector type match check in
-     * {@code embeddingsField} is executed, but no embeddings are returned for the hit.
+     * When a document is indexed with no value for any vector field, the fetch phase runs. A mismatched vector type is rejected in
+     * {@code SearchService#parseSource} at search-context creation, before any document matching, so it still fails here.
+     * When the type matches (or is inferred), the response contains one hit whose fields depend on the fetch path: see
+     * {@link #noFieldValueResponse}.
      */
     public void testFetchEmbeddingsFieldsNoFieldValue() throws Exception {
         indexName = randomIndexName();
@@ -242,18 +260,20 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
             String fieldName = field.fieldName();
             String message = field.toString();
 
-            assertEmbeddingsFieldsHit(message, singletonMap(fieldName, null), Map.of());
-            assertEmbeddingsFieldsHit(message, Map.of(fieldName, field.vectorType()), Map.of());
-            assertEmbeddingsFieldsHit(
-                message,
-                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()))),
-                Map.of()
+            assertEmbeddingsFieldsSuccess(singletonMap(fieldName, null), noFieldValueResponse(message, Set.of(fieldName)));
+            assertEmbeddingsFieldsSuccess(Map.of(fieldName, field.vectorType()), noFieldValueResponse(message, Set.of(fieldName)));
+
+            VectorType mismatched = randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()));
+            assertEmbeddingsFieldsFailure(
+                Map.of(fieldName, mismatched),
+                RestStatus.BAD_REQUEST,
+                "Field [" + fieldName + "] of type [" + field.vectorType() + "] does not support [" + mismatched + "] embeddings"
             );
         }
 
         Map<String, VectorType> allRequested = new HashMap<>();
         vectorFields.forEach(f -> allRequested.put(f.fieldName(), null));
-        assertEmbeddingsFieldsHit("Fetching all vector fields at once", allRequested, Map.of());
+        assertEmbeddingsFieldsSuccess(allRequested, noFieldValueResponse("Fetching all vector fields at once", allRequested.keySet()));
     }
 
     void fetchEmbeddingsFieldsTestCase(IndexVersion indexVersion) throws Exception {
@@ -288,16 +308,17 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
             String message = field.toString();
 
             // Inferred vector type: the field decides which type to return.
-            assertEmbeddingsFieldsHit(message, singletonMap(fieldName, null), Map.of(fieldName, field));
+            assertEmbeddingsFieldsSuccess(singletonMap(fieldName, null), expectedFieldsResponse(message, Map.of(fieldName, field)));
 
             // Explicit matching vector type: same result.
-            assertEmbeddingsFieldsHit(message, Map.of(fieldName, field.vectorType()), Map.of(fieldName, field));
+            assertEmbeddingsFieldsSuccess(Map.of(fieldName, field.vectorType()), expectedFieldsResponse(message, Map.of(fieldName, field)));
 
-            // Mismatched vector type: embeddingsField() returns null, so the field is skipped and the hit has no fields.
-            assertEmbeddingsFieldsHit(
-                message,
-                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()))),
-                Map.of()
+            // Mismatched vector type: error
+            VectorType mismatched = randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values()));
+            assertEmbeddingsFieldsFailure(
+                Map.of(fieldName, mismatched),
+                RestStatus.BAD_REQUEST,
+                "Field [" + fieldName + "] of type [" + field.vectorType() + "] does not support [" + mismatched + "] embeddings"
             );
         }
 
@@ -308,7 +329,7 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
             allRequested.put(field.fieldName(), null);
             allExpected.put(field.fieldName(), field);
         }
-        assertEmbeddingsFieldsHit("Fetching all vector fields at once", allRequested, allExpected);
+        assertEmbeddingsFieldsSuccess(allRequested, expectedFieldsResponse("Fetching all vector fields at once", allExpected));
     }
 
     private XContentBuilder generateMapping() throws IOException {
@@ -321,50 +342,63 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
     }
 
     /**
-     * Issues a {@link SearchSourceBuilder#fetchEmbeddingsField} search and asserts that exactly one hit is returned containing the
-     * expected fields with the expected values.
+     * Issues a {@link SearchSourceBuilder#fetchEmbeddingsField} search and passes the response to {@code responseConsumer}.
+     * Uses the coordinating-only node so that fetched embedding field values are serialized over the wire (data node → coordinating
+     * node), exercising transport serialization for both the FIELDS and DOC_VALUES fetch paths.
      *
-     * @param message        a description of the assertion context for failure messages
      * @param requestedFields map of field name to requested {@link VectorType} (may be {@code null} to infer the type)
-     * @param expectedFields  map of field name to its {@link VectorFieldConfig}; empty when no fields are expected in the hit
+     * @param responseConsumer assertion to run against the successful response
      */
-    private void assertEmbeddingsFieldsHit(String message, Map<String, VectorType> requestedFields, Map<String, C> expectedFields)
-        throws Exception {
+    private void assertEmbeddingsFieldsSuccess(Map<String, VectorType> requestedFields, Consumer<SearchResponse> responseConsumer) {
         SearchSourceBuilder source = new SearchSourceBuilder();
         requestedFields.forEach(source::fetchEmbeddingsField);
+        assertNoFailuresAndResponse(internalCluster().coordOnlyNodeClient().prepareSearch(indexName).setSource(source), responseConsumer);
+    }
 
-        // Use the coordinating-only node so that fetched embedding field values are serialized over the wire (data node → coordinating
-        // node), exercising transport serialization for both the FIELDS and DOC_VALUES fetch paths.
-        assertNoFailuresAndResponse(
-            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { indexName }, source)),
-            response -> {
-                assertThat(message, response.getHits().getTotalHits().value(), equalTo(1L));
-                SearchHit hit = response.getHits().getAt(0);
-                assertThat(message, hit.getFields().size(), equalTo(expectedFields.size()));
-                for (Map.Entry<String, C> entry : expectedFields.entrySet()) {
-                    String fieldName = entry.getKey();
-                    C fieldConfig = entry.getValue();
-                    DocumentField documentField = hit.field(fieldName);
-                    assertThat(message + ": expected field [" + fieldName + "] in hit", documentField, notNullValue());
-                    assertEmbeddingsFieldValue(fieldConfig.toString(), fieldConfig, documentField);
-                }
-            }
+    /**
+     * Issues a {@link SearchSourceBuilder#fetchEmbeddingsField} search and asserts that it fails with the given status and reason.
+     *
+     * @param requestedFields map of field name to requested {@link VectorType} (may be {@code null} to infer the type)
+     * @param expectedStatus  the expected HTTP status of each shard failure
+     * @param expectedReason  a substring expected to appear in each shard failure reason
+     */
+    private void assertEmbeddingsFieldsFailure(Map<String, VectorType> requestedFields, RestStatus expectedStatus, String expectedReason) {
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        requestedFields.forEach(source::fetchEmbeddingsField);
+        assertFailures(
+            internalCluster().coordOnlyNodeClient().prepareSearch(indexName).setSource(source),
+            expectedStatus,
+            containsString(expectedReason)
         );
     }
 
     /**
-     * Issues a {@link SearchSourceBuilder#fetchEmbeddingsField} search against an empty index and asserts that no hits are returned.
+     * Returns a consumer that asserts no hits are returned.
+     *
+     * @param message a description of the assertion context for failure messages
+     */
+    private Consumer<SearchResponse> noHitsResponse(String message) {
+        return response -> assertThat(message, response.getHits().getTotalHits().value(), equalTo(0L));
+    }
+
+    /**
+     * Returns a consumer that asserts exactly one hit is returned containing the expected fields with the expected values.
      *
      * @param message        a description of the assertion context for failure messages
-     * @param requestedFields map of field name to requested {@link VectorType} (may be {@code null} to infer the type)
+     * @param expectedFields map of field name to its {@link VectorFieldConfig}; empty when no fields are expected in the hit
      */
-    private void assertEmbeddingsFieldsNoHits(String message, Map<String, VectorType> requestedFields) throws Exception {
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        requestedFields.forEach(source::fetchEmbeddingsField);
-
-        assertNoFailuresAndResponse(
-            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { indexName }, source)),
-            response -> assertThat(message, response.getHits().getTotalHits().value(), equalTo(0L))
-        );
+    private Consumer<SearchResponse> expectedFieldsResponse(String message, Map<String, C> expectedFields) {
+        return response -> {
+            assertThat(message, response.getHits().getTotalHits().value(), equalTo(1L));
+            SearchHit hit = response.getHits().getAt(0);
+            assertThat(message, hit.getDocumentFields().size(), equalTo(expectedFields.size()));
+            for (Map.Entry<String, C> entry : expectedFields.entrySet()) {
+                String fieldName = entry.getKey();
+                C fieldConfig = entry.getValue();
+                DocumentField documentField = hit.getDocumentFields().get(fieldName);
+                assertThat(message + ": expected field [" + fieldName + "] in hit", documentField, notNullValue());
+                assertEmbeddingsFieldValue(fieldConfig.toString(), fieldConfig, documentField);
+            }
+        };
     }
 }

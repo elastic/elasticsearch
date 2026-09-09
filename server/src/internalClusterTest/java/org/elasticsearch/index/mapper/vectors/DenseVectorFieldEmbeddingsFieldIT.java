@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.IndexVersion;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,9 +32,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -230,6 +235,20 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
     @Override
     DenseVectorFieldConfig createVectorFieldConfig(String fieldName) {
         return new DenseVectorFieldConfig(fieldName);
+    }
+
+    @Override
+    Consumer<SearchResponse> noFieldValueResponse(String message, Set<String> requestedFieldNames) {
+        // FetchDocValuesPhase adds a DocumentField for every requested field even when the document has no doc values for
+        // it, so the hit carries one empty field per requested field rather than no fields at all.
+        return response -> {
+            assertThat(message, response.getHits().getTotalHits().value(), equalTo(1L));
+            SearchHit hit = response.getHits().getAt(0);
+            assertThat(message, hit.getDocumentFields().keySet(), equalTo(requestedFieldNames));
+            for (String fieldName : requestedFieldNames) {
+                assertThat(message + ": field [" + fieldName + "]", hit.getDocumentFields().get(fieldName).getValues(), empty());
+            }
+        };
     }
 
     @Override

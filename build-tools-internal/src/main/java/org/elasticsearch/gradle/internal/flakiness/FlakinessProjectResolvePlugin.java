@@ -50,35 +50,12 @@ import java.util.List;
  * candidate test source set and the scan step joins them by compiled-output directory.
  *
  * <p>The cost of dropping the shortcut is realizing {@code tasks.withType(Test)} everywhere rather than in the
- * handful of owning projects - it is what {@link FlakinessProjectModel#testTaskSnapshot} is for, and it was
- * measured before being adopted (see JAVA_RESOLVER_NOTES.md). Projects with no candidate test source set still
- * skip it, since they have nothing a flakiness run could execute.
- *
- * <h2>Why this is configuration-cache compatible</h2>
- * The whole model is captured into a single {@code Provider<String>} used as the task's {@code @Input}:
- * <ol>
- *   <li><b>Timing.</b> Gradle asks a task-input provider for its execution-time value while <em>storing</em>
- *       the configuration cache entry - after the configuration phase has completely finished. Iterating
- *       {@code tasks.withType(Test)} at that moment realizes the tasks, running every pending configuration
- *       action on them, so {@code enabled} and {@code testClassesDirs} are the final values. In particular
- *       {@code elasticsearch.bwc-test}'s {@code tasks.named("javaRestTest") { enabled = false }} and its
- *       {@code testClassesDirs = sourceSets.javaRestTest.output.classesDirs} reassignment have both been
- *       applied, and the whole {@code v<version>#bwcTest} family exists.</li>
- *   <li><b>Serializability.</b> Because the provider is <em>replaced by its computed value</em> at store
- *       time, the entry contains a plain {@code String}. The lambda below closes over the live
- *       {@code Project}, but that closure is never serialized, and the task action never sees it.</li>
- * </ol>
- *
- * <p>The model provider does <em>not</em> read the refs. It used to, because the ownership probe decided how
- * much to capture; now the capture is unconditional, so the model depends only on this project. The refs are
- * still a configuration-cache input in their own right - they are a separate {@code @Input} on the task
- * ({@link FlakinessResolveProjectTask#getRefsJson()}) - so a changed refs file invalidates the entry and the
- * resolution is recomputed, which is the property that matters.
+ * handful of owning projects - it is what {@link FlakinessProjectModel#testTaskSnapshot} is for.
+ * Projects with no candidate test source set still skip it, since they have nothing a flakiness run could execute.
  *
  * <p>Everything read here belongs to <em>this</em> project: no {@code getRootProject()},
  * {@code getAllprojects()}, {@code getSubprojects()} or cross-project task lookup, so the shape stays
- * isolated-projects-clean. The repo root comes from {@code ProjectLayout.getSettingsDirectory()}, the
- * isolation-safe replacement for {@code Project.getRootDir()}.
+ * isolated-projects-clean.
  */
 public class FlakinessProjectResolvePlugin implements Plugin<Project> {
 

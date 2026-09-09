@@ -74,13 +74,11 @@ public final class FlakinessProjectModel {
      *       {@code testClassesDirs = sourceSets.javaRestTest.output.classesDirs} reassignment - so the values
      *       read here are the final, post-configuration ones;</li>
      *   <li>the whole configuration phase has finished, so late families such as
-     *       {@code v&lt;version&gt;#bwcTest} and {@code destructiveDistroTest.&lt;distro&gt;} are included.</li>
+     *       {@code v<version>#bwcTest} and {@code destructiveDistroTest.<distro>} are included.</li>
      * </ul>
      * Realizing tasks is the cost we pay for that correctness. It is gated behind
      * {@code -Pflakiness.resolve} and happens in every project that has a candidate test source set, because
-     * the scan may need to run a subclass compiled in a project no ref pointed at. That fan-out was measured
-     * before being adopted: 3,201 tasks across 342 projects, inside run-to-run variance of realizing almost
-     * none (JAVA_RESOLVER_NOTES.md, "Why the cheap exit was removed").
+     * the scan may need to run a subclass compiled in a project no ref pointed at.
      *
      * <p>Sorted by task name so the model - and therefore the emitted plan - is reproducible.
      */
@@ -120,9 +118,6 @@ public final class FlakinessProjectModel {
      * leaves such a base {@code isKnown() == false}, which sends {@link ClassHierarchyScanner#expand} down its
      * pass-through branch and yields the abstract class itself as a single "concrete" run - a silently wrong
      * answer rather than a reported skip.
-     *
-     * <p>Cheap by construction: reading {@code classesDirectory} realizes no task, so this costs nothing even
-     * in projects that resolve no ref at all.
      */
     static List<Path> scannedClassDirs(Project project) {
         List<Path> dirs = new ArrayList<>();

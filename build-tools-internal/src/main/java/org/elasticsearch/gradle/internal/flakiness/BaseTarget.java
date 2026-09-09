@@ -19,22 +19,11 @@ import java.util.List;
  * configured model (captured by {@link FlakinessProjectResolvePlugin}), including the {@code runnableTasks}
  * that actually re-run this target.
  *
- * <p>It deliberately carries neither a {@code compileTaskPath} nor an {@code outputDir}. The compile phase
- * invokes the four {@code compile&lt;Ss&gt;Java} lifecycle tasks unqualified (so every project compiles) and
- * the scan phase reads the union of every project's class directories, so neither is per-target information
- * any more. Both were dropped rather than left as unread diagnostics.
- *
  * <p>A base target may still be abstract (in which case {@link PlanBuilder} flattens it into concrete
  * subclasses). yaml suite/runner targets carry a {@code suitePath} rather than an {@code fqcn}; a
  * parameterised yaml case carries both {@code fqcn} and {@code yamlTest}.
  *
- * <p>{@code runnableTasks} / {@code skipReason} are the resolved <em>disposition</em>, computed by
- * {@link TestTaskSelector} from the project's real {@code Test} tasks. They replace the old
- * {@code bwc}-marker heuristic: instead of "this project applies {@code elasticsearch.bwc-test}, so give up",
- * the resolver now names the tasks that genuinely run the target (making bwc tests re-runnable), and only
- * reports {@code skipReason} when the model or the agent's capabilities really leave nothing to run.
- *
- * <p>Serialized into each project's {@code <project>.json} (the resolve-&gt;scan hand-off), so it must
+ * <p>Serialized into each project's {@code <project>.json} (the resolve->scan hand-off), so it must
  * round-trip through Jackson.
  *
  * @param gradleProject   owning Gradle project path

@@ -20,7 +20,7 @@ import java.util.List;
  * project's own configuration time (see {@link FlakinessProjectModel}):
  * <ul>
  *   <li>{@code javaSrcDirs} / {@code resourceSrcDirs} - the real {@code srcDirs}, so path-&gt;source-set
- *       resolution and the class-ref filesystem probe no longer assume the {@code src/&lt;ss&gt;/java}
+ *       resolution and the class-ref filesystem probe don't need to assume the {@code src/<ss>/java}
  *       convention;</li>
  *   <li>{@code outputDir} - the real compiled-classes directory. This is the authoritative
  *       <em>disposition</em> query: {@link TestTaskSelector} decides which {@code Test} tasks actually run
@@ -28,13 +28,13 @@ import java.util.List;
  * </ul>
  *
  * <p>There is deliberately no {@code compileTaskPath}: the compile phase invokes the four
- * {@code compile&lt;Ss&gt;Java} lifecycle tasks <em>unqualified</em> so every project compiles, which means no
+ * {@code compile<Ss>Java} lifecycle tasks <em>unqualified</em> so every project compiles, which means no
  * per-source-set task path needs deriving or carrying (see {@link FlakinessScanTask}).
  *
  * @param name            the Gradle source-set name ({@code test}/{@code internalClusterTest}/
  *                        {@code javaRestTest}/{@code yamlRestTest})
  * @param javaSrcDirs     absolute java source roots of this source set
  * @param resourceSrcDirs absolute resource source roots of this source set (used to locate yaml suites)
- * @param outputDir       absolute compiled-classes output directory ({@code build/classes/java/&lt;ss&gt;})
+ * @param outputDir       absolute compiled-classes output directory ({@code build/classes/java/<ss>})
  */
 public record SourceSetInfo(String name, List<Path> javaSrcDirs, List<Path> resourceSrcDirs, Path outputDir) {}

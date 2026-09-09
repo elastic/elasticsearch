@@ -67,17 +67,17 @@ public final class Kinds {
     /** Human label for each kind's Buildkite step. */
     public static final Map<String, String> KIND_LABEL = Map.of(
         TEST,
-        "unit tests",
+        "Flakiness / unit tests",
         INTERNAL_CLUSTER_TEST,
-        "integ tests",
+        "Flakiness / integration tests",
         JAVA_REST_TEST,
-        "java rest tests",
+        "Flakiness / java rest tests",
         YAML_REST_TEST_RUNNER,
-        "yaml rest test runner",
+        "Flakiness / yaml rest test runner",
         YAML_REST_TEST_SUITE,
-        "yaml rest tests",
+        "Flakiness / yaml rest tests",
         YAML_REST_TEST_CASE,
-        "yaml rest test cases"
+        "Flakiness / yaml rest test cases"
     );
 
     /** Buildkite step key for each kind. */
@@ -96,7 +96,7 @@ public final class Kinds {
         "flakiness-detection:yaml-case"
     );
 
-    /** Max tests batched into one Buildkite job per kind, sized from p95 durations * iteration counts. */
+    /** Max tests batched into one Buildkite job per kind */
     public static final Map<String, Integer> KIND_CAP = Map.of(
         TEST,
         3,

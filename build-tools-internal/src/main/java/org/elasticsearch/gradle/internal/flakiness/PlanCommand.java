@@ -12,13 +12,11 @@ package org.elasticsearch.gradle.internal.flakiness;
 import java.util.List;
 
 /**
- * One ready-to-run batch command carried in {@code flakiness-plan.json} (the {@code commands} array). The
- * Java resolver now owns batch-command generation (batching, iteration counts, the repeat-rest wrapper), so
- * the TypeScript {@code generate} step is a thin consumer that only maps these to Buildkite steps.
+ * One ready-to-run batch command carried in {@code flakiness-plan.json} (the {@code commands} array).
  *
  * <p><b>Target neutrality:</b> {@link #command} contains the literal token {@value #GRADLE_PLACEHOLDER}
  * wherever the gradle binary belongs (both plain invocations and inside the
- * {@code repeat-rest-test.sh &lt;iters&gt; __GRADLE__ &lt;tasks&gt;} form). The thin runner layer replaces it
+ * {@code repeat-rest-test.sh <iters> __GRADLE__ <tasks>} form). The thin runner layer replaces it
  * with the target-appropriate wrapper ({@code .ci/scripts/run-gradle.sh} on CI, {@code ./gradlew} locally),
  * so the plan itself is not tied to either environment.
  *
@@ -31,7 +29,7 @@ import java.util.List;
  *                  task I asked for actually run?": Gradle reports an {@code onlyIf}-rejected task as
  *                  {@code SKIPPED} with zero tests and exit 0, which is otherwise indistinguishable from a
  *                  hang. A build's task status also contains unrelated {@code SKIPPED} entries (a
- *                  {@code processResources} with no resources, say), so the check must be scoped to exactly
+ *                  {@code processResources} with no resources), so the check must be scoped to exactly
  *                  these paths - which is why they are a field and not a regex over {@link #command}
  */
 public record PlanCommand(String kind, String label, String key, String command, List<String> taskPaths) {

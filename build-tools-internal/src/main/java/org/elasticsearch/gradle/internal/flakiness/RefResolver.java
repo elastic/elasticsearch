@@ -83,12 +83,9 @@ public final class RefResolver {
     private final int taskCap;
 
     /**
-     * @param project   the one project to resolve against (see the class javadoc on single-project scope)
-     * @param testTasks that project's post-configuration {@code Test} tasks. Pass {@link List#of()} to resolve
-     *                  source-set membership without a disposition - every target then comes back with
-     *                  {@link TestTaskSelector#REASON_NO_RUNNABLE_TASK}, which is how
-     *                  {@code FlakinessOwnershipTests} asserts membership without fabricating
-     *                  {@code Test}-task fixtures
+     * @param repoRoot  the repo root against which refs are resolved
+     * @param project   the one project to resolve against
+     * @param testTasks that project's post-configuration {@code Test} tasks
      * @param taskCap   max tasks a single target may fan out to (see {@link TestTaskSelector#DEFAULT_TASK_CAP})
      */
     public RefResolver(Path repoRoot, ProjectInfo project, List<TestTaskInfo> testTasks, int taskCap) {
@@ -259,22 +256,6 @@ public final class RefResolver {
         return s.endsWith(suffix) ? s.substring(0, s.length() - suffix.length()) : s;
     }
 
-    /**
-     * Collapse targets that address the same (project, kind, identity). Package-private rather than private
-     * so the fold of the per-project answers ({@link FlakinessTargets#merge}) applies exactly the same rule.
-     */
-    static List<BaseTarget> dedupe(List<BaseTarget> targets) {
-        Map<String, BaseTarget> seen = new LinkedHashMap<>();
-        for (BaseTarget t : targets) {
-            String identity = t.yamlTest() != null ? t.yamlTest()
-                : t.fqcn() != null ? t.fqcn()
-                : t.suitePath() != null ? t.suitePath()
-                : "";
-            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
-        }
-        return new ArrayList<>(seen.values());
-    }
-
     record ClassMethod(String className, String method) {}
 
     /** Extract (class, method) from a ref: unmute refs carry them directly; explicit refs parse a spec. */
@@ -286,7 +267,7 @@ public final class RefResolver {
     }
 
     /**
-     * Parse an explicit spec string, mirroring {@code detectors/explicit-list.ts#parseSpec}:
+     * Parse an explicit spec string:
      * {@code Class."test {yaml=...}"}, {@code Class.method}, or bare {@code Class}.
      */
     static ClassMethod parseSpec(String spec) {

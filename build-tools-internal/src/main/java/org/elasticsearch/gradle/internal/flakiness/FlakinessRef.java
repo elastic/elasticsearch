@@ -12,7 +12,7 @@ package org.elasticsearch.gradle.internal.flakiness;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * One heterogeneous input reference from {@code flakiness-refs.json} (contract 1), as produced by the
+ * One input reference from {@code flakiness-refs.json} (contract 1), as produced by the
  * TypeScript bootstrap step. Refs are deliberately untyped-per-source: a {@code changed-file} ref carries
  * a repo-relative {@code path}; an {@code unmute} ref carries a {@code className} (and optional
  * {@code method}); an {@code explicit} ref carries a {@code spec} string. Exactly the fields relevant to

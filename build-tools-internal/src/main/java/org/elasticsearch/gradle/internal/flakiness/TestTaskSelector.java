@@ -16,8 +16,8 @@ import java.util.List;
 
 /**
  * Decides <b>which Gradle task actually re-runs a resolved target</b>, from the project's real
- * {@code Test}-task facts ({@link TestTaskInfo}) rather than the {@code :project:&lt;sourceSet&gt;} naming
- * convention the pipeline used to assume.
+ * {@code Test}-task facts ({@link TestTaskInfo}), and NOT from the {@code :project:<sourceSet>} naming
+ * convention.
  *
  * <p>The convention-free rule is a single query:
  * <blockquote>a target is run by the <b>enabled</b> {@code Test} tasks whose {@code testClassesDirs} overlap
@@ -27,23 +27,19 @@ import java.util.List;
  * the same output:
  * <ul>
  *   <li>{@code elasticsearch.bwc-test} disables {@code test} and {@code javaRestTest} and points every
- *       {@code v&lt;version&gt;#bwcTest} {@code StandaloneRestIntegTestTask} at
+ *       {@code v<version>#bwcTest} {@code StandaloneRestIntegTestTask} at
  *       {@code sourceSets.javaRestTest.output.classesDirs};</li>
  *   <li>{@code elasticsearch.distro-test} ({@code qa/packaging}) disables {@code test} and points every
- *       {@code destructiveDistroTest.&lt;distro&gt;} task at the {@code test} source-set output.</li>
+ *       {@code destructiveDistroTest.<distro>} task at the {@code test} source-set output.</li>
  * </ul>
  * Emitting the disabled bare task for those projects made Gradle report {@code SKIPPED}, run zero tests, exit
- * 0, and the analyzer record a bogus {@code hang}. Emitting the real tasks makes bwc tests genuinely
- * re-runnable for the first time.
- *
- * <p>Pure and Gradle-free, so all of it (overlap matching, the disposition decision, the cap and its
- * ordering, the packaging policy) is unit-testable without TestKit.
+ * 0, and the analyzer record a bogus {@code hang}. Emitting the real tasks makes bwc tests genuinely re-runnable.
  */
 public final class TestTaskSelector {
 
     /**
      * How many candidate tasks a single target may fan out to. A bwc project registers one
-     * {@code v&lt;version&gt;#bwcTest} task per wire-compatible version - 67 of them for
+     * {@code v<version>#bwcTest} task per wire-compatible version - 67 of them for
      * {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} at the time of writing - and each one boots a real
      * multi-node cluster, so an uncapped fan-out would swamp the pipeline. Overridable with
      * {@code -Pflakiness.taskCap}.
@@ -57,11 +53,24 @@ public final class TestTaskSelector {
      * Skip reason: the only tasks that would run this target are the {@code destructive*} packaging tests.
      *
      * <p><b>This is an agent-capability policy, not a model fact.</b> The model correctly reports those tasks
-     * as enabled and runnable; they are excluded because they install/remove packages and mutate the host, so
-     * they require a dedicated ephemeral packaging host (see AGENTS.md) that the standard flakiness agent is
-     * not. The {@code destructive} task-name prefix is the ES-wide marker for exactly that property: the
-     * {@code destructive*} tasks run against the local host, while their non-destructive wrappers delegate to
-     * a throw-away VM.
+     * as enabled and runnable. Note the reason is <em>not</em> host lifetime: the flakiness agent is a per-job
+     * GCE VM exactly like the packaging one. They are excluded because:
+     * <ul>
+     *   <li><b>the image has to match.</b> {@code destructiveDistroTest.<distro>} installs a {@code .deb} or
+     *       {@code .rpm} and asserts on systemd, so it assumes <em>the host is the distro under test</em>.
+     *       Packaging CI therefore runs one job per OS image ({@code debian-12}, {@code rocky-8},
+     *       {@code sles-15}, ...), while flakiness pins a single image; the {@code .docker*} variants also
+     *       need prod registry credentials the flakiness steps do not set.</li>
+     *   <li><b>ephemeral per job is not clean per iteration.</b> Flakiness re-runs each target N times within
+     *       one job ({@code -Dtests.iters} for java targets, {@code repeat-rest-test.sh} for REST ones). A
+     *       destructive test mutates the host on the first iteration - packages installed, users added,
+     *       systemd units written - so the remaining iterations measure that contamination, not flakiness.
+     *       A fresh VM per job does not help, because the repeats are inside the job.</li>
+     * </ul>
+     *
+     * <p>The {@code destructive} task-name prefix is the ES-wide marker for exactly that host-mutating
+     * property. On the local runner the host is the developer's own workstation, which AGENTS.md rules out
+     * for packaging suites outright.
      */
     public static final String REASON_REQUIRES_PACKAGING_HOST = "requires-packaging-host";
 
@@ -69,7 +78,7 @@ public final class TestTaskSelector {
 
     /**
      * Candidate tasks are ordered newest-first: a numeric-aware ("natural") comparison of the task name,
-     * descending. For the {@code v&lt;version&gt;#bwcTest} family this yields the newest versions first and,
+     * descending. For the {@code v<version>#bwcTest} family this yields the newest versions first and,
      * unlike plain lexicographic ordering, orders {@code v8.19.10} above {@code v8.19.9}. Task names are
      * unique within a project, so the ordering is total - the capped selection is fully reproducible.
      */
@@ -114,7 +123,7 @@ public final class TestTaskSelector {
 
         // The bare conventional task, when it is enabled, remains the single canonical way to run the target -
         // today's behaviour, but now DERIVED from the model instead of assumed.
-        // Computed before the bare-task check so every path below reports the SAME denominator: the enabled,
+        // Computed before the bare-task check so every path below reports the same denominator: the enabled,
         // non-destructive tasks that run this output. Reporting `candidates.size()` on one path and
         // `runnableHere.size()` on another made "selected N of M" mean different things depending on which
         // branch produced it, and made PlanBuilder claim a capped fan-out where the bare task was simply

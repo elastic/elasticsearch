@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
@@ -61,7 +62,7 @@ public final class FlakinessTargets {
 
         // Stable sort by ref index restores the refs file's ordering; ties keep the caller's file order.
         all.sort(Comparator.comparingInt(FlakinessJson.RefTarget::refIndex));
-        List<BaseTarget> targets = RefResolver.dedupe(all.stream().map(FlakinessJson.RefTarget::target).toList());
+        List<BaseTarget> targets = dedupe(all.stream().map(FlakinessJson.RefTarget::target).toList());
 
         List<FlakinessPlan.Unresolved> unresolved = new ArrayList<>();
         for (int i = 0; i < refs.size(); i++) {
@@ -77,6 +78,22 @@ public final class FlakinessTargets {
             }
         }
         return new FlakinessJson.BaseTargetsFile(targets, unresolved);
+    }
+
+    /**
+     * Collapse targets that address the same (project, kind, identity). Package-private rather than private
+     * so the fold of the per-project answers ({@link FlakinessTargets#merge}) applies exactly the same rule.
+     */
+    private static List<BaseTarget> dedupe(List<BaseTarget> targets) {
+        Map<String, BaseTarget> seen = new LinkedHashMap<>();
+        for (BaseTarget t : targets) {
+            String identity = t.yamlTest() != null ? t.yamlTest()
+                : t.fqcn() != null ? t.fqcn()
+                  : t.suitePath() != null ? t.suitePath()
+                    : "";
+            seen.putIfAbsent(t.gradleProject() + "|" + t.kind() + "|" + identity, t);
+        }
+        return new ArrayList<>(seen.values());
     }
 
     /**

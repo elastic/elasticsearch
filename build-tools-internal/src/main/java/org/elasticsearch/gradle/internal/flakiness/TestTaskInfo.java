@@ -20,8 +20,8 @@ import java.util.List;
  * any per-project convention knowledge: a {@code Test} task runs the classes in its {@code testClassesDirs},
  * and it runs them only if it is {@code enabled}. Several ES conventions disable the conventional bare task
  * ({@code test} / {@code javaRestTest}) and point differently-named {@code Test} tasks at the <em>same</em>
- * source-set output - {@code elasticsearch.bwc-test} ({@code v&lt;version&gt;#bwcTest}) and
- * {@code elasticsearch.distro-test} ({@code destructiveDistroTest.&lt;distro&gt;}) both do exactly that - so the
+ * source-set output - {@code elasticsearch.bwc-test} ({@code v<version>#bwcTest}) and
+ * {@code elasticsearch.distro-test} ({@code destructiveDistroTest.<distro>}) both do exactly that - so the
  * bare task name is not a safe assumption. See {@link TestTaskSelector}.
  *
  * <p><b>Post-configuration values are mandatory.</b> {@code enabled} and {@code testClassesDirs} are mutated

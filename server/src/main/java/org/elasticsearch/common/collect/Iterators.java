@@ -517,6 +517,10 @@ public class Iterators {
 
     /**
      * Converts an iterator into one that yields nonempty batches of items of the given size (except the last one, which may be smaller).
+     *
+     * @param batchContainerSupplier Supplies a container for the next batch. Permits container re-use, avoiding the need to allocate a
+     *                               fresh container on each iteration, but the container must always be empty when supplied. Take care
+     *                               with re-used container ownership, especially if iterating using multiple threads.
      */
     public static <T> Iterator<List<T>> batching(int batchSize, final Iterator<T> iterator, Supplier<List<T>> batchContainerSupplier) {
         if (batchSize <= 0) {

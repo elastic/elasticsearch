@@ -33,15 +33,17 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Cross-cluster counterpart of {@link CrossClusterViewIT} for datasets, and deliberately its opposite. Registers a
  * dataset and an index on each remote, then asserts that the dataset is invisible from another cluster rather than
- * fatal to the query: a wildcard returns the index rows beside it, and the exact qualified name resolves to nothing
- * and reports an unknown index. A view in the same position still fails the query, which CrossClusterViewIT covers.
+ * fatal to the query: a wildcard returns the index rows beside it, and the exact qualified name behaves exactly as a
+ * name registered nowhere does, which is why every such assertion is paired with that name as its control. What
+ * happens to an unresolved name is decided by the remote's {@code skip_unavailable}, so both of its values are
+ * covered. A view in the same position still fails the query, which CrossClusterViewIT covers.
  *
  * <p>Multi-node remotes are safe: the diff-apply indices-lookup reuse guard now accounts for dataset metadata.
  */
@@ -52,6 +54,8 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_DATASET_2 = "remote_employees_b";
     private static final String REMOTE_PLAIN_INDEX = "logs_idx";
     private static final String REMOTE_LOGS_INDEX = "remote_logs";
+    /** A name registered on no cluster, as the control every dataset assertion is compared against. */
+    private static final String NO_SUCH_NAME = "no_such_name_anywhere";
     /** {@code populateRemoteIndices} writes exactly this many documents per index. */
     private static final int DOCS_PER_INDEX = 10;
 
@@ -86,6 +90,13 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
         ) {
             return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
         }
+    }
+
+    @Override
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        // Pinned rather than randomised because the two remotes cover the two halves of the skip_unavailable axis, and a
+        // remote dataset resolves to a missing index, whose treatment is exactly what that setting decides.
+        return Map.of(REMOTE_CLUSTER_1, false, REMOTE_CLUSTER_2, true);
     }
 
     @Override
@@ -149,14 +160,39 @@ public class CrossClusterDatasetIT extends AbstractCrossClusterTestCase {
     }
 
     /**
-     * The exact qualified name of a remote dataset resolves to nothing, so it reports an unknown index — the error any
-     * name that does not exist gives. Nothing in the response advertises that a dataset is what it matched.
+     * On a remote whose {@code skip_unavailable} is false, the exact qualified name of a dataset reports an unknown
+     * index and fails the query — and {@link #NO_SUCH_NAME}, which exists nowhere, reports the same thing in the same
+     * position. The control is the assertion: matching the message alone would also pass if the name had failed for
+     * being a dataset, so what is pinned is that the two are indistinguishable.
      */
-    public void testRemoteDatasetResolvesAsMissingIndex() {
-        Exception e = expectThrows(Exception.class, () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET, null));
-        String message = ExceptionsHelper.unwrapCause(e).getMessage();
-        assertThat(message, containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":" + REMOTE_DATASET + "]"));
-        assertThat(message, not(containsString("remote datasets are not supported")));
+    public void testRemoteDatasetIsIndistinguishableFromAMissingName() {
+        assertThat(failureShape(REMOTE_CLUSTER_1, REMOTE_DATASET), equalTo(failureShape(REMOTE_CLUSTER_1, NO_SUCH_NAME)));
+        assertThat(failureShape(REMOTE_CLUSTER_1, REMOTE_DATASET), containsString("Unknown index [" + REMOTE_CLUSTER_1 + ":<name>]"));
+    }
+
+    /**
+     * The same pair on a remote whose {@code skip_unavailable} is true, where a name that resolves to nothing is not
+     * fatal: the query succeeds, the response is partial, and no rows come back. Both halves of that setting are
+     * covered because it, not this change, is what decides whether an unresolved name ends the query.
+     */
+    public void testRemoteDatasetOnSkippableRemoteIsPartialLikeAMissingName() {
+        for (String name : List.of(REMOTE_DATASET_2, NO_SUCH_NAME)) {
+            try (var resp = runQuery("FROM " + REMOTE_CLUSTER_2 + ":" + name, null)) {
+                assertThat("[" + name + "] should not have failed the query", resp.isPartial(), equalTo(true));
+                assertThat(getValuesList(resp), empty());
+            }
+        }
+    }
+
+    /**
+     * The failure a name that resolves to nothing produces on a remote that cannot be skipped, as its exception type
+     * and its message with the queried name replaced by a placeholder — so two different names can be compared for
+     * having failed the same way, which is what invisibility means here.
+     */
+    private String failureShape(String clusterAlias, String name) {
+        Exception e = expectThrows(Exception.class, () -> runQuery("FROM " + clusterAlias + ":" + name, null));
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        return cause.getClass().getName() + ": " + cause.getMessage().replace(name, "<name>");
     }
 
     /**

@@ -309,7 +309,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testIgnoreAboveMultiValueFalse() throws IOException {
+    public void testIgnoreAboveIsNoOpMultiValueFalse() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
             b.startObject("doc_values").field("multi_value", false).endObject();

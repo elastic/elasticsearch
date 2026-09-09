@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -43,7 +42,6 @@ class FlattenedFieldParser {
 
     private final MappedFieldType fieldType;
     private final int depthLimit;
-    // Uses UTF-16 length (matching row-path semantics); diverges from the batch path's code-point count.
     private final int ignoreAbove;
     private final String nullValue;
 
@@ -58,7 +56,8 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
-    // True when the output includes an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
+    // True when the output includes an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies);
+    // always false in strictly columnar mode, where only binary doc values are written.
     private final boolean checkTermLength;
 
     FlattenedFieldParser(
@@ -67,7 +66,7 @@ class FlattenedFieldParser {
         String keyedIgnoredValuesFieldFullPath,
         MappedFieldType fieldType,
         int depthLimit,
-        Mapper.IgnoreAbove ignoreAbove,
+        int ignoreAbove,
         String nullValue,
         boolean usesBinaryDocValues,
         boolean hasRootDocValues,
@@ -76,14 +75,15 @@ class FlattenedFieldParser {
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
         IndexVersion indexVersion,
         boolean writeDimensionRouting,
-        boolean usesArrayOrderBinaryDocValues
+        boolean usesArrayOrderBinaryDocValues,
+        boolean strictColumnar
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.fieldType = fieldType;
         this.depthLimit = depthLimit;
-        this.ignoreAbove = ignoreAbove.limit();
+        this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
@@ -93,7 +93,8 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
-        this.checkTermLength = fieldType.indexType().hasTerms() || (fieldType.hasDocValues() && usesBinaryDocValues == false);
+        this.checkTermLength = strictColumnar == false
+            && (fieldType.indexType().hasTerms() || (fieldType.hasDocValues() && usesBinaryDocValues == false));
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {

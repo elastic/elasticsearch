@@ -166,7 +166,7 @@ public class FlattenedColumnarArrayOrderSyntheticSourceTests extends MapperServi
 
     // --- ignore_above ---
 
-    public void testIgnoreAboveValuesTailAppended() throws IOException {
+    public void testIgnoreAboveIsNoOpValuesStayInDocumentOrder() throws IOException {
         // ignore_above is a no-op in strictly columnar index modes for current-version indices.
         // All values are stored in their original document order, regardless of length.
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

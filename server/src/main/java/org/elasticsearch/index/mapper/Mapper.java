@@ -189,7 +189,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public IgnoreAbove(Integer value, IndexMode indexMode) {
             this(value, indexMode, IndexVersion.current());
-            // Hardcodes IndexVersion.current(); only safe when the mode is not strictly columnar.
+            // Callers that cannot supply the created index version must not use strictly columnar modes,
+            // because the version determines whether ignore_above is inert for those modes.
             assert indexMode == null || indexMode.isStrictColumnar() == false;
         }
 
@@ -224,6 +225,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
          */
         public boolean valuesPotentiallyIgnored() {
+            // We use Integer.MAX_VALUE to represent accepting all values. If the value is anything else, then either we have an
+            // explicitly configured ignore_above, or we have a non no-op default.
             return limit != Integer.MAX_VALUE;
         }
 

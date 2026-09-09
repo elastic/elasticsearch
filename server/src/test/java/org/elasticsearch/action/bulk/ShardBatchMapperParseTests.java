@@ -176,6 +176,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 cursor.advance();
                 final List<IndexableField> fields = cursor.fields();
 
+                // LuceneBinaryColumn stores field names as BytesRef, so check binaryValue(), not stringValue().
                 final BytesRef expected = new BytesRef("toolong");
                 assertTrue(
                     "f binary DV should contain the value when ignore_above is a no-op",

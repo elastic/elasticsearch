@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +40,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
-            new Mapper.IgnoreAbove(Integer.MAX_VALUE),
+            Integer.MAX_VALUE,
             null,
             true,
             true,
@@ -49,6 +48,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );
@@ -312,7 +312,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             new FakeFieldType("field"),
             2,
-            new Mapper.IgnoreAbove(Integer.MAX_VALUE),
+            Integer.MAX_VALUE,
             null,
             false,
             true,
@@ -320,6 +320,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );
@@ -344,7 +345,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             new FakeFieldType("field"),
             3,
-            new Mapper.IgnoreAbove(Integer.MAX_VALUE),
+            Integer.MAX_VALUE,
             null,
             false,
             true,
@@ -352,6 +353,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );
@@ -371,7 +373,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
-            new Mapper.IgnoreAbove(10),
+            10,
             null,
             true,
             true,
@@ -379,6 +381,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );
@@ -398,7 +401,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
-            new Mapper.IgnoreAbove(10),
+            10,
             null,
             false,
             true,
@@ -406,6 +409,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );
@@ -431,7 +435,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             "field._keyed._ignored",
             fieldType,
             Integer.MAX_VALUE,
-            new Mapper.IgnoreAbove(Integer.MAX_VALUE),
+            Integer.MAX_VALUE,
             "placeholder",
             true,
             true,
@@ -439,6 +443,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
             IndexVersion.current(),
+            false,
             false,
             false
         );

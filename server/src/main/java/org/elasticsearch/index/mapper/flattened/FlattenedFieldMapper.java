@@ -1706,7 +1706,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1715,7 +1715,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.preserveLeafArrays.get(),
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
-            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues()
+            ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
+            builder.indexSettings.getMode().isStrictColumnar()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }

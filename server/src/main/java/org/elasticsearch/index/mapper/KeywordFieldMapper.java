@@ -1539,7 +1539,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexVersion indexCreatedVersion;
     // True when the value targets an inverted-index term or SORTED_SET doc values (MAX_TERM_LENGTH applies).
-    private final boolean checkTermLength;
+    private final boolean writesIndexableField;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1575,7 +1575,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
-        this.checkTermLength = fieldType.indexOptions() != IndexOptions.NONE
+        this.writesIndexableField = fieldType.indexOptions() != IndexOptions.NONE
             || fieldType.docValuesType() != DocValuesType.NONE
             || fieldType.stored();
     }
@@ -1675,12 +1675,14 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final boolean emitTerms = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
-        final boolean emitFallback = storeIgnoredValuesForSyntheticSource();
+        // emitTerms omits docValuesType != NONE deliberately: supportsColumnarParse requires usesBinaryDocValues(),
+        // so a SORTED_SET keyword (which Lucene does enforce MAX_TERM_LENGTH on) can never reach mapColumnBatch.
+        final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+        final boolean emitFallback = storeIgnoredValuesForSyntheticSource() && checkIgnoreAbove;
         final boolean emitDvs = fieldType().hasDocValues();
         if (emitTerms == false && emitDvs == false && emitFallback == false) {
             return;
         }
-        final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
 
         // These paths build a scan cursor that converts all ESCF column kinds to BytesRef strings:
         // longs/doubles via canonical toString, booleans as "true"/"false", strings as-is, arrays
@@ -2035,9 +2037,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      */
     private boolean storeIgnoredValuesForSyntheticSource() {
         // skip all fields that are multi-fields
-        return fieldType().isSyntheticSourceEnabled()
-            && fieldType().isWithinMultiField() == false
-            && fieldType().ignoreAbove().valuesPotentiallyIgnored();
+        return fieldType().isSyntheticSourceEnabled() && fieldType().isWithinMultiField() == false;
     }
 
     private boolean indexValue(DocumentParserContext context, XContentString value) {
@@ -2094,7 +2094,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
         // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
         // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (checkTermLength && binaryValue.length > MAX_TERM_LENGTH) {
+        if (writesIndexableField && binaryValue.length > MAX_TERM_LENGTH) {
             throw largeTermException(binaryValue);
         }
 
@@ -2142,7 +2142,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
         // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
         // is a no-op and we can skip adding it to the document.
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.docValuesType() != DocValuesType.NONE || fieldType.stored()) {
+        if (writesIndexableField) {
             Field field = buildKeywordField(binaryValue);
             context.doc().add(field);
         }

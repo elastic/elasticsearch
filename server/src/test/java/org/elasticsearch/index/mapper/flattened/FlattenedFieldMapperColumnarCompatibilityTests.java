@@ -14,7 +14,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -290,20 +289,18 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
      * Pre-gate: a value exceeding {@code ignore_above} must throw {@link UnsupportedOperationException}
      * so {@code ShardBatchMapper} falls back to the row path for {@code _keyed._ignored} handling.
      */
-    public void testIgnoreAboveIsRejectedPreGate() throws IOException {
-        Settings preGateSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
-        MapperService mapperService = createMapperService(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
-            preGateSettings,
-            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject())
-        );
-        expectThrows(
+    public void testIgnoreAboveIsRejectedPreGate() {
+        Settings preGateSettings = columnarSettings();
+        UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
-            () -> mapColumnarGroupField(mapperService, FIELD, "{\"flat\":{\"k\":\"too long\"}}")
+            () -> assertColumnarMatchesXContent(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
+                preGateSettings,
+                batch("ignore_above exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
+            )
         );
+        assertThat(e.getMessage(), containsString("exceeds ignore_above"));
     }
 
     /** A value at or below {@code ignore_above} is mapped normally. */

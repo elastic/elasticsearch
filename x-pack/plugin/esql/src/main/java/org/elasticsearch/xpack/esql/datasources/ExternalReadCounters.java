@@ -97,4 +97,10 @@ public final class ExternalReadCounters {
     public long readCpuNanos() {
         return readCpuNanosAcc.get();
     }
+
+    /** Directly adds to both accumulators. For use in tests only. */
+    void add(long readNanos, long readCpuNanos) {
+        readNanosAcc.addAndGet(readNanos);
+        readCpuNanosAcc.addAndGet(readCpuNanos);
+    }
 }

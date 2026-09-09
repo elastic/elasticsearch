@@ -73,6 +73,8 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 5));
         buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, 0L, 0L));
+        // Inject known read/CPU nanos (42 ms wall, 37 ms CPU) so duration assertions are exact.
+        buffer.readCounters().add(42_000_000L, 37_000_000L);
 
         AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext(), metrics, "s3a", "ndjson");
 
@@ -100,11 +102,16 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         assertThat(rows.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(rows.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
-        // parse.duration carries the operator-level ExternalReadCounters.readNanos() folded to ms, plus type and format.
+        // parse.duration and parse.cpu_duration carry the injected counters folded to ms, plus type and format.
         Measurement parseDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_DURATION);
-        assertThat(parseDuration.getLong(), greaterThanOrEqualTo(0L));
+        assertThat(parseDuration.getLong(), equalTo(42L));
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
         assertThat(parseDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
+
+        Measurement parseCpuDuration = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_CPU_DURATION);
+        assertThat(parseCpuDuration.getLong(), equalTo(37L));
+        assertThat(parseCpuDuration.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(parseCpuDuration.attributes().get(ExternalSourceMetrics.FORMAT_ATTRIBUTE), equalTo("ndjson"));
 
         // parse.splits_scanned carries this operator's processed-split count (3), NOT the global total (10), plus type and format.
         Measurement splits = single(registry, InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.PARSE_SPLITS_SCANNED);

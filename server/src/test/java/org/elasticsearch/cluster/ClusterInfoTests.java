@@ -88,8 +88,12 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
         final var legacyVersion = TransportVersionUtils.getPreviousVersion(NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
         final var legacyCopy = copyInstance(clusterInfo, legacyVersion);
+        // NodeHeapEstimates had no non-shard field on the legacy wire, and that component is not derivable from total/hosted heap.
         assertThat(legacyCopy.getNodeHeapMetrics().get("node").nodeHeapEstimates(), equalTo(new NodeHeapEstimates(300L, 120L, 0L)));
+        // ShardAndIndexHeapUsage had no separate postings field on the legacy wire, so postings is folded into shard heap:
+        // shard heap = 10 shard + 30 postings; index heap remains 20; separated postings reads back as 0.
         assertThat(legacyCopy.getEstimatedShardHeapUsages().get(shardId), equalTo(new ShardAndIndexHeapUsage(40L, 20L, 0L)));
+        // The same legacy folding applies to the default heap input used for shards without explicit metrics.
         assertThat(legacyCopy.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(new ShardAndIndexHeapUsage(4L, 2L, 0L)));
     }
 

@@ -69,8 +69,8 @@ public class NodeHeapMetricsTests extends ESTestCase {
         // New code + new data: all explicit components are preserved on the current wire format.
         assertThat(copy(newData, NodeHeapEstimates::new), equalTo(newData));
 
-        // Old code + new data: the legacy wire format has no non-shard field, so new data loses that component.
-        assertThat(copy(newData, legacyVersion).nonShardHeapUsage(), equalTo(0L));
+        // Old code + new data: the legacy wire format has no non-shard field, so the current reader uses the legacy placeholder.
+        assertThat(copy(newData, legacyVersion), equalTo(new NodeHeapEstimates(300L, 120L, 0L)));
 
         // New code + old data: old-shaped data remains explicit when written on the current wire format.
         assertThat(copy(oldData, NodeHeapEstimates::new), equalTo(oldData));

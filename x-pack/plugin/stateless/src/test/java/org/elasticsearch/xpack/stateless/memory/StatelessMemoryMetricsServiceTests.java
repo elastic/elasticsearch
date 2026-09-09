@@ -673,13 +673,25 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(totalIndices, 0L, 0L, shardMappingSizes);
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(
+            clusterState.getRoutingNodes().node(node0.getId()),
+            totalIndices,
+            0L,
+            0L,
+            shardMappingSizes
+        );
         assertThat(localEstimate, equalTo(masterEstimate));
+        // The recovery gate may ask before the local node has a routing entry; in that case the local estimate is unavailable.
+        assertThat(
+            service.estimateNodeHeapUsage(null, totalIndices, 0L, 0L, shardMappingSizes),
+            equalTo(new NodeHeapEstimates(0L, 0L, 0L))
+        );
 
         // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
         final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
         final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
         final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
+            clusterState.getRoutingNodes().node(node0.getId()),
             totalIndices,
             largeIndexingOpsHeap,
             mergeMemoryEstimate,

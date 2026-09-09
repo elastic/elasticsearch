@@ -21,19 +21,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardAndIndexHeapUsageTests extends ESTestCase {
 
-    public void testCurrentWirePreservesSeparatedPostingsHeapUsage() throws IOException {
-        final var heapUsage = new ShardAndIndexHeapUsage(10L, 20L, 30L);
-        final ShardAndIndexHeapUsage readHeapUsage = copy(heapUsage, TransportVersion.current());
-        assertThat(readHeapUsage, equalTo(heapUsage));
-    }
-
-    public void testLegacyWireFoldsPostingsIntoShardHeapUsage() throws IOException {
+    public void testSerializationScenarios() throws IOException {
         final var legacyVersion = TransportVersionUtils.getPreviousVersion(ShardAndIndexHeapUsage.EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
-        final var heapUsage = new ShardAndIndexHeapUsage(10L, 20L, 30L);
-        final ShardAndIndexHeapUsage readHeapUsage = copy(heapUsage, legacyVersion);
-        assertThat(readHeapUsage.shardHeapUsageBytes(), equalTo(40L));
-        assertThat(readHeapUsage.indexHeapUsageBytes(), equalTo(20L));
-        assertThat(readHeapUsage.shardPostingsHeapUsageBytes(), equalTo(0L));
+        final var newData = new ShardAndIndexHeapUsage(10L, 20L, 30L);
+        final var oldData = new ShardAndIndexHeapUsage(10L, 20L, 0L);
+
+        // New code + new data: postings stays separated on the current wire format.
+        assertThat(copy(newData, TransportVersion.current()), equalTo(newData));
+
+        // Old code + new data: legacy readers only know shard/index heap, so postings is folded into shard heap.
+        assertThat(copy(newData, legacyVersion), equalTo(new ShardAndIndexHeapUsage(40L, 20L, 0L)));
+
+        // New code + old data: a zero-postings value remains explicit on the current wire format.
+        assertThat(copy(oldData, TransportVersion.current()), equalTo(oldData));
+
+        // Old code + old data: there is nothing to fold, so the legacy shape is unchanged.
+        assertThat(copy(oldData, legacyVersion), equalTo(oldData));
     }
 
     private static ShardAndIndexHeapUsage copy(ShardAndIndexHeapUsage heapUsage, TransportVersion transportVersion) throws IOException {

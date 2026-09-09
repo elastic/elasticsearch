@@ -70,6 +70,29 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preCacheUsageCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
     }
 
+    public void testExplicitHeapEstimateComponentsAreTransportVersionGated() throws Exception {
+        final var shardId = randomShardId();
+        final var nodeHeapMetrics = Map.of("node", new NodeHeapMetrics("node", 1_000L, new NodeHeapEstimates(300L, 120L, 80L)));
+        final var shardHeapUsage = new ShardAndIndexHeapUsage(10L, 20L, 30L);
+        final var defaultShardHeapUsage = new ShardAndIndexHeapUsage(1L, 2L, 3L);
+        final var clusterInfo = ClusterInfo.builder()
+            .nodeHeapMetrics(nodeHeapMetrics)
+            .estimatedShardHeapUsages(Map.of(shardId, shardHeapUsage))
+            .defaultShardHeapUsageForShardsWithoutMetrics(defaultShardHeapUsage)
+            .build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getNodeHeapMetrics(), equalTo(nodeHeapMetrics));
+        assertThat(currentVersionCopy.getEstimatedShardHeapUsages(), equalTo(Map.of(shardId, shardHeapUsage)));
+        assertThat(currentVersionCopy.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(defaultShardHeapUsage));
+
+        final var legacyVersion = TransportVersionUtils.getPreviousVersion(NodeHeapEstimates.EXPLICIT_HEAP_ESTIMATE_COMPONENTS);
+        final var legacyCopy = copyInstance(clusterInfo, legacyVersion);
+        assertThat(legacyCopy.getNodeHeapMetrics().get("node").nodeHeapEstimates(), equalTo(new NodeHeapEstimates(300L, 120L, 0L)));
+        assertThat(legacyCopy.getEstimatedShardHeapUsages().get(shardId), equalTo(new ShardAndIndexHeapUsage(40L, 20L, 0L)));
+        assertThat(legacyCopy.getDefaultShardHeapUsageForShardsWithoutMetrics(), equalTo(new ShardAndIndexHeapUsage(4L, 2L, 0L)));
+    }
+
     public void testSearchLaneRequirementsAreTransportVersionGated() throws Exception {
         final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomShardSearchLaneRequirements()).build();
 

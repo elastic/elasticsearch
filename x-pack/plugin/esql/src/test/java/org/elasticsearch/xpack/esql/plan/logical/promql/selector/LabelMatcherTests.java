@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
@@ -189,6 +190,35 @@ public class LabelMatcherTests extends ESTestCase {
         assertTrue(Matcher.NREG.isRegex());
     }
 
+    /**
+     * The length bound the regexp query applies through {@code index.max_regex_length}, at its default, since a label
+     * matcher has no index to read it from. Checked per pattern, so one long value in a multi-value matcher is enough.
+     */
+    public void testOverLongRegexIsAClientError() {
+        String tooLong = "a".repeat(LabelMatcher.MAX_REGEX_LENGTH + 1);
+        for (LabelMatcher matcher : List.of(
+            new LabelMatcher("host", tooLong, Matcher.REG),
+            new LabelMatcher("host", List.of("server-.*", tooLong), Matcher.NREG)
+        )) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
+            assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "]"));
+            assertThat(e.getMessage(), containsString("allowed maximum of [" + LabelMatcher.MAX_REGEX_LENGTH + "]"));
+        }
+    }
+
+    /**
+     * {@code RegExp.toAutomaton()} succeeds on this pattern; the blow-up happens in the minimize step (and in the complement
+     * for the negated matcher), which must be a client error too, not a 500.
+     */
+    public void testTooComplexRegexIsAClientError() {
+        for (Matcher m : List.of(Matcher.REG, Matcher.NREG)) {
+            LabelMatcher matcher = new LabelMatcher("host", "(a|b)*a(a|b){30}", m);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
+            assertThat(e.getMessage(), containsString("too complex to determinize"));
+            assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+        }
+    }
+
     public void testMultiValueInvalidRegexIsReported() {
         LabelMatcher matcher = new LabelMatcher("host", List.of("server-.*", "web-("), Matcher.REG);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
@@ -204,9 +234,10 @@ public class LabelMatcherTests extends ESTestCase {
     public void testDeeplyNestedRegexIsAClientError() throws Exception {
         int depth = 20_000;
         String regex = "(".repeat(depth) + "a" + ")".repeat(depth);
+        // The length bound rejects this pattern first; lifting it is what makes the overflow guard itself observable.
         for (LabelMatcher matcher : List.of(
-            new LabelMatcher("host", regex, Matcher.REG),
-            new LabelMatcher("host", List.of("server-.*", regex), Matcher.NREG)
+            new LabelMatcher("host", List.of(regex), Matcher.REG, Integer.MAX_VALUE),
+            new LabelMatcher("host", List.of("server-.*", regex), Matcher.NREG, Integer.MAX_VALUE)
         )) {
             AtomicReference<Throwable> thrown = new AtomicReference<>();
             Thread thread = new Thread(null, () -> {
@@ -216,6 +247,7 @@ public class LabelMatcherTests extends ESTestCase {
                     thrown.set(t);
                 }
             }, "small-stack-regex", 256 * 1024);
+            thread.setDaemon(true);
             thread.start();
             thread.join(TimeValue.timeValueSeconds(30).millis());
             assertFalse("regex compilation did not finish", thread.isAlive());

@@ -40,19 +40,6 @@ public class StatelessMemoryMetricsServiceTestUtils {
         ).computeShardHeapUsage(shardMemoryMetrics);
     }
 
-    /// Convenience method for computing the shard estimate including postings
-    /// and the current settings active on the [StatelessMemoryMetricsService]
-    public static ShardAndIndexHeapEstimate estimateHeapUsageIncludingPostings(
-        StatelessMemoryMetricsService statelessMemoryMetricsService,
-        StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
-    ) {
-        return computeShardHeapEstimate(
-            statelessMemoryMetricsService,
-            shardMemoryMetrics,
-            StatelessMemoryMetricsService.PostingsInEstimate.INCLUDE
-        );
-    }
-
     /// Convenience method for computing the shard estimate excluding postings
     /// and the current settings active on the [StatelessMemoryMetricsService]
     public static ShardAndIndexHeapEstimate estimateHeapUsageExcludingPostings(
@@ -76,11 +63,12 @@ public class StatelessMemoryMetricsServiceTestUtils {
         ShardHeapEstimator shardHeapEstimator = statelessMemoryMetricsService.createShardHeapEstimator(postingsInEstimate);
         return new ShardAndIndexHeapEstimate(
             shardHeapEstimator.computeShardHeapUsage(memoryMetrics),
-            shardHeapEstimator.computeIndexHeapUsage(memoryMetrics)
+            shardHeapEstimator.computeIndexHeapUsage(memoryMetrics),
+            shardHeapEstimator.getEffectiveShardPostingsInBytes(memoryMetrics)
         );
     }
 
-    public record ShardAndIndexHeapEstimate(long shardHeapEstimate, long indexHeapEstimate) {
+    public record ShardAndIndexHeapEstimate(long shardHeapEstimate, long indexHeapEstimate, long shardPostingsHeapEstimate) {
 
     }
 }

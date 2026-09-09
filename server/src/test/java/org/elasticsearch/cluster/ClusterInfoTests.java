@@ -174,7 +174,10 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+            shardHeapUsageBuilder.put(
+                randomShardId(),
+                new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            );
         }
         return shardHeapUsageBuilder;
     }
@@ -189,7 +192,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
                 maxHeapSize,
-                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage), randomLongBetween(0, totalHeapUsage))
             );
             nodeHeapUsage.put(key, nodeHeapMetrics);
         }

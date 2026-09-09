@@ -84,6 +84,79 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
         assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(shardHeap + indexHeap));
     }
 
+    public void testSimulatedMovementPreservesExplicitNonShardHeapUsage() {
+        var nodeA = "node-a";
+        var nodeB = "node-b";
+        var state = buildSingleShardState("test-index", nodeA, nodeB);
+        var routingNodes = state.mutableRoutingNodes();
+        var startedShard = getSoleStartedShard(routingNodes, nodeA);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+
+        final long nodeANonShardHeap = randomLongBetween(1, 100);
+        final long nodeBNonShardHeap = randomLongBetween(101, 200);
+        var initialMetrics = Map.of(
+            nodeA,
+            nodeHeapMetrics(nodeA, 500L, 300L, nodeANonShardHeap),
+            nodeB,
+            nodeHeapMetrics(nodeB, 100L, 50L, nodeBNonShardHeap)
+        );
+        var simulator = newSimulator(
+            initialMetrics,
+            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(100L, 40L)),
+            ShardAndIndexHeapUsage.ZERO,
+            routingNodes
+        );
+
+        simulator.simulateShardStarted(relocationShards.v2(), true);
+
+        var result = simulator.getSimulatedHeapMetrics();
+        assertThat(result.get(nodeA).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nodeANonShardHeap));
+        assertThat(result.get(nodeB).nodeHeapEstimates().nonShardHeapUsage(), equalTo(nodeBNonShardHeap));
+    }
+
+    public void testSimulatedMovementIncludesSeparatedShardPostingsHeapUsage() {
+        var nodeA = "node-a";
+        var nodeB = "node-b";
+        var state = buildSingleShardState("test-index", nodeA, nodeB);
+        var routingNodes = state.mutableRoutingNodes();
+        var startedShard = getSoleStartedShard(routingNodes, nodeA);
+        var relocationShards = routingNodes.relocateShard(
+            startedShard,
+            nodeB,
+            0,
+            "test",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+
+        final long shardHeap = 100L;
+        final long indexHeap = 40L;
+        final long shardPostingsHeap = 60L;
+        var initialMetrics = Map.of(nodeA, nodeHeapMetrics(nodeA, 500L, 300L), nodeB, nodeHeapMetrics(nodeB, 100L, 50L));
+        var simulator = newSimulator(
+            initialMetrics,
+            Map.of(startedShard.shardId(), new ShardAndIndexHeapUsage(shardHeap, indexHeap, shardPostingsHeap)),
+            ShardAndIndexHeapUsage.ZERO,
+            routingNodes
+        );
+
+        simulator.simulateShardStarted(relocationShards.v2(), true);
+
+        final long delta = shardHeap + indexHeap + shardPostingsHeap;
+        var result = simulator.getSimulatedHeapMetrics();
+        assertThat(result.get(nodeA).nodeHeapEstimates().totalHeapUsage(), equalTo(500L - delta));
+        assertThat(result.get(nodeA).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(300L - delta));
+        assertThat(result.get(nodeB).nodeHeapEstimates().totalHeapUsage(), equalTo(100L + delta));
+        assertThat(result.get(nodeB).nodeHeapEstimates().hostedShardsHeapUsage(), equalTo(50L + delta));
+    }
+
     /**
      * hostedShardsHeapUsage can clamp to 0 independently of totalHeapUsage. When a non-last shard is removed
      * from a node (so index heap is not subtracted), only the shard heap delta applies to hostedShardsHeapUsage.
@@ -224,7 +297,11 @@ public class NodeHeapMemoryShardMovementSimulatorTests extends ESAllocationTestC
     // --- helpers ---
 
     private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap) {
-        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap));
+        return nodeHeapMetrics(nodeId, totalHeap, hostedShardsHeap, 0L);
+    }
+
+    private static NodeHeapMetrics nodeHeapMetrics(String nodeId, long totalHeap, long hostedShardsHeap, long nonShardHeap) {
+        return new NodeHeapMetrics(nodeId, TOTAL_HEAP_BYTES, new NodeHeapEstimates(totalHeap, hostedShardsHeap, nonShardHeap));
     }
 
     private static NodeHeapMemoryShardMovementSimulator newSimulator(

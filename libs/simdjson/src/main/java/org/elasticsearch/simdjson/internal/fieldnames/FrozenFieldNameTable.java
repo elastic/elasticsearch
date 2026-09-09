@@ -13,7 +13,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
@@ -59,12 +58,6 @@ public final class FrozenFieldNameTable {
 
     private final AtomicReference<Frozen> shared = new AtomicReference<>();
 
-    private final AtomicLong publications = new AtomicLong();
-    private final AtomicLong tablesBuilt = new AtomicLong();
-    private final AtomicLong entriesWritten = new AtomicLong();
-    private final AtomicLong casRetries = new AtomicLong();
-    private final AtomicLong declinedAtCap = new AtomicLong();
-
     public FrozenFieldNameTable() {}
 
     public Child makeChild() {
@@ -79,7 +72,6 @@ public final class FrozenFieldNameTable {
      */
     void mergeChild(Frozen childFrozen, String[] names, byte[][] keys, int[] lens, int count) {
         if (shared.compareAndSet(null, childFrozen)) {
-            publications.incrementAndGet();
             return;
         }
         mergeNames(names, keys, lens, 0, count);
@@ -96,22 +88,14 @@ public final class FrozenFieldNameTable {
         }
         for (;;) {
             Frozen current = shared.get();
-            Frozen merged;
-            if (current == null) {
-                merged = build(names, keys, lens, from, to);
-                recordBuild(merged.count());
-            } else {
-                merged = union(current, names, keys, lens, from, to);
-            }
+            Frozen merged = current == null ? build(names, keys, lens, from, to) : union(current, names, keys, lens, from, to);
             if (merged == current) {
                 // Every candidate is already shared, or the merge would exceed MAX_SHARED_NAMES.
                 return;
             }
             if (shared.compareAndSet(current, merged)) {
-                publications.incrementAndGet();
                 return;
             }
-            casRetries.incrementAndGet();
         }
     }
 
@@ -124,47 +108,6 @@ public final class FrozenFieldNameTable {
         Frozen f = shared.get();
         return f == null ? 0 : f.count();
     }
-
-    private void recordBuild(int entries) {
-        tablesBuilt.incrementAndGet();
-        entriesWritten.addAndGet(entries);
-    }
-
-    /** Snapshot of shared-table merging activity. Not atomic across fields; for reporting only. */
-    public MergeStats mergeStats() {
-        return new MergeStats(
-            publications.get(),
-            tablesBuilt.get(),
-            entriesWritten.get(),
-            casRetries.get(),
-            declinedAtCap.get(),
-            sharedNameCount()
-        );
-    }
-
-    /**
-     * Counts describing how much work shared-table merging has cost, so the convergence burst can
-     * be measured deterministically rather than inferred from timings. Covers merging only: a
-     * child freezing its own first-document table is not counted.
-     *
-     * @param publications  successful swaps of the shared table, including the first child's
-     *                      wholesale hand-off
-     * @param tablesBuilt   tables constructed while merging, including any thrown away after
-     *                      losing a CAS
-     * @param entriesWritten entries written across those constructions; the proxy for merge cost,
-     *                      since each rebuild rewrites the whole table
-     * @param casRetries    lost CAS races, indicating contention between concurrent publishers
-     * @param declinedAtCap merges dropped because they would exceed {@link #MAX_SHARED_NAMES}
-     * @param sharedNames   names currently in the shared table
-     */
-    public record MergeStats(
-        long publications,
-        long tablesBuilt,
-        long entriesWritten,
-        long casRetries,
-        long declinedAtCap,
-        int sharedNames
-    ) {}
 
     /** Builds a frozen table from the {@code [from, to)} slice of parallel name/key/length arrays. */
     private static Frozen build(String[] names, byte[][] keys, int[] lens, int from, int to) {
@@ -218,7 +161,6 @@ public final class FrozenFieldNameTable {
             return current;
         }
         if (current.count() + newCount > MAX_SHARED_NAMES) {
-            declinedAtCap.incrementAndGet();
             return current;
         }
 
@@ -245,7 +187,6 @@ public final class FrozenFieldNameTable {
             }
         }
 
-        recordBuild(n);
         return build(mergedNames, mergedKeys, mergedLens, 0, n);
     }
 

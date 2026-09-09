@@ -3914,6 +3914,16 @@ public class EsqlCapabilities {
          */
         PARTITIONING_AGGREGATIONS(),
 
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull} now folds a
+         * null-propagating function (any {@link org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull})
+         * to null when it has a guaranteed-null child, even when the function reports
+         * {@link org.elasticsearch.xpack.esql.core.expression.Nullability#UNKNOWN}. Without this, such a
+         * function survives into {@code toEvaluator}, which has no NULL branch and throws
+         * {@code illegal data type [null]}. See <a href="https://github.com/elastic/elasticsearch/pull/158738">#158738</a>.
+         */
+        FOLD_NULL_ARGS_TO_NULL_PROPAGATING_FUNCTIONS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

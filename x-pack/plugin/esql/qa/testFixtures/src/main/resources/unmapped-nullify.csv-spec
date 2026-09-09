@@ -1792,6 +1792,7 @@ FROM sample_data
 // nullability, so they used to survive optimization and reach an evaluator that has no NULL branch.
 dateExtractOverCoalesceOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1808,6 +1809,7 @@ null
 
 arithmeticOverCaseOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1824,6 +1826,7 @@ null
 
 absOverMvUnionOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -1841,6 +1844,7 @@ null
 // Conversion functions inherit AnyNullIsNull from AbstractConvertFunction rather than declaring it.
 toStringOverCoalesceOfNullifiedFields
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fold_null_args_to_null_propagating_functions
 
 SET unmapped_fields="nullify"\;
 FROM employees

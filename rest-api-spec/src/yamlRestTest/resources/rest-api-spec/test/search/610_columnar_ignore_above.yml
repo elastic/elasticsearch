@@ -10,6 +10,7 @@ setup:
       cluster_features: ["mapper.columnar.ignore_above_no_op"]
       reason: "ignore_above must be a no-op in strictly columnar mode"
 
+---
 teardown:
   - do:
       indices.delete:

@@ -12,28 +12,8 @@ package org.elasticsearch.core;
 import java.util.ArrayList;
 
 /**
- * A mutable group of {@link Releasable}s released together, for scopes that discover their resources
- * as they run and so cannot list them in a try-with-resources header. {@link #close()} releases
- * everything {@link #add added}, in order, and empties the group.
- *
- * <p>Unlike {@link Releasables#wrap(Iterable)}, which snapshots a collection the caller already
- * assembled, this is itself the collection and is declared as the resource:
- *
- * <pre>{@code
- * try (GroupedReleasables pending = new GroupedReleasables(4)) {
- *     for (...) {
- *         if (builder == null) {
- *             builder = pending.add(newStringBuilder());
- *         }
- *         ...
- *     }
- * }
- * }</pre>
- *
- * <p>Closing is idempotent, and a member that throws from its own {@code close()} does not prevent
- * the rest of the group from being released (see {@link Releasables#close(Iterable)}).
- *
- * <p>Not thread-safe.
+ * A mutable group of {@link Releasable}s that are released together. Declare this as the
+ * try-with-resources target and {@link #add} members as they are created. Not thread-safe.
  */
 public final class GroupedReleasables implements Releasable {
 
@@ -68,10 +48,5 @@ public final class GroupedReleasables implements Releasable {
         } finally {
             releasables.clear();
         }
-    }
-
-    @Override
-    public String toString() {
-        return "grouped" + releasables;
     }
 }

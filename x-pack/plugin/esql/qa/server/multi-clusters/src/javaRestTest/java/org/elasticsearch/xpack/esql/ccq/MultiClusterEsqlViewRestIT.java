@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -109,15 +110,15 @@ public class MultiClusterEsqlViewRestIT extends ESRestTestCase {
 
     private void createView(RestClient client, String name, String query) throws IOException {
         Request putView = new Request("PUT", "/_query/view/" + name);
-        putView.setJsonEntity("""
-            {"query": "%s"}""".formatted(query));
+        putView.setJsonEntity(Strings.format("""
+            {"query": "%s"}""", query));
         assertOK(client.performRequest(putView));
     }
 
     private Response runEsqlQuery(RestClient client, String query) throws IOException {
         Request request = new Request("POST", "/_query");
-        request.setJsonEntity("""
-            {"query": "%s | LIMIT 1"}""".formatted(query));
+        request.setJsonEntity(Strings.format("""
+            {"query": "%s | LIMIT 1"}""", query));
         return client.performRequest(request);
     }
 

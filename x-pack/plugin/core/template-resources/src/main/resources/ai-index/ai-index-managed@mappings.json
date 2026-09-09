@@ -3,29 +3,6 @@
     "mappings": {
       "dynamic": "strict",
       "properties": {
-        "id": {
-          "type": "keyword"
-        },
-        "user_id": {
-          "type": "keyword"
-        },
-        "ingestion_method": {
-          "type": "keyword"
-        },
-        "created_at": {
-          "type": "date"
-        },
-        "updated_at": {
-          "type": "date"
-        },
-        "origin": {
-          "type": "object",
-          "properties": {
-            "uri": {
-              "type": "keyword"
-            }
-          }
-        },
         "permissions": {
           "type": "object",
           "properties": {
@@ -54,7 +31,7 @@
     }
   },
   "_meta": {
-    "description": "Additional template mappings applied to the Elastic AI Index.",
+    "description": "Additional template mappings applied to the Elastic-managed AI Indices, backed by dot-prefixed ES indices.",
     "managed": true
   },
   "version": ${xpack.stack.ai-index.template.version}

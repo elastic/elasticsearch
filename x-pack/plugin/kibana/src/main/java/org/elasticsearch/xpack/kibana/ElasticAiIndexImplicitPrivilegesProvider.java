@@ -40,8 +40,9 @@ import java.util.stream.Collectors;
  * {@code count}. Space {@code "*"} means every space. An element with {@code count: 0} and no
  * {@code name} requires nothing, so the document is public within that element's space. A document
  * with no elements is public everywhere, though the Kibana indexer never writes that shape. The shape
- * is owned by the Kibana agent_builder_sml storage schema; the {@code ai-index-*} template does not
- * declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
+ * is owned by the Kibana agent_builder_sml storage schema and declared by the
+ * {@code ai-index-managed@mappings} component template, which the {@code ai-index-idx-managed} template
+ * applies to every dot-prefixed AI index.
  * <p>
  * The DLS query makes a document visible only when the user holds <em>all</em> the actions it
  * requires <em>within a single space</em>. See {@link #buildDlsQuery} for how the clauses are constructed.

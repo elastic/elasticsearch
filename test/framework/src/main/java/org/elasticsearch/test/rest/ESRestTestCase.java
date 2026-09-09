@@ -2563,7 +2563,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".kibana-reporting":
             case "ai-index-idx":
             case "ai-index-ds":
-            case "ai-index-idx-sml":
+            case "ai-index-idx-managed":
+            case "ai-index-ds-managed":
                 return true;
             default:
                 return false;

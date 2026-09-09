@@ -234,10 +234,11 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     }
 
     private void createAiIndexWithDocs() throws Exception {
-        // Explicit mappings: the ai-index-* template deliberately does NOT carry the permissions
-        // shape, so this test owns the mapping the provider is written against. Dynamic mapping
-        // cannot substitute — it never produces `nested` for an array of objects, and a nested
-        // query against an `object` field throws rather than under-matching.
+        // Explicit mappings: the ai-index-idx-managed template already carries this exact permissions
+        // shape, but it is duplicated here so the test pins the shape the provider is written against
+        // rather than tracking the template. Dynamic mapping cannot substitute — it never produces
+        // `nested` for an array of objects, and a nested query against an `object` field throws rather
+        // than under-matching.
         //
         // The mapping lives on the CONCRETE index; the grant and every request name the ALIAS. That
         // split is deliberate: it is the production arrangement, and it is what proves the nested

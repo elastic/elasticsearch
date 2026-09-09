@@ -32,7 +32,7 @@ teardown:
         index: ai-index-ds-foo
 
 ---
-"Standard AI index picks up the managed template":
+"Standard AI index picks up the built-in template":
   - do:
       indices.create:
         index: ai-index-idx-foo
@@ -47,7 +47,7 @@ teardown:
   - match: { ai-index-idx-foo.mappings.properties.tags.normalizer: lowercase }
 
 ---
-"Data stream AI index is backed by the managed template":
+"Data stream AI index is backed by the built-in template":
   - do:
       indices.create_data_stream:
         name: ai-index-ds-foo
@@ -60,7 +60,7 @@ teardown:
   - match: { data_streams.0.template: ai-index-ds }
 
 ---
-"Dot-prefixed standard AI index picks up the managed template":
+"Dot-prefixed standard AI index composes the shared mappings with the Elastic-managed ones":
   - requires:
       test_runner_features: ["allowed_warnings_regex"]
 
@@ -76,11 +76,19 @@ teardown:
   - do:
       indices.get_mapping:
         index: .ai-index-idx-foo
+  # From ai-index@mappings.
   - match: { \.ai-index-idx-foo.mappings.properties.type.type: keyword }
   - match: { \.ai-index-idx-foo.mappings.properties.type.normalizer: lowercase }
+  - match: { \.ai-index-idx-foo.mappings.properties.title.fields.semantic.type: semantic_text }
+  - match: { \.ai-index-idx-foo.mappings.properties.attributes.type: flattened }
+
+  # From ai-index-managed@mappings.
+  - match: { \.ai-index-idx-foo.mappings.dynamic: strict }
+  # The implicit privilege provider's DLS filter requires this to be `nested`.
+  - match: { \.ai-index-idx-foo.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
 
 ---
-"Dot-prefixed data stream AI index is backed by the managed template":
+"Dot-prefixed data stream AI index is backed by the Elastic-managed template":
   - do:
       indices.create_data_stream:
         name: .ai-index-ds-foo
@@ -90,10 +98,10 @@ teardown:
       indices.get_data_stream:
         name: .ai-index-ds-foo
   - match: { data_streams.0.name: .ai-index-ds-foo }
-  - match: { data_streams.0.template: ai-index-ds }
+  - match: { data_streams.0.template: ai-index-ds-managed }
 
 ---
-"SML index composes the shared mappings with the SML-specific ones":
+"Elastic-managed AI index rejects unmapped fields":
   - requires:
       test_runner_features: ["allowed_warnings_regex"]
 
@@ -101,43 +109,16 @@ teardown:
       allowed_warnings_regex:
         - "index name .* starts with a dot.*"
       indices.create:
-        index: .ai-index-idx-sml-data-000001
-  - match: { acknowledged: true }
-
-  - do:
-      indices.get_mapping:
-        index: .ai-index-idx-sml-data-000001
-  # From ai-index@mappings.
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.type.normalizer: lowercase }
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.title.fields.semantic.type: semantic_text }
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.attributes.type: flattened }
-
-  # From ai-index-sml@mappings.
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.ingestion_method.type: keyword }
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.origin.properties.uri.type: keyword }
-  - match: { \.ai-index-idx-sml-data-000001.mappings.dynamic: strict }
-  # The implicit privilege provider's DLS filter requires this to be `nested`.
-  - match: { \.ai-index-idx-sml-data-000001.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
-
----
-"SML index rejects unmapped fields":
-  - requires:
-      test_runner_features: ["allowed_warnings_regex"]
-
-  - do:
-      allowed_warnings_regex:
-        - "index name .* starts with a dot.*"
-      indices.create:
-        index: .ai-index-idx-sml-data-000001
+        index: .ai-index-idx-foo
 
   - do:
       catch: /strict_dynamic_mapping_exception/
       index:
-        index: .ai-index-idx-sml-data-000001
+        index: .ai-index-idx-foo
         body: { not_a_mapped_field: "x" }
 
 ---
-"A user ai-index@custom component does not reach the SML index":
+"A user ai-index@custom component does not reach the Elastic-managed AI indices":
   - requires:
       test_runner_features: ["allowed_warnings_regex"]
 
@@ -152,24 +133,22 @@ teardown:
                   type: keyword
 
   - do:
+      indices.create:
+        index: ai-index-idx-foo
+  - do:
       allowed_warnings_regex:
         - "index name .* starts with a dot.*"
       indices.create:
         index: .ai-index-idx-foo
-  - do:
-      allowed_warnings_regex:
-        - "index name .* starts with a dot.*"
-      indices.create:
-        index: .ai-index-idx-sml-data-000001
 
-  # The generic AI index template composes ai-index@custom, so the user field lands there.
+  # The user-facing AI index template composes ai-index@custom, so the user field lands there.
+  - do:
+      indices.get_mapping:
+        index: ai-index-idx-foo
+  - match: { ai-index-idx-foo.mappings.properties.user_custom_field.type: keyword }
+
+  # The Elastic-managed template deliberately does not, so the same component cannot alter it.
   - do:
       indices.get_mapping:
         index: .ai-index-idx-foo
-  - match: { \.ai-index-idx-foo.mappings.properties.user_custom_field.type: keyword }
-
-  # The SML template deliberately does not, so the same component cannot alter the SML index.
-  - do:
-      indices.get_mapping:
-        index: .ai-index-idx-sml-data-000001
-  - is_false: \.ai-index-idx-sml-data-000001.mappings.properties.user_custom_field
+  - is_false: \.ai-index-idx-foo.mappings.properties.user_custom_field

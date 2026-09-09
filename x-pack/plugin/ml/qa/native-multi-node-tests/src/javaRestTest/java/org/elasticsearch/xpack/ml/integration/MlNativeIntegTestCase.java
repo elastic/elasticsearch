@@ -295,10 +295,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 ".deprecation-indexing-mappings",
                 // AI index components
                 "ai-index-idx",
-                "ai-index-idx-sml",
+                "ai-index-idx-managed",
                 "ai-index-ds",
+                "ai-index-ds-managed",
                 "ai-index@mappings",
-                "ai-index-sml@mappings",
+                "ai-index-managed@mappings",
                 "ai-index@ds-settings"
             )
         );

@@ -31,15 +31,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_MANAGED_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_PATTERN;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_MANAGED_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_SML_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_SML_DATA_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_SML_MAPPINGS_COMPONENT_NAME;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_DS_PATTERN;
 import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_IDX_PATTERN;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -86,11 +86,20 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         assertThat(
             registry.getComponentTemplateConfigs().keySet(),
-            containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, AI_INDEX_SML_MAPPINGS_COMPONENT_NAME)
+            containsInAnyOrder(
+                AI_INDEX_MAPPINGS_COMPONENT_NAME,
+                AI_INDEX_DS_SETTINGS_COMPONENT_NAME,
+                AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME
+            )
         );
         assertThat(
             registry.getComposableTemplateConfigs().keySet(),
-            containsInAnyOrder(AI_INDEX_IDX_TEMPLATE_NAME, AI_INDEX_DS_TEMPLATE_NAME, AI_INDEX_IDX_SML_TEMPLATE_NAME)
+            containsInAnyOrder(
+                AI_INDEX_IDX_TEMPLATE_NAME,
+                AI_INDEX_DS_TEMPLATE_NAME,
+                AI_INDEX_IDX_MANAGED_TEMPLATE_NAME,
+                AI_INDEX_DS_MANAGED_TEMPLATE_NAME
+            )
         );
     }
 
@@ -137,7 +146,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_TEMPLATE_NAME);
         assertThat(template, notNullValue());
-        assertThat(template.indexPatterns(), containsInAnyOrder(AI_INDEX_IDX_PATTERN, DOT_AI_INDEX_IDX_PATTERN));
+        assertThat(template.indexPatterns(), contains(AI_INDEX_IDX_PATTERN));
         // The optional ai-index@custom escape hatch is composed last so user overrides win.
         assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, "ai-index@custom"));
         assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index@custom"));
@@ -149,7 +158,7 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         registry = createRegistry(Settings.EMPTY);
         ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_DS_TEMPLATE_NAME);
         assertThat(template, notNullValue());
-        assertThat(template.indexPatterns(), containsInAnyOrder(AI_INDEX_DS_PATTERN, DOT_AI_INDEX_DS_PATTERN));
+        assertThat(template.indexPatterns(), contains(AI_INDEX_DS_PATTERN));
         assertThat(
             template.composedOf(),
             containsInAnyOrder(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, "ai-index@custom")
@@ -158,19 +167,12 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         assertThat(template.getDataStreamTemplate(), notNullValue());
     }
 
-    public void testSmlMappingsComponentDefinesPermissionsAsNested() throws IOException {
+    public void testManagedMappingsComponentDefinesPermissionsAsNested() throws IOException {
         registry = createRegistry(Settings.EMPTY);
-        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_SML_MAPPINGS_COMPONENT_NAME);
+        ComponentTemplate mappings = registry.getComponentTemplateConfigs().get(AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME);
         assertThat(mappings, notNullValue());
 
         Map<String, Object> properties = mappingProperties(mappings);
-        assertThat(propertyType(properties, "id"), equalTo("keyword"));
-        assertThat(propertyType(properties, "user_id"), equalTo("keyword"));
-        assertThat(propertyType(properties, "ingestion_method"), equalTo("keyword"));
-        assertThat(propertyType(properties, "created_at"), equalTo("date"));
-        assertThat(propertyType(properties, "updated_at"), equalTo("date"));
-        assertThat(propertyType(properties, "origin"), equalTo("object"));
-
         // Nested rather than object: the implicit privilege provider's DLS filter sets ignore_unmapped to false.
         Map<String, Object> kibana = subProperties(properties, "permissions");
         Map<String, Object> privilegesOwner = subProperties(kibana, "kibana");
@@ -181,20 +183,28 @@ public class AiIndexTemplateRegistryTests extends ESTestCase {
         assertThat(propertyType(privilegeFields, "count"), equalTo("long"));
     }
 
-    public void testSmlIndexTemplateComposition() {
+    public void testManagedStandardIndexTemplateComposition() {
         registry = createRegistry(Settings.EMPTY);
-        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_SML_TEMPLATE_NAME);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_IDX_MANAGED_TEMPLATE_NAME);
         assertThat(template, notNullValue());
-        assertThat(template.indexPatterns(), contains(AI_INDEX_SML_DATA_PATTERN));
-        // Above ai-index-idx so the SML mappings win, below the Kibana-owned template so this stays inert.
-        assertThat(template.priority(), equalTo(550L));
-        // ai-index@custom is shared with every other AI index, so it is left out rather than composed last.
+        assertThat(template.indexPatterns(), contains(DOT_AI_INDEX_IDX_PATTERN));
+        // ai-index@custom is the user escape hatch, so Elastic-managed indices leave it out.
+        assertThat(template.composedOf(), contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME));
+        assertThat(template.getIgnoreMissingComponentTemplates(), nullValue());
+        assertThat(template.getDataStreamTemplate(), nullValue());
+    }
+
+    public void testManagedDataStreamTemplateComposition() {
+        registry = createRegistry(Settings.EMPTY);
+        ComposableIndexTemplate template = registry.getComposableTemplateConfigs().get(AI_INDEX_DS_MANAGED_TEMPLATE_NAME);
+        assertThat(template, notNullValue());
+        assertThat(template.indexPatterns(), contains(DOT_AI_INDEX_DS_PATTERN));
         assertThat(
             template.composedOf(),
-            contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_SML_MAPPINGS_COMPONENT_NAME, "ai-index-sml@custom")
+            contains(AI_INDEX_MAPPINGS_COMPONENT_NAME, AI_INDEX_DS_SETTINGS_COMPONENT_NAME, AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME)
         );
-        assertThat(template.getIgnoreMissingComponentTemplates(), contains("ai-index-sml@custom"));
-        assertThat(template.getDataStreamTemplate(), nullValue());
+        assertThat(template.getIgnoreMissingComponentTemplates(), nullValue());
+        assertThat(template.getDataStreamTemplate(), notNullValue());
     }
 
     public void testRegistryIsUpToDate() throws Exception {

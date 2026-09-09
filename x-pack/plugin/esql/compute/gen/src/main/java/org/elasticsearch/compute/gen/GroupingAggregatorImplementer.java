@@ -317,7 +317,9 @@ public class GroupingAggregatorImplementer {
         CodeBlock.Builder builder = CodeBlock.builder();
         if (aggState.declaredType().isPrimitive()) {
             builder.add(
-                "new $T(driverContext.bigArrays(), $T.$L($L))",
+                warnExceptions.isEmpty()
+                    ? "new $T(driverContext.bigArrays(), driverContext.breaker(), $T.$L($L))"
+                    : "new $T(driverContext.bigArrays(), $T.$L($L))",
                 aggState.type(),
                 declarationType,
                 init.getSimpleName(),

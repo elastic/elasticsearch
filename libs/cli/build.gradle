@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api 'net.sf.jopt-simple:jopt-simple:5.0.2'
+  api "net.sf.jopt-simple:jopt-simple:${versions.jopt_simple}"
   api project(':libs:core')
   api project(':libs:cli-terminal')
   api project(':libs:logging')

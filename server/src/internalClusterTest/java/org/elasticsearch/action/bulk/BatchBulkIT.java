@@ -33,7 +33,6 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1957,7 +1956,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
-        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         String index = "test-batch-mvf";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();

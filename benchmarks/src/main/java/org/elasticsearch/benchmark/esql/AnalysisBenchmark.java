@@ -189,7 +189,7 @@ public class AnalysisBenchmark {
         // projection-filtering pass.
         queries.put("drop_many", fieldListQuery("FROM test | DROP ", "", WIDE_REFERENCES));
         // Overlapping wildcard DROP: the second pattern re-matches columns the first removed, shrinking
-        // resolvedProjections below the match-set size to stress dropResolver's removeAll. See #154818.
+        // resolvedProjections below the match-set size to stress dropResolver's removeAll.
         queries.put("drop_wildcard_overlap", "FROM test | DROP otel.*, otel.*");
         return Map.copyOf(queries);
     }

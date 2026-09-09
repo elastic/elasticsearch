@@ -5349,7 +5349,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            Map.of("wide", IndexMode.STANDARD),
+            Map.of("wide", new IndexProperties(IndexMode.STANDARD, 0)),
             attrs
         );
 
@@ -5374,7 +5374,9 @@ public class AnalyzerTests extends ESTestCase {
             String f = "f" + i;
             mapping.put(f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        return IndexResolution.valid(new EsIndex(name, mapping, Map.of(name, IndexMode.STANDARD), Map.of(), Map.of()));
+        return IndexResolution.valid(
+            new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
+        );
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

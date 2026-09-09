@@ -83,8 +83,10 @@ Apply regular [aggregation functions](/reference/query-languages/esql/functions-
 directly to histogram fields. Aggregations act as if you were running them on the raw
 observations that produced the histogram. For example, `COUNT(responseTime)` returns the
 total number of HTTP requests whose response times were recorded, not the number of
-histogram documents. You do not need a time series aggregation function like `RATE` or
-`AVG_OVER_TIME`. The following functions support histogram inputs:
+histogram documents. You do not need a time series aggregation function like
+[`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) or
+[`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md).
+The following functions support histogram inputs:
 
 | Function | What it returns for histogram fields |
 |---|---|
@@ -139,7 +141,9 @@ aggregation then operates on these merged per-series histograms.
 The [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
 (`*_OVER_TIME` variants) also accept histogram inputs for windowed aggregation within a time
 series. You can use these when you need finer control over the aggregation window, for example
-`FIRST_OVER_TIME` or `LAST_OVER_TIME` to select the histogram from a specific point in the
+[`FIRST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/first_over_time.md)
+or [`LAST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
+to select the histogram from a specific point in the
 time series. For most use cases, the regular aggregation functions above are sufficient.
 
 ### Using `FROM` with histogram fields
@@ -225,7 +229,7 @@ Exponential histograms skip empty buckets.
 
 ## Cast between histogram types
 
-Use the casting operator (`::`) to convert between histogram types inline:
+Use the [casting operator (`::`)](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) to convert between histogram types inline:
 
 - `field::exponential_histogram` converts to an exponential histogram. This is the recommended
   default.
@@ -241,7 +245,7 @@ TS metrics-*
 You can also use the explicit conversion functions
 [`TO_EXPONENTIAL_HISTOGRAM`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_exponential_histogram.md)
 and [`TO_TDIGEST`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_tdigest.md)
-in an `EVAL` step. Both functions accept all three histogram types as input and return the
+in an [`EVAL`](/reference/query-languages/esql/commands/eval.md) step. Both functions accept all three histogram types as input and return the
 target type (identity conversion is a no-op).
 
 ## Query historical data alongside new data
@@ -302,16 +306,16 @@ immediately in {{esql}}.
 
 ## Limitations
 
-- **No sorting.** Sorting on histogram fields is not allowed. Use `SORT` on aggregated results
+- **No sorting.** Sorting on histogram fields is not allowed. Use [`SORT`](/reference/query-languages/esql/commands/sort.md) on aggregated results
   (like `RANGE_MIN(bucket)`) instead of on the histogram field itself.
-- **No `RATE`.** The `RATE` function does not support histogram fields. If you need rate-like
+- **No `RATE`.** The [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) function does not support histogram fields. If you need rate-like
   computations, use other aggregation functions on the histogram directly.
-- **No `VALUES`.** The `VALUES` aggregation does not support histogram types.
-- **No multivalue functions.** Functions like `MV_FIRST`, `MV_LAST`, and `MV_COUNT` reject
+- **No `VALUES`.** The [`VALUES`](/reference/query-languages/esql/functions-operators/aggregation-functions/values.md) aggregation does not support histogram types.
+- **No multivalue functions.** Functions like [`MV_FIRST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_first.md), [`MV_LAST`](/reference/query-languages/esql/functions-operators/mv-functions/mv_last.md), and [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_count.md) reject
   histogram fields.
 - **Approximate counts.** Counts and percentiles derived from histogram fields are estimates
   because the underlying data structures store distributions, not exact values.
-- **`TO_STRING` gap.** `TO_STRING` works on `exponential_histogram` and `histogram` fields but
+- **`TO_STRING` gap.** [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md) works on `exponential_histogram` and `histogram` fields but
   does not currently support `tdigest`.
 
 ## Further reading

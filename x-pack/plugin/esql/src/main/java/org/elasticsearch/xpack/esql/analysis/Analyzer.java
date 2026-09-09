@@ -1823,20 +1823,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
-                    // branch can't surface it: loaded from _source under LOAD/LOAD_ALL, null-typed under nullify. This keeps the branches'
-                    // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
-                    // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
-                    if (alignMentionedUnmapped
-                        && unionMaterializedUnmappedFieldNames.contains(attr.name())
-                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
-                        toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
-                        continue;
-                    }
                     // LOAD_ALL subqueries: a field mapped on a sibling branch is a named union column, not a $$UM extra, so read it
                     // from _source here rather than Eval-null it. The branches read independent indices, a shape FORK never has.
                     // _source only yields keyword, so a type without an implicit keyword cast is marked non-loadable instead: it
                     // reads as null where the document lacks the field and fails at runtime where the document carries a value.
+                    //
+                    // This runs before the mention alignment below, whose guards it complements: that one hands out a bare keyword,
+                    // which for a mapped attribute would discard the sibling's real type and leave the column with no common type.
                     if (unionPlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())
@@ -1863,6 +1856,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 )
                             );
                         }
+                        continue;
+                    }
+                    // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
+                    // branch can't surface it: loaded from _source under LOAD/LOAD_ALL, null-typed under nullify. This keeps the branches'
+                    // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
+                    // FORK: always. UnionAll: LOAD_ALL only (LOAD is Decision A).
+                    if (alignMentionedUnmapped
+                        && unionMaterializedUnmappedFieldNames.contains(attr.name())
+                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
+                        toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is

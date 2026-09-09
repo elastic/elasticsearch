@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, allowed_warnings, allowed_warnings_regex, contains ]
+      test_runner_features: [ capabilities, allowed_warnings, warnings, contains ]
       capabilities:
         - method: POST
           path: /_query
@@ -84,9 +84,20 @@ setup:
 ---
 "LOAD_ALL comma form warns and nulls where the subquery form fails":
   - do:
-      allowed_warnings:
+      warnings:
         - "Field [vec] of type [dense_vector] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
       esql.query:
         body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM idx1, idx2 | KEEP vec | SORT vec NULLS LAST | LIMIT 2'
-  - match: { values: [ [ [ 1.0, 2.0, 3.0 ] ], [ null ] ] }
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM idx1, idx2 | EVAL present = vec IS NOT NULL | KEEP present | SORT present DESC | LIMIT 2'
+  - match: { values: [ [ true ], [ false ] ] }
+
+---
+"LOAD_ALL subquery still fails when another branch mentions the field and a third lacks it":
+  - do:
+      catch: bad_request
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt'
+  - match: { error.type: illegal_argument_exception }
+  - contains: { error.reason: 'Field [txt] of type [text] is unmapped in this index and has no implicit conversion from KEYWORD, so its _source value cannot be loaded' }

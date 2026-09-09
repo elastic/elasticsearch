@@ -4094,3 +4094,22 @@ dense_vector          | 3    | [0.0625, 0.25, 0.75]
 dense_vector          | 4    | null
 dense_vector_unmapped | 0    | null
 ;
+
+// A branch mentioning txt while unmapped must not cost the mapped branch its data: with a third branch that lacks txt
+// entirely, the mention used to overwrite the mapped text attribute with a keyword one and condemn the column.
+loadAllSubqueryMentionInOneBranchKeepsMappedSiblingData
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM text_state_mapped), (FROM text_state_nonexistent | KEEP doc_id, txt), (FROM text_state_nonexistent)
+| KEEP doc_id, txt
+| SORT doc_id, txt NULLS LAST
+;
+
+doc_id:keyword | txt:text
+mapped-1       | William Faulkner
+mapped-2       | Jane Austen
+nonexistent-1  | null
+nonexistent-1  | null
+;

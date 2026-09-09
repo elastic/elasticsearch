@@ -70,8 +70,8 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     }
 
                     @Override
-                    public void checkIntegrity() throws IOException {
-                        postingsReader.checkIntegrity();
+                    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+                        postingsReader.checkIntegrity(merge);
                     }
 
                     @Override
@@ -80,7 +80,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     }
 
                     @Override
-                    public Terms terms(String field) throws IOException {
+                    public Terms terms(String field) {
                         Terms in = postingsReader.terms(field);
                         if (idField.equals(field) && in != null) {
                             return new FilterLeafReader.FilterTerms(in) {

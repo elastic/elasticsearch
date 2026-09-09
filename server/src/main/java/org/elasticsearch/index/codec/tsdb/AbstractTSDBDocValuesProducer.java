@@ -23,6 +23,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentInfo;
@@ -1933,7 +1934,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
-    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+    public DocValuesSkipper getSkipper(FieldInfo field) {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
         return new DocValuesSkipper() {
@@ -2046,10 +2047,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        CodecUtil.checksumEntireFile(data);
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        CodecUtil.checksumEntireFile(data, merge);
         if (skip != null) {
-            CodecUtil.checksumEntireFile(skip);
+            CodecUtil.checksumEntireFile(skip, merge);
         }
     }
 

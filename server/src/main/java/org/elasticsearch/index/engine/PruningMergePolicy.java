@@ -272,8 +272,8 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         public abstract StoredFieldsReader clone();
 
         @Override
-        public void checkIntegrity() throws IOException {
-            in.checkIntegrity();
+        public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+            in.checkIntegrity(merge);
         }
     }
 

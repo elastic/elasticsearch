@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StoredFieldVisitor;
@@ -118,7 +119,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {}
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {}
 
     @Override
     public void close() throws IOException {

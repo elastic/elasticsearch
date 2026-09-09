@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.Terms;
@@ -74,10 +75,10 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {}
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {}
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         assert FIELDS_NAMES.contains(field) : field;
         return new Terms() {
             @Override

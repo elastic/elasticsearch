@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -66,7 +67,7 @@ public class MergeReaderWrapperTests extends ESTestCase {
         }
 
         @Override
-        public void checkIntegrity() {}
+        public void checkIntegrity(MergePolicy.OneMerge merge) {}
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) {

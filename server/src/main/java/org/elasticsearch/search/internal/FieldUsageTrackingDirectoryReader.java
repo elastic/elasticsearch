@@ -20,6 +20,7 @@ import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -292,8 +293,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public void checkIntegrity() throws IOException {
-                reader.checkIntegrity();
+            public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+                reader.checkIntegrity(merge);
             }
 
             @Override

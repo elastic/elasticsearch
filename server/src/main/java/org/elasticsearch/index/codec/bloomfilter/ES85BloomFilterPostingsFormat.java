@@ -28,6 +28,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
@@ -207,7 +208,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public Terms terms(String field) throws IOException {
+        public Terms terms(String field) {
             final FieldsProducer reader = readerMap.get(field);
             if (reader == null) {
                 return null;
@@ -234,14 +235,14 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
+        public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
             // already fully checked the meta file; let's fully checked the index file.
-            CodecUtil.checksumEntireFile(indexIn);
+            CodecUtil.checksumEntireFile(indexIn, merge);
             // multiple fields can share the same reader
             final Set<FieldsProducer> seenReaders = new HashSet<>();
             for (FieldsProducer reader : readerMap.values()) {
                 if (seenReaders.add(reader)) {
-                    reader.checkIntegrity();
+                    reader.checkIntegrity(merge);
                 }
             }
         }

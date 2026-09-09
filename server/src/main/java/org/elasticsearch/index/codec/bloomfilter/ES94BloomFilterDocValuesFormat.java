@@ -21,6 +21,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MappedMultiFields;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.NumericDocValues;
@@ -484,7 +485,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
                 final int maxDoc = mergeState.maxDocs[readerIndex];
                 if (f != null) {
-                    f.checkIntegrity();
+                    f.checkIntegrity(mergeState.oneMerge);
                     slices.add(new ReaderSlice(docBase, maxDoc, readerIndex));
                     fields.add(f);
                 }
@@ -770,9 +771,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
+        public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
             bloomFilterData.prefetch(0, bloomFilterMetadata.sizeInBytes());
-            CodecUtil.checksumEntireFile(bloomFilterData);
+            CodecUtil.checksumEntireFile(bloomFilterData, merge);
         }
 
         @Override
@@ -795,7 +796,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     bloomFilterData.randomAccessSlice(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes()),
                     bloomFilterMetadata.sizeInBits(),
                     bloomFilterMetadata.numHashFunctions(),
-                    this::checkIntegrity
+                    () -> checkIntegrity(null)
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

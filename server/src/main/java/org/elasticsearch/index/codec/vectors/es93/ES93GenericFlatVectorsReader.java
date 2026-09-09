@@ -19,6 +19,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
@@ -112,9 +113,9 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
         for (var reader : genericReaders.allReaders()) {
-            reader.checkIntegrity();
+            reader.checkIntegrity(merge);
         }
     }
 

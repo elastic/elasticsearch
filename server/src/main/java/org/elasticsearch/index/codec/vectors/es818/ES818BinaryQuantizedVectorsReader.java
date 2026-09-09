@@ -33,6 +33,7 @@ import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
@@ -230,9 +231,9 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        rawVectorsReader.checkIntegrity();
-        CodecUtil.checksumEntireFile(quantizedVectorData);
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        rawVectorsReader.checkIntegrity(merge);
+        CodecUtil.checksumEntireFile(quantizedVectorData, merge);
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -272,7 +273,7 @@ public abstract class BWCCodec extends Codec {
                 }
 
                 @Override
-                public void checkIntegrity() {
+                public void checkIntegrity(MergePolicy.OneMerge merge) {
 
                 }
 

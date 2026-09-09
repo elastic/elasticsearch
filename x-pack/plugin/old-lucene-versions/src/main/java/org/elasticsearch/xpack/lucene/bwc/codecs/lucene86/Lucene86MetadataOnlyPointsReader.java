@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -111,7 +112,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     // We only open the metadata field, and do nothing with the other two files (index/data),
     // for which Lucene checks integrity but we don't need to.
     @Override
-    public void checkIntegrity() {}
+    public void checkIntegrity(MergePolicy.OneMerge merge) {}
 
     @Override
     public void close() throws IOException {

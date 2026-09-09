@@ -27,6 +27,7 @@ import org.apache.lucene.index.Impacts;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SlowImpactsEnum;
@@ -1940,15 +1941,15 @@ final class ES812PostingsReader extends PostingsReaderBase {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
         if (docIn != null) {
-            CodecUtil.checksumEntireFile(docIn);
+            CodecUtil.checksumEntireFile(docIn, merge);
         }
         if (posIn != null) {
-            CodecUtil.checksumEntireFile(posIn);
+            CodecUtil.checksumEntireFile(posIn, merge);
         }
         if (payIn != null) {
-            CodecUtil.checksumEntireFile(payIn);
+            CodecUtil.checksumEntireFile(payIn, merge);
         }
     }
 

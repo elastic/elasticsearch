@@ -176,7 +176,7 @@ class Elasticsearch900AdaptivePointsWriter extends PointsWriter {
         }
         for (PointsReader reader : mergeState.pointsReaders) {
             if (reader != null) {
-                reader.checkIntegrity();
+                reader.checkIntegrity(mergeState.oneMerge);
             }
         }
 

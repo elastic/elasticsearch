@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -56,13 +57,13 @@ public abstract class FilterDocValuesProducer extends DocValuesProducer {
     }
 
     @Override
-    public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
+    public DocValuesSkipper getSkipper(FieldInfo field) {
         return in.getSkipper(field);
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        in.checkIntegrity();
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        in.checkIntegrity(merge);
     }
 
     @Override

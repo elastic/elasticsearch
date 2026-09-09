@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.StoredFieldsWriter;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.store.Directory;
@@ -91,8 +92,8 @@ public class TSDBStoredFieldsFormat extends StoredFieldsFormat {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
-            storedFieldsReader.checkIntegrity();
+        public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+            storedFieldsReader.checkIntegrity(merge);
         }
 
         @Override

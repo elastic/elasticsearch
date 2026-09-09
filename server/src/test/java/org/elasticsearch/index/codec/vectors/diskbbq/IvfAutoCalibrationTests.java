@@ -21,6 +21,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -679,7 +680,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             }
 
             @Override
-            public void checkIntegrity() {}
+            public void checkIntegrity(MergePolicy.OneMerge merge) {}
 
             @Override
             public void close() {}
@@ -926,7 +927,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
 
         @Override
-        public void checkIntegrity() {}
+        public void checkIntegrity(MergePolicy.OneMerge merge) {}
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) {

@@ -20,6 +20,7 @@ import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.KnnVectorValues;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -328,12 +329,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     @Override
-    public final void checkIntegrity() throws IOException {
+    public final void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
         for (var reader : genericReaders.allReaders()) {
-            reader.checkIntegrity();
+            reader.checkIntegrity(merge);
         }
-        CodecUtil.checksumEntireFile(ivfCentroids);
-        CodecUtil.checksumEntireFile(ivfClusters);
+        CodecUtil.checksumEntireFile(ivfCentroids, merge);
+        CodecUtil.checksumEntireFile(ivfClusters, merge);
     }
 
     @Override

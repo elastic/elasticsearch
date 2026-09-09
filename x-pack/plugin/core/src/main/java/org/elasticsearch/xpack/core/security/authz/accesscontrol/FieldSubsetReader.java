@@ -18,6 +18,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -614,8 +615,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
-            reader.checkIntegrity();
+        public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+            reader.checkIntegrity(merge);
         }
 
         @Override

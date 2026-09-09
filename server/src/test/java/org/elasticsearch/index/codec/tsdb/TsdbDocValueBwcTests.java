@@ -463,7 +463,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
             Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
             assertThat(formats, Matchers.aMapWithSize(1));
             var tsdbDvReader = (DocValuesProducer) formats.get("ES87TSDB_0");
-            tsdbDvReader.checkIntegrity();
+            tsdbDvReader.checkIntegrity(null);
             assertThat(tsdbDvReader, Matchers.instanceOf(ES87TSDBDocValuesProducer.class));
         }
     }
@@ -474,13 +474,13 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
             var dvReader = leaf.getDocValuesReader();
-            dvReader.checkIntegrity();
+            dvReader.checkIntegrity(null);
 
             if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
                 var formats = perFieldDvReader.getFormats();
                 assertThat(formats, Matchers.aMapWithSize(1));
                 var tsdbDvReader = formats.get(formatName);
-                tsdbDvReader.checkIntegrity();
+                tsdbDvReader.checkIntegrity(null);
                 assertThat(
                     tsdbDvReader,
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
@@ -490,7 +490,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
                 assertThat(formats, Matchers.aMapWithSize(1));
                 var tsdbDvReader = (DocValuesProducer) formats.get(formatName);
-                tsdbDvReader.checkIntegrity();
+                tsdbDvReader.checkIntegrity(null);
                 assertThat(
                     tsdbDvReader,
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))

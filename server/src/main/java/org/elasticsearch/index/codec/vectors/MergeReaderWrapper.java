@@ -15,6 +15,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Float16VectorValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Accountable;
@@ -56,8 +57,8 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        mainReader.checkIntegrity();
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        mainReader.checkIntegrity(merge);
     }
 
     @Override

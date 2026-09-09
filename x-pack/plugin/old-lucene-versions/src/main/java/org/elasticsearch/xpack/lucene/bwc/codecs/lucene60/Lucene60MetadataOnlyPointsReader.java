@@ -24,6 +24,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -134,8 +135,8 @@ public final class Lucene60MetadataOnlyPointsReader extends PointsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        CodecUtil.checksumEntireFile(dataIn);
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        CodecUtil.checksumEntireFile(dataIn, merge);
     }
 
     @Override

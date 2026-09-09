@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.bloomfilter;
 
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -79,8 +80,8 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        delegate.checkIntegrity();
+    public void checkIntegrity(MergePolicy.OneMerge merge) throws IOException {
+        delegate.checkIntegrity(merge);
     }
 
     @Override
@@ -89,7 +90,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     }
 
     @Override
-    public Terms terms(String field) throws IOException {
+    public Terms terms(String field) {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
         final Terms terms = delegate.terms(field);
         final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();

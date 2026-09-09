@@ -267,28 +267,6 @@ recommended.
 Use [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) to inspect
 which field types are in use across backing indices.
 
-## Ingest OpenTelemetry exponential histograms
-
-To send OpenTelemetry exponential histograms directly to {{es}}, point your OTel SDK or agent
-at the [{{es}} OTLP/HTTP endpoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md)
-and configure the following environment variables:
-
-```yaml
-OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: delta
-OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION: BASE2_EXPONENTIAL_BUCKET_HISTOGRAM
-```
-
-- **Temporality preference**: {{es}} supports both delta and cumulative
-  ({applies_to}`stack: ga 9.5`) temporality for `exponential_histogram` fields. Delta
-  temporality (where the histogram is cleared after each export) is recommended for most use
-  cases. `tdigest` fields support delta temporality only.
-- **Default histogram aggregation**: By default, OpenTelemetry exports histograms in the
-  classic fixed-bucket format. Setting this to `BASE2_EXPONENTIAL_BUCKET_HISTOGRAM` uses
-  exponential histograms instead.
-
-The histograms are stored natively as `exponential_histogram` fields and are queryable
-immediately in {{esql}}.
-
 ## Limitations
 
 - Sorting on histogram fields is not allowed. Use [`SORT`](/reference/query-languages/esql/commands/sort.md) on aggregated results (like `RANGE_MIN(bucket)`) instead of on the histogram field itself.
@@ -305,6 +283,8 @@ immediately in {{esql}}.
   percentile analysis of JVM garbage collection metrics.
 - [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics):
   Histogram-specific guidance in the `TS` command reference.
+- [Ingest OpenTelemetry data via OTLP](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
+  How to send OpenTelemetry exponential histograms to {{es}}.
 - [Exponential histogram field type](/reference/elasticsearch/mapping-reference/exponential-histogram.md):
   Mapping reference for the `exponential_histogram` field type.
 - [Downsampling time series data](docs-content://manage-data/data-store/data-streams/downsampling-time-series-data-stream.md):

@@ -161,12 +161,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
         // Columnar mode throws when a qstr/MATCH query is applied to an IP-range field and the
         // search string is not a valid IP literal (e.g. "ring"). Standard mode silently returns
         // no results. Same root cause as "For input string:" for numeric fields.
-        "is not an IP string literal",
-        // USER_AGENT / REPLACE can produce a NullPointerException ("Cannot invoke
-        // String.isEmpty() because this.pattern is null") when applied to certain field
-        // combinations. Server-side bug; both modes are equally affected but shard-level execution
-        // order means partial results may be reported on one side only.
-        "this.pattern\" is null"
+        "is not an IP string literal"
     );
 
     /**

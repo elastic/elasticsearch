@@ -37,18 +37,18 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * unions), and {@link ViewUnionAll} (view-produced unions) are the concrete forms. All of them map
  * to {@code MergeExec} at the physical layer.
  */
-public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
+public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
     public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
-    protected UnionPlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
+    protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
     }
 
     /**
-     * Branch-count predicate shared by every {@link UnionPlan} and any caller that wants to fail
+     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
      * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
      * branch cap. Centralizes the comparison so the cap can move in one place.
      */
@@ -57,7 +57,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public abstract UnionPlan replaceChildren(List<LogicalPlan> newChildren);
+    public abstract LogicalPlan replaceChildren(List<LogicalPlan> newChildren);
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -80,7 +80,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
             return false;
         }
 
-        // All branches must output the same column names; otherwise the union is not resolved.
+        // All branches must output the same column names; otherwise the merge is not resolved.
         List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
         Holder<Boolean> resolved = new Holder<>(true);
         children().stream().skip(1).forEach(subPlan -> {
@@ -93,17 +93,15 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
         return resolved.get();
     }
 
-    public abstract UnionPlan replaceSubPlans(List<LogicalPlan> subPlans);
+    public abstract MergePlan replaceSubPlans(List<LogicalPlan> subPlans);
 
-    public abstract UnionPlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output);
+    public abstract MergePlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output);
 
-    public UnionPlan refreshOutput() {
-        return replaceSubPlansAndOutput(children(), refreshedOutput());
-    }
+    public abstract MergePlan refreshOutput();
 
     /**
      * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
-     * {@link UnionPlan} subclass with structural invariants beyond the positional children list
+     * {@link MergePlan} subclass with structural invariants beyond the positional children list
      * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
      * to preserve those invariants.
      * <p>
@@ -111,11 +109,11 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
      * <ul>
      *   <li>nothing pruned → returns {@code this} (cheap no-op);</li>
      *   <li>at least one branch pruned → returns {@code replaceChildren(survivors)} with the
-     *       remaining children — this includes the all-empty case, which produces a union
+     *       remaining children — this includes the all-empty case, which produces a merge
      *       with zero children. The caller is expected either to short-circuit the
-     *       all-empty case before calling (e.g. {@code PruneEmptyUnionBranches} replaces with
+     *       all-empty case before calling (e.g. {@code PruneEmptyMergeBranches} replaces with
      *       a {@code LocalRelation} when every branch reduces to empty) or to let the
-     *       analyzer's verifier surface the empty-union state via {@link #checkBranchCount}.</li>
+     *       analyzer's verifier surface the empty-merge state via {@link #checkBranchCount}.</li>
      * </ul>
      * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
@@ -146,7 +144,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the union.
+                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }
@@ -185,7 +183,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
     public static List<Attribute> outputUnion(List<LogicalPlan> subplans) {
         List<Attribute> output = new ArrayList<>();
         Set<String> names = new HashSet<>();
-        // these are attribute names we know should have an UNSUPPORTED data type in the union output
+        // these are attribute names we know should have an UNSUPPORTED data type in the merge output
         Set<String> unsupportedAttributesNames = outputUnsupportedAttributeNames(subplans);
 
         for (var subPlan : subplans) {
@@ -207,7 +205,7 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Returns a list of attribute names that will need to have the {@code UNSUPPORTED} data type in the union output.
+     * Returns a list of attribute names that will need to have the {@code UNSUPPORTED} data type in the merge output.
      * These are attributes that are either {@code UNSUPPORTED} or missing in each branch.
      * If two branches have the same attribute name, but only in one of them the data type is {@code UNSUPPORTED}, this constitutes
      * data type conflict, and so this attribute name will not be returned by this function.
@@ -236,11 +234,11 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return UnionPlan::checkBranchCount;
+        return MergePlan::checkBranchCount;
     }
 
     /**
-     * Branch-count bounds shared by all {@link UnionPlan} subclasses (Fork, UnionAll, ViewUnionAll).
+     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
      * Lives at post-analysis verification rather than the constructor so that compaction
      * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
      * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
@@ -248,36 +246,36 @@ public abstract class UnionPlan extends LogicalPlan implements PostAnalysisPlanV
      * <p>
      * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
      * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
-     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyUnionBranches} optimizer
+     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyMergeBranches} optimizer
      * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
      * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
      * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code UnionPlan} propagate silently.
+     * {@code MergePlan} propagate silently.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof UnionPlan union) {
-            int size = union.children().size();
+        if (plan instanceof MergePlan merge) {
+            int size = merge.children().size();
             if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(union, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
+                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
             } else if (size == 0) {
-                failures.add(Failure.fail(union, "{} requires at least one branch", union.getClass().getSimpleName()));
+                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
             }
         }
     }
 
     /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link UnionPlan} encountered,
+     * Traverses the plan tree downward, invoking {@code action} for each {@link MergePlan} encountered,
      * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK or union inside it is independent of any FORK
-     * or union in the enclosing query.
+     * The right side is a separate query scope; a FORK or merge inside it is independent of any FORK
+     * or merge in the enclosing query.
      */
-    static void forEachUnionPlanSkippingSubqueries(LogicalPlan plan, Consumer<UnionPlan> action) {
-        if (plan instanceof UnionPlan union) {
-            action.accept(union);
+    static void forEachMergePlanSkippingSubqueries(LogicalPlan plan, Consumer<MergePlan> action) {
+        if (plan instanceof MergePlan merge) {
+            action.accept(merge);
         }
         List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
         for (LogicalPlan child : children) {
-            forEachUnionPlanSkippingSubqueries(child, action);
+            forEachMergePlanSkippingSubqueries(child, action);
         }
     }
 }

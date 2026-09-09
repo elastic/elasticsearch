@@ -144,7 +144,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                 if (plan instanceof UnaryPlan u) {
                     plan = u.child();
                 } else {
-                    // The only non-unary plans right now are Join and UnionPlan, and they are not cardinality preserving,
+                    // The only non-unary plans right now are Join and MergePlan, and they are not cardinality preserving,
                     // so really there's nothing to do here. But if we had binary plan that is cardinality preserving,
                     // we would need to add it here.
                     break;

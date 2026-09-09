@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 /**
- * Removes empty branches from a {@link UnionPlan} ({@code FORK}, subquery {@code UnionAll},
+ * Removes empty branches from a {@link MergePlan} ({@code FORK}, subquery {@code UnionAll},
  * or {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}). The simplest case is a
  * {@code FORK} branch that contains {@code WHERE false}. Empty branches also appear when
  * {@code FORK} is used for conditional execution based on query parameters:
@@ -24,18 +24,18 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
  *        ( WHERE ?include_completion | STATS s = values(title) | COMPLETION ...)
  * }
  */
-public class PruneEmptyUnionBranches extends OptimizerRules.OptimizerRule<UnionPlan> {
+public class PruneEmptyMergeBranches extends OptimizerRules.OptimizerRule<MergePlan> {
     @Override
-    protected LogicalPlan rule(UnionPlan unionPlan) {
+    protected LogicalPlan rule(MergePlan mergePlan) {
         // Special case first: every branch is empty → collapse to an empty LocalRelation.
-        // pruneEmptyBranches's all-empty defensive no-op leaves the union untouched, which is
+        // pruneEmptyBranches's all-empty defensive no-op leaves the merge untouched, which is
         // why we have to detect this case ourselves before delegating.
-        if (unionPlan.children().stream().allMatch(PruneEmptyUnionBranches::isEmptyLocalRelation)) {
-            return new LocalRelation(unionPlan.source(), unionPlan.output(), EmptyLocalSupplier.EMPTY);
+        if (mergePlan.children().stream().allMatch(PruneEmptyMergeBranches::isEmptyLocalRelation)) {
+            return new LocalRelation(mergePlan.source(), mergePlan.output(), EmptyLocalSupplier.EMPTY);
         }
-        // For UnionPlan the base implementation calls replaceChildren. ViewUnionAll overrides
+        // For MergePlan the base implementation calls replaceChildren. ViewUnionAll overrides
         // pruneEmptyBranches so the named-subqueries map stays in sync.
-        return unionPlan.pruneEmptyBranches(PruneEmptyUnionBranches::isEmptyLocalRelation);
+        return mergePlan.pruneEmptyBranches(PruneEmptyMergeBranches::isEmptyLocalRelation);
     }
 
     private static boolean isEmptyLocalRelation(LogicalPlan plan) {

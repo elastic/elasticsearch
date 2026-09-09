@@ -22,10 +22,10 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
- * The {@code FORK} command: an n-ary {@link UnionPlan} where each child is a sub plan, e.g.
+ * The {@code FORK} command: an n-ary {@link MergePlan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public final class Fork extends UnionPlan implements TelemetryAware {
+public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
 
@@ -51,6 +51,11 @@ public final class Fork extends UnionPlan implements TelemetryAware {
     @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new Fork(source(), subPlans, output);
+    }
+
+    @Override
+    public Fork refreshOutput() {
+        return new Fork(source(), children(), refreshedOutput());
     }
 
     @Override
@@ -83,7 +88,7 @@ public final class Fork extends UnionPlan implements TelemetryAware {
         }
         Fork fork = (Fork) plan;
 
-        forEachUnionPlanSkippingSubqueries(fork, other -> {
+        forEachMergePlanSkippingSubqueries(fork, other -> {
             if (other == fork) {
                 return;
             }

@@ -33,7 +33,7 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
-    public ViewUnionAll replaceChildren(List<LogicalPlan> newChildren) {
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         return new ViewUnionAll(source(), asSubqueryMap(newChildren), output());
     }
 
@@ -75,7 +75,7 @@ public class ViewUnionAll extends UnionAll {
     }
 
     /**
-     * Name-aware override of {@link UnionPlan#pruneEmptyBranches(Predicate)}: filters the
+     * Name-aware override of {@link UnionAll#pruneEmptyBranches(Predicate)}: filters the
      * named-subqueries map directly so the surviving children keep their original names. Like
      * the base, single-survivor wrappers are preserved — callers that want to collapse to the
      * lone child do so explicitly.

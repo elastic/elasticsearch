@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -175,7 +176,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -1213,7 +1213,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case UnionPlan unionPlan -> resolveUnionPlan(unionPlan, context.unmappedResolution());
+                case MergePlan mergePlan -> resolveMergePlan(mergePlan, context.unmappedResolution());
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1781,29 +1781,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveUnionPlan(UnionPlan unionPlan, UnmappedResolution unmappedResolution) {
+        private LogicalPlan resolveMergePlan(MergePlan mergePlan, UnmappedResolution unmappedResolution) {
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
-            Fork fork = unionPlan instanceof Fork f ? f : null;
+            Fork fork = mergePlan instanceof Fork f ? f : null;
             boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
                 case LOAD, NULLIFY, LOAD_ALL -> fork != null;
                 case DEFAULT -> false;
             };
-            List<Attribute> outputUnion = UnionPlan.outputUnion(unionPlan.children());
+            List<Attribute> outputUnion = MergePlan.outputUnion(mergePlan.children());
             // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
-            // output, so UnionPlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
+            // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
             if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
-                addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
+                addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
-            List<String> unionColumns = outputUnion.stream().map(Attribute::name).toList();
-            Set<String> unionMaterializedUnmappedFieldNames = alignUnmappedAcrossBranches ? materializedUnmappedFieldNames(fork) : Set.of();
+            List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
+            Set<String> mergeMaterializedUnmappedFieldNames = alignUnmappedAcrossBranches ? materializedUnmappedFieldNames(fork) : Set.of();
 
-            for (LogicalPlan logicalPlan : unionPlan.children()) {
+            for (LogicalPlan logicalPlan : mergePlan.children()) {
                 Source source = logicalPlan.source();
 
                 // find the missing columns
@@ -1823,19 +1823,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
                     // #142033
                     if (alignUnmappedAcrossBranches
-                        && unionMaterializedUnmappedFieldNames.contains(attr.name())
+                        && mergeMaterializedUnmappedFieldNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
-                    // supported. This way we can add this missing column containing only null values to the union branch output.
+                    // supported. This way we can add this missing column containing only null values to the merge branch output.
                     var attrType = alignmentDataType(attr);
                     attrType = attrType == UNSUPPORTED ? KEYWORD : attrType;
                     if (attrType.isCounter()) {
                         attrType = attrType.noCounter();
                     }
-                    // use the current union branch's source as the source of the alias, instead of the original FieldAttribute's source.
+                    // use the current merge branch's source as the source of the alias, instead of the original FieldAttribute's source.
                     aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
                 }
 
@@ -1872,33 +1872,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // If the branch already has a Project on top, and the output of the branch is empty,
                 // don't add another Project with only NO_FIELDS on top of it,
                 // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
-                // unionColumns do not contain NO_FIELD because UnionPlan.outputUnion removes it.
+                // mergeColumns do not contain NO_FIELD because MergePlan.outputUnion removes it.
                 if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(unionColumns) == false
-                        && subqueryReferencingIndexWithEmptyMapping(unionPlan, logicalPlan, unionColumns) == false)) {
+                    || (subPlanColumns.equals(mergeColumns) == false
+                        && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : unionColumns) {
+                    for (String attrName : mergeColumns) {
                         for (Attribute subAttr : logicalPlan.output()) {
                             if (attrName.equals(subAttr.name())) {
                                 newOutput.add(subAttr);
                             }
                         }
                     }
-                    if (unionColumns.isEmpty()) {
-                        // When unionColumns is empty (all branches only have no-fields), resolveKeep with empty
+                    if (mergeColumns.isEmpty()) {
+                        // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
-                        // empty output directly so the no-fields marker doesn't leak into the union branch output.
+                        // empty output directly so the no-fields marker doesn't leak into the merge branch output.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
                     } else {
-                        // Union alignment is structural, not user-named: emit a Project directly rather than
+                        // Merge alignment is structural, not user-named: emit a Project directly rather than
                         // routing through resolveKeep. A Keep on this path would falsely register every
                         // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
                         // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
                         // then refuses to strip — leaking the columns to the output. The projections here are
-                        // already pre-resolved Attributes drawn from UnionPlan.outputUnion, so keepResolver would
+                        // already pre-resolved Attributes drawn from MergePlan.outputUnion, so keepResolver would
                         // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
-                        // upstream of the union still survives via its own Keep node in the branch's plan tree.
+                        // upstream of the merge still survives via its own Keep node in the branch's plan tree.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
                     }
                 }
@@ -1907,10 +1907,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (changed == false) {
-                return unionPlan;
+                return mergePlan;
             }
 
-            return unionPlan.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, unionPlan.output()));
+            return mergePlan.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()));
         }
 
         /*
@@ -1980,7 +1980,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
          * {@code _fork} stays last.
          */
-        private static void addDroppedUnmappedFieldsMissingFromUnion(
+        private static void addDroppedUnmappedFieldsMissingFromMerge(
             List<Attribute> outputUnion,
             Map<String, FieldAttribute> droppedUnmappedFields
         ) {
@@ -3913,7 +3913,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The effective data type of a branch/output attribute when aligning the branches of a {@link UnionPlan}.
+     * The effective data type of a branch/output attribute when aligning the branches of a {@link MergePlan}.
      */
     private static DataType alignmentDataType(Attribute attr) {
         if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
@@ -4394,7 +4394,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<FieldAttribute> resolvedUnionFields,
             List<Attribute> output
         ) {
-            // UnionPlan adds a projection on top of each child plan during resolveUnionPlan, check this pattern before pushing down
+            // MergePlan adds a projection on top of each child plan during resolveMergePlan, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
             if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
@@ -4755,7 +4755,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Update the attributes referencing the updated UnionAll output.
          * <p>
-         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a union-output attribute),
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a merge-output attribute),
          * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
          * <p>
          * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update

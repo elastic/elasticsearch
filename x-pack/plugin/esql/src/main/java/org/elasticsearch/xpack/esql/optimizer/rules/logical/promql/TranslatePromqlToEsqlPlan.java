@@ -72,12 +72,12 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -187,7 +187,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return stepBucketAlias != null ? stepBucketAlias.toAttribute() : cmd.stepAttribute();
         }
 
-        /** Translates one union branch with its own step bucket and evaluation time. */
+        /** Translates one merge branch with its own step bucket and evaluation time. */
         IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
             Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
             Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
@@ -251,12 +251,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
          * {@link TopNBy} keeps single row per {@code (step, labelset)} group ordered by incoming IR order.
          */
         private LogicalPlan doTranslateUnion(List<IntermediateResult> intermediateResults) {
-            // Already validated against UnionPlan.MAX_BRANCHES by PromqlCommand.verify
-            assert UnionPlan.exceedsMaxBranches(intermediateResults.size()) == false
-                : "invariant: union branch count ["
+            // Already validated against MergePlan.MAX_BRANCHES by PromqlCommand.verify
+            assert MergePlan.exceedsMaxBranches(intermediateResults.size()) == false
+                : "invariant: merge branch count ["
                     + intermediateResults.size()
-                    + "] must be less of equal UnionPlan.MAX_BRANCHES ["
-                    + UnionPlan.MAX_BRANCHES
+                    + "] must be less of equal MergePlan.MAX_BRANCHES ["
+                    + MergePlan.MAX_BRANCHES
                     + "]";
 
             var source = cmd.source();

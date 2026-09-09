@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
@@ -66,7 +67,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -334,7 +334,7 @@ public abstract class FullTextFunction extends Function
                 lp -> (lp instanceof Limit == false)
                     && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
                     && (lp instanceof MvExpand == false)
-                    && (lp instanceof UnionPlan == false)
+                    && (lp instanceof MergePlan == false)
                     && (lp instanceof LimitBy == false)
                     && (lp instanceof TopNBy == false)
                     && (lp instanceof Dedup == false)
@@ -581,20 +581,20 @@ public abstract class FullTextFunction extends Function
                 }
             }
 
-            // UnionPlan's own output exposes ReferenceAttributes, so to reach the underlying
+            // MergePlan's own output exposes ReferenceAttributes, so to reach the underlying
             // FieldAttribute we look inside each branch's output and match by name.
-            if (p instanceof UnionPlan unionPlan) {
+            if (p instanceof MergePlan mergePlan) {
                 String currentName = current.get().name();
-                // resolve when current field is part of the union output
-                boolean inUnionOutput = unionPlan.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
-                if (inUnionOutput == false) {
+                // resolve when current field is part of the merge output
+                boolean inMergeOutput = mergePlan.output().stream().anyMatch(a -> a.id().equals(current.get().id()));
+                if (inMergeOutput == false) {
                     breakEarly.set(true);
                     return;
                 }
 
                 // Every branch must contain this field, not just one
                 FieldAttribute candidate = null;
-                for (LogicalPlan branch : unionPlan.children()) {
+                for (LogicalPlan branch : mergePlan.children()) {
                     FieldAttribute match = branch.output()
                         .stream()
                         .filter(a -> a.name().equals(currentName) && a instanceof FieldAttribute)

@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproxima
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -215,7 +215,7 @@ public class Approximation implements ApproximationDriver {
             plan = switch (plan) {
                 case UnaryPlan unaryPlan -> unaryPlan.child();
                 case Join join -> join.left();
-                case UnionPlan unionPlan -> unionPlan.children().getFirst();
+                case MergePlan mergePlan -> mergePlan.children().getFirst();
                 default -> throw new IllegalStateException("unsupported plan type: " + plan.getClass());
             };
         }

@@ -270,7 +270,7 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
     }
 
     /**
-     * The UnionPlan outputs have the same names as their children's outputs, however they have different ids.
+     * The MergePlan outputs have the same names as their children's outputs, however they have different ids.
      * Convert the pushable predicates to use the child's attributes, so that they can be pushed down further.
      */
     private static Expression resolveUnionAllOutputByName(Expression expr, List<? extends NamedExpression> namedExpressions) {

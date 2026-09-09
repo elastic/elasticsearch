@@ -644,7 +644,7 @@ public class PlannerUtils {
 
     /**
      * Checks that the input rows of the plan have been reduced by LIMIT.
-     * In the case where non-unary plans are used, such as {@link org.elasticsearch.xpack.esql.plan.logical.UnionPlan},
+     * In the case where non-unary plans are used, such as {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan},
      * we check that the rows from each branch are reduced by LIMIT.
      */
     public static boolean hasLimitedInput(LogicalPlan plan) {

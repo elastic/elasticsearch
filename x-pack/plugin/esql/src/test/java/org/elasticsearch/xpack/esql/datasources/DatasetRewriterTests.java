@@ -590,7 +590,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testWildcardAtUnionAllCapSucceeds() {
-        // UnionAll extends UnionPlan which caps at 8 branches — the upper bound the rewriter can hand off.
+        // UnionAll extends MergePlan which caps at 8 branches — the upper bound the rewriter can hand off.
         // A wildcard expanding to exactly the cap proves the bucketing + UnionAll construction path
         // is bounded-time at the platform's largest supported shape.
         DataSource parent = dataSource("s3_parent", Map.of());
@@ -611,7 +611,7 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testWildcardOverUnionAllCapRejectsWithUserFacingMessage() {
-        // A wildcard matching more than 8 datasets crosses UnionPlan's 8-branch cap. The rewriter
+        // A wildcard matching more than 8 datasets crosses MergePlan's 8-branch cap. The rewriter
         // intercepts before constructing the UnionAll and throws a VerificationException with
         // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
         // the pattern + the cap, not the internal union type name.

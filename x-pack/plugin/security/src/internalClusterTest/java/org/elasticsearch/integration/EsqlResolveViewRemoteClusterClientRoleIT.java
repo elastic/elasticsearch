@@ -9,7 +9,6 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -29,7 +28,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -63,11 +61,11 @@ public class EsqlResolveViewRemoteClusterClientRoleIT extends SecurityIntegTestC
             authedClient.execute(
                 PutViewAction.INSTANCE,
                 new PutViewAction.Request(
-                    TimeValue.THIRTY_SECONDS,
-                    TimeValue.THIRTY_SECONDS,
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     new View("local-view", "FROM my-index | LIMIT 10")
                 )
-            ).actionGet(30, TimeUnit.SECONDS)
+            ).actionGet(TEST_REQUEST_TIMEOUT)
         );
 
         // Start a node with only the data role (no remote_cluster_client).
@@ -77,10 +75,11 @@ public class EsqlResolveViewRemoteClusterClientRoleIT extends SecurityIntegTestC
             .filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING)));
 
         // Call EsqlResolveViewAction directly on the data-only node with a CCS index pattern.
-        var req = new EsqlResolveViewAction.Request(TimeValue.THIRTY_SECONDS, false);
+        var req = new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false);
         req.indices("remote*:logs-*");
-        EsqlResolveViewAction.Response response = nodeClient.execute(EsqlResolveViewAction.TYPE, req).actionGet(30, TimeUnit.SECONDS);
+        EsqlResolveViewAction.Response response = nodeClient.execute(EsqlResolveViewAction.TYPE, req).actionGet(TEST_REQUEST_TIMEOUT);
         assertNotNull(response.views());
+        assertTrue(response.views().isEmpty());
     }
 
     public static class EsqlWithTrialLicensePlugin extends EsqlPlugin {

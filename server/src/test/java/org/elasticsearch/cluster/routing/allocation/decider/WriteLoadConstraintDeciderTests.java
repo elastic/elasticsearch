@@ -645,7 +645,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     /**
      * Test that {@link WriteLoadConstraintDecider#canRemain} respects the `hotspot_min_shard_write_load_threshold`:
      * shards with write load below the threshold are not moved from a hotspotting node; shards above it
-     * remain eligible. Setting the threshold to 0.0 disables the check (all shards eligible).
+     * remain eligible. Setting the threshold to -1.0 disables the check (all shards eligible).
      */
     public void testMinimumShardWriteLoadThreshold() {
         final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
@@ -752,12 +752,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(
             "with threshold disabled, shard absent from write-load data should still be eligible for movement",
             Decision.Type.NOT_PREFERRED,
-            deciderDisabled.canRemain(
-                state.metadata().getProject().index(indexName),
-                absentShard,
-                hotspotRoutingNode,
-                allocationDisabled
-            ).type()
+            deciderDisabled.canRemain(state.metadata().getProject().index(indexName), absentShard, hotspotRoutingNode, allocationDisabled)
+                .type()
         );
     }
 

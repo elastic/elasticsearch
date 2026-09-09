@@ -85,9 +85,9 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         // resolve for a caller on another one. A coordinator that predates that rule still asks for datasets here, and
         // by the time this runs the security layer has already resolved the request under that flag
         // (EsqlResolveFieldsRequest is IndicesRequest.Replaceable, and IndicesAndAliasesResolver reads resolveDatasets),
-        // so a dataset name can already be sitting in indices(). Clearing the option stops field-caps resolving it; the
-        // lenient ALLOW_UNAVAILABLE_TARGETS that ES|QL resolution uses is then what drops the name rather than failing
-        // on it.
+        // so a dataset name can already be sitting in indices(). Clearing the option is what stops field caps resolving
+        // it, and from there the name is just a name that matches nothing: what becomes of it is decided by the request's
+        // own indices options and by the caller's missing-index rules, exactly as for a name registered nowhere.
         FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
         fieldCapsRequest.indicesOptions(
             IndicesOptions.builder(fieldCapsRequest.indicesOptions())

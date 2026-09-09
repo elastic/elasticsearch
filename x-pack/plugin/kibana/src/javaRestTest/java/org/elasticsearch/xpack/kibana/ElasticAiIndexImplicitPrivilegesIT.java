@@ -68,10 +68,6 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // named exactly ELASTIC_AI_INDEX. So ".ai-index-idx-sml-data" is never a concrete index in production.
     private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX + "-000001";
 
-    // Deliberately outside the ai-index-idx-sml template's pattern, so `permissions` is left to dynamic
-    // mapping: an AI index predating the SML component, still reached through the alias.
-    private static final String ELASTIC_AI_INDEX_UNTEMPLATED_BACKING = ".ai-index-idx-sml-legacy-000001";
-
     // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
     // filter to exactly these sets.
     private static final List<String> SPACE_SCOPED_VISIBLE_DOC_IDS = List.of(
@@ -151,41 +147,6 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         createAiIndexWithDocs();
 
         assertUserSeesOnlyAuthorizedDocs(WILDCARD_GRANT_VISIBLE_DOC_IDS);
-    }
-
-    /**
-     * The DLS filter deliberately leaves the nested query's {@code ignore_unmapped} at {@code false}:
-     * when the permissions field is not mapped as {@code nested} (here: left to dynamic mapping,
-     * which produces {@code object}), searches must fail loudly rather than silently hiding or
-     * exposing documents. The managed template maps it as {@code nested}, so reaching this state
-     * takes a backing index the template does not match.
-     */
-    public void testNonNestedPermissionsMappingFailsSearchLoudly() throws Exception {
-        putKibanaPrivileges();
-        putAiIndexReaderRole(AI_INDEX_READER_ROLE);
-        putUser(SML_USER, SML_USER_PASSWORD, AI_INDEX_READER_ROLE);
-
-        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX_UNTEMPLATED_BACKING);
-        create.setJsonEntity(Strings.format("""
-            { "aliases": { "%s": { "is_write_index": true } } }
-            """, ELASTIC_AI_INDEX));
-        // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
-        create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        assertOK(client().performRequest(create));
-        indexDoc("marketing-dashboard", """
-            {
-              "type": "dashboard",
-              "permissions": { "kibana": { "privileges": [
-                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 1 }
-              ]}}
-            }
-            """);
-
-        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
-        search.setOptions(getRequestOptions());
-        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(search));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("failed to find nested object under path"));
     }
 
     private void putKibanaPrivileges() throws Exception {

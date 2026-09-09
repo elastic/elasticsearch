@@ -446,9 +446,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * aligned 1:1. If none of the generated columns is used, the whole node is removed: HIGHLIGHT never filters rows,
      * so its child is a drop-in replacement.
      * <p>
-     * A literal query is applied to whatever ON fields remain, so unused ones can go. {@code QSTR} / {@code KQL} can
-     * name arbitrary fields with {@code field:term}, and {@code MATCH(a)} still queries {@code a} even when
-     * {@code highlight_a} is unused: those ON fields have to stay or Lucene rejects them as not searchable.
+     * A colon-free literal query is applied to whatever ON fields remain, so unused ones can go. {@code QSTR} /
+     * {@code KQL} - and a {@code field:term} string literal, which is translated as {@code query_string} - can name
+     * arbitrary fields, and {@code MATCH(a)} still queries {@code a} even when {@code highlight_a} is unused: those ON
+     * fields have to stay or Lucene rejects them as not searchable.
      */
     private static LogicalPlan pruneUnusedHighlight(Highlight highlight, AttributeSet.Builder used, Holder<Boolean> recheck) {
         List<Integer> retained = retainedGeneratedIndices(highlight.generatedAttributes(), used);
